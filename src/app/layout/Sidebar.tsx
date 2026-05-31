@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
@@ -14,9 +15,11 @@ import {
   Archive,
   Wallet,
   FileText,
-  Settings,
   ShieldCheck,
   Building2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sparkles,
 } from "lucide-react";
 
 interface NavItem {
@@ -30,7 +33,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard, group: "Visão Geral" },
   { module: "crm", label: "CRM", path: "/crm", icon: Users, group: "Comercial" },
-  { module: "crm", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
+  { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
   { module: "support", label: "Suporte", path: "/support", icon: HeadphonesIcon, group: "Operações" },
   { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench, group: "Operações" },
   { module: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, group: "Operações" },
@@ -39,41 +42,101 @@ const NAV_ITEMS: NavItem[] = [
   { module: "finance", label: "Financeiro", path: "/finance", icon: Wallet, group: "Gestão" },
   { module: "documents", label: "Documentos", path: "/documents", icon: FileText, group: "Gestão" },
   { module: "audit", label: "Auditoria", path: "/audit", icon: ShieldCheck, group: "Gestão" },
-  { module: "settings", label: "Configurações", path: "/settings", icon: Settings, group: "Sistema" },
 ];
+
+const SIDEBAR_WIDTH_KEY = "cm_sidebar_width";
+const SIDEBAR_COLLAPSED_KEY = "cm_sidebar_collapsed";
+const DEFAULT_WIDTH = 269;
+const MIN_WIDTH = 230;
+const COLLAPSED_WIDTH = 68;
 
 export function Sidebar() {
   const session = useRequiredSession();
   const location = useLocation();
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+  const [width, setWidth] = useState(() => clampSidebarWidth(Number(localStorage.getItem(SIDEBAR_WIDTH_KEY)) || DEFAULT_WIDTH));
+  const [resizing, setResizing] = useState(false);
   const allowed = new Set(visibleModules(session.membership.role as Role));
 
   const visible = NAV_ITEMS.filter((item) => allowed.has(item.module));
+  const assistantVisible = allowed.has("assistant");
 
   const groups: Record<string, NavItem[]> = {};
   for (const item of visible) {
     (groups[item.group] ??= []).push(item);
   }
 
+  useEffect(() => {
+    function clampOnResize() {
+      setWidth((currentWidth) => {
+        const nextWidth = clampSidebarWidth(currentWidth);
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(nextWidth));
+        return nextWidth;
+      });
+    }
+    window.addEventListener("resize", clampOnResize);
+    return () => window.removeEventListener("resize", clampOnResize);
+  }, []);
+
+  useEffect(() => {
+    if (!resizing) return;
+
+    function handlePointerMove(event: PointerEvent) {
+      const nextWidth = clampSidebarWidth(event.clientX);
+      setWidth(nextWidth);
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(nextWidth));
+    }
+    function handlePointerUp() {
+      setResizing(false);
+    }
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [resizing]);
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(!current));
+      return !current;
+    });
+  }
+
   return (
-    <aside className="flex h-full w-56 flex-col border-r bg-sidebar select-none">
+    <aside
+      style={{ width: collapsed ? COLLAPSED_WIDTH : width }}
+      className={cn("relative flex h-full shrink-0 flex-col border-r bg-sidebar select-none backdrop-blur-xl dark:bg-sidebar/60", !resizing && "transition-[width] duration-200")}
+    >
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2 px-4 border-b">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-          <Building2 size={14} className="text-primary-foreground" />
+      <div className={cn("flex h-[4.2rem] shrink-0 items-center gap-2.5 border-b", collapsed ? "justify-center px-2.5" : "px-3.5")}>
+        <div className={cn("h-8 w-8 items-center justify-center rounded-lg bg-primary", collapsed ? "hidden" : "flex")}>
+          <Building2 size={17} className="text-primary-foreground" />
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold text-sidebar-foreground">Company</span>
-          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
-            {session.company.name}
-          </span>
+        <div className={cn("min-w-0 flex-1 flex-col leading-tight", collapsed ? "hidden" : "flex")}>
+          <span className="truncate text-base font-semibold text-sidebar-foreground">Company Manager</span>
         </div>
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? "Expandir sidebar" : "Minimizar sidebar"}
+          aria-label={collapsed ? "Expandir sidebar" : "Minimizar sidebar"}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        >
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
+      <nav className="flex-1 overflow-y-auto px-2.5 py-4">
         {Object.entries(groups).map(([group, items]) => (
-          <div key={group} className="mb-4">
-            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <div key={group} className="mb-5 space-y-1">
+            <p className={cn("px-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70", collapsed && "hidden")}>
               {group}
             </p>
             {items.map((item) => {
@@ -86,15 +149,17 @@ export function Sidebar() {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
-                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.95rem] transition-colors",
+                    collapsed && "justify-center px-0",
                     active
                       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                   )}
                 >
-                  <Icon size={15} className="shrink-0" />
-                  {item.label}
+                  <Icon size={18} className="shrink-0" />
+                  {!collapsed && item.label}
                 </NavLink>
               );
             })}
@@ -102,25 +167,37 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User */}
-      <div className="border-t p-3">
-        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-sidebar-accent/60 cursor-pointer">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-            {session.user.name
-              .split(" ")
-              .slice(0, 2)
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs font-medium truncate">{session.user.name}</span>
-            <span className="text-[10px] text-muted-foreground capitalize">
-              {session.membership.role}
-            </span>
-          </div>
+      {assistantVisible && (
+        <div className="border-t p-2.5">
+          <NavLink
+            to="/assistant"
+            title={collapsed ? "Assistente IA" : undefined}
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[0.95rem] transition-colors",
+              collapsed && "justify-center px-0",
+              location.pathname.startsWith("/assistant")
+                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+            )}
+          >
+            <Sparkles size={18} className="shrink-0" />
+            {!collapsed && "Assistente IA"}
+          </NavLink>
         </div>
-      </div>
+      )}
+      {!collapsed && (
+        <button
+          type="button"
+          aria-label="Redimensionar sidebar"
+          title="Arraste para redimensionar"
+          onPointerDown={() => setResizing(true)}
+          className={cn("absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize transition-colors hover:bg-primary/50", resizing && "bg-primary/60")}
+        />
+      )}
     </aside>
   );
+}
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(Math.max(width, MIN_WIDTH), Math.floor(window.innerWidth * 0.33));
 }

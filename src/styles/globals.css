@@ -35,11 +35,11 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 228 35% 3.2%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 225 28% 6.5%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 225 30% 5.5%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -54,11 +54,11 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
-    --sidebar-background: 240 5.9% 10%;
+    --sidebar-background: 228 32% 2.5%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent: 225 18% 12%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
@@ -72,6 +72,33 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .kpi-card {
+    @apply relative isolate overflow-hidden rounded-xl border bg-card;
+    box-shadow: 0 14px 36px rgba(255, 255, 255, 0.08);
+  }
+  .kpi-card::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: auto 10% -42% 10%;
+    height: 70%;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.13);
+    filter: blur(30px);
+    pointer-events: none;
+  }
+  .dark .bg-card {
+    box-shadow: 0 14px 38px rgba(255, 255, 255, 0.075);
+  }
+  .dark .kpi-card {
+    box-shadow: 0 15px 42px rgba(255, 255, 255, 0.105);
+  }
+  .dark .kpi-card::before {
+    background: rgba(255, 255, 255, 0.17);
   }
 }
 

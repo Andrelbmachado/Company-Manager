@@ -1,6 +1,9 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { useSession } from "@/hooks/useSession";
+import { visibleModules } from "@/lib/permissions/rbac";
+import type { Role } from "@/types";
+import type { ReactNode } from "react";
 
 // Pages – lazy loaded
 import { lazy, Suspense } from "react";
@@ -20,6 +23,7 @@ const FinancePage = lazy(() => import("@/modules/finance/pages/FinancePage"));
 const DocumentsPage = lazy(() => import("@/modules/documents/pages/DocumentsPage"));
 const SettingsPage = lazy(() => import("@/modules/settings/pages/SettingsPage"));
 const AuditPage = lazy(() => import("@/modules/settings/pages/AuditPage"));
+const AssistantPage = lazy(() => import("@/modules/assistant/pages/AssistantPage"));
 
 function Loader() {
   return (
@@ -27,6 +31,14 @@ function Loader() {
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>
   );
+}
+
+function RequireModule({ module, children }: { module: string; children: ReactNode }) {
+  const { session } = useSession();
+  if (!session) return <Navigate to="/" replace />;
+  return visibleModules(session.membership.role as Role).includes(module)
+    ? children
+    : <Navigate to="/" replace />;
 }
 
 export function AppRoutes() {
@@ -48,17 +60,18 @@ export function AppRoutes() {
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/crm/*" element={<CrmPage />} />
-          <Route path="/opportunities/*" element={<OpportunitiesPage />} />
-          <Route path="/support/*" element={<SupportPage />} />
-          <Route path="/work-orders/*" element={<WorkOrdersPage />} />
-          <Route path="/projects/*" element={<ProjectsPage />} />
-          <Route path="/inventory/*" element={<InventoryPage />} />
-          <Route path="/custody/*" element={<CustodyPage />} />
-          <Route path="/finance/*" element={<FinancePage />} />
-          <Route path="/documents/*" element={<DocumentsPage />} />
-          <Route path="/settings/*" element={<SettingsPage />} />
-          <Route path="/audit/*" element={<AuditPage />} />
+          <Route path="/crm/*" element={<RequireModule module="crm"><CrmPage /></RequireModule>} />
+          <Route path="/opportunities/*" element={<RequireModule module="opportunities"><OpportunitiesPage /></RequireModule>} />
+          <Route path="/support/*" element={<RequireModule module="support"><SupportPage /></RequireModule>} />
+          <Route path="/work-orders/*" element={<RequireModule module="operations"><WorkOrdersPage /></RequireModule>} />
+          <Route path="/projects/*" element={<RequireModule module="projects"><ProjectsPage /></RequireModule>} />
+          <Route path="/inventory/*" element={<RequireModule module="inventory"><InventoryPage /></RequireModule>} />
+          <Route path="/custody/*" element={<RequireModule module="custody"><CustodyPage /></RequireModule>} />
+          <Route path="/finance/*" element={<RequireModule module="finance"><FinancePage /></RequireModule>} />
+          <Route path="/documents/*" element={<RequireModule module="documents"><DocumentsPage /></RequireModule>} />
+          <Route path="/settings/*" element={<RequireModule module="settings"><SettingsPage /></RequireModule>} />
+          <Route path="/audit/*" element={<RequireModule module="audit"><AuditPage /></RequireModule>} />
+          <Route path="/assistant/*" element={<RequireModule module="assistant"><AssistantPage /></RequireModule>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

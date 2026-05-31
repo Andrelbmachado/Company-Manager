@@ -38,12 +38,22 @@ interface PermissionMap {
   };
 }
 
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: "Administracao",
+  gerente: "Gerencia",
+  tecnico: "TI / Operacoes",
+  estoquista: "Estoque",
+  financeiro: "Contabilidade / Financeiro",
+  comercial: "Comercial",
+  atendimento: "Atendimento",
+  auditor: "Auditoria",
+};
+
 const PERMISSIONS: PermissionMap = {
   admin: {
     "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
   },
   gerente: {
-    customers: ["view", "create", "edit", "export", "comment", "attach"],
     leads: ["view", "create", "edit", "delete", "export"],
     opportunities: ["view", "create", "edit", "delete", "approve"],
     proposals: ["view", "create", "edit", "approve"],
@@ -56,53 +66,55 @@ const PERMISSIONS: PermissionMap = {
     finance: ["view", "approve", "export"],
     payables: ["view", "approve"],
     receivables: ["view"],
-    documents: ["view", "attach", "export"],
+    documents: ["view", "create", "edit", "attach", "export"],
     users: ["view"],
     settings: ["view"],
     audit_logs: ["view"],
     automations: ["view", "edit"],
   },
   tecnico: {
-    customers: ["view"],
-    tickets: ["view", "edit", "comment"],
+    tickets: ["view", "create", "edit", "comment"],
     work_orders: ["view", "edit", "comment", "attach"],
     projects: ["view"],
     tasks: ["view", "edit", "comment"],
     inventory: ["view", "request"],
     custody: ["view", "request"],
-    documents: ["view", "attach"],
+    documents: ["view", "create", "edit", "attach"],
+    settings: ["view"],
   },
   estoquista: {
-    customers: ["view"],
+    tickets: ["view", "create"],
     inventory: ["view", "create", "edit", "transfer", "export"],
     custody: ["view", "create", "edit", "transfer"],
-    work_orders: ["view"],
-    documents: ["view", "attach"],
+    documents: ["view", "create", "edit", "attach"],
+    settings: ["view"],
   },
   financeiro: {
-    customers: ["view"],
+    tickets: ["view", "create"],
     finance: ["view", "create", "edit", "export"],
     payables: ["view", "create", "edit", "approve", "export"],
     receivables: ["view", "create", "edit", "export"],
-    documents: ["view", "attach", "export"],
+    documents: ["view", "create", "edit", "attach", "export"],
     audit_logs: ["view", "export"],
+    settings: ["view"],
   },
   comercial: {
     customers: ["view", "create", "edit", "comment", "attach"],
+    tickets: ["view", "create"],
     leads: ["view", "create", "edit", "delete"],
     opportunities: ["view", "create", "edit"],
     proposals: ["view", "create", "edit"],
-    documents: ["view", "attach"],
+    documents: ["view", "create", "edit", "attach"],
+    settings: ["view"],
   },
   atendimento: {
-    customers: ["view", "create", "edit", "comment"],
     tickets: ["view", "create", "edit", "comment"],
     work_orders: ["view", "create"],
-    documents: ["view"],
+    documents: ["view", "create", "edit", "attach"],
+    settings: ["view"],
   },
   auditor: {
-    customers: ["view", "export"],
-    tickets: ["view", "export"],
+    tickets: ["view", "create", "export"],
     work_orders: ["view", "export"],
     projects: ["view", "export"],
     inventory: ["view", "export"],
@@ -123,6 +135,8 @@ export function can(
   resource: Resource,
   _scope?: Scope
 ): boolean {
+  if (resource === "customers" && role !== "comercial") return false;
+
   const rolePerms = PERMISSIONS[role];
   if (!rolePerms) return false;
 
@@ -133,17 +147,22 @@ export function can(
   return allowed.includes(action);
 }
 
+export function hasFullTicketAccess(role: Role): boolean {
+  return role === "tecnico";
+}
+
 export function canAny(role: Role, actions: Action[], resource: Resource): boolean {
   return actions.some((a) => can(role, a, resource));
 }
 
 export function visibleModules(role: Role): string[] {
-  const base = ["dashboard"];
+  const base = ["dashboard", "assistant"];
   const rolePerms = PERMISSIONS[role];
   if (!rolePerms) return base;
 
   const moduleMap: Record<string, Resource> = {
     crm: "customers",
+    opportunities: "opportunities",
     support: "tickets",
     operations: "work_orders",
     projects: "projects",

@@ -2,12 +2,16 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
+import { usePermission } from "@/hooks/usePermission";
 import { emit } from "@/lib/events/bus";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PageToolbar } from "@/components/shared/PageToolbar";
+import { CrudDialog } from "@/components/shared/CrudDialog";
+import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate } from "@/lib/utils";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { Customer } from "@/types";
 
@@ -22,13 +26,33 @@ async function fetchCustomers(companyId: string): Promise<Customer[]> {
 export default function CrmPage() {
   const session = useRequiredSession();
   const qc = useQueryClient();
+  const canCreateCustomer = usePermission("create", "customers");
+  const canEditCustomer = usePermission("edit", "customers");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", type: "PJ", document: "" });
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", session.company.id],
     queryFn: () => fetchCustomers(session.company.id),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedCustomer) return;
+      const db = await getDb();
+      await db.execute(
+        "UPDATE customers SET type=?, name=?, email=?, phone=?, document=?, updated_at=datetime('now') WHERE id=?",
+        [form.type, form.name, form.email || null, form.phone || null, form.document || null, selectedCustomer.id]
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["customers", session.company.id] });
+      setSelectedCustomer((customer) => customer ? { ...customer, ...form, type: form.type as Customer["type"] } : null);
+      setEditing(false);
+    },
   });
 
   const createMutation = useMutation({
@@ -69,7 +93,7 @@ export default function CrmPage() {
       <PageHeader
         title="CRM — Clientes"
         description="Gestão de clientes e contatos"
-        actions={
+        actions={canCreateCustomer ? (
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -77,19 +101,10 @@ export default function CrmPage() {
             <Plus size={14} />
             Novo cliente
           </button>
-        }
+        ) : undefined}
       />
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar clientes..."
-          className="flex h-9 w-full rounded-md border bg-background pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
-      </div>
+      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar clientes..." />
 
       {/* New customer form */}
       {showForm && (
@@ -194,7 +209,7 @@ export default function CrmPage() {
             </thead>
             <tbody className="divide-y">
               {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                <tr key={c.id} onClick={() => setSelectedCustomer(c)} className="cursor-pointer hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-medium">{c.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.type}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.email ?? "—"}</td>
@@ -206,6 +221,39 @@ export default function CrmPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {selectedCustomer && (
+        <DetailDrawer title={selectedCustomer.name} subtitle="Cliente" onClose={() => setSelectedCustomer(null)} onEdit={canEditCustomer ? () => {
+          setForm({ name: selectedCustomer.name, email: selectedCustomer.email ?? "", phone: selectedCustomer.phone ?? "", type: selectedCustomer.type, document: selectedCustomer.document ?? "" });
+          setEditing(true);
+        } : undefined}>
+          <DetailGrid>
+            <DetailItem label="Tipo" value={selectedCustomer.type} />
+            <DetailItem label="Documento" value={selectedCustomer.document} />
+            <DetailItem label="E-mail" value={selectedCustomer.email} />
+            <DetailItem label="Telefone" value={selectedCustomer.phone} />
+            <DetailItem label="Status" value={<StatusBadge status={selectedCustomer.status} />} />
+            <DetailItem label="Cadastro" value={formatDate(selectedCustomer.created_at)} />
+          </DetailGrid>
+        </DetailDrawer>
+      )}
+      {editing && (
+        <CrudDialog
+          title="Editar cliente"
+          fields={[
+            { key: "name", label: "Nome", required: true },
+            { key: "type", label: "Tipo", type: "select", options: [{ value: "PJ", label: "Pessoa Juridica" }, { value: "PF", label: "Pessoa Fisica" }] },
+            { key: "document", label: "CNPJ / CPF" },
+            { key: "email", label: "E-mail", type: "email" },
+            { key: "phone", label: "Telefone" },
+          ]}
+          values={form}
+          onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
+          onClose={() => setEditing(false)}
+          onSubmit={() => updateMutation.mutate()}
+          busy={updateMutation.isPending}
+        />
       )}
     </div>
   );

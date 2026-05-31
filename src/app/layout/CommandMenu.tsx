@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useRequiredSession } from "@/hooks/useSession";
+import { visibleModules } from "@/lib/permissions/rbac";
+import type { Role } from "@/types";
 import { Command } from "cmdk";
 import {
   LayoutDashboard,
@@ -13,20 +16,24 @@ import {
   Wallet,
   FileText,
   Settings,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 
 const COMMANDS = [
-  { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "CRM / Clientes", path: "/crm", icon: Users },
-  { label: "Oportunidades", path: "/opportunities", icon: Target },
-  { label: "Suporte / Tickets", path: "/support", icon: HeadphonesIcon },
-  { label: "Ordens de Serviço", path: "/work-orders", icon: Wrench },
-  { label: "Projetos", path: "/projects", icon: FolderKanban },
-  { label: "Estoque", path: "/inventory", icon: Package },
-  { label: "Custódia", path: "/custody", icon: Archive },
-  { label: "Financeiro", path: "/finance", icon: Wallet },
-  { label: "Documentos", path: "/documents", icon: FileText },
-  { label: "Configurações", path: "/settings", icon: Settings },
+  { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard },
+  { module: "crm", label: "CRM / Clientes", path: "/crm", icon: Users },
+  { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target },
+  { module: "support", label: "Suporte / Tickets", path: "/support", icon: HeadphonesIcon },
+  { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench },
+  { module: "projects", label: "Projetos", path: "/projects", icon: FolderKanban },
+  { module: "inventory", label: "Estoque", path: "/inventory", icon: Package },
+  { module: "custody", label: "Custódia", path: "/custody", icon: Archive },
+  { module: "finance", label: "Financeiro", path: "/finance", icon: Wallet },
+  { module: "documents", label: "Documentos", path: "/documents", icon: FileText },
+  { module: "audit", label: "Auditoria", path: "/audit", icon: ShieldCheck },
+  { module: "settings", label: "Configurações", path: "/settings", icon: Settings },
+  { module: "assistant", label: "Assistente IA", path: "/assistant", icon: Sparkles },
 ];
 
 interface CommandMenuProps {
@@ -36,7 +43,9 @@ interface CommandMenuProps {
 
 export function CommandMenu({ open, onClose }: CommandMenuProps) {
   const navigate = useNavigate();
+  const session = useRequiredSession();
   const [search, setSearch] = useState("");
+  const allowed = new Set(visibleModules(session.membership.role as Role));
 
   useEffect(() => {
     if (!open) setSearch("");
@@ -67,7 +76,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps) {
               Nenhum resultado encontrado.
             </Command.Empty>
             <Command.Group heading="Navegar">
-              {COMMANDS.map((cmd) => {
+              {COMMANDS.filter((cmd) => allowed.has(cmd.module)).map((cmd) => {
                 const Icon = cmd.icon;
                 return (
                   <Command.Item

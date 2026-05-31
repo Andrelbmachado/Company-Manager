@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { login } from "@/lib/auth/login";
 import { useSession } from "@/hooks/useSession";
 import { Building2, Loader2 } from "lucide-react";
-import { getDb } from "@/lib/db/client";
+import { getDb, isTauriRuntime } from "@/lib/db/client";
+import { DEMO_ACCOUNTS } from "@/lib/db/demo";
 
 export default function LoginPage() {
   const { setSession } = useSession();
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(false);
+  const showDemoAccounts = !isTauriRuntime();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +51,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <div className="w-full max-w-sm">
+      <div className={`w-full ${showDemoAccounts ? "max-w-5xl" : "max-w-sm"}`}>
         <div className="mb-8 flex flex-col items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary shadow-lg">
             <Building2 size={24} className="text-primary-foreground" />
@@ -60,10 +62,11 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-xl border bg-card p-6 shadow-sm space-y-4"
-        >
+        <div className={showDemoAccounts ? "grid gap-4 lg:grid-cols-[22rem_1fr]" : ""}>
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-xl border bg-card p-6 shadow-sm space-y-4"
+          >
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="email">
               E-mail
@@ -109,18 +112,51 @@ export default function LoginPage() {
             {loading && <Loader2 size={14} className="animate-spin" />}
             Entrar
           </button>
-        </form>
+          </form>
 
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          Primeiro acesso?{" "}
-          <button
-            onClick={handleSetup}
-            disabled={checkingSetup}
-            className="font-medium text-primary hover:underline disabled:opacity-50"
-          >
-            Configurar empresa
-          </button>
-        </p>
+          {showDemoAccounts && (
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <div className="mb-4">
+                <h2 className="font-semibold">Acessos de demonstracao</h2>
+                <p className="text-xs text-muted-foreground">
+                  Selecione um funcionario para preencher o login e comparar as permissoes de cada area.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword(account.password);
+                    }}
+                    className="rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted"
+                  >
+                    <span className="block text-sm font-medium">{account.area}</span>
+                    <span className="block text-xs text-muted-foreground">{account.email}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Senha compartilhada no ambiente demo: <span className="font-mono font-medium text-foreground">demo123</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {!showDemoAccounts && (
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Primeiro acesso?{" "}
+            <button
+              onClick={handleSetup}
+              disabled={checkingSetup}
+              className="font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              Configurar empresa
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

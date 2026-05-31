@@ -133,6 +133,8 @@ export interface Ticket {
   status: TicketStatus;
   sla_due_at?: string | null;
   agent_id?: string | null;
+  opened_by?: string | null;
+  requester_area?: string | null;
   work_order_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -213,6 +215,7 @@ export interface InventoryItem {
   name: string;
   sku?: string | null;
   category?: string | null;
+  supplier_id?: string | null;
   unit: string;
   min_stock: number;
   max_stock?: number | null;

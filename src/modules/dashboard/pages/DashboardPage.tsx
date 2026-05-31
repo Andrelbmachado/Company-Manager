@@ -22,6 +22,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts";
 import type { Role } from "@/types";
 
@@ -164,9 +165,18 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold mb-4">{showTicketSeries ? "OS e Tickets" : "Ordens de servico"} - ultimos 7 dias</h2>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={WEEK_DATA} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={true} />
+              <XAxis 
+                dataKey="day" 
+                tick={{ fontSize: 12 }} 
+                axisLine={{ stroke: 'hsl(var(--border))' }} 
+                tickLine={{ stroke: 'hsl(var(--border))' }} 
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }} 
+                axisLine={{ stroke: 'hsl(var(--border))' }} 
+                tickLine={{ stroke: 'hsl(var(--border))' }} 
+              />
               <Tooltip
                 contentStyle={{
                   fontSize: 12,
@@ -174,6 +184,8 @@ export default function DashboardPage() {
                   border: "1px solid hsl(var(--border))",
                 }}
               />
+              {/* Linha horizontal para indicar valor-chave (ex: Meta/Média) */}
+              <ReferenceLine y={5} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" label={{ position: 'top', value: 'Meta (5)', fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
               <Bar dataKey="os" name="OS" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               {showTicketSeries && <Bar dataKey="tickets" name="Tickets" fill="hsl(var(--primary) / 0.4)" radius={[4, 4, 0, 0]} />}
             </BarChart>

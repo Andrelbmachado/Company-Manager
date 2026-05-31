@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Company Manager - Design System</title>
+  
+  <!-- Fontes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Configuração do Tailwind compatível com o sistema atual -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            border: "hsl(var(--border))",
+            input: "hsl(var(--input))",
+            ring: "hsl(var(--ring))",
+            background: "hsl(var(--background))",
+            foreground: "hsl(var(--foreground))",
+            primary: {
+              DEFAULT: "hsl(var(--primary))",
+              foreground: "hsl(var(--primary-foreground))",
+            },
+            secondary: {
+              DEFAULT: "hsl(var(--secondary))",
+              foreground: "hsl(var(--secondary-foreground))",
+            },
+            destructive: {
+              DEFAULT: "hsl(var(--destructive))",
+              foreground: "hsl(var(--destructive-foreground))",
+            },
+            muted: {
+              DEFAULT: "hsl(var(--muted))",
+              foreground: "hsl(var(--muted-foreground))",
+            },
+            accent: {
+              DEFAULT: "hsl(var(--accent))",
+              foreground: "hsl(var(--accent-foreground))",
+            },
+            popover: {
+              DEFAULT: "hsl(var(--popover))",
+              foreground: "hsl(var(--popover-foreground))",
+            },
+            card: {
+              DEFAULT: "hsl(var(--card))",
+              foreground: "hsl(var(--card-foreground))",
+            },
+          },
+          borderRadius: {
+            lg: "var(--radius)",
+            md: "calc(var(--radius) - 2px)",
+            sm: "calc(var(--radius) - 4px)",
+            xl: "0.75rem",
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Variáveis CSS Baseadas no globals.css do projeto -->
+  <style type="text/tailwindcss">
+    @layer base {
+      :root {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 221.2 83.2% 53.3%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96.1%;
+        --secondary-foreground: 222.2 47.4% 11.2%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 221.2 83.2% 53.3%;
+        --radius: 0.5rem;
+      }
+      .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+        --card: 222.2 84% 4.9%;
+        --card-foreground: 210 40% 98%;
+        --popover: 222.2 84% 4.9%;
+        --popover-foreground: 210 40% 98%;
+        --primary: 217.2 91.2% 59.8%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+        --ring: 212.7 26.8% 83.9%;
+      }
+    }
+    body {
+      @apply bg-background text-foreground antialiased;
+    }
+  </style>
+</head>
+<body class="p-8 pb-32">
+
+  <div class="max-w-6xl mx-auto space-y-16">
+    
+    <!-- Header / Título do Design System -->
+    <header class="border-b pb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div>
+        <h1 class="text-4xl font-bold tracking-tight">Design System - Company Manager</h1>
+        <p class="text-muted-foreground mt-2">Referência visual atual do software para análise e reestruturação por IA.</p>
+      </div>
+      <button id="theme-toggle" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground hover:bg-muted transition-colors shadow-sm" aria-label="Alternar tema">
+        <i data-lucide="moon" id="theme-icon-moon" class="h-5 w-5"></i>
+        <i data-lucide="sun" id="theme-icon-sun" class="h-5 w-5 hidden"></i>
+      </button>
+    </header>
+
+    <!-- 1. Cores -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">1. Cores (Semantic Tokens)</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <!-- Primary -->
+        <div class="space-y-2">
+          <div class="h-20 w-full rounded-lg bg-primary border"></div>
+          <div class="text-sm">
+            <p class="font-medium">Primary</p>
+            <p class="text-xs text-muted-foreground">bg-primary</p>
+          </div>
+        </div>
+        <!-- Background -->
+        <div class="space-y-2">
+          <div class="h-20 w-full rounded-lg bg-background border shadow-sm"></div>
+          <div class="text-sm">
+            <p class="font-medium">Background</p>
+            <p class="text-xs text-muted-foreground">bg-background</p>
+          </div>
+        </div>
+        <!-- Card -->
+        <div class="space-y-2">
+          <div class="h-20 w-full rounded-lg bg-card border shadow-sm"></div>
+          <div class="text-sm">
+            <p class="font-medium">Card</p>
+            <p class="text-xs text-muted-foreground">bg-card</p>
+          </div>
+        </div>
+        <!-- Muted -->
+        <div class="space-y-2">
+          <div class="h-20 w-full rounded-lg bg-muted border"></div>
+          <div class="text-sm">
+            <p class="font-medium">Muted / Hover</p>
+            <p class="text-xs text-muted-foreground">bg-muted</p>
+          </div>
+        </div>
+        <!-- Destructive -->
+        <div class="space-y-2">
+          <div class="h-20 w-full rounded-lg bg-destructive border"></div>
+          <div class="text-sm">
+            <p class="font-medium">Destructive</p>
+            <p class="text-xs text-muted-foreground">bg-destructive</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Tipografia -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">2. Tipografia</h2>
+      <div class="space-y-8 bg-card border rounded-xl p-6 shadow-sm">
+        <div>
+          <h1 class="text-4xl font-bold tracking-tight">H1 - Título Principal</h1>
+          <p class="text-sm text-muted-foreground mt-1">text-4xl font-bold tracking-tight</p>
+        </div>
+        <div>
+          <h2 class="text-2xl font-semibold tracking-tight">H2 - Subtítulo da Página</h2>
+          <p class="text-sm text-muted-foreground mt-1">text-2xl font-semibold tracking-tight</p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold">H3 - Título de Seção / Modal</h3>
+          <p class="text-sm text-muted-foreground mt-1">text-lg font-semibold</p>
+        </div>
+        <div>
+          <p class="text-base">Texto Base (Paragraph) - O rápido raposo marrom salta sobre o cão preguiçoso.</p>
+          <p class="text-sm text-muted-foreground mt-1">text-base</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium">Texto Secundário / Labels de Input - font-medium</p>
+          <p class="text-sm text-muted-foreground mt-1">text-sm font-medium</p>
+        </div>
+        <div>
+          <p class="text-xs text-muted-foreground">Texto Auxiliar (Muted) - Informações complementares e descrições curtas.</p>
+          <p class="text-sm text-muted-foreground mt-1">text-xs text-muted-foreground</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Botões -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">3. Botões (Buttons)</h2>
+      <div class="flex flex-wrap items-center gap-4 bg-card border rounded-xl p-6 shadow-sm">
+        
+        <button class="flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
+          Primary Button
+        </button>
+
+        <button class="flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+          Outline / Secondary
+        </button>
+
+        <button class="flex h-9 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+          Ghost Button
+        </button>
+
+        <button class="flex h-9 items-center justify-center gap-2 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground shadow hover:bg-destructive/90 transition-colors">
+          Destructive
+        </button>
+
+        <button disabled class="flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow opacity-50 cursor-not-allowed">
+          Disabled State
+        </button>
+
+        <button class="flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          Com Ícone
+        </button>
+
+      </div>
+    </section>
+
+    <!-- 4. Inputs & Formulários -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">4. Inputs e Formulários</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-card border rounded-xl p-6 shadow-sm">
+        
+        <!-- Text Input -->
+        <label class="space-y-1.5 flex flex-col">
+          <span class="text-sm font-medium">Nome do Item *</span>
+          <input type="text" placeholder="Digite o nome..." class="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground">
+        </label>
+
+        <!-- Select Input -->
+        <label class="space-y-1.5 flex flex-col">
+          <span class="text-sm font-medium">Prioridade</span>
+          <select class="flex h-9 w-full rounded-md border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring shadow-sm">
+            <option>Baixa</option>
+            <option>Média</option>
+            <option>Alta</option>
+          </select>
+        </label>
+
+        <!-- Search Input -->
+        <label class="col-span-1 md:col-span-2 flex w-full max-w-sm items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-sm">
+          <i data-lucide="search" class="h-4 w-4 text-muted-foreground shrink-0"></i>
+          <input placeholder="Buscar no sistema..." class="w-full bg-transparent outline-none placeholder:text-muted-foreground">
+        </label>
+
+        <!-- Textarea -->
+        <label class="space-y-1.5 flex flex-col col-span-1 md:col-span-2">
+          <span class="text-sm font-medium">Descrição detalhada</span>
+          <textarea rows="3" placeholder="Insira os detalhes..." class="flex w-full resize-none rounded-md border bg-background px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-ring shadow-sm placeholder:text-muted-foreground"></textarea>
+        </label>
+      </div>
+    </section>
+
+    <!-- 5. Cards & Estruturas -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">5. Cards e Layouts</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- KPI Card Simples -->
+        <div class="flex flex-col gap-3 p-5 rounded-xl border bg-card text-left transition-shadow hover:shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-muted-foreground">Oportunidades</span>
+            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
+              <i data-lucide="target" class="h-4 w-4"></i>
+            </span>
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-2xl font-bold tracking-tight">12</span>
+            <span class="text-xs font-medium text-emerald-600">+15% este mês</span>
+          </div>
+        </div>
+
+        <!-- Card de Tabela Simples (List Item) -->
+        <div class="col-span-1 md:col-span-2 space-y-3 rounded-xl border bg-card p-4 text-left transition-shadow hover:shadow-md">
+          <div class="flex items-start justify-between gap-2">
+            <p class="font-semibold text-base">Projeto: Modernização de TI</p>
+            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700">Em andamento</span>
+          </div>
+          <p class="text-sm text-muted-foreground">Orçamento: R$ 45.000,00</p>
+          <p class="text-xs text-muted-foreground">Prazo: 30 de Out, 2026</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Status Badges -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">6. Status Badges (Pills)</h2>
+      <div class="flex flex-wrap items-center gap-4 bg-card border rounded-xl p-6 shadow-sm">
+        <!-- Emerald/Success -->
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Resolvido / Concluído</span>
+        
+        <!-- Blue/Info -->
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700">Aberto / Novo</span>
+        
+        <!-- Yellow/Warning -->
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700">Em andamento</span>
+        
+        <!-- Orange/Alert -->
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">Aguardando Peça</span>
+        
+        <!-- Red/Danger -->
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-600">Cancelado / Urgente</span>
+        
+        <!-- Gray/Neutral -->
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">Fechado / Consumido</span>
+      </div>
+    </section>
+
+    <!-- 7. Ícones -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">7. Ícones e Feedbacks (Lucide)</h2>
+      <div class="flex flex-wrap items-center gap-6 bg-card border rounded-xl p-6 shadow-sm text-muted-foreground">
+        <i data-lucide="layout-dashboard"></i>
+        <i data-lucide="users"></i>
+        <i data-lucide="target"></i>
+        <i data-lucide="headphones"></i>
+        <i data-lucide="wrench"></i>
+        <i data-lucide="folder-kanban"></i>
+        <i data-lucide="package"></i>
+        <i data-lucide="archive"></i>
+        <i data-lucide="wallet"></i>
+        <i data-lucide="file-text"></i>
+        <i data-lucide="shield-check"></i>
+        <i data-lucide="settings"></i>
+        <i data-lucide="sparkles" class="text-primary"></i>
+      </div>
+    </section>
+
+    <!-- 8. Sombras e Bordas -->
+    <section class="space-y-6">
+      <h2 class="text-2xl font-semibold border-b pb-2">8. Bordas, Radius e Sombras</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div class="h-24 flex items-center justify-center border bg-card rounded-md shadow-sm">
+          <span class="text-xs">rounded-md shadow-sm</span>
+        </div>
+        <div class="h-24 flex items-center justify-center border bg-card rounded-lg shadow">
+          <span class="text-xs">rounded-lg shadow</span>
+        </div>
+        <div class="h-24 flex items-center justify-center border bg-card rounded-xl shadow-md">
+          <span class="text-xs">rounded-xl shadow-md</span>
+        </div>
+        <div class="h-24 flex items-center justify-center border bg-card rounded-2xl shadow-xl">
+          <span class="text-xs">rounded-2xl shadow-xl</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Script para carregar e renderizar os ícones Lucide -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    lucide.createIcons();
+
+    // Toggle de Tema Dark/Light
+    const themeToggle = document.getElementById('theme-toggle');
+    const htmlEl = document.documentElement;
+    const iconMoon = document.getElementById('theme-icon-moon');
+    const iconSun = document.getElementById('theme-icon-sun');
+
+    themeToggle.addEventListener('click', () => {
+      htmlEl.classList.toggle('dark');
+      if (htmlEl.classList.contains('dark')) {
+        iconMoon.classList.add('hidden');
+        iconSun.classList.remove('hidden');
+      } else {
+        iconSun.classList.add('hidden');
+        iconMoon.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDateTime } from "@/lib/utils";
 import { ShieldCheck } from "lucide-react";
@@ -17,6 +19,7 @@ interface AuditLog {
 
 export default function AuditPage() {
   const session = useRequiredSession();
+  const [selected, setSelected] = useState<AuditLog | null>(null);
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["audit-logs", session.company.id],
@@ -49,7 +52,7 @@ export default function AuditPage() {
             </thead>
             <tbody className="divide-y">
               {logs.map((l) => (
-                <tr key={l.id} className="hover:bg-muted/20 transition-colors">
+                <tr key={l.id} onClick={() => setSelected(l)} className="cursor-pointer hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs">{l.action}</td>
                   <td className="px-4 py-3 text-muted-foreground">{l.entity_type}</td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDateTime(l.created_at)}</td>
@@ -59,6 +62,7 @@ export default function AuditPage() {
           </table>
         </div>
       )}
+      {selected && <DetailDrawer title={selected.action} subtitle="Evento de auditoria" onClose={() => setSelected(null)}><DetailGrid><DetailItem label="Entidade" value={selected.entity_type} /><DetailItem label="ID da entidade" value={selected.entity_id} /><DetailItem label="Usuario" value={selected.user_id} /><DetailItem label="Data e hora" value={formatDateTime(selected.created_at)} /></DetailGrid><p className="mt-6 text-xs text-muted-foreground">Eventos de auditoria sao imutaveis e nao podem ser editados.</p></DetailDrawer>}
     </div>
   );
 }

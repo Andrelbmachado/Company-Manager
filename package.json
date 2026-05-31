@@ -1,0 +1,48 @@
+{
+  "name": "company-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-shell": "^2",
+    "@tauri-apps/plugin-sql": "^2",
+    "@tanstack/react-query": "^5",
+    "@tanstack/react-table": "^8",
+    "class-variance-authority": "^0.7",
+    "clsx": "^2",
+    "cmdk": "^1",
+    "date-fns": "^4",
+    "framer-motion": "^11",
+    "lucide-react": "^0.469",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-router-dom": "^6",
+    "recharts": "^2",
+    "tailwind-merge": "^2",
+    "tailwindcss-animate": "^1",
+    "uuid": "^11",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^22",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/uuid": "^10",
+    "@vitejs/plugin-react": "^4",
+    "autoprefixer": "^10",
+    "postcss": "^8",
+    "tailwindcss": "^3",
+    "typescript": "^5",
+    "vite": "^5"
+  }
+}

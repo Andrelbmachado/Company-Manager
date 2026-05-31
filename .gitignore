@@ -1,0 +1,29 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+.env
+.env.*
+!.env.example
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# SQLite DB (runtime, not committed)
+*.db
+*.db-shm
+*.db-wal

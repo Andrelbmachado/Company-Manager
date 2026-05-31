@@ -2,10 +2,10 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { CommandMenu } from "./CommandMenu";
-import { Bell, ChevronDown, LogOut, Moon, Search, Settings, Sun, UserRound } from "lucide-react";
+import { Bell, ChevronDown, HeadphonesIcon, LogOut, Moon, Search, Settings, Sun, UserRound } from "lucide-react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
 import { logout } from "@/lib/auth/login";
-import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import { ROLE_LABELS, visibleModules } from "@/lib/permissions/rbac";
 import { getTheme, saveTheme, type Theme } from "@/lib/theme";
 import type { Role } from "@/types";
 
@@ -18,6 +18,7 @@ export function AppShell() {
   const session = useRequiredSession();
   const { setSession } = useSession();
   const navigate = useNavigate();
+  const canAccessSupport = visibleModules(session.membership.role as Role).includes("support");
   const initials = session.user.name
     .split(" ")
     .slice(0, 2)
@@ -146,6 +147,15 @@ export function AppShell() {
                     <Settings size={15} className="text-muted-foreground" />
                     Configuracoes da conta
                   </button>
+                  {canAccessSupport && (
+                    <button
+                      onClick={() => { navigate("/support"); setOpenMenu(null); }}
+                      className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-muted"
+                    >
+                      <HeadphonesIcon size={15} className="text-muted-foreground" />
+                      Suporte
+                    </button>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10"

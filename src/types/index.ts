@@ -91,6 +91,9 @@ export interface Lead {
   email?: string | null;
   phone?: string | null;
   source?: string | null;
+  company_name?: string | null;
+  position?: string | null;
+  notes?: string | null;
   status: "novo" | "qualificado" | "descartado" | "convertido";
   score: number;
   owner_id?: string | null;
@@ -111,6 +114,8 @@ export interface Opportunity {
   expected_close_date?: string | null;
   owner_id?: string | null;
   lost_reason?: string | null;
+  notes?: string | null;
+  lead_id?: string | null;
   status: "open" | "won" | "lost";
   created_at: string;
   updated_at: string;

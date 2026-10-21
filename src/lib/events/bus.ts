@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db/client";
 import { v4 as uuidv4 } from "uuid";
+import { isTauri } from "@/lib/runtime";
 
 export interface DomainEvent {
   type: string;
@@ -33,6 +34,8 @@ export async function emit(e: DomainEvent): Promise<void> {
 }
 
 async function writeActivity(e: DomainEvent): Promise<void> {
+  // Browser preview has no SQLite; the activity feed is desktop-only.
+  if (!isTauri()) return;
   try {
     const db = await getDb();
     await db.execute(

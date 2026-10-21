@@ -1,56 +1,80 @@
-import { useQuery } from "@tanstack/react-query";
-import { getDb } from "@/lib/db/client";
-import { useRequiredSession } from "@/hooks/useSession";
+import { useState } from "react";
+import { CalendarDays, FolderKanban, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatDate, formatCurrency } from "@/lib/utils";
-import { FolderKanban } from "lucide-react";
-import type { Project } from "@/types";
+import { SearchInput, matchesSearch } from "@/components/shared/SearchInput";
+import { Toolbar } from "@/components/shared/Toolbar";
+import { NewButton } from "@/components/shared/NewButton";
+import { ImportExportActions } from "@/components/shared/ImportExportActions";
+import { EntityFormDialog } from "@/components/shared/EntityFormDialog";
+import { useEntityList } from "@/hooks/useEntity";
+import { refLabel } from "@/lib/data/repository";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function ProjectsPage() {
-  const session = useRequiredSession();
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const { data: projects = [], isLoading } = useEntityList("projects");
 
-  const { data: projects = [], isLoading } = useQuery({
-    queryKey: ["projects", session.company.id],
-    queryFn: async () => {
-      const db = await getDb();
-      return db.select<Project[]>(
-        "SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC",
-        [session.company.id]
-      );
-    },
-  });
+  const filtered = projects.filter((p) => matchesSearch(search, [p.name, refLabel(p, "customer_id")]));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Projetos" description="Gestão de projetos e tarefas" />
+      <PageHeader
+        title="Projetos"
+        description="Gestão de projetos e tarefas"
+        actions={
+          <>
+            <ImportExportActions entities={["projects"]} />
+            <NewButton entity="projects" onClick={() => setShowForm(true)} />
+          </>
+        }
+      />
+      <Toolbar count={filtered.length}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar projetos..." />
+      </Toolbar>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-36 rounded-xl bg-muted/30 animate-pulse" />
+            <div key={i} className="h-36 animate-pulse rounded-xl bg-muted/40" />
           ))}
         </div>
-      ) : projects.length === 0 ? (
-        <EmptyState icon={FolderKanban} title="Nenhum projeto" description="Crie projetos vinculados a clientes." />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={FolderKanban} title="Nenhum projeto" description="Crie projetos vinculados a clientes ou importe uma planilha." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((p) => (
-            <div key={p.id} className="rounded-xl border bg-card p-4 space-y-3 hover:shadow-md transition-shadow">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="projects-grid">
+          {filtered.map((p) => (
+            <article
+              key={String(p.id)}
+              data-row-id={String(p.id)}
+              className="flex flex-col gap-3 rounded-xl border bg-card p-4 transition-shadow hover:shadow-md"
+            >
               <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold leading-tight">{p.name}</p>
-                <StatusBadge status={p.status} />
+                <div className="min-w-0">
+                  <h3 className="font-semibold leading-tight">{String(p.name)}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{refLabel(p, "customer_id") || "Sem cliente"}</p>
+                </div>
+                <StatusBadge status={String(p.status)} />
               </div>
-              <div className="text-sm text-muted-foreground space-y-1">
-                {p.budget > 0 && <p>Orçamento: {formatCurrency(p.budget)}</p>}
-                {p.start_date && <p>Início: {formatDate(p.start_date)}</p>}
-                {p.end_date && <p>Prazo: {formatDate(p.end_date)}</p>}
-              </div>
-            </div>
+              <dl className="mt-auto grid grid-cols-2 gap-2 border-t pt-3 text-xs">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Wallet size={12} />
+                  <dd className="tabular-nums text-foreground">{formatCurrency(Number(p.budget ?? 0))}</dd>
+                </div>
+                <div className="flex items-center justify-end gap-1.5 text-muted-foreground">
+                  <CalendarDays size={12} />
+                  <dd className="tabular-nums">
+                    {formatDate(p.start_date as string)} → {formatDate(p.end_date as string)}
+                  </dd>
+                </div>
+              </dl>
+            </article>
           ))}
         </div>
       )}
+      <EntityFormDialog entity="projects" open={showForm} onClose={() => setShowForm(false)} />
     </div>
   );
 }

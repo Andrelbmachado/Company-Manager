@@ -1,33 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
-import {
-  LayoutDashboard,
-  Users,
-  Target,
-  HeadphonesIcon,
-  Wrench,
-  FolderKanban,
-  Package,
-  Archive,
-  Wallet,
-  FileText,
-  Settings,
-} from "lucide-react";
-
-const COMMANDS = [
-  { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "CRM / Clientes", path: "/crm", icon: Users },
-  { label: "Oportunidades", path: "/opportunities", icon: Target },
-  { label: "Suporte / Tickets", path: "/support", icon: HeadphonesIcon },
-  { label: "Ordens de Serviço", path: "/work-orders", icon: Wrench },
-  { label: "Projetos", path: "/projects", icon: FolderKanban },
-  { label: "Estoque", path: "/inventory", icon: Package },
-  { label: "Custódia", path: "/custody", icon: Archive },
-  { label: "Financeiro", path: "/finance", icon: Wallet },
-  { label: "Documentos", path: "/documents", icon: FileText },
-  { label: "Configurações", path: "/settings", icon: Settings },
-];
+import { useRequiredSession } from "@/hooks/useSession";
+import { visibleModules } from "@/lib/permissions/rbac";
+import type { Role } from "@/types";
+import { NAV_ITEMS } from "./navigation";
 
 interface CommandMenuProps {
   open: boolean;
@@ -37,6 +14,9 @@ interface CommandMenuProps {
 export function CommandMenu({ open, onClose }: CommandMenuProps) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const session = useRequiredSession();
+  const allowed = new Set(visibleModules(session.membership.role as Role));
+  const commands = NAV_ITEMS.filter((item) => allowed.has(item.module));
 
   useEffect(() => {
     if (!open) setSearch("");
@@ -46,10 +26,14 @@ export function CommandMenu({ open, onClose }: CommandMenuProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-24"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Busca rápida"
+        data-testid="command-menu"
         className="w-full max-w-lg overflow-hidden rounded-xl border bg-popover shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -67,7 +51,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps) {
               Nenhum resultado encontrado.
             </Command.Empty>
             <Command.Group heading="Navegar">
-              {COMMANDS.map((cmd) => {
+              {commands.map((cmd) => {
                 const Icon = cmd.icon;
                 return (
                   <Command.Item

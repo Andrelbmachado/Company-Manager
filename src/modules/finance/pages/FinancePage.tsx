@@ -1,70 +1,120 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getDb } from "@/lib/db/client";
-import { useRequiredSession } from "@/hooks/useSession";
+import { useSearchParams } from "react-router-dom";
+import { CheckCircle2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { Wallet, TrendingDown, TrendingUp } from "lucide-react";
-import type { Payable, Receivable } from "@/types";
+import { DataTable, type Column } from "@/components/shared/DataTable";
+import { SearchInput, matchesSearch } from "@/components/shared/SearchInput";
+import { Toolbar } from "@/components/shared/Toolbar";
+import { NewButton } from "@/components/shared/NewButton";
+import { ImportExportActions } from "@/components/shared/ImportExportActions";
+import { EntityFormDialog } from "@/components/shared/EntityFormDialog";
+import { Button } from "@/components/ui/Button";
+import { useEntityList, useUpdateEntity } from "@/hooks/useEntity";
+import { usePermission } from "@/hooks/usePermission";
+import { refLabel, type Row } from "@/lib/data/repository";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
-type Tab = "payables" | "receivables";
+type Tab = "receivables" | "payables";
+
+const isOverdue = (r: Row) =>
+  !!r.due_date && ["aberta", "aprovada"].includes(String(r.status)) && String(r.due_date) < new Date().toISOString().slice(0, 10);
 
 export default function FinancePage() {
-  const session = useRequiredSession();
-  const [tab, setTab] = useState<Tab>("receivables");
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = params.get("tab") === "payables" ? "payables" : "receivables";
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
 
-  const { data: payables = [], isLoading: loadingPay } = useQuery({
-    queryKey: ["payables", session.company.id],
-    queryFn: async () => {
-      const db = await getDb();
-      return db.select<Payable[]>(
-        "SELECT * FROM payables WHERE company_id=? AND deleted_at IS NULL ORDER BY due_date ASC",
-        [session.company.id]
-      );
-    },
-  });
-
-  const { data: receivables = [], isLoading: loadingRec } = useQuery({
-    queryKey: ["receivables", session.company.id],
-    queryFn: async () => {
-      const db = await getDb();
-      return db.select<Receivable[]>(
-        "SELECT * FROM receivables WHERE company_id=? AND deleted_at IS NULL ORDER BY due_date ASC",
-        [session.company.id]
-      );
-    },
-  });
+  const { data: payables = [], isLoading: loadingPay } = useEntityList("payables");
+  const { data: receivables = [], isLoading: loadingRec } = useEntityList("receivables");
+  const updatePayable = useUpdateEntity("payables");
+  const updateReceivable = useUpdateEntity("receivables");
+  const canEditPay = usePermission("edit", "payables");
+  const canEditRec = usePermission("edit", "receivables");
 
   const totalPayOpen = payables
-    .filter((p) => ["aberta", "aprovada"].includes(p.status))
-    .reduce((s, p) => s + p.amount, 0);
-
+    .filter((p) => ["aberta", "aprovada"].includes(String(p.status)))
+    .reduce((s, p) => s + Number(p.amount ?? 0), 0);
   const totalRecOpen = receivables
     .filter((r) => r.status === "aberta")
-    .reduce((s, r) => s + r.amount, 0);
-
+    .reduce((s, r) => s + Number(r.amount ?? 0), 0);
   const balance = totalRecOpen - totalPayOpen;
+
+  const isRec = tab === "receivables";
+  const rows = (isRec ? receivables : payables).filter((r) =>
+    matchesSearch(search, [r.description, r.ref_type, refLabel(r, "customer_id")])
+  );
+
+  const columns: Column<Row>[] = [
+    {
+      key: "desc",
+      header: isRec ? "Cliente / referência" : "Descrição",
+      cell: (r) =>
+        isRec ? (
+          <div>
+            <p className="font-medium">{refLabel(r, "customer_id") || "Sem cliente"}</p>
+            <p className="text-xs text-muted-foreground">{String(r.ref_type ?? "Manual")}</p>
+          </div>
+        ) : (
+          <span className="font-medium">{String(r.description)}</span>
+        ),
+    },
+    {
+      key: "due_date",
+      header: "Vencimento",
+      cell: (r) => (
+        <span className={cn("tabular-nums", isOverdue(r) ? "font-medium text-red-500" : "text-muted-foreground")}>
+          {formatDate(r.due_date as string)}
+        </span>
+      ),
+    },
+    { key: "status", header: "Status", cell: (r) => <StatusBadge status={isOverdue(r) ? "vencida" : String(r.status)} /> },
+    { key: "amount", header: "Valor", align: "right", cell: (r) => <span className="font-medium tabular-nums">{formatCurrency(Number(r.amount ?? 0))}</span> },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      cell: (r) => {
+        const settled = ["paga", "recebida", "cancelada"].includes(String(r.status));
+        if (settled || !(isRec ? canEditRec : canEditPay)) return null;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid="finance-settle"
+            onClick={() =>
+              isRec
+                ? updateReceivable.mutate({ id: String(r.id), patch: { status: "recebida", received_at: new Date().toISOString() } })
+                : updatePayable.mutate({ id: String(r.id), patch: { status: "paga", paid_at: new Date().toISOString() } })
+            }
+          >
+            <CheckCircle2 size={14} />
+            {isRec ? "Receber" : "Pagar"}
+          </Button>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Financeiro" description="Contas a pagar e a receber" />
+      <PageHeader
+        title="Financeiro"
+        description="Contas a pagar e a receber"
+        actions={
+          <>
+            <ImportExportActions entities={isRec ? ["receivables", "payables"] : ["payables", "receivables"]} />
+            <NewButton entity={tab} onClick={() => setShowForm(true)} />
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <KpiCard
-          title="A receber (abertas)"
-          value={formatCurrency(totalRecOpen)}
-          icon={TrendingUp}
-          iconClassName="bg-emerald-50 text-emerald-600"
-        />
-        <KpiCard
-          title="A pagar (abertas)"
-          value={formatCurrency(totalPayOpen)}
-          icon={TrendingDown}
-          iconClassName="bg-red-50 text-red-600"
-        />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <KpiCard title="A receber (abertas)" value={formatCurrency(totalRecOpen)} icon={TrendingUp} iconClassName="bg-emerald-50 text-emerald-600" />
+        <KpiCard title="A pagar (abertas)" value={formatCurrency(totalPayOpen)} icon={TrendingDown} iconClassName="bg-red-50 text-red-600" />
         <KpiCard
           title="Saldo projetado"
           value={formatCurrency(balance)}
@@ -73,67 +123,43 @@ export default function FinancePage() {
         />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border bg-muted/30 p-1 w-fit">
-        {(["receivables", "payables"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t ? "bg-background shadow-sm" : "hover:text-foreground text-muted-foreground"
-            }`}
-          >
-            {t === "receivables" ? "A Receber" : "A Pagar"}
-          </button>
-        ))}
-      </div>
-
-      {tab === "receivables" && (
-        loadingRec ? (
-          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />)}</div>
-        ) : receivables.length === 0 ? (
-          <EmptyState icon={TrendingUp} title="Nenhuma conta a receber" />
-        ) : (
-          <FinanceTable rows={receivables.map((r) => ({ id: r.id, desc: r.ref_type ? `${r.ref_type} #${r.ref_id ?? ""}` : "Manual", amount: r.amount, due: r.due_date, status: r.status }))} />
-        )
-      )}
-
-      {tab === "payables" && (
-        loadingPay ? (
-          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />)}</div>
-        ) : payables.length === 0 ? (
-          <EmptyState icon={TrendingDown} title="Nenhuma conta a pagar" />
-        ) : (
-          <FinanceTable rows={payables.map((p) => ({ id: p.id, desc: p.description, amount: p.amount, due: p.due_date, status: p.status }))} />
-        )
-      )}
-    </div>
-  );
-}
-
-function FinanceTable({ rows }: { rows: { id: string; desc: string; amount: number; due?: string | null; status: string }[] }) {
-  return (
-    <div className="rounded-xl border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/30">
-          <tr>
-            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Descrição</th>
-            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Valor</th>
-            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Vencimento</th>
-            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-muted/20 transition-colors">
-              <td className="px-4 py-3 font-medium">{r.desc}</td>
-              <td className="px-4 py-3">{formatCurrency(r.amount)}</td>
-              <td className="px-4 py-3 text-muted-foreground">{r.due ? formatDate(r.due) : "—"}</td>
-              <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
-            </tr>
+      <Toolbar count={rows.length}>
+        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1" role="tablist" aria-label="Tipo de conta">
+          {(["receivables", "payables"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              data-testid={`tab-${t}`}
+              onClick={() => setParams({ tab: t }, { replace: true })}
+              className={cn(
+                "rounded-md px-4 py-1 text-sm font-medium transition-colors",
+                tab === t ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t === "receivables" ? "A receber" : "A pagar"}
+            </button>
           ))}
-        </tbody>
-      </table>
+        </div>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar..." />
+      </Toolbar>
+
+      <DataTable
+        testId={`${tab}-table`}
+        columns={columns}
+        rows={rows}
+        getRowId={(r) => String(r.id)}
+        isLoading={isRec ? loadingRec : loadingPay}
+        empty={
+          <EmptyState
+            icon={isRec ? TrendingUp : TrendingDown}
+            title={isRec ? "Nenhuma conta a receber" : "Nenhuma conta a pagar"}
+          />
+        }
+      />
+
+      <EntityFormDialog entity={tab} open={showForm} onClose={() => setShowForm(false)} />
     </div>
   );
 }

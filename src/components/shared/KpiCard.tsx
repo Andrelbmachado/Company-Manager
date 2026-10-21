@@ -31,6 +31,7 @@ export function KpiCard({
         <span className="text-sm font-medium text-muted-foreground">{title}</span>
         {Icon && (
           <span
+            data-kpi-icon
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary",
               iconClassName

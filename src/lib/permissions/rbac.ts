@@ -1,6 +1,6 @@
 import type { Role, Scope } from "@/types";
 
-type Action =
+export type Action =
   | "view"
   | "create"
   | "edit"
@@ -12,7 +12,7 @@ type Action =
   | "transfer"
   | "request";
 
-type Resource =
+export type Resource =
   | "customers"
   | "leads"
   | "opportunities"

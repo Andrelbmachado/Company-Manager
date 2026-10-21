@@ -24,6 +24,9 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        run: npm test
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 

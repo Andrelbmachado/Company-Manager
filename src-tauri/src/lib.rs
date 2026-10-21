@@ -6,12 +6,20 @@ fn greet(name: &str) -> String {
 }
 
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "create_initial_tables",
-        sql: include_str!("../migrations/0001_init.sql"),
-        kind: MigrationKind::Up,
-    }];
+    let migrations = vec![
+        Migration {
+            version: 1,
+            description: "create_initial_tables",
+            sql: include_str!("../migrations/0001_init.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "leads_import_fields",
+            sql: include_str!("../migrations/0002_leads_import.sql"),
+            kind: MigrationKind::Up,
+        },
+    ];
 
     tauri::Builder::default()
         .plugin(

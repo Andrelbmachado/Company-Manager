@@ -75,6 +75,14 @@
   }
 }
 
+/* Dark mode: soften the light pastel chips used by KPI cards and status badges */
+.dark [data-kpi-icon] {
+  background-color: hsl(var(--muted)) !important;
+}
+.dark [data-status-badge] {
+  filter: saturate(0.85) brightness(0.9);
+}
+
 /* Tauri drag region */
 [data-tauri-drag-region] {
   -webkit-app-region: drag;

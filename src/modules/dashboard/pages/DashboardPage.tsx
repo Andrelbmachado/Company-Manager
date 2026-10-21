@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
+import { isTauri } from "@/lib/runtime";
+import { listEntity } from "@/lib/data/repository";
+import { toCsv } from "@/lib/csv";
+import { saveTextFile } from "@/lib/data/importExport";
+import { Button } from "@/components/ui/Button";
+import { Download } from "lucide-react";
 import { useRequiredSession } from "@/hooks/useSession";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
@@ -35,9 +41,7 @@ interface DashboardKpis {
 }
 
 async function fetchKpis(companyId: string): Promise<DashboardKpis> {
-  if (!("__TAURI_INTERNALS__" in window)) {
-    return { customers: 24, openTickets: 7, openWorkOrders: 5, itemsBelowMin: 3, openPayables: 8, openReceivables: 12, openProjects: 6, activeCustodies: 4 };
-  }
+  if (!isTauri()) return fetchKpisFromStore(companyId);
   const db = await getDb();
   const [[cust], [tickets], [wo], [items], [pay], [rec], [proj], [cust2]] =
     await Promise.all([
@@ -89,6 +93,36 @@ async function fetchKpis(companyId: string): Promise<DashboardKpis> {
   };
 }
 
+// Browser preview: same KPIs computed from the local store.
+async function fetchKpisFromStore(companyId: string): Promise<DashboardKpis> {
+  const [customers, tickets, wo, items, pay, rec, proj, cust] = await Promise.all(
+    (["customers", "tickets", "work_orders", "inventory_items", "payables", "receivables", "projects", "custodies"] as const).map(
+      (k) => listEntity(k, companyId)
+    )
+  );
+  return {
+    customers: customers.length,
+    openTickets: tickets.filter((t) => !["resolvido", "fechado"].includes(String(t.status))).length,
+    openWorkOrders: wo.filter((o) => !["concluida", "cancelada"].includes(String(o.status))).length,
+    itemsBelowMin: items.filter((i) => Number(i.quantity ?? 0) < Number(i.min_stock ?? 0)).length,
+    openPayables: pay.filter((p) => ["aberta", "aprovada"].includes(String(p.status))).length,
+    openReceivables: rec.filter((r) => r.status === "aberta").length,
+    openProjects: proj.filter((p) => ["planejado", "andamento"].includes(String(p.status))).length,
+    activeCustodies: cust.filter((c) => c.status === "em_custodia").length,
+  };
+}
+
+const KPI_LABELS: [keyof DashboardKpis, string][] = [
+  ["customers", "Clientes"],
+  ["openTickets", "Tickets abertos"],
+  ["openWorkOrders", "OS em aberto"],
+  ["openProjects", "Projetos ativos"],
+  ["itemsBelowMin", "Itens abaixo do mínimo"],
+  ["activeCustodies", "Custódias ativas"],
+  ["openPayables", "Contas a pagar abertas"],
+  ["openReceivables", "Contas a receber abertas"],
+];
+
 const WEEK_DATA = [
   { day: "Seg", os: 4, tickets: 7 },
   { day: "Ter", os: 6, tickets: 5 },
@@ -112,6 +146,22 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description={`Visão geral de ${session.company.name}`}
+        actions={
+          <Button
+            disabled={!data}
+            data-testid="export-button"
+            onClick={() =>
+              data &&
+              saveTextFile(
+                `indicadores-${new Date().toISOString().slice(0, 10)}.csv`,
+                toCsv(["Indicador", "Valor"], KPI_LABELS.map(([k, label]) => [label, data[k]]))
+              )
+            }
+          >
+            <Download size={14} />
+            Exportar indicadores
+          </Button>
+        }
       />
 
       {isLoading || !data ? (

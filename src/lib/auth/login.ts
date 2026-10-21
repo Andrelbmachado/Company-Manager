@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db/client";
+import { isTauri } from "@/lib/runtime";
 import { setSession, clearSession } from "./session";
 import type { Session, Membership, Company } from "@/types";
 
@@ -18,7 +19,7 @@ interface UserRow {
 
 export async function login(email: string, password: string): Promise<Session> {
   // Safari/browser preview: use the documented demo account without Tauri's SQLite plugin.
-  if (!("__TAURI_INTERNALS__" in window)) {
+  if (!isTauri()) {
     if (email !== "admin@companymanager.local" || password !== "CompanyDemo2026!") {
       throw new Error("Credenciais inválidas");
     }

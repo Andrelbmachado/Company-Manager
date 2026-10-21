@@ -1,64 +1,45 @@
-import { useQuery } from "@tanstack/react-query";
-import { getDb } from "@/lib/db/client";
-import { useRequiredSession } from "@/hooks/useSession";
+import { useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { DataTable, type Column } from "@/components/shared/DataTable";
+import { SearchInput, matchesSearch } from "@/components/shared/SearchInput";
+import { Toolbar } from "@/components/shared/Toolbar";
+import { ImportExportActions } from "@/components/shared/ImportExportActions";
+import { useEntityList } from "@/hooks/useEntity";
+import type { Row } from "@/lib/data/repository";
 import { formatDateTime } from "@/lib/utils";
-import { ShieldCheck } from "lucide-react";
 
-interface AuditLog {
-  id: string;
-  user_id?: string | null;
-  entity_type: string;
-  entity_id?: string | null;
-  action: string;
-  created_at: string;
-}
+const COLUMNS: Column<Row>[] = [
+  { key: "action", header: "Ação", cell: (l) => <span className="font-mono text-xs">{String(l.action)}</span> },
+  { key: "entity_type", header: "Entidade", cell: (l) => <span className="text-muted-foreground">{String(l.entity_type)}</span> },
+  { key: "entity_id", header: "ID", cell: (l) => <span className="font-mono text-xs text-muted-foreground">{String(l.entity_id ?? "—")}</span> },
+  { key: "created_at", header: "Data/hora", align: "right", cell: (l) => <span className="tabular-nums text-muted-foreground">{formatDateTime(l.created_at as string)}</span> },
+];
 
 export default function AuditPage() {
-  const session = useRequiredSession();
-
-  const { data: logs = [], isLoading } = useQuery({
-    queryKey: ["audit-logs", session.company.id],
-    queryFn: async () => {
-      const db = await getDb();
-      return db.select<AuditLog[]>(
-        "SELECT * FROM audit_logs WHERE company_id=? ORDER BY created_at DESC LIMIT 200",
-        [session.company.id]
-      );
-    },
-  });
+  const [search, setSearch] = useState("");
+  const { data: logs = [], isLoading } = useEntityList("audit_logs");
+  const filtered = logs.filter((l) => matchesSearch(search, [l.action, l.entity_type, l.entity_id]));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Auditoria" description="Trilha imutável de ações sensíveis" />
-
-      {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 rounded-lg bg-muted/30 animate-pulse" />)}</div>
-      ) : logs.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="Nenhum log de auditoria" description="Ações financeiras, exportações e acessos sensíveis aparecem aqui." />
-      ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ação</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Entidade</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Data/hora</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {logs.map((l) => (
-                <tr key={l.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs">{l.action}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{l.entity_type}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDateTime(l.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <PageHeader
+        title="Auditoria"
+        description="Trilha imutável de ações sensíveis (somente exportação)"
+        actions={<ImportExportActions entities={["audit_logs"]} />}
+      />
+      <Toolbar count={filtered.length}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por ação ou entidade..." />
+      </Toolbar>
+      <DataTable
+        testId="audit-table"
+        columns={COLUMNS}
+        rows={filtered}
+        getRowId={(r) => String(r.id)}
+        isLoading={isLoading}
+        empty={<EmptyState icon={ShieldCheck} title="Nenhum log de auditoria" description="Ações financeiras, exportações e acessos sensíveis aparecem aqui." />}
+      />
     </div>
   );
 }

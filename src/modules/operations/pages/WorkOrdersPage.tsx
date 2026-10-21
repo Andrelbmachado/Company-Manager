@@ -1,71 +1,92 @@
-import { useQuery } from "@tanstack/react-query";
-import { getDb } from "@/lib/db/client";
-import { useRequiredSession } from "@/hooks/useSession";
+import { useState } from "react";
+import { Wrench } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatDateTime } from "@/lib/utils";
-import { Wrench } from "lucide-react";
-import type { WorkOrder } from "@/types";
+import { DataTable, type Column } from "@/components/shared/DataTable";
+import { SearchInput, matchesSearch } from "@/components/shared/SearchInput";
+import { Toolbar } from "@/components/shared/Toolbar";
+import { NewButton } from "@/components/shared/NewButton";
+import { ImportExportActions } from "@/components/shared/ImportExportActions";
+import { EntityFormDialog } from "@/components/shared/EntityFormDialog";
+import { useEntityList, useUpdateEntity } from "@/hooks/useEntity";
+import { usePermission } from "@/hooks/usePermission";
+import { getEntity } from "@/lib/data/entities";
+import { refLabel, type Row } from "@/lib/data/repository";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
+
+const STATUS_OPTIONS = getEntity("work_orders").fields.find((f) => f.key === "status")!.options!;
 
 export default function WorkOrdersPage() {
-  const session = useRequiredSession();
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const { data: orders = [], isLoading } = useEntityList("work_orders");
+  const update = useUpdateEntity("work_orders");
+  const canEdit = usePermission("edit", "work_orders");
 
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["work-orders", session.company.id],
-    queryFn: async () => {
-      const db = await getDb();
-      return db.select<WorkOrder[]>(
-        "SELECT * FROM work_orders WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC",
-        [session.company.id]
-      );
+  const filtered = orders.filter((o) => matchesSearch(search, [o.number, refLabel(o, "customer_id")]));
+
+  const columns: Column<Row>[] = [
+    { key: "number", header: "Número", cell: (o) => <span className="font-medium tabular-nums">{String(o.number)}</span> },
+    { key: "customer_id", header: "Cliente", cell: (o) => <span className="text-muted-foreground">{refLabel(o, "customer_id") || "—"}</span> },
+    {
+      key: "status",
+      header: "Status",
+      cell: (o) =>
+        canEdit ? (
+          <select
+            aria-label={`Status da ${String(o.number)}`}
+            data-testid="work-order-status"
+            value={String(o.status)}
+            onChange={(e) =>
+              update.mutate({
+                id: String(o.id),
+                patch: {
+                  status: e.target.value,
+                  closed_at: e.target.value === "concluida" ? new Date().toISOString() : null,
+                },
+              })
+            }
+            className="h-7 rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        ) : (
+          <StatusBadge status={String(o.status)} />
+        ),
     },
-  });
+    { key: "priority", header: "Prioridade", cell: (o) => <StatusBadge status={String(o.priority)} /> },
+    { key: "opened_at", header: "Aberta em", cell: (o) => <span className="tabular-nums text-muted-foreground">{formatDateTime((o.opened_at ?? o.created_at) as string)}</span> },
+    { key: "labor_cost", header: "Custo M.O.", align: "right", cell: (o) => <span className="tabular-nums">{formatCurrency(Number(o.labor_cost ?? 0))}</span> },
+    { key: "materials_cost", header: "Custo mat.", align: "right", cell: (o) => <span className="tabular-nums">{formatCurrency(Number(o.materials_cost ?? 0))}</span> },
+  ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Ordens de Serviço" description="Gestão de OS" />
-
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-16 rounded-lg bg-muted/30 animate-pulse" />
-          ))}
-        </div>
-      ) : orders.length === 0 ? (
-        <EmptyState
-          icon={Wrench}
-          title="Nenhuma ordem de serviço"
-          description="OS são criadas ao converter tickets ou diretamente."
-        />
-      ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Número</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Prioridade</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Aberta em</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Custo M.O.</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Custo Mat.</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {orders.map((o) => (
-                <tr key={o.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium">{o.number}</td>
-                  <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={o.priority} /></td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDateTime(o.opened_at)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">R$ {o.labor_cost.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">R$ {o.materials_cost.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <PageHeader
+        title="Ordens de Serviço"
+        description="Gestão de OS"
+        actions={
+          <>
+            <ImportExportActions entities={["work_orders"]} />
+            <NewButton entity="work_orders" onClick={() => setShowForm(true)} />
+          </>
+        }
+      />
+      <Toolbar count={filtered.length}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por número ou cliente..." />
+      </Toolbar>
+      <DataTable
+        testId="work-orders-table"
+        columns={columns}
+        rows={filtered}
+        getRowId={(r) => String(r.id)}
+        isLoading={isLoading}
+        empty={<EmptyState icon={Wrench} title="Nenhuma ordem de serviço" description="OS são criadas ao converter tickets ou diretamente." />}
+      />
+      <EntityFormDialog entity="work_orders" open={showForm} onClose={() => setShowForm(false)} />
     </div>
   );
 }

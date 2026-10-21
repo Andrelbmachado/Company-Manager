@@ -4,6 +4,10 @@ import { login } from "@/lib/auth/login";
 import { useSession } from "@/hooks/useSession";
 import { Building2, Loader2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
+import { isTauri } from "@/lib/runtime";
+
+const DEMO_EMAIL = "admin@companymanager.local";
+const DEMO_PASSWORD = "CompanyDemo2026!";
 
 export default function LoginPage() {
   const { setSession } = useSession();
@@ -16,6 +20,10 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await doLogin(email, password);
+  }
+
+  async function doLogin(email: string, password: string) {
     setError("");
     setLoading(true);
     try {
@@ -62,6 +70,7 @@ export default function LoginPage() {
 
         <form
           onSubmit={handleSubmit}
+          data-testid="login-form"
           className="rounded-xl border bg-card p-6 shadow-sm space-y-4"
         >
           <div className="space-y-1.5">
@@ -70,6 +79,7 @@ export default function LoginPage() {
             </label>
             <input
               id="email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -86,6 +96,7 @@ export default function LoginPage() {
             </label>
             <input
               id="password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -104,12 +115,32 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
+            data-testid="login-submit"
             className="flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             Entrar
           </button>
         </form>
+
+        {!isTauri() && (
+          <div className="mt-4 rounded-xl border border-dashed bg-card/60 p-4 text-xs text-muted-foreground" data-testid="demo-hint">
+            <p className="font-medium text-foreground">Preview no navegador</p>
+            <p className="mt-1">
+              Os dados ficam no armazenamento local do navegador. Conta demo: <code>{DEMO_EMAIL}</code> /{" "}
+              <code>{DEMO_PASSWORD}</code>
+            </p>
+            <button
+              type="button"
+              data-testid="login-demo"
+              disabled={loading}
+              onClick={() => doLogin(DEMO_EMAIL, DEMO_PASSWORD)}
+              className="mt-2 font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              Entrar com a conta demo
+            </button>
+          </div>
+        )}
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
           Primeiro acesso?{" "}

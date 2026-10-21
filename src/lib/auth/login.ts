@@ -17,6 +17,28 @@ interface UserRow {
 }
 
 export async function login(email: string, password: string): Promise<Session> {
+  // Safari/browser preview: use the documented demo account without Tauri's SQLite plugin.
+  if (!("__TAURI_INTERNALS__" in window)) {
+    if (email !== "admin@companymanager.local" || password !== "CompanyDemo2026!") {
+      throw new Error("Credenciais inválidas");
+    }
+    const now = new Date().toISOString();
+    const user = {
+      id: "demo-user-0001", name: "Administrador Demo", email,
+      status: "active" as const, locale: "pt-BR", created_at: now, updated_at: now,
+    };
+    const company = {
+      id: "demo-company-0001", name: "Empresa Demo Ltda.", document: "12.345.678/0001-95",
+      settings_json: "{}", created_at: now, updated_at: now,
+    };
+    const membership = {
+      id: "demo-membership-0001", company_id: company.id, user_id: user.id,
+      role: "admin" as const, scope: "empresa" as const, created_at: now, updated_at: now,
+    };
+    const session = { user, membership, company };
+    setSession(session);
+    return session;
+  }
   const db = await getDb();
 
   const users = await db.select<UserRow[]>(

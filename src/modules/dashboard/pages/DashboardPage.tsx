@@ -35,6 +35,9 @@ interface DashboardKpis {
 }
 
 async function fetchKpis(companyId: string): Promise<DashboardKpis> {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    return { customers: 24, openTickets: 7, openWorkOrders: 5, itemsBelowMin: 3, openPayables: 8, openReceivables: 12, openProjects: 6, activeCustodies: 4 };
+  }
   const db = await getDb();
   const [[cust], [tickets], [wo], [items], [pay], [rec], [proj], [cust2]] =
     await Promise.all([

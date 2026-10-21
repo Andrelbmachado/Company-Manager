@@ -9,7 +9,7 @@ pub fn run() {
     let migrations = vec![Migration {
         version: 1,
         description: "create_initial_tables",
-        sql: include_str!("../../migrations/0001_init.sql"),
+        sql: include_str!("../migrations/0001_init.sql"),
         kind: MigrationKind::Up,
     }];
 

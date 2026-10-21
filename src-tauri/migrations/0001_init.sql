@@ -504,6 +504,16 @@ CREATE TABLE IF NOT EXISTS settings (
   UNIQUE (company_id, key)
 );
 
+-- Conta demo para o primeiro acesso (dados fictícios; altere depois do login).
+INSERT OR IGNORE INTO companies (id, name, document)
+VALUES ('demo-company-0001', 'Empresa Demo Ltda.', '12.345.678/0001-95');
+
+INSERT OR IGNORE INTO users (id, name, email, password_hash)
+VALUES ('demo-user-0001', 'Administrador Demo', 'admin@companymanager.local', 'plain:CompanyDemo2026!');
+
+INSERT OR IGNORE INTO memberships (id, company_id, user_id, role, scope)
+VALUES ('demo-membership-0001', 'demo-company-0001', 'demo-user-0001', 'admin', 'empresa');
+
 -- ============================================================
 -- Fim da migration 0001_init
 -- ============================================================

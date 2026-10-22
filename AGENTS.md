@@ -12,7 +12,7 @@ Cada módulo é uma página lazy em `src/modules/<modulo>/pages/`, registrada em
 |---|---|---|---|---|
 | dashboard | `/` | — (sempre visível) | `dashboard/pages/DashboardPage.tsx` | KPIs |
 | crm | `/crm` | `customers` | `crm/pages/CrmPage.tsx` | clientes; `can()` só libera para o papel `comercial` |
-| leads | `/leads` | `leads` | `leads/pages/LeadsPage.tsx` | prospecção de sites: leads, cronograma, pacotes, previsão |
+| leads | `/leads` | `leads` | `leads/pages/LeadsPage.tsx` | prospecção de sites: leads, cronograma, pacotes e preços, previsão, indicações |
 | opportunities | `/opportunities` | `opportunities` | `crm/pages/OpportunitiesPage.tsx` | funil de oportunidades |
 | support | `/support` | `tickets` | `support/pages/SupportPage.tsx` | tickets/ITSM; fica no menu da conta, não na sidebar |
 | operations | `/work-orders` | `work_orders` | `operations/pages/WorkOrdersPage.tsx` | ordens de serviço |
@@ -40,14 +40,15 @@ Papéis (`Role` em `src/types/index.ts`): `admin`, `gerente`, `tecnico`, `estoqu
 ├── vite.config.ts                 # porta 1420, alias @ -> src, ignora src-tauri no watch
 ├── tailwind.config.js             # tokens shadcn (hsl(var(--...))), darkMode: class
 ├── scripts/site-prospecting/      # gerador do seed de prospecção (ver §4 e §8)
-│   ├── pricing.mjs                #   pacotes, preços (ESTIMATIVA), cenários, tarefas, cronograma
-│   └── build-seed.mjs             #   CSV -> src/lib/prospecting/data/siteProspecting.generated.ts
+│   ├── pricing.mjs                #   pacotes Básico/Essencial/Premium, preços da Proposta, cenários, tarefas, cronograma
+│   ├── build-seed.mjs             #   CSV -> src/lib/prospecting/data/siteProspecting.generated.ts
+│   └── export-pacotes.mjs         #   gera ~/LeadingSitesSorocaba/PACOTES_PRECOS.md (preços + previsão)
 ├── .github/workflows/             # ci.yml (tsc + cargo check), release.yml (tags v*)
 ├── src-tauri/
 │   ├── Cargo.toml                 # crate company-manager; plugins sql(sqlite)/fs/dialog/shell
 │   ├── tauri.conf.json            # identifier com.company.manager, devUrl :1420
 │   ├── capabilities/default.json  # permissões sql/fs/dialog/shell do webview
-│   ├── migrations/                # 0001_init, 0002_assistant_support_inventory, 0003_site_prospecting
+│   ├── migrations/                # 0001_init, 0002_assistant_support_inventory, 0003_site_prospecting, 0004_packages_referral
 │   ├── src/lib.rs                 # registra as migrations (versão -> arquivo) e os plugins
 │   └── icons/
 └── src/
@@ -97,10 +98,10 @@ CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em 
 - **Navegador:** `src/lib/db/demo.ts` — banco em **localStorage** (`cm_demo_database_v4`) que **emula SQL por padrões de texto**. Seed fixo (empresa TechFlow, contas demo `DEMO_ACCOUNTS`). Consulta/comando fora dos padrões lança `Consulta demo nao suportada` / `Comando demo nao suportada`. Há um fallback genérico para `INSERT [OR IGNORE|OR REPLACE]`, `UPDATE ... WHERE id=?` e `SELECT ... WHERE id=?` nas tabelas novas (leads, service_packages, package_prices, revenue_scenarios, revenue_forecasts, settings, tasks).
 - Acesso: sempre `const db = await getDb()` (`src/lib/db/client.ts`) → `db.select<T>(sql, binds)` / `db.execute(sql, binds)`, com `?` posicionais. **O primeiro bind das consultas costuma ser `company_id`** (o demo depende disso).
 - Convenções do schema (0001): IDs `TEXT` (uuid gerado no app), timestamps `TEXT` ISO (`datetime('now')`), `company_id` em quase tudo (multiempresa), **soft delete** com `deleted_at` (não use `DELETE` no fluxo normal), FKs ativas, índices por `company_id`/status/datas.
-- Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003).
+- Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003); `package_prices.feature_note` e, em `leads`, `pricing_segment, referred_by, referral_status` (0004).
 - Tipos TypeScript das tabelas: `src/types/index.ts` (mantenha em sincronia com as migrations).
 - **Prospecção de sites (migration 0003):** `leads` ganhou `project_id, category, business_type, whatsapp, google_rating, google_reviews, sem_site, online_presence, presence_kind, address, notes, source_url, package_id, estimated_setup, estimated_monthly, estimated_revenue, priority_rank, outreach_day, outreach_date, last_contact_at`. Status do funil: `novo → abordado → interessado → fechado` (os valores antigos `qualificado/descartado/convertido` seguem válidos no tipo). Valores de preço e previsão são **estimativas** (`is_estimate = 1`).
-- **Seed:** `src/lib/prospecting/seed.ts` roda no primeiro login de papel que pode criar `leads` (`useProspectingBootstrap`, chamado no `AppShell`). Idempotente (flag `seed.site_prospecting.v1` em `settings`; ids uuid v5; `INSERT OR IGNORE`). Cria o projeto "Desenvolvimento de Site", 10 tarefas, 3 pacotes, 36 preços (12 segmentos × 3), 3 cenários (5/10/20%), 39 linhas de previsão e 155 leads. Dados vêm de `src/lib/prospecting/data/siteProspecting.generated.ts` (**gerado**).
+- **Seed:** `src/lib/prospecting/seed.ts` roda no primeiro login de papel que pode criar `leads` (`useProspectingBootstrap`, chamado no `AppShell`). Idempotente (flag `seed.site_prospecting.v2` em `settings`; ids uuid v5; `INSERT OR IGNORE`). Quem tinha o seed v1 (pacotes estimados) é migrado: leads são reapontados, os pacotes antigos são apagados e a previsão é refeita, sem tocar em status, contato ou indicação. Cria o projeto "Desenvolvimento de Site", 10 tarefas, os 3 pacotes **Básico / Essencial / Premium**, 39 preços (13 segmentos de preço × 3), 3 cenários (5/10/20%), 42 linhas de previsão e 155 leads. Dados em `src/lib/prospecting/data/siteProspecting.generated.ts` (**gerado**).
 - Sessão: `sessionStorage` (`cm_session`). Tema: `localStorage` (`cm_theme`). Sidebar: `cm_sidebar_width`, `cm_sidebar_collapsed`.
 
 ## 5. Convenções
@@ -152,8 +153,8 @@ Project Manager é um app irmão em `~/Documents/Trabalho/Sites/Project-Manager`
 
 ## 8. Cuidados (o que não mexer)
 
-- **Migrations já existentes (`0001`–`0003`) não se editam:** o `tauri-plugin-sql` guarda checksum; mudar uma já aplicada quebra o banco do usuário. Sempre crie a próxima (`0004_...`) e registre no `lib.rs`.
-- **Não edite** `src/lib/prospecting/data/siteProspecting.generated.ts` à mão — rode o gerador. Preços ficam em `scripts/site-prospecting/pricing.mjs` e são **estimativas** até existir a Proposta Comercial.
+- **Migrations já existentes (`0001`–`0004`) não se editam:** o `tauri-plugin-sql` guarda checksum; mudar uma já aplicada quebra o banco do usuário. Sempre crie a próxima (`0004_...`) e registre no `lib.rs`.
+- **Não edite** `src/lib/prospecting/data/siteProspecting.generated.ts` à mão — rode o gerador. Preços ficam em `scripts/site-prospecting/pricing.mjs` e vêm da Proposta Comercial (`~/LeadingSitesSorocaba/Proposta_Comercial.md`, preços fixos); a previsão de receita continua sendo estimativa.
 - **Não toque no banco real** (`~/Library/Application Support/com.company.manager/company-manager.db`) por fora do app; teste com migrations em um SQLite temporário.
 - **Segredos:** nunca commitar `.env*`, `*.db`, chaves de API. A chave do Assistente IA fica em `localStorage` (`cm_assistant_api_<userId>`) em texto puro e a CSP do Tauri está `null` — não coloque credenciais de produção em testes. Senhas V1 usam prefixo `plain:` (`lib/auth/login.ts`, TODO: argon2 via comando Tauri); as contas demo são só para demonstração.
 - **RBAC com exceções embutidas:** `can()` bloqueia `customers` para qualquer papel que não seja `comercial` e `audit_logs` para qualquer papel que não seja `tecnico` (inclusive `admin`). Mudar isso altera o acesso a CRM e Auditoria.
@@ -162,7 +163,16 @@ Project Manager é um app irmão em `~/Documents/Trabalho/Sites/Project-Manager`
 - O repositório está em `~/Documents` (iCloud Drive): arquivos podem ficar "somente na nuvem" (dataless) e travar `tsc`/`vite`. Se acontecer: `brctl download "<pasta>"`.
 - Tema escuro é o padrão (`getTheme()`).
 
-## 9. Checklist antes de commitar
+## 9. Regras de negócio do projeto de sites (instruções do André)
+
+Estas regras vêm de `~/LeadingSitesSorocaba/INSTRUCAO_*.md` e valem para o CRM, o seed e qualquer texto de negócio:
+
+- **Pacotes (nomes exatos): BÁSICO, ESSENCIAL e PREMIUM.** Não use "Médio", "Completo", "Com agendamento" nem "Com funcionalidade-chave" (pacotes antigos, apagados). BÁSICO = só a vitrine (site público para o cliente final); ESSENCIAL = só o gerenciador (painel com login, específico do segmento, sem vitrine pública); PREMIUM = vitrine + gerenciador, com chave para ativar/desativar a gestão. Preços fixos da Proposta Comercial: implantação de R$ 1.600 a R$ 12.000 + mensalidade, com fidelidade de 12 meses. Tabela final em `~/LeadingSitesSorocaba/PACOTES_PRECOS.md` (regenere com `node scripts/site-prospecting/export-pacotes.mjs`).
+- **Programa de Indicação (escalonado), só vale quando o indicado FECHA** (contrato assinado e pago): por indicado fechado, quem indica ganha 1 mês grátis na mensalidade e o indicado ganha 10% de desconto no setup; 3 fechados = +1 mês extra e 5 fechados = +2 meses extras para quem indica; indicação que não fecha não conta nem gera benefício; vale para qualquer pacote. No CRM: campos `referred_by` e `referral_status` (pendente até o fechamento, depois concedido), aba *Indicações* com a contagem de fechadas por quem indicou e os níveis atingidos (`src/lib/prospecting/referral.ts`, regras em `REFERRAL_RULES`). A instrução não diz se os bônus de nível se somam; o código os soma (`cumulative: true`).
+- **Skills por categoria** e **dois módulos por site** (vitrine + painel com toggle): ver `~/LeadingSitesSorocaba/AGENTS.md`. O CRM guarda os pacotes; as skills guardam os templates dos sites.
+- Textos voltados ao negócio (propostas, tabelas de preço, documentos para clientes) **não mencionam Claude Code, agentes nem automações**. A redação da seção "Programa de Indicação" da Proposta Comercial e do Plano no Drive é do André.
+
+## 10. Checklist antes de commitar
 
 - [ ] `npm run typecheck` sem erros.
 - [ ] `npm run build` conclui.

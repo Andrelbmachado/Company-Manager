@@ -37,7 +37,7 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
 .
 ├── AGENTS.md / CLAUDE.md          # este guia (CLAUDE.md só importa AGENTS.md)
 ├── README.md                      # visão geral em pt-BR
-├── design-system.html             # design system publicado (estático)
+├── design-system.html             # referência visual do design system (estático, usa os tokens atuais)
 ├── components.json                # config shadcn (aliases @/components, @/lib...)
 ├── package.json                   # scripts e dependências
 ├── vite.config.ts                 # porta 1420, alias @ -> src, ignora src-tauri no watch
@@ -61,20 +61,22 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
     │   ├── App.tsx                # SessionContext + BrowserRouter
     │   ├── routes.tsx             # rotas lazy + RequireModule (RBAC)
     │   └── layout/                # AppShell (topbar, bootstrap), Sidebar, CommandMenu (Cmd/Ctrl+K)
-    ├── components/shared/         # PageHeader, PageToolbar, CrudDialog, DetailDrawer, EmptyState, StatusBadge, KpiCard
+    ├── components/shared/         # PageHeader, PageToolbar, CrudDialog, DetailDrawer, EmptyState, StatusBadge (tags sólidas), StatCard e KpiCard (valor grande)
     ├── components/ui/             # vazio: nenhum componente shadcn instalado ainda
     ├── hooks/                     # useSession, usePermission, useProspectingBootstrap
     ├── lib/
     │   ├── db/                    # client.ts (SQLite/Tauri ou demo), demo.ts (banco demo + contas demo)
-    │   ├── auth/                  # login.ts (senha "plain:" V1), session.ts (sessionStorage)
+    │   ├── auth/                  # login.ts (senha "plain:" V1), session.ts (sessionStorage), social.ts (botões GitHub/Google/Microsoft: só explicam o que falta)
     │   ├── permissions/rbac.ts    # PERMISSIONS por papel, can(), visibleModules()
     │   ├── events/bus.ts          # emit()/on(): grava em `activities` e dispara handlers
     │   ├── assistant/             # config.ts (provedores), client.ts (chat/completions)
-    │   ├── prospecting/           # seed, forecast, queries, contact (+ data/*.generated.ts)
+    │   ├── prospecting/           # seed, forecast, referral, queries, contact (+ data/*.generated.ts)
+    │   ├── hr/                    # rules.ts (férias, dias, tempo de empresa) e queries.ts (colaboradores, solicitações, comunicados)
+    │   ├── payroll/queries.ts     # remuneração (só CEO e admin)
     │   ├── theme.ts / utils.ts    # tema claro/escuro, cn(), formatCurrency(), formatDate()
-    ├── modules/<modulo>/pages/    # uma página por rota (ver tabela do §1); leads tem components/
+    ├── modules/<modulo>/pages/    # uma página por rota (ver tabela do §1); leads, settings (UsersAccess) têm components/; hr e payroll têm só pages/
     ├── modules/project-manager/   # CÓPIA do módulo do app Project Manager (não edite aqui; ver §7)
-    ├── styles/globals.css         # variáveis CSS (tema), .kpi-card
+    ├── styles/globals.css         # tokens claro/escuro, fontes, foco visível, .kpi-card (opaco)
     └── types/index.ts             # tipos de domínio espelhando as tabelas
 ```
 

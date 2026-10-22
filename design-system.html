@@ -8,7 +8,7 @@
   <!-- Fontes -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,9 +20,11 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
+            sans: ['Public Sans', 'sans-serif'],
+            display: ['Bricolage Grotesque', 'Public Sans', 'sans-serif'],
           },
           colors: {
+            status: { danger: '#D92D20', success: '#15803D', warning: '#FACC15', 'warning-ink': '#1F1700', info: '#2B59E0', violet: '#6D3FD6', orange: '#C2410C', neutral: '#475066' },
             border: "hsl(var(--border))",
             input: "hsl(var(--input))",
             ring: "hsl(var(--ring))",
@@ -72,51 +74,67 @@
   <style type="text/tailwindcss">
     @layer base {
       :root {
-        --background: 0 0% 100%;
-        --foreground: 222.2 84% 4.9%;
+        --background: 228 24% 96%;
+        --foreground: 223 37% 12%;
         --card: 0 0% 100%;
-        --card-foreground: 222.2 84% 4.9%;
+        --card-foreground: 223 37% 12%;
         --popover: 0 0% 100%;
-        --popover-foreground: 222.2 84% 4.9%;
-        --primary: 221.2 83.2% 53.3%;
-        --primary-foreground: 210 40% 98%;
-        --secondary: 210 40% 96.1%;
-        --secondary-foreground: 222.2 47.4% 11.2%;
-        --muted: 210 40% 96.1%;
-        --muted-foreground: 215.4 16.3% 46.9%;
-        --accent: 210 40% 96.1%;
-        --accent-foreground: 222.2 47.4% 11.2%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 214.3 31.8% 91.4%;
-        --input: 214.3 31.8% 91.4%;
-        --ring: 221.2 83.2% 53.3%;
+        --popover-foreground: 223 37% 12%;
+        --primary: 225 74% 52%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 225 25% 92%;
+        --secondary-foreground: 223 37% 12%;
+        --muted: 224 25% 93%;
+        --muted-foreground: 222 14% 41%;
+        --accent: 224 25% 93%;
+        --accent-foreground: 223 37% 12%;
+        --destructive: 4 74% 49%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 220 21% 89%;
+        --input: 220 18% 80%;
+        --ring: 225 74% 52%;
         --radius: 0.5rem;
+        --sidebar-background: 0 0% 100%;
+        --sidebar-foreground: 223 20% 25%;
+        --sidebar-primary: 225 74% 52%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 225 25% 94%;
+        --sidebar-accent-foreground: 223 37% 12%;
+        --sidebar-border: 220 21% 89%;
+        --sidebar-ring: 225 74% 52%;
       }
       .dark {
-        --background: 222.2 84% 4.9%;
-        --foreground: 210 40% 98%;
-        --card: 222.2 84% 4.9%;
-        --card-foreground: 210 40% 98%;
-        --popover: 222.2 84% 4.9%;
-        --popover-foreground: 210 40% 98%;
-        --primary: 217.2 91.2% 59.8%;
-        --primary-foreground: 222.2 47.4% 11.2%;
-        --secondary: 217.2 32.6% 17.5%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 217.2 32.6% 17.5%;
-        --muted-foreground: 215 20.2% 65.1%;
-        --accent: 217.2 32.6% 17.5%;
-        --accent-foreground: 210 40% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 217.2 32.6% 17.5%;
-        --input: 217.2 32.6% 17.5%;
-        --ring: 212.7 26.8% 83.9%;
+        --background: 226 36% 9%;
+        --foreground: 222 38% 94%;
+        --card: 225 30% 13%;
+        --card-foreground: 222 38% 94%;
+        --popover: 225 31% 15%;
+        --popover-foreground: 222 38% 94%;
+        --primary: 225 84% 59%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 226 28% 18%;
+        --secondary-foreground: 222 38% 94%;
+        --muted: 226 28% 18%;
+        --muted-foreground: 222 18% 67%;
+        --accent: 226 28% 18%;
+        --accent-foreground: 222 38% 94%;
+        --destructive: 0 78% 60%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 227 31% 24%;
+        --input: 227 28% 28%;
+        --ring: 225 84% 59%;
+        --sidebar-background: 224 41% 7%;
+        --sidebar-foreground: 222 30% 85%;
+        --sidebar-primary: 225 84% 59%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 225 34% 16%;
+        --sidebar-accent-foreground: 222 38% 94%;
+        --sidebar-border: 227 31% 18%;
+        --sidebar-ring: 225 84% 59%;
       }
     }
     body {
-      @apply bg-background text-foreground antialiased;
+      @apply bg-background text-foreground antialiased; font-family: 'Public Sans', sans-serif;
     }
   </style>
 </head>
@@ -128,7 +146,7 @@
     <header class="border-b pb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div>
         <h1 class="text-4xl font-bold tracking-tight">Design System - Company Manager</h1>
-        <p class="text-muted-foreground mt-2">Referência visual atual do software para análise e reestruturação por IA.</p>
+        <p class="text-muted-foreground mt-2">Referência visual do software: superfícies opacas, bordas de 1px, tags sólidas e valores grandes nos indicadores.</p>
       </div>
       <button id="theme-toggle" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground hover:bg-muted transition-colors shadow-sm" aria-label="Alternar tema">
         <i data-lucide="moon" id="theme-icon-moon" class="h-5 w-5"></i>
@@ -285,55 +303,41 @@
     <!-- 5. Cards & Estruturas -->
     <section class="space-y-6">
       <h2 class="text-2xl font-semibold border-b pb-2">5. Cards e Layouts</h2>
+      <p class="text-sm text-muted-foreground">Cards opacos (<code>bg-card</code> + borda de 1px), sem sombra difusa, brilho nem translucidez. Indicador: título pequeno, valor grande em fonte de exibição.</p>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        <!-- KPI Card Simples -->
-        <div class="flex flex-col gap-3 p-5 rounded-xl border bg-card text-left transition-shadow hover:shadow-md">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-muted-foreground">Oportunidades</span>
-            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
-              <i data-lucide="target" class="h-4 w-4"></i>
-            </span>
-          </div>
-          <div class="flex flex-col gap-1">
-            <span class="text-2xl font-bold tracking-tight">12</span>
-            <span class="text-xs font-medium text-emerald-600">+15% este mês</span>
-          </div>
+        <div class="rounded-xl border bg-card p-5">
+          <p class="text-[13px] font-medium text-muted-foreground">Potencial 1º ano (estimativa)</p>
+          <p class="mt-2.5 font-display text-[2.5rem] font-bold leading-none tracking-tight tabular-nums">R$ 977.020</p>
+          <p class="mt-2.5 text-xs text-muted-foreground">implantação + 12 mensalidades</p>
         </div>
-
-        <!-- Card de Tabela Simples (List Item) -->
-        <div class="col-span-1 md:col-span-2 space-y-3 rounded-xl border bg-card p-4 text-left transition-shadow hover:shadow-md">
+        <div class="rounded-xl border bg-card p-5">
+          <p class="text-[13px] font-medium text-muted-foreground">Férias disponíveis</p>
+          <p class="mt-2.5 font-display text-[2.5rem] font-bold leading-none tracking-tight tabular-nums">20 dias</p>
+          <p class="mt-2.5 text-xs text-muted-foreground">30 de direito, 0 aprovados, 10 em análise</p>
+        </div>
+        <div class="rounded-xl border bg-card p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">
-            <p class="font-semibold text-base">Projeto: Modernização de TI</p>
-            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700">Em andamento</span>
+            <p class="font-bold text-lg leading-snug">Desenvolvimento de Site</p>
+            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-info text-white">Em andamento</span>
           </div>
-          <p class="text-sm text-muted-foreground">Orçamento: R$ 45.000,00</p>
-          <p class="text-xs text-muted-foreground">Prazo: 30 de Out, 2026</p>
+          <div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full bg-primary" style="width:30%"></div></div>
+          <p class="text-xs text-muted-foreground">3 de 10 tarefas concluídas</p>
         </div>
       </div>
     </section>
 
     <!-- 6. Status Badges -->
     <section class="space-y-6">
-      <h2 class="text-2xl font-semibold border-b pb-2">6. Status Badges (Pills)</h2>
-      <div class="flex flex-wrap items-center gap-4 bg-card border rounded-xl p-6 shadow-sm">
-        <!-- Emerald/Success -->
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Resolvido / Concluído</span>
-        
-        <!-- Blue/Info -->
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700">Aberto / Novo</span>
-        
-        <!-- Yellow/Warning -->
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700">Em andamento</span>
-        
-        <!-- Orange/Alert -->
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">Aguardando Peça</span>
-        
-        <!-- Red/Danger -->
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-600">Cancelado / Urgente</span>
-        
-        <!-- Gray/Neutral -->
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">Fechado / Consumido</span>
+      <h2 class="text-2xl font-semibold border-b pb-2">6. Tags de status (sólidas)</h2>
+      <p class="text-sm text-muted-foreground">Fundo sólido e texto branco; o amarelo usa texto escuro porque branco sobre amarelo não passa em contraste (mínimo 4,5:1).</p>
+      <div class="flex flex-wrap items-center gap-3 bg-card border rounded-xl p-6">
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-danger text-white">Vencida / Perdido / Bloqueada</span>
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-success text-white">Concluída / Pago / Ganho</span>
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-warning text-status-warning-ink">Pendente / Abordado / Atenção</span>
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-orange text-white">Aguardando peça / Alta</span>
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-info text-white">Novo / Aberto / Em andamento</span>
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-violet text-white">Interessado / Em negociação</span>
+        <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-status-neutral text-white">A seguir / Inativo</span>
       </div>
     </section>
 
@@ -357,22 +361,15 @@
       </div>
     </section>
 
-    <!-- 8. Sombras e Bordas -->
+    <!-- 8. Superfícies -->
     <section class="space-y-6">
-      <h2 class="text-2xl font-semibold border-b pb-2">8. Bordas, Radius e Sombras</h2>
+      <h2 class="text-2xl font-semibold border-b pb-2">8. Superfícies, bordas e raio</h2>
+      <p class="text-sm text-muted-foreground">Três níveis, todos opacos: fundo da página (<code>bg-background</code>), card (<code>bg-card</code> com borda) e modal/painel lateral (card sobre fundo escurecido, a única sombra permitida). Controles usam raio de 6 a 8 px; cards, 12 px.</p>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <div class="h-24 flex items-center justify-center border bg-card rounded-md shadow-sm">
-          <span class="text-xs">rounded-md shadow-sm</span>
-        </div>
-        <div class="h-24 flex items-center justify-center border bg-card rounded-lg shadow">
-          <span class="text-xs">rounded-lg shadow</span>
-        </div>
-        <div class="h-24 flex items-center justify-center border bg-card rounded-xl shadow-md">
-          <span class="text-xs">rounded-xl shadow-md</span>
-        </div>
-        <div class="h-24 flex items-center justify-center border bg-card rounded-2xl shadow-xl">
-          <span class="text-xs">rounded-2xl shadow-xl</span>
-        </div>
+        <div class="h-24 flex items-center justify-center border bg-background rounded-md"><span class="text-xs">fundo da página</span></div>
+        <div class="h-24 flex items-center justify-center border bg-card rounded-md"><span class="text-xs">controle (rounded-md)</span></div>
+        <div class="h-24 flex items-center justify-center border bg-card rounded-xl"><span class="text-xs">card (rounded-xl)</span></div>
+        <div class="h-24 flex items-center justify-center border bg-card rounded-xl shadow-2xl"><span class="text-xs">modal (shadow-2xl)</span></div>
       </div>
     </section>
 

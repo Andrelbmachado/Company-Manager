@@ -29,6 +29,8 @@ export default function ProjectPage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [taskForm, setTaskForm] = useState<Record<string, string>>(EMPTY_TASK);
   const [stageForm, setStageForm] = useState<Record<string, string>>(EMPTY_STAGE);
+  const [error, setError] = useState("");
+  const fail = (action: string) => (cause: unknown) => setError(`Não foi possível ${action}: ${cause instanceof Error ? cause.message : String(cause)}`);
 
   const { data: project, isLoading } = useQuery({ queryKey: ["pm", "project", companyId, projectId], queryFn: () => repo.getProject(projectId) });
   const { data: tasks = [] } = useQuery({ queryKey: ["pm", "tasks", companyId, projectId], queryFn: () => repo.listTasks(projectId) });
@@ -51,7 +53,8 @@ export default function ProjectPage() {
       if (dialog?.kind === "task" && dialog.task) await repo.updateTask(dialog.task.id, input);
       else await repo.createTask(projectId, input);
     },
-    onSuccess: () => { void refresh(); setDialog(null); },
+    onSuccess: () => { void refresh(); setDialog(null); setError(""); },
+    onError: fail("salvar a tarefa"),
   });
 
   const stageMutation = useMutation({
@@ -66,13 +69,14 @@ export default function ProjectPage() {
       if (dialog?.kind === "stage" && dialog.step) await repo.updateStage(dialog.step.stage.id, input);
       else await repo.createStage(projectId, input);
     },
-    onSuccess: () => { void refresh(); setDialog(null); },
+    onSuccess: () => { void refresh(); setDialog(null); setError(""); },
+    onError: fail("salvar a etapa"),
   });
 
-  const moveTask = useMutation({ mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) => repo.moveTask(task.id, status), onSuccess: () => void refresh() });
-  const removeTask = useMutation({ mutationFn: (task: Task) => repo.deleteTask(task.id), onSuccess: () => void refresh() });
-  const moveStage = useMutation({ mutationFn: ({ id, direction }: { id: string; direction: -1 | 1 }) => repo.moveStage(projectId, id, direction), onSuccess: () => void refresh() });
-  const removeStage = useMutation({ mutationFn: (step: FlowStep) => repo.deleteStage(step.stage.id), onSuccess: () => void refresh() });
+  const moveTask = useMutation({ mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) => repo.moveTask(task.id, status), onSuccess: () => void refresh(), onError: fail("mover a tarefa") });
+  const removeTask = useMutation({ mutationFn: (task: Task) => repo.deleteTask(task.id), onSuccess: () => void refresh(), onError: fail("remover a tarefa") });
+  const moveStage = useMutation({ mutationFn: ({ id, direction }: { id: string; direction: -1 | 1 }) => repo.moveStage(projectId, id, direction), onSuccess: () => void refresh(), onError: fail("reordenar a etapa") });
+  const removeStage = useMutation({ mutationFn: (step: FlowStep) => repo.deleteStage(step.stage.id), onSuccess: () => void refresh(), onError: fail("remover a etapa") });
 
   function openTask(task: Task | null, preset: Partial<Record<string, string>> = {}) {
     setTaskForm(task
@@ -130,6 +134,13 @@ export default function ProjectPage() {
           {formatDay(project.start_date)} a {formatDay(project.end_date)}. Orçamento {formatCurrency(project.budget)}.
         </p>
       </div>
+
+      {error && (
+        <p role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-status-danger bg-card px-4 py-2.5 text-sm">
+          <span><strong className="text-status-danger dark:text-red-400">Erro. </strong>{error}</span>
+          <button onClick={() => setError("")} className="shrink-0 font-medium underline">fechar</button>
+        </p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Progresso do projeto" value={`${flow.overallPercent}%`} hint={`${flow.tasksDone} de ${flow.tasksTotal} tarefas concluídas`} />

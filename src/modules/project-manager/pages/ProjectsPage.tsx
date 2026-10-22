@@ -53,11 +53,12 @@ export default function ProjectsPage() {
       else await repo.createProject(input);
     },
     onSuccess: () => { void refresh(); setDialog(null); setEditing(null); setForm(EMPTY); },
+    onError: (error) => setNotice({ kind: "error", text: `Não foi possível salvar o projeto: ${error instanceof Error ? error.message : String(error)}` }),
   });
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      const bundle = await exportBundle(db, companyId, fileExchange ? undefined : "project-manager");
+      const bundle = await exportBundle(db, companyId, fileExchange?.source);
       const saved = await saveTextFile(`project-manager-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(bundle, null, 2));
       return saved ? `Exportado: ${bundle.projects.length} projeto(s), ${bundle.stages.length} etapa(s) e ${bundle.tasks.length} tarefa(s).` : null;
     },

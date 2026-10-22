@@ -27,7 +27,7 @@ export default function ProjectsPage() {
       userId={session.user.id}
       canEdit={canEdit}
       canCreate={canCreate}
-      fileExchange={{ importLabel: "Importar do app Project Manager", exportLabel: "Exportar para o app Project Manager" }}
+      fileExchange={{ importLabel: "Importar do app Project Manager", exportLabel: "Exportar para o app Project Manager", source: "company-manager" }}
     />
   );
 }

@@ -6,6 +6,8 @@ import { createProjectRepository, type ProjectRepository } from "./repository";
 export interface FileExchange {
   importLabel: string;
   exportLabel: string;
+  /** Quem está exportando: vai no campo `source` do arquivo. */
+  source: "company-manager" | "project-manager";
 }
 
 /** O que o app hospedeiro (Company Manager ou o shell standalone) injeta no módulo. */

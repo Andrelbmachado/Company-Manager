@@ -153,10 +153,10 @@ async function runSeed(session: Session): Promise<boolean> {
     // Seed v1 não tinha etapas: encaixa a tarefa só se ainda estiver sem etapa (não desfaz escolha do usuário).
     await db.execute("UPDATE tasks SET stage_id=? WHERE id=? AND stage_id IS NULL", [stageId, taskId]);
     if (upgrading && task.legacy_title) {
-      // Renomeia para os novos pacotes só se o título ainda for o do seed v1 (ninguém editou).
+      // Renomeia para os novos pacotes só se o título ainda for o do seed v1 e a tarefa continuar aberta (ninguém editou).
       await db.execute(
-        "UPDATE tasks SET title=?, description=?, status=?, updated_at=datetime('now') WHERE id=? AND title=?",
-        [task.title, task.description, task.status, taskId, task.legacy_title],
+        "UPDATE tasks SET title=?, description=?, status=?, updated_at=datetime('now') WHERE id=? AND title=? AND status=?",
+        [task.title, task.description, task.status, taskId, task.legacy_title, "aberta"],
       );
     }
   }

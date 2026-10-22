@@ -16,7 +16,7 @@ export function useProspectingBootstrap(): void {
     ensureSiteProspectingSeed(session)
       .then((imported) => {
         if (!imported) return;
-        for (const key of ["projects", "leads", "service-packages", "package-prices", "revenue-scenarios", "revenue-forecasts"]) {
+        for (const key of ["projects", "tasks", "pm", "leads", "service-packages", "package-prices", "revenue-scenarios", "revenue-forecasts"]) {
           qc.invalidateQueries({ queryKey: [key] });
         }
       })

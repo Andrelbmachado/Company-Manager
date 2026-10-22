@@ -41,16 +41,17 @@ interface DemoTables {
   documents: Row[];
   activities: Row[];
   audit_logs: Row[];
-  // Prospecção de sites (migration 0003). Tabelas novas nascem vazias; o seed vem de lib/prospecting/seed.ts.
+  // Tabelas da migration 0003 (+ tasks). Nascem vazias; o seed vem de lib/prospecting/seed.ts.
   leads: Row[];
   service_packages: Row[];
   package_prices: Row[];
   revenue_scenarios: Row[];
   revenue_forecasts: Row[];
   settings: Row[];
+  tasks: Row[];
 }
 
-const PROSPECTING_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings"] as const;
+const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks"] as const;
 
 export interface DatabaseLike {
   select<T>(query: string, bindValues?: unknown[]): Promise<T>;
@@ -214,6 +215,7 @@ function createSeed(): DemoTables {
     revenue_scenarios: [],
     revenue_forecasts: [],
     settings: [],
+    tasks: [],
   };
 }
 
@@ -281,10 +283,15 @@ function normalize(query: string): string {
   return query.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+/** Instante real (iso(0) fixa 09:00 local, bom para seed visual, ruim para comparar updated_at). */
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
 /** "?" consome o próximo bind; datetime('now') vira agora; null/números/strings literais são convertidos. */
 function literalOrBind(token: string, nextBind: () => unknown): unknown {
   if (token === "?") return nextBind() ?? null;
-  if (token.startsWith("datetime(")) return iso(0);
+  if (token.startsWith("datetime(")) return nowIso();
   if (token === "null") return null;
   if (/^-?\d+(\.\d+)?$/.test(token)) return Number(token);
   return token.replace(/^'|'$/g, "");
@@ -334,6 +341,12 @@ class DemoDatabase implements DatabaseLike {
     }
     if (sql.includes("from companies where id")) {
       return this.tables.companies.filter((row) => row.id === bindValues[0] && !row.deleted_at).slice(0, 1) as T;
+    }
+    // Busca por id (importação de bundle): o 1º bind é o id, não a empresa.
+    const byId = sql.match(/^select \* from (\w+) where id ?= ?\?(?: and company_id ?= ?\?)?$/);
+    if (byId && byId[1] in this.tables) {
+      return this.tables[byId[1] as keyof DemoTables]
+        .filter((row) => row.id === bindValues[0] && (bindValues.length < 2 || row.company_id === bindValues[1])) as T;
     }
     if (sql.includes("count(*) as n from customers")) return [{ n: this.active("customers", companyId).length }] as T;
     if (sql.includes("count(*) as n from opportunities")) {
@@ -399,13 +412,19 @@ class DemoDatabase implements DatabaseLike {
     if (sql.includes("order by created_at desc")) rows = [...rows].sort(createdAtDesc);
     if (sql.includes("order by due_date asc")) rows = [...rows].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
     if (sql.includes("order by checked_out_at desc")) rows = [...rows].sort((a, b) => String(b.checked_out_at).localeCompare(String(a.checked_out_at)));
-    if (PROSPECTING_TABLES.includes(table as (typeof PROSPECTING_TABLES)[number])) rows = orderByColumn(rows, sql);
+    if (EXTRA_TABLES.includes(table as (typeof EXTRA_TABLES)[number])) rows = orderByColumn(rows, sql);
     if (sql.includes("limit 200")) rows = rows.slice(0, 200);
     return rows as T;
   }
 
   async execute(query: string, bindValues: unknown[] = []): Promise<unknown> {
     const sql = normalize(query);
+
+    // UPDATE que define updated_at explicitamente (importação de bundle) usa o caminho genérico.
+    if (/^update \w+ set .*updated_at ?= ?\?/.test(sql)) {
+      const generic = this.executeGeneric(sql, bindValues);
+      if (generic) return generic;
+    }
 
     if (sql.startsWith("update users set last_login_at")) {
       this.update("users", bindValues[0], { last_login_at: iso(0) });
@@ -546,7 +565,7 @@ class DemoDatabase implements DatabaseLike {
       const rows = this.tables[table];
       const existing = rows.findIndex((candidate) => candidate.id === row.id);
       if (existing >= 0 && insert[1] === "ignore") return { rowsAffected: 0 };
-      const stamped = { created_at: iso(0), updated_at: iso(0), deleted_at: null, ...row };
+      const stamped = { created_at: nowIso(), updated_at: nowIso(), deleted_at: null, ...row };
       if (existing >= 0) rows[existing] = stamped;
       else rows.push(stamped);
       this.save();
@@ -572,7 +591,7 @@ class DemoDatabase implements DatabaseLike {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) return createSeed();
       const tables = JSON.parse(saved) as DemoTables;
-      for (const name of PROSPECTING_TABLES) tables[name] ??= [];
+      for (const name of EXTRA_TABLES) tables[name] ??= [];
       return tables;
     } catch {
       return createSeed();

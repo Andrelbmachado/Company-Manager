@@ -1,4 +1,4 @@
-// Semeia o projeto "Desenvolvimento de Site": projeto, pacotes, preços, cenários, leads e previsão.
+// Semeia o projeto "Desenvolvimento de Site": projeto, tarefas, pacotes, preços, cenários, leads e previsão.
 //
 // - Roda uma vez por empresa (flag em `settings`) e é idempotente: IDs determinísticos (uuid v5)
 //   + INSERT OR IGNORE, então repetir não duplica nada e nunca sobrescreve edições.
@@ -103,6 +103,13 @@ async function runSeed(session: Session): Promise<boolean> {
     );
   }
 
+  for (const task of data.SITE_TASKS) {
+    await db.execute(
+      "INSERT OR IGNORE INTO tasks (id, company_id, project_id, title, description, status, priority, due_date) VALUES (?,?,?,?,?,?,?,?)",
+      [seedId(companyId, `task:${task.key}`), companyId, projectId, task.title, task.description, task.status, task.priority, task.due_date],
+    );
+  }
+
   await saveForecasts(db, companyId, projectId, scenarios, data.SITE_LEADS);
 
   await db.execute(
@@ -116,7 +123,7 @@ async function runSeed(session: Session): Promise<boolean> {
     actorId: session.user.id,
     entityType: "project",
     entityId: projectId,
-    title: `Prospecção de sites importada: ${data.SITE_LEADS.length} leads, ${data.SITE_PACKAGES.length} pacotes`,
+    title: `Prospecção de sites importada: ${data.SITE_LEADS.length} leads, ${data.SITE_PACKAGES.length} pacotes, ${data.SITE_TASKS.length} tarefas`,
     module: "leads",
     metadata: { version: data.SITE_SEED_VERSION, estimate: true },
   });

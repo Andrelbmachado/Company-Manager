@@ -41,6 +41,15 @@ export interface SiteScenarioSeed {
   conversion_rate: number;
 }
 
+export interface SiteTaskSeed {
+  key: string;
+  title: string;
+  description: string | null;
+  status: "aberta" | "em_andamento" | "concluida" | "bloqueada";
+  priority: "baixa" | "media" | "alta" | "urgente";
+  due_date: string | null;
+}
+
 export interface SiteLeadSeed {
   seq: number;
   name: string;
@@ -341,6 +350,89 @@ export const SITE_SCENARIOS: SiteScenarioSeed[] = [
     "code": "otimista",
     "label": "Otimista (20%)",
     "conversion_rate": 0.2
+  }
+];
+
+export const SITE_TASKS: SiteTaskSeed[] = [
+  {
+    "key": "importar-leads",
+    "title": "Importar leads de Sorocaba para o CRM",
+    "description": "155 leads do SEM_SITE_sorocaba_filtrado.csv com WhatsApp apenas para celular.",
+    "status": "concluida",
+    "priority": "alta",
+    "due_date": "2026-10-22T12:00:00.000Z"
+  },
+  {
+    "key": "cadastrar-pacotes",
+    "title": "Cadastrar pacotes, preços e previsão de receita",
+    "description": "Valores são estimativa até existir a Proposta Comercial.",
+    "status": "concluida",
+    "priority": "alta",
+    "due_date": "2026-10-22T12:00:00.000Z"
+  },
+  {
+    "key": "validar-precos",
+    "title": "Validar preços com a Proposta Comercial",
+    "description": "Substituir a tabela estimada (Prospecção > Pacotes e preços) pelos valores reais.",
+    "status": "aberta",
+    "priority": "alta",
+    "due_date": "2026-10-26T12:00:00.000Z"
+  },
+  {
+    "key": "abordar-leads",
+    "title": "Abordar leads: 5 por dia útil",
+    "description": "Seguir o cronograma de abordagem (Prospecção > Cronograma): sites quebrados primeiro, depois mais avaliações.",
+    "status": "aberta",
+    "priority": "media",
+    "due_date": "2026-12-08T12:00:00.000Z"
+  },
+  {
+    "key": "mensagem-whatsapp",
+    "title": "Redigir mensagem de abordagem por WhatsApp",
+    "description": null,
+    "status": "aberta",
+    "priority": "media",
+    "due_date": "2026-10-23T12:00:00.000Z"
+  },
+  {
+    "key": "template-basico",
+    "title": "Montar template de site Básico",
+    "description": null,
+    "status": "aberta",
+    "priority": "media",
+    "due_date": null
+  },
+  {
+    "key": "template-agendamento",
+    "title": "Montar template com agendamento",
+    "description": null,
+    "status": "aberta",
+    "priority": "media",
+    "due_date": null
+  },
+  {
+    "key": "template-premium",
+    "title": "Montar template Premium com SEO",
+    "description": null,
+    "status": "aberta",
+    "priority": "baixa",
+    "due_date": null
+  },
+  {
+    "key": "processo-entrega",
+    "title": "Definir processo de entrega (briefing até publicação)",
+    "description": null,
+    "status": "aberta",
+    "priority": "media",
+    "due_date": null
+  },
+  {
+    "key": "cobranca-mensalidade",
+    "title": "Configurar cobrança de mensalidade",
+    "description": null,
+    "status": "aberta",
+    "priority": "baixa",
+    "due_date": null
   }
 ];
 

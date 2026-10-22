@@ -63,6 +63,22 @@ export function suggestPackage(reviews) {
   return "basico";
 }
 
+// Tarefas iniciais do projeto "Desenvolvimento de Site" (tabela `tasks`).
+// As duas primeiras já estão feitas por esta própria importação; o resto é o plano de trabalho.
+// Sem horas estimadas de propósito: não há base para prometer esses números.
+export const PROJECT_TASKS = [
+  { key: "importar-leads", title: "Importar leads de Sorocaba para o CRM", status: "concluida", priority: "alta", due: "2026-10-22", description: "155 leads do SEM_SITE_sorocaba_filtrado.csv com WhatsApp apenas para celular." },
+  { key: "cadastrar-pacotes", title: "Cadastrar pacotes, preços e previsão de receita", status: "concluida", priority: "alta", due: "2026-10-22", description: "Valores são estimativa até existir a Proposta Comercial." },
+  { key: "validar-precos", title: "Validar preços com a Proposta Comercial", status: "aberta", priority: "alta", due: "2026-10-26", description: "Substituir a tabela estimada (Prospecção > Pacotes e preços) pelos valores reais." },
+  { key: "abordar-leads", title: "Abordar leads: 5 por dia útil", status: "aberta", priority: "media", due: "2026-12-08", description: "Seguir o cronograma de abordagem (Prospecção > Cronograma): sites quebrados primeiro, depois mais avaliações." },
+  { key: "mensagem-whatsapp", title: "Redigir mensagem de abordagem por WhatsApp", status: "aberta", priority: "media", due: "2026-10-23", description: null },
+  { key: "template-basico", title: "Montar template de site Básico", status: "aberta", priority: "media", due: null, description: null },
+  { key: "template-agendamento", title: "Montar template com agendamento", status: "aberta", priority: "media", due: null, description: null },
+  { key: "template-premium", title: "Montar template Premium com SEO", status: "aberta", priority: "baixa", due: null, description: null },
+  { key: "processo-entrega", title: "Definir processo de entrega (briefing até publicação)", status: "aberta", priority: "media", due: null, description: null },
+  { key: "cobranca-mensalidade", title: "Configurar cobrança de mensalidade", status: "aberta", priority: "baixa", due: null, description: null },
+];
+
 // Parâmetros do cronograma de abordagem.
 export const OUTREACH = {
   perDay: 5,

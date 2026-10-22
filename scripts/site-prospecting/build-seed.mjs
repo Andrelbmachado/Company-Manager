@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { OUTREACH, PACKAGES, PRICES, SCENARIOS, suggestPackage } from "./pricing.mjs";
+import { OUTREACH, PACKAGES, PRICES, PROJECT_TASKS, SCENARIOS, suggestPackage } from "./pricing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const csvPath = process.argv[2] ?? resolve(homedir(), "LeadingSitesSorocaba/leads/SEM_SITE_sorocaba_filtrado.csv");
@@ -211,6 +211,15 @@ export interface SiteScenarioSeed {
   conversion_rate: number;
 }
 
+export interface SiteTaskSeed {
+  key: string;
+  title: string;
+  description: string | null;
+  status: "aberta" | "em_andamento" | "concluida" | "bloqueada";
+  priority: "baixa" | "media" | "alta" | "urgente";
+  due_date: string | null;
+}
+
 export interface SiteLeadSeed {
   seq: number;
   name: string;
@@ -241,6 +250,8 @@ export const SITE_PACKAGES: SitePackageSeed[] = ${JSON.stringify(PACKAGES.map((p
 export const SITE_PRICES: SitePriceSeed[] = ${JSON.stringify(prices, null, 2)};
 
 export const SITE_SCENARIOS: SiteScenarioSeed[] = ${JSON.stringify(SCENARIOS.map((s) => ({ code: s.code, label: s.label, conversion_rate: s.rate })), null, 2)};
+
+export const SITE_TASKS: SiteTaskSeed[] = ${JSON.stringify(PROJECT_TASKS.map((t) => ({ key: t.key, title: t.title, description: t.description, status: t.status, priority: t.priority, due_date: t.due ? `${t.due}T12:00:00.000Z` : null })), null, 2)};
 
 export const SITE_LEADS: SiteLeadSeed[] = ${JSON.stringify(ranked, null, 2)};
 `;

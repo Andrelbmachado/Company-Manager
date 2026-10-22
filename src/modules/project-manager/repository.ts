@@ -3,11 +3,15 @@ import type { DatabaseLike } from "./db";
 import { deriveStageStatus } from "./flow";
 import type { Project, ProjectInput, ProjectStage, StageInput, Task, TaskInput, TaskStatus } from "./types";
 
-// SQLite (datetime('now') tem resolução de 1 s) e os bancos demo desempatam de formas diferentes; por isso a ordem
-// final é sempre fixada aqui, em JS, com desempate por created_at e id.
-const byStage = (a: ProjectStage, b: ProjectStage) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
-const byCreatedAsc = <T extends { created_at: string; id: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
-const byCreatedDesc = <T extends { created_at: string; id: string }>(a: T, b: T) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id);
+// SQLite (datetime('now') tem resolução de 1 s) e os bancos demo desempatam de formas diferentes; por isso a ordem final é
+// fixada aqui. Empates em created_at/position seguem a ORDEM DE INSERÇÃO (sort estável sobre o que o banco devolveu:
+// rowid no SQLite, ordem do array no demo), que é a ordem natural do plano e do seed. Nunca desempate por id (uuid aleatório).
+const byStage = (a: ProjectStage, b: ProjectStage) => a.position - b.position || a.created_at.localeCompare(b.created_at);
+const byCreatedAsc = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
+/** Mais novo primeiro; entre empates, o inserido por último vem antes. */
+function newestFirst<T extends { created_at: string }>(rows: T[]): T[] {
+  return rows.map((row, index) => ({ row, index })).sort((a, b) => b.row.created_at.localeCompare(a.row.created_at) || b.index - a.index).map(({ row }) => row);
+}
 
 /**
  * Grava na etapa o status derivado das suas tarefas. Sem isso, apagar a última tarefa de uma etapa concluída
@@ -39,7 +43,7 @@ export function createProjectRepository(db: DatabaseLike, companyId: string, act
   return {
     // ── Projetos ──────────────────────────────────────────────
     listProjects: async () =>
-      (await db.select<Project[]>("SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC", [companyId])).sort(byCreatedDesc),
+      newestFirst(await db.select<Project[]>("SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC", [companyId])),
 
     async getProject(id: string): Promise<Project | null> {
       const rows = await db.select<Project[]>("SELECT * FROM projects WHERE id=? AND company_id=? AND deleted_at IS NULL", [id, companyId]);

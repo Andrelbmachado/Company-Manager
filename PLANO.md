@@ -32,7 +32,11 @@ Roteiro para levar a v0.1.0 (protótipo) a um app **completo e funcional**. Cada
 - [ ] **Hash de senha**: comando Tauri `hash_password` / `verify_password` com crate `argon2` em `src-tauri/src/lib.rs`; usar em `login.ts` e `SetupPage.tsx`. Migration que força troca da senha demo no primeiro login.
 - [ ] **Auditoria real**: `emit()` grava também em `audit_logs` (before/after JSON).
 - [ ] **Camada de dados**: extrair SQL das páginas para `src/modules/<mod>/api.ts` (funções `list/create/update/remove`), com validação `zod`.
-- [ ] **Testes**: adicionar `vitest` + script `npm test`; testes para `rbac.ts` (todos os papéis × recursos) e validações zod; incluir `npm test` no `ci.yml`.
+- [x] **Testes**: adicionar `vitest` + script `npm test`; testes para `rbac.ts` (todos os papéis × recursos) e validações zod; incluir `npm test` no `ci.yml`.
+  - Regras de negócio extraídas para módulos puros: `src/modules/finance/finance.ts`, `src/modules/crm/pipeline.ts`.
+  - Testes: `finance.test.ts`, `pipeline.test.ts`, `rbac.test.ts`, `utils.test.ts`. Rodar com `npm test`.
+  - CI roda os testes em `.github/workflows/ci.yml` (passo "Unit tests").
+  - Auditoria do estado real × mock por módulo em [AUDITORIA.md](AUDITORIA.md).
 - [ ] **Permissões nas telas**: esconder botões de criar/editar com `usePermission()`.
 
 **Pronto quando:** nenhuma senha `plain:` no banco após login; criar cliente gera linha em `audit_logs` visível na tela Auditoria; `npm test` roda no CI com ≥1 teste por papel.

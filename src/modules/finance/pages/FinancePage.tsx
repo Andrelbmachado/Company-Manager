@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/shared/KpiCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { totalPayablesOpen, totalReceivablesOpen, projectedBalance } from "@/modules/finance/finance";
 import { Wallet, TrendingDown, TrendingUp } from "lucide-react";
 import type { Payable, Receivable } from "@/types";
 
@@ -38,15 +39,9 @@ export default function FinancePage() {
     },
   });
 
-  const totalPayOpen = payables
-    .filter((p) => ["aberta", "aprovada"].includes(p.status))
-    .reduce((s, p) => s + p.amount, 0);
-
-  const totalRecOpen = receivables
-    .filter((r) => r.status === "aberta")
-    .reduce((s, r) => s + r.amount, 0);
-
-  const balance = totalRecOpen - totalPayOpen;
+  const totalPayOpen = totalPayablesOpen(payables);
+  const totalRecOpen = totalReceivablesOpen(receivables);
+  const balance = projectedBalance(payables, receivables);
 
   return (
     <div className="space-y-6">

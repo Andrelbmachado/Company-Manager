@@ -85,6 +85,18 @@ export interface Customer {
   deleted_at?: string | null;
 }
 
+/** novo/abordado/interessado/fechado = funil de prospecção de sites; os demais são legados. */
+export type LeadStatus =
+  | "novo"
+  | "abordado"
+  | "interessado"
+  | "fechado"
+  | "qualificado"
+  | "descartado"
+  | "convertido";
+
+export type LeadPresenceKind = "site_quebrado" | "redes_agendamento" | "nenhuma";
+
 export interface Lead {
   id: string;
   company_id: string;
@@ -92,13 +104,94 @@ export interface Lead {
   email?: string | null;
   phone?: string | null;
   source?: string | null;
-  status: "novo" | "qualificado" | "descartado" | "convertido";
+  status: LeadStatus;
   score: number;
   owner_id?: string | null;
   customer_id?: string | null;
+  // Prospecção (migration 0003)
+  project_id?: string | null;
+  category?: string | null;
+  business_type?: string | null;
+  whatsapp?: string | null;
+  google_rating?: number | null;
+  google_reviews?: number | null;
+  sem_site: number;
+  online_presence?: string | null;
+  presence_kind?: LeadPresenceKind | null;
+  address?: string | null;
+  notes?: string | null;
+  source_url?: string | null;
+  package_id?: string | null;
+  estimated_setup: number;
+  estimated_monthly: number;
+  estimated_revenue: number;
+  priority_rank?: number | null;
+  outreach_day?: number | null;
+  outreach_date?: string | null;
+  last_contact_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+}
+
+export interface ServicePackage {
+  id: string;
+  company_id: string;
+  project_id?: string | null;
+  code: string;
+  name: string;
+  description?: string | null;
+  features_json: string;
+  sort_order: number;
+  is_estimate: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface PackagePrice {
+  id: string;
+  company_id: string;
+  package_id: string;
+  segment: string;
+  setup_price: number;
+  monthly_price: number;
+  is_estimate: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface RevenueScenario {
+  id: string;
+  company_id: string;
+  project_id?: string | null;
+  code: string;
+  label: string;
+  conversion_rate: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** segment = null → linha de total geral do cenário. */
+export interface RevenueForecast {
+  id: string;
+  company_id: string;
+  project_id?: string | null;
+  scenario_id: string;
+  segment?: string | null;
+  leads_count: number;
+  expected_closed: number;
+  potential_setup: number;
+  potential_monthly: number;
+  potential_revenue: number;
+  forecast_setup: number;
+  forecast_monthly: number;
+  forecast_revenue: number;
+  is_estimate: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Opportunity {

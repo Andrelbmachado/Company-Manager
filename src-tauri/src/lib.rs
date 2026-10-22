@@ -19,6 +19,12 @@ pub fn run() {
             sql: include_str!("../migrations/0002_assistant_support_inventory.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "site_prospecting",
+            sql: include_str!("../migrations/0003_site_prospecting.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

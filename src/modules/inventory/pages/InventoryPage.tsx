@@ -321,8 +321,8 @@ export default function InventoryPage() {
       )}
 
       {selectedItem && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={() => setSelectedItem(null)}>
-          <aside className="h-full w-full max-w-xl overflow-y-auto bg-background p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={() => setSelectedItem(null)}>
+          <aside className="h-full w-full max-w-xl overflow-y-auto border-l bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 border-b pb-5">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{selectedItem.sku}</p>

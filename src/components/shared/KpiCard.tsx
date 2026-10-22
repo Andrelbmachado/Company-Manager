@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
-import { CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export interface KpiTimelinePoint {
   week: string;
@@ -15,109 +15,49 @@ interface KpiCardProps {
   trend?: { value: number; label: string };
   className?: string;
   iconClassName?: string;
+  /** Série real do indicador. Sem série, o card não mostra gráfico (nada de curva inventada). */
   timeline?: KpiTimelinePoint[];
 }
 
-export function KpiCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  trend,
-  className,
-  iconClassName,
-  timeline,
-}: KpiCardProps) {
-  const monthlyTimeline = timeline ?? fallbackTimeline(value);
-
+/** Indicador do dashboard: título pequeno, valor grande, sem brilho nem translucidez. */
+export function KpiCard({ title, value, subtitle, icon: Icon, trend, className, iconClassName, timeline }: KpiCardProps) {
   return (
-    <div
-      className={cn(
-        "kpi-card flex min-h-56 flex-col gap-3 p-5",
-        className
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">{title}</span>
+    <div className={cn("kpi-card flex flex-col gap-3 p-5", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[13px] font-medium text-muted-foreground">{title}</span>
         {Icon && (
-          <span
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary",
-              iconClassName
-            )}
-          >
+          <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground", iconClassName)}>
             <Icon size={16} />
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-2xl font-bold tracking-tight">{value}</span>
-        {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+      <div>
+        <p className="font-display text-[clamp(1.75rem,2.6vw,2.5rem)] font-bold leading-none tracking-tight tabular-nums">{value}</p>
+        {subtitle && <p className="mt-2 text-xs text-muted-foreground">{subtitle}</p>}
         {trend && (
-          <span
-            className={cn(
-              "text-xs font-medium",
-              trend.value >= 0 ? "text-emerald-600" : "text-red-500"
-            )}
-          >
+          <p className={cn("mt-2 text-xs font-semibold", trend.value >= 0 ? "text-status-success dark:text-green-400" : "text-status-danger dark:text-red-400")}>
             {trend.value >= 0 ? "+" : ""}
             {trend.value}% {trend.label}
-          </span>
+          </p>
         )}
       </div>
-      <div className="mt-auto h-24 w-full pt-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={monthlyTimeline} margin={{ top: 14, right: 8, bottom: 0, left: -12 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis
-              dataKey="week"
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={{ stroke: "hsl(var(--border))" }}
-              tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-            />
-            <YAxis
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={{ stroke: "hsl(var(--border))" }}
-              tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-              width={30}
-              allowDecimals={false}
-            />
-            <Tooltip
-              cursor={{ stroke: "hsl(var(--border))" }}
-              contentStyle={{
-                background: "hsl(var(--popover))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 8,
-                fontSize: 11,
-              }}
-              labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-            />
-            <Line type="monotone" dataKey="value" name={title} stroke="hsl(var(--primary))" strokeWidth={2.2} dot={{ r: 2, fill: "hsl(var(--primary))" }} activeDot={{ r: 3 }}>
-              <LabelList dataKey="value" position="top" fill="hsl(var(--muted-foreground))" fontSize={9} />
-            </Line>
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {timeline && timeline.length > 0 && (
+        <div className="mt-auto h-24 w-full pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={timeline} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="week" axisLine={{ stroke: "hsl(var(--border))" }} tickLine={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={30} allowDecimals={false} />
+              <Tooltip
+                cursor={{ stroke: "hsl(var(--border))" }}
+                contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
+                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+              />
+              <Line type="monotone" dataKey="value" name={title} stroke="hsl(var(--primary))" strokeWidth={2.2} dot={{ r: 2, fill: "hsl(var(--primary))" }} activeDot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
-}
-
-function fallbackTimeline(value: string | number): KpiTimelinePoint[] {
-  const current = typeof value === "number" ? value : parseFormattedNumber(value);
-  const safeValue = Number.isFinite(current) ? current : 0;
-  return [
-    { week: "S1", value: rounded(Math.max(0, safeValue * 0.58)) },
-    { week: "S2", value: rounded(Math.max(0, safeValue * 0.74)) },
-    { week: "S3", value: rounded(Math.max(0, safeValue * 0.88)) },
-    { week: "S4", value: rounded(Math.max(0, safeValue)) },
-  ];
-}
-
-function parseFormattedNumber(value: string): number {
-  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
-  return Number(normalized);
-}
-
-function rounded(value: number): number {
-  return value > 100 ? Math.round(value) : Math.round(value * 10) / 10;
 }

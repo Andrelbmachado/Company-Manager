@@ -87,12 +87,12 @@ export function ForecastPanel({ projectId, scenarios, forecasts, leads }: Foreca
           if (!row) return null;
           return (
             <article key={scenario.id} className="rounded-xl border bg-card p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{scenario.label}</p>
-              <p className="mt-2 text-2xl font-semibold">{formatMoney(row.forecast_revenue)}</p>
-              <p className="text-xs text-muted-foreground">receita prevista no 1º ano · ≈ {row.expected_closed.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} fechamentos</p>
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div><dt className="text-xs text-muted-foreground">Implantação</dt><dd className="font-medium">{formatMoney(row.forecast_setup)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Recorrente (mensal)</dt><dd className="font-medium">{formatMoney(row.forecast_monthly)}</dd></div>
+              <p className="text-[13px] font-medium text-muted-foreground">{scenario.label}</p>
+              <p className="mt-2.5 font-display text-[clamp(1.75rem,2.6vw,2.5rem)] font-bold leading-none tracking-tight tabular-nums">{formatMoney(row.forecast_revenue)}</p>
+              <p className="mt-2 text-xs text-muted-foreground">receita prevista no 1º ano, ≈ {row.expected_closed.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} fechamentos</p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-sm">
+                <div><dt className="text-xs text-muted-foreground">Implantação</dt><dd className="font-semibold tabular-nums">{formatMoney(row.forecast_setup)}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Recorrência mensal</dt><dd className="font-semibold tabular-nums">{formatMoney(row.forecast_monthly)}</dd></div>
               </dl>
             </article>
           );

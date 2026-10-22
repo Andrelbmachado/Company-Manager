@@ -12,7 +12,22 @@ export default {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ['"Public Sans Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Bricolage Grotesque Variable"', '"Public Sans Variable"', "ui-sans-serif", "sans-serif"],
+      },
       colors: {
+        // Tags de status: fundo sólido e texto com contraste >= 4,5 (amarelo usa texto escuro).
+        status: {
+          danger: "#D92D20",
+          success: "#15803D",
+          warning: "#FACC15",
+          "warning-ink": "#1F1700",
+          info: "#2B59E0",
+          violet: "#6D3FD6",
+          orange: "#C2410C",
+          neutral: "#475066",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

@@ -28,7 +28,7 @@ const selectClass = "h-9 rounded-md border bg-background px-2.5 text-sm outline-
 
 /** "fechado" é cinza para tickets no StatusBadge; para leads é ganho, então vai em verde. */
 export function LeadStatusBadge({ status }: { status: string }) {
-  return <StatusBadge status={status} className={status === "fechado" ? "bg-emerald-100 text-emerald-700" : undefined} />;
+  return <StatusBadge status={status} tone={status === "fechado" ? "success" : undefined} />;
 }
 
 interface LeadsPanelProps {
@@ -169,7 +169,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{formatRating(lead.google_rating, lead.google_reviews)}</td>
                       <td className="whitespace-nowrap px-3 py-2.5">
-                        <span className={lead.presence_kind === "site_quebrado" ? "rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700" : "text-muted-foreground"}>
+                        <span className={lead.presence_kind === "site_quebrado" ? "rounded-md bg-status-danger px-2 py-0.5 text-xs font-semibold text-white" : "text-muted-foreground"}>
                           {lead.presence_kind ? PRESENCE_LABELS[lead.presence_kind] : "—"}
                         </span>
                       </td>

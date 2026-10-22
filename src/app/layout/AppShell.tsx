@@ -67,7 +67,7 @@ export function AppShell() {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-6">
           <CommandMenu open={cmdOpen} onOpen={() => setCmdOpen(true)} onClose={() => setCmdOpen(false)} />
 
           <div ref={menusRef} className="relative flex items-center gap-2">

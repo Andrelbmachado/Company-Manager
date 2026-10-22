@@ -114,7 +114,7 @@ export function Sidebar() {
   return (
     <aside
       style={{ width: collapsed ? COLLAPSED_WIDTH : width }}
-      className={cn("relative flex h-full shrink-0 flex-col border-r bg-sidebar select-none backdrop-blur-xl dark:bg-sidebar/60", !resizing && "transition-[width] duration-200")}
+      className={cn("relative flex h-full shrink-0 flex-col border-r bg-sidebar select-none", !resizing && "transition-[width] duration-200")}
     >
       {/* Logo */}
       <div className={cn("flex h-[4.2rem] shrink-0 items-center gap-2.5 border-b", collapsed ? "justify-center px-2.5" : "px-3.5")}>
@@ -122,7 +122,7 @@ export function Sidebar() {
           <Building2 size={17} className="text-primary-foreground" />
         </div>
         <div className={cn("min-w-0 flex-1 flex-col leading-tight", collapsed ? "hidden" : "flex")}>
-          <span className="truncate text-base font-semibold text-sidebar-foreground">Company Manager</span>
+          <span className="truncate font-display text-lg font-bold tracking-tight text-sidebar-accent-foreground">Company Manager</span>
         </div>
         <button
           onClick={toggleCollapsed}
@@ -138,7 +138,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-2.5 py-4">
         {Object.entries(groups).map(([group, items]) => (
           <div key={group} className="mb-5 space-y-1">
-            <p className={cn("px-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70", collapsed && "hidden")}>
+            <p className={cn("px-2.5 pb-1.5 text-xs font-semibold text-muted-foreground", collapsed && "hidden")}>
               {group}
             </p>
             {items.map((item) => {
@@ -153,11 +153,11 @@ export function Sidebar() {
                   to={item.path}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.95rem] transition-colors",
+                    "relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.95rem] transition-colors",
                     collapsed && "justify-center px-0",
                     active
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                      ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-sidebar-primary"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <Icon size={18} className="shrink-0" />

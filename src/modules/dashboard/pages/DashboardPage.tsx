@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
 import { can, hasFullTicketAccess, ROLE_LABELS } from "@/lib/permissions/rbac";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { KpiCard, type KpiTimelinePoint } from "@/components/shared/KpiCard";
+import { KpiCard } from "@/components/shared/KpiCard";
 import {
   Users,
   Wrench,
@@ -129,15 +129,15 @@ export default function DashboardPage() {
     refetchInterval: 30_000,
   });
   const cards = data ? [
-    { resource: "customers", title: "Clientes", value: data.customers, icon: Users, iconClassName: "bg-blue-50 text-blue-600", timeline: monthly(data.customers, [0.74, 0.82, 0.91, 1]) },
-    { resource: "opportunities", title: "Oportunidades abertas", value: data.openOpportunities, icon: TrendingUp, iconClassName: "bg-cyan-50 text-cyan-600", timeline: monthly(data.openOpportunities, [0.5, 0.75, 0.62, 1]) },
-    { resource: "tickets", title: "Tickets abertos", value: data.openTickets, icon: HeadphonesIcon, iconClassName: "bg-yellow-50 text-yellow-600", timeline: monthly(data.openTickets, [0.68, 1.15, 0.84, 1]) },
-    { resource: "work_orders", title: "OS em aberto", value: data.openWorkOrders, icon: Wrench, iconClassName: "bg-orange-50 text-orange-600", timeline: monthly(data.openWorkOrders, [0.7, 0.86, 1.12, 1]) },
-    { resource: "projects", title: "Projetos ativos", value: data.openProjects, icon: FolderKanban, iconClassName: "bg-indigo-50 text-indigo-600", timeline: monthly(data.openProjects, [0.58, 0.72, 0.86, 1]) },
-    { resource: "inventory", title: "Itens abaixo do minimo", value: data.itemsBelowMin, icon: Package, iconClassName: "bg-red-50 text-red-600", timeline: monthly(data.itemsBelowMin, [1.42, 1.18, 1.08, 1]) },
-    { resource: "custody", title: "Custódias de peças ativas", value: data.activeCustodies, icon: Archive, iconClassName: "bg-purple-50 text-purple-600", timeline: monthly(data.activeCustodies, [0.72, 0.92, 1.15, 1]) },
-    { resource: "payables", title: "A pagar (abertas)", value: data.openPayables, icon: Wallet, iconClassName: "bg-rose-50 text-rose-600", timeline: monthly(data.openPayables, [1.2, 1.08, 0.96, 1]) },
-    { resource: "receivables", title: "A receber (abertas)", value: data.openReceivables, icon: TrendingUp, iconClassName: "bg-emerald-50 text-emerald-600", timeline: monthly(data.openReceivables, [0.66, 0.84, 0.9, 1]) },
+    { resource: "customers", title: "Clientes", value: data.customers, icon: Users },
+    { resource: "opportunities", title: "Oportunidades abertas", value: data.openOpportunities, icon: TrendingUp },
+    { resource: "tickets", title: "Tickets abertos", value: data.openTickets, icon: HeadphonesIcon },
+    { resource: "work_orders", title: "OS em aberto", value: data.openWorkOrders, icon: Wrench },
+    { resource: "projects", title: "Projetos ativos", value: data.openProjects, icon: FolderKanban },
+    { resource: "inventory", title: "Itens abaixo do minimo", value: data.itemsBelowMin, icon: Package },
+    { resource: "custody", title: "Custódias de peças ativas", value: data.activeCustodies, icon: Archive },
+    { resource: "payables", title: "A pagar (abertas)", value: data.openPayables, icon: Wallet },
+    { resource: "receivables", title: "A receber (abertas)", value: data.openReceivables, icon: TrendingUp },
   ].filter((card) => can(role, "view", card.resource as Parameters<typeof can>[2]) && (card.resource !== "tickets" || role === "tecnico")) : [];
   const showTicketSeries = role === "tecnico";
   const showOperationalChart = showTicketSeries || can(role, "view", "work_orders");
@@ -152,7 +152,7 @@ export default function DashboardPage() {
       {isLoading || !data ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-56 rounded-xl border bg-muted/30 animate-pulse" />
+            <div key={i} className="h-36 rounded-xl border bg-card animate-pulse" />
           ))}
         </div>
       ) : (
@@ -163,7 +163,7 @@ export default function DashboardPage() {
 
       {showOperationalChart && (
         <div className="rounded-xl border bg-card p-5">
-          <h2 className="text-sm font-semibold mb-4">{showTicketSeries ? "OS e Tickets" : "Ordens de servico"} - ultimos 7 dias</h2>
+          <h2 className="text-sm font-semibold mb-4">{showTicketSeries ? "OS e Tickets" : "Ordens de servico"} - últimos 7 dias (dados de exemplo)</h2>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={WEEK_DATA} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={true} />
@@ -201,11 +201,4 @@ export default function DashboardPage() {
       )}
     </div>
   );
-}
-
-function monthly(value: number, multipliers: number[]): KpiTimelinePoint[] {
-  return multipliers.map((multiplier, index) => ({
-    week: `S${index + 1}`,
-    value: Math.max(0, Math.round(value * multiplier)),
-  }));
 }

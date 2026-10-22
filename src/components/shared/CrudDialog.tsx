@@ -22,8 +22,8 @@ interface CrudDialogProps {
 
 export function CrudDialog({ title, fields, values, onChange, onClose, onSubmit, busy, submitLabel = "Salvar" }: CrudDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border bg-background p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b pb-4">
           <h2 className="font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X size={16} /></button>

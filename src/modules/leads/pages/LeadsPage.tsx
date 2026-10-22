@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRequiredSession } from "@/hooks/useSession";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/prospecting/contact";
@@ -30,16 +31,6 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 const PER_DAY = 5;
-
-function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="rounded-xl border bg-card p-4">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
 
 export default function LeadsPage() {
   const session = useRequiredSession();
@@ -71,10 +62,10 @@ export default function LeadsPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Leads" value={leads.length} hint={`${broken} com site quebrado · ${withWhatsapp} com WhatsApp`} />
-        <Stat label="Potencial 1º ano (estimativa)" value={formatMoney(potential)} hint="implantação + 12 mensalidades, preços da Proposta" />
-        <Stat label="Funil" value={`${count("abordado")} / ${count("interessado")} / ${count("fechado")}`} hint="abordados / interessados / fechados" />
-        <Stat label="Novos" value={count("novo")} hint={`${PER_DAY} abordagens por dia útil`} />
+        <StatCard title="Leads" value={leads.length} hint={`${broken} com site quebrado · ${withWhatsapp} com WhatsApp`} />
+        <StatCard title="Potencial 1º ano (estimativa)" value={formatMoney(potential)} hint="implantação + 12 mensalidades, preços da Proposta" />
+        <StatCard title="Funil" value={`${count("abordado")} / ${count("interessado")} / ${count("fechado")}`} hint="abordados / interessados / fechados" />
+        <StatCard title="Novos" value={count("novo")} hint={`${PER_DAY} abordagens por dia útil`} />
       </div>
 
       <div role="tablist" className="flex gap-1 border-b">
@@ -85,7 +76,7 @@ export default function LeadsPage() {
             aria-selected={tab === item.id}
             onClick={() => setTab(item.id)}
             className={cn(
-              "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              "-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
               tab === item.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >

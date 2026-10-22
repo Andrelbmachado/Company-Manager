@@ -11,8 +11,8 @@ interface DetailDrawerProps {
 
 export function DetailDrawer({ title, subtitle, onClose, onEdit, children }: DetailDrawerProps) {
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/20" onClick={onClose}>
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-background p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/60" onClick={onClose}>
+      <aside className="h-full w-full max-w-xl overflow-y-auto border-l bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b pb-5">
           <div>
             {subtitle && <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{subtitle}</p>}

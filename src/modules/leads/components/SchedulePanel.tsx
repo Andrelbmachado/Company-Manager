@@ -85,7 +85,7 @@ export function SchedulePanel({ leads, perDay }: { leads: Lead[]; perDay: number
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {lead.category} · {formatRating(lead.google_rating, lead.google_reviews)} ·{" "}
-                          <span className={lead.presence_kind === "site_quebrado" ? "font-medium text-red-600" : undefined}>
+                          <span className={lead.presence_kind === "site_quebrado" ? "font-semibold text-status-danger dark:text-red-400" : undefined}>
                             {lead.presence_kind ? PRESENCE_LABELS[lead.presence_kind] : "—"}
                           </span>{" "}
                           · {lead.phone ?? "sem telefone"}

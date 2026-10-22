@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { useSession } from "@/hooks/useSession";
+import { RequireDepartment } from "@/modules/departments/components/RequireDepartment";
 
 // Pages – lazy loaded
 import { lazy, Suspense } from "react";
@@ -20,6 +21,8 @@ const FinancePage = lazy(() => import("@/modules/finance/pages/FinancePage"));
 const DocumentsPage = lazy(() => import("@/modules/documents/pages/DocumentsPage"));
 const SettingsPage = lazy(() => import("@/modules/settings/pages/SettingsPage"));
 const AuditPage = lazy(() => import("@/modules/settings/pages/AuditPage"));
+const DepartmentsIndexPage = lazy(() => import("@/modules/departments/pages/DepartmentsIndexPage"));
+const DepartmentPage = lazy(() => import("@/modules/departments/pages/DepartmentPage"));
 
 function Loader() {
   return (
@@ -59,6 +62,15 @@ export function AppRoutes() {
           <Route path="/documents/*" element={<DocumentsPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
           <Route path="/audit/*" element={<AuditPage />} />
+          <Route path="/departamentos" element={<DepartmentsIndexPage />} />
+          <Route
+            path="/departamentos/:slug/*"
+            element={
+              <RequireDepartment>
+                <DepartmentPage />
+              </RequireDepartment>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

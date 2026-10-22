@@ -51,6 +51,7 @@ export interface Department {
   id: string;
   company_id: string;
   name: string;
+  slug?: string | null;
   manager_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -59,10 +60,17 @@ export interface Department {
 
 // ── Session ────────────────────────────────────────────────────────
 
+export interface SessionDepartmentMembership {
+  department: import("@/lib/departments/catalog").DepartmentSlug;
+  role: "chefe" | "assistente" | "membro";
+}
+
 export interface Session {
   user: User;
   membership: Membership;
   company: Company;
+  /** Departamentos do usuário (carregados no login). */
+  departments?: SessionDepartmentMembership[];
 }
 
 // ── CRM ────────────────────────────────────────────────────────────

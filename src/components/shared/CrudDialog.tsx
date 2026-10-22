@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
 export interface CrudField {
@@ -18,9 +19,11 @@ interface CrudDialogProps {
   onSubmit: () => void;
   busy?: boolean;
   submitLabel?: string;
+  /** Conteúdo extra (ajuda, erro) entre os campos e os botões. */
+  children?: ReactNode;
 }
 
-export function CrudDialog({ title, fields, values, onChange, onClose, onSubmit, busy, submitLabel = "Salvar" }: CrudDialogProps) {
+export function CrudDialog({ title, fields, values, onChange, onClose, onSubmit, busy, submitLabel = "Salvar", children }: CrudDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
@@ -44,6 +47,7 @@ export function CrudDialog({ title, fields, values, onChange, onClose, onSubmit,
             </label>
           ))}
         </div>
+        {children}
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm hover:bg-muted">Cancelar</button>
           <button onClick={onSubmit} disabled={busy || fields.some((field) => field.required && !values[field.key]?.trim())} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">

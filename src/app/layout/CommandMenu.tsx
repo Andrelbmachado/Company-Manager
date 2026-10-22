@@ -9,6 +9,8 @@ import {
   Users,
   Target,
   Megaphone,
+  UserRound,
+  UsersRound,
   HeadphonesIcon,
   Wrench,
   FolderKanban,
@@ -25,6 +27,8 @@ import {
 
 const COMMANDS = [
   { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard },
+  { module: "hr", label: "Meu RH", path: "/hr", icon: UserRound },
+  { module: "hr_manage", label: "Gestão de RH", path: "/hr/manage", icon: UsersRound },
   { module: "crm", label: "CRM / Clientes", path: "/crm", icon: Users },
   { module: "leads", label: "Prospecção de Sites", path: "/leads", icon: Megaphone },
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target },

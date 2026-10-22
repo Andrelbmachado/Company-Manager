@@ -33,3 +33,15 @@ export function initials(name: string): string {
     .join("")
     .toUpperCase();
 }
+
+/** "YYYY-MM-DD" ou ISO → "dd/mm/aaaa" sem passar por Date (evita deslocar o dia por fuso). */
+export function formatDay(date: string | null | undefined): string {
+  if (!date) return "—";
+  const [year, month, day] = date.slice(0, 10).split("-");
+  return year && month && day ? `${day}/${month}/${year}` : date;
+}
+
+/** Hoje como "YYYY-MM-DD" no fuso local. */
+export function todayIso(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}

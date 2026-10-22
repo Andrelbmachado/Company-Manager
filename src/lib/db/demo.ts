@@ -5,6 +5,7 @@ const ADMIN_ID = "demo-admin";
 type Row = Record<string, unknown>;
 
 export const DEMO_ACCOUNTS = [
+  { id: "demo-ceo", role: "ceo", area: "Diretoria", position: "CEO", name: "André Machado", email: "ceo@techflow.com", password: "demo123" },
   { id: ADMIN_ID, role: "admin", area: "Administracao", position: "Administrador", name: "Mariana Costa", email: "admin@techflow.com", password: "demo123" },
   { id: "demo-gerente", role: "gerente", area: "Gerencia Geral", position: "Gerente geral", name: "Ricardo Almeida", email: "gerencia@techflow.com", password: "demo123" },
   { id: "demo-tecnico-gerente", role: "tecnico", area: "TI / Operacoes", position: "Gerente do setor", name: "Renata Carvalho", email: "gerente.ti@techflow.com", password: "demo123" },
@@ -19,6 +20,8 @@ export const DEMO_ACCOUNTS = [
   { id: "demo-atendimento", role: "atendimento", area: "Atendimento", position: "Funcionario", name: "Joao Santos", email: "atendimento@techflow.com", password: "demo123" },
   { id: "demo-produtos-gerente", role: "produtos", area: "Desenvolvimento de Produtos", position: "Gerente do setor", name: "Aline Rocha", email: "gerente.produtos@techflow.com", password: "demo123" },
   { id: "demo-produtos", role: "produtos", area: "Desenvolvimento de Produtos", position: "Funcionario", name: "Bruno Martins", email: "produtos@techflow.com", password: "demo123" },
+  { id: "demo-rh-gerente", role: "rh", area: "Recursos Humanos", position: "Gerente do setor", name: "Patrícia Duarte", email: "gerente.rh@techflow.com", password: "demo123" },
+  { id: "demo-rh", role: "rh", area: "Recursos Humanos", position: "Funcionario", name: "Tiago Freitas", email: "rh@techflow.com", password: "demo123" },
   { id: "demo-auditor-gerente", role: "auditor", area: "Auditoria", position: "Gerente do setor", name: "Marcelo Nunes", email: "gerente.auditoria@techflow.com", password: "demo123" },
   { id: "demo-auditor", role: "auditor", area: "Auditoria", position: "Funcionario", name: "Beatriz Souza", email: "auditoria@techflow.com", password: "demo123" },
 ] as const;
@@ -50,9 +53,13 @@ interface DemoTables {
   settings: Row[];
   tasks: Row[];
   project_stages: Row[];
+  employees: Row[];
+  hr_requests: Row[];
+  hr_announcements: Row[];
+  hr_tasks: Row[];
 }
 
-const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks", "project_stages"] as const;
+const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks", "project_stages", "employees", "hr_requests", "hr_announcements", "hr_tasks"] as const;
 
 export interface DatabaseLike {
   select<T>(query: string, bindValues?: unknown[]): Promise<T>;
@@ -79,28 +86,8 @@ function createSeed(): DemoTables {
         deleted_at: null,
       },
     ],
-    users: DEMO_ACCOUNTS.map((account) => ({
-      id: account.id,
-      name: account.name,
-      email: account.email,
-      password_hash: `plain:${account.password}`,
-      status: "active",
-      locale: "pt-BR",
-      last_login_at: iso(-1),
-      created_at: iso(-365),
-      updated_at: iso(-2),
-      deleted_at: null,
-    })),
-    memberships: DEMO_ACCOUNTS.map((account) => ({
-      id: `demo-membership-${account.id}`,
-      company_id: COMPANY_ID,
-      user_id: account.id,
-      role: account.role,
-      scope: account.role === "gerente" || account.role === "admin" ? "empresa" : "setor",
-      created_at: iso(-365),
-      updated_at: iso(-2),
-      deleted_at: null,
-    })),
+    users: DEMO_ACCOUNTS.map(demoUserRow),
+    memberships: DEMO_ACCOUNTS.map(demoMembershipRow),
     customers: [
       customer("customer-1", "NorteLog Transportes", "contato@nortelog.com.br", "(11) 3020-1188", -190),
       customer("customer-2", "Hospital Sao Lucas", "infra@saolucas.com.br", "(11) 4002-8922", -165),
@@ -192,6 +179,8 @@ function createSeed(): DemoTables {
       documentRow("doc-11", "Procedimento de triagem.docx", "DOCX", 3, -2, "/Atendimento/Processos/Procedimento de triagem.docx"),
       documentRow("doc-12", "Relatorio de auditoria Q1.pdf", "PDF", 1, -14, "/Auditoria/Relatorios/Relatorio de auditoria Q1.pdf"),
       documentRow("doc-13", "Roadmap de produtos Q3.xlsx", "XLSX", 2, -3, "/Desenvolvimento de Produtos/Roadmaps/Roadmap de produtos Q3.xlsx"),
+      documentRow("doc-15", "Politica de ferias.pdf", "PDF", 1, -20, "/Recursos Humanos/Politicas/Politica de ferias.pdf"),
+      documentRow("doc-16", "Ficha de cadastro de colaborador.docx", "DOCX", 2, -45, "/Recursos Humanos/Modelos/Ficha de cadastro de colaborador.docx"),
       documentRow("doc-14", "Especificacao gateway industrial.pdf", "PDF", 1, -5, "/Desenvolvimento de Produtos/Especificacoes/Especificacao gateway industrial.pdf"),
     ],
     activities: [
@@ -218,6 +207,98 @@ function createSeed(): DemoTables {
     settings: [],
     tasks: [],
     project_stages: [],
+    ...hrSeed(),
+  };
+}
+
+function demoUserRow(account: (typeof DEMO_ACCOUNTS)[number]): Row {
+  return {
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    password_hash: `plain:${account.password}`,
+    status: "active",
+    locale: "pt-BR",
+    last_login_at: iso(-1),
+    created_at: iso(-365),
+    updated_at: iso(-2),
+    deleted_at: null,
+  };
+}
+
+function demoMembershipRow(account: (typeof DEMO_ACCOUNTS)[number]): Row {
+  return {
+    id: `demo-membership-${account.id}`,
+    company_id: COMPANY_ID,
+    user_id: account.id,
+    role: account.role,
+    scope: account.role === "gerente" || account.role === "admin" || account.role === "ceo" ? "empresa" : "setor",
+    created_at: iso(-365),
+    updated_at: iso(-2),
+    deleted_at: null,
+  };
+}
+
+/** "YYYY-MM-DD" a partir de hoje (fuso local). */
+function dateOnly(daysFromToday: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromToday);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** Dados de exemplo de RH (empresa fictícia TechFlow): colaboradores das contas demo, solicitações, comunicados e pendências. */
+function hrSeed(): Pick<DemoTables, "employees" | "hr_requests" | "hr_announcements" | "hr_tasks"> {
+  const tenure = [-4100, -3650, -2900, -2200, -1500, -1100, -2500, -800, -1900, -600, -2100, -450, -1300, -300, -1700, -200, -1000, -150, -900];
+  const employees = DEMO_ACCOUNTS.map<Row>((account, index) => ({
+    id: `employee-${account.id}`,
+    company_id: COMPANY_ID,
+    user_id: account.id,
+    name: account.name,
+    email: account.email,
+    department: account.area,
+    position: account.position === "Funcionario" ? "Funcionário" : account.position,
+    hire_date: dateOnly(tenure[index % tenure.length]),
+    vacation_days_entitled: 30,
+    status: "ativo",
+    created_at: iso(-365),
+    updated_at: iso(-30),
+    deleted_at: null,
+  }));
+  const request = (id: string, accountId: string, type: string, start: number, end: number, status: string, reason: string | null): Row => ({
+    id, company_id: COMPANY_ID, employee_id: `employee-${accountId}`, type, start_date: dateOnly(start), end_date: dateOnly(end),
+    days: end - start + 1, reason, status, decided_by: status === "pendente" ? null : "demo-rh-gerente",
+    decided_at: status === "pendente" ? null : iso(-3), decision_note: null, created_at: iso(-6), updated_at: iso(-3), deleted_at: null,
+  });
+  const announcement = (id: string, title: string, body: string, category: string, pinned: number, daysAgo: number): Row => ({
+    id, company_id: COMPANY_ID, title, body, category, pinned, published_by: "demo-rh-gerente",
+    published_at: iso(-daysAgo), created_at: iso(-daysAgo), updated_at: iso(-daysAgo), deleted_at: null,
+  });
+  const todo = (id: string, accountId: string, title: string, dueDays: number, status: string): Row => ({
+    id, company_id: COMPANY_ID, employee_id: `employee-${accountId}`, title, description: null, due_date: dateOnly(dueDays), status,
+    created_by: "demo-rh-gerente", created_at: iso(-10), updated_at: iso(-4), deleted_at: null,
+  });
+  return {
+    employees,
+    hr_requests: [
+      request("hrreq-1", "demo-comercial", "ferias", 53, 62, "pendente", "Férias de fim de ano"),
+      request("hrreq-2", "demo-tecnico", "ferias", 18, 22, "aprovada", null),
+      request("hrreq-3", "demo-atendimento", "folga", 8, 8, "pendente", "Compromisso pessoal"),
+      request("hrreq-4", "demo-financeiro", "atestado", -7, -7, "aprovada", "Consulta médica"),
+      request("hrreq-5", "demo-produtos", "ferias", -108, -99, "aprovada", null),
+    ],
+    hr_announcements: [
+      announcement("hrann-1", "Solicitações de férias e folgas pelo Meu RH", "Abra a solicitação na página Meu RH, escolha o período e acompanhe a resposta ali mesmo. O RH aprova ou recusa pelo sistema.", "comunicado", 1, 5),
+      announcement("hrann-2", "Mantenha seus dados cadastrais atualizados", "Confira telefone, endereço e contato de emergência. Se algo mudou, avise o RH para atualizar seu cadastro.", "comunicado", 0, 12),
+      announcement("hrann-3", "Política de férias", "As regras de marcação e fracionamento de férias estão na pasta Recursos Humanos do módulo Documentos.", "politica", 0, 20),
+      announcement("hrann-4", "Benefícios da empresa", "As informações sobre benefícios ficam com o RH. Procure o setor para tirar dúvidas ou fazer alterações.", "beneficio", 0, 30),
+    ],
+    hr_tasks: [
+      todo("hrtask-1", "demo-comercial", "Atualizar dados cadastrais", 7, "pendente"),
+      todo("hrtask-2", "demo-comercial", "Assinar a política de segurança da informação", 14, "pendente"),
+      todo("hrtask-3", "demo-tecnico", "Atualizar dados cadastrais", 7, "concluida"),
+      todo("hrtask-4", "demo-atendimento", "Atualizar dados cadastrais", -2, "pendente"),
+      todo("hrtask-5", "demo-financeiro", "Assinar a política de segurança da informação", 10, "pendente"),
+    ],
   };
 }
 
@@ -631,6 +712,20 @@ class DemoDatabase implements DatabaseLike {
       if (!saved) return createSeed();
       const tables = JSON.parse(saved) as DemoTables;
       for (const name of EXTRA_TABLES) tables[name] ??= [];
+      // Contas demo novas (CEO, RH) em bancos salvos antes delas.
+      for (const account of DEMO_ACCOUNTS) {
+        if (!tables.users.some((user) => user.id === account.id)) {
+          tables.users.push(demoUserRow(account));
+          tables.memberships.push(demoMembershipRow(account));
+        }
+      }
+      if (tables.employees.length === 0) Object.assign(tables, hrSeed());
+      if (!tables.documents.some((doc) => doc.id === "doc-15")) {
+        tables.documents.push(
+          documentRow("doc-15", "Politica de ferias.pdf", "PDF", 1, -20, "/Recursos Humanos/Politicas/Politica de ferias.pdf"),
+          documentRow("doc-16", "Ficha de cadastro de colaborador.docx", "DOCX", 2, -45, "/Recursos Humanos/Modelos/Ficha de cadastro de colaborador.docx"),
+        );
+      }
       return tables;
     } catch {
       return createSeed();

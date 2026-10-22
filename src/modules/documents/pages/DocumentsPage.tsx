@@ -28,6 +28,8 @@ interface Doc {
 }
 
 const ROOT_ACCESS: Record<Role, string[] | "*"> = {
+  ceo: "*",
+  rh: ["Recursos Humanos", "Compartilhados"],
   admin: "*",
   gerente: "*",
   auditor: "*",

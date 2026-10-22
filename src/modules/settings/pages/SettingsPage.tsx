@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
 import { logout } from "@/lib/auth/login";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { usePermission } from "@/hooks/usePermission";
+import { UsersAccess } from "../components/UsersAccess";
 import { ASSISTANT_PROVIDERS, getAssistantApiConfig, saveAssistantApiConfig } from "@/lib/assistant/config";
 import { LogOut, Building2, KeyRound, Save } from "lucide-react";
 
@@ -10,6 +12,7 @@ export default function SettingsPage() {
   const { setSession } = useSession();
   const [apiConfig, setApiConfig] = useState(() => getAssistantApiConfig(session.user.id));
   const [saved, setSaved] = useState(false);
+  const canManageUsers = usePermission("create", "users");
   const selectedProvider = ASSISTANT_PROVIDERS.find((provider) => provider.id === apiConfig.provider) ?? ASSISTANT_PROVIDERS[0];
 
   function handleLogout() {
@@ -18,7 +21,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="max-w-2xl space-y-6">
       <PageHeader title="Configurações" description="Perfil, empresa e sistema" />
 
       {/* Company card */}
@@ -47,6 +50,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {canManageUsers && <UsersAccess />}
 
       {/* Actions */}
       <div className="rounded-xl border bg-card p-5 space-y-4">

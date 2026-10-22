@@ -1,11 +1,13 @@
 // ── Core ──────────────────────────────────────────────────────────
 
 export type Role =
+  | "ceo"
   | "admin"
   | "gerente"
   | "tecnico"
   | "estoquista"
   | "financeiro"
+  | "rh"
   | "comercial"
   | "atendimento"
   | "produtos"
@@ -436,4 +438,75 @@ export interface Notification {
   ref_id?: string | null;
   is_read: number;
   created_at: string;
+}
+
+// ── RH ─────────────────────────────────────────────────────────────
+
+export type EmployeeStatus = "ativo" | "em_ferias" | "afastado" | "desligado";
+export type HrRequestType = "ferias" | "folga" | "atestado" | "outro";
+export type HrRequestStatus = "pendente" | "aprovada" | "recusada";
+export type HrAnnouncementCategory = "comunicado" | "politica" | "beneficio";
+
+/** Cadastro do colaborador. Sem salário: remuneração não faz parte do RH deste sistema. */
+export interface Employee {
+  id: string;
+  company_id: string;
+  user_id?: string | null;
+  name: string;
+  email?: string | null;
+  department?: string | null;
+  position?: string | null;
+  hire_date?: string | null;
+  vacation_days_entitled: number;
+  status: EmployeeStatus;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface HrRequest {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  type: HrRequestType;
+  start_date: string;
+  end_date: string;
+  days: number;
+  reason?: string | null;
+  status: HrRequestStatus;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  decision_note?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface HrAnnouncement {
+  id: string;
+  company_id: string;
+  title: string;
+  body: string;
+  category: HrAnnouncementCategory;
+  pinned: number;
+  published_by?: string | null;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Pendência de um colaborador ("o que ele precisa fazer"). */
+export interface HrTask {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  title: string;
+  description?: string | null;
+  due_date?: string | null;
+  status: "pendente" | "concluida";
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
 }

@@ -14,6 +14,8 @@ const SetupPage = lazy(() => import("@/modules/settings/pages/SetupPage"));
 const DashboardPage = lazy(() => import("@/modules/dashboard/pages/DashboardPage"));
 const CrmPage = lazy(() => import("@/modules/crm/pages/CrmPage"));
 const LeadsPage = lazy(() => import("@/modules/leads/pages/LeadsPage"));
+const MyHrPage = lazy(() => import("@/modules/hr/pages/MyHrPage"));
+const HrManagePage = lazy(() => import("@/modules/hr/pages/HrManagePage"));
 const OpportunitiesPage = lazy(() => import("@/modules/crm/pages/OpportunitiesPage"));
 const SupportPage = lazy(() => import("@/modules/support/pages/SupportPage"));
 const WorkOrdersPage = lazy(() => import("@/modules/operations/pages/WorkOrdersPage"));
@@ -63,6 +65,8 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/crm/*" element={<RequireModule module="crm"><CrmPage /></RequireModule>} />
+          <Route path="/hr" element={<RequireModule module="hr"><MyHrPage /></RequireModule>} />
+          <Route path="/hr/manage" element={<RequireModule module="hr_manage"><HrManagePage /></RequireModule>} />
           <Route path="/leads/*" element={<RequireModule module="leads"><LeadsPage /></RequireModule>} />
           <Route path="/opportunities/*" element={<RequireModule module="opportunities"><OpportunitiesPage /></RequireModule>} />
           <Route path="/support/*" element={<RequireModule module="support"><SupportPage /></RequireModule>} />

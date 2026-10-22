@@ -15,6 +15,8 @@ interface ChatMessage {
 }
 
 const SUGGESTIONS: Record<Role, string[]> = {
+  ceo: ["Resuma os indicadores de todos os setores", "Quais areas precisam de atencao?", "Crie um resumo executivo para a diretoria"],
+  rh: ["Resuma as solicitacoes de RH pendentes", "Quais pendencias de colaboradores estao atrasadas?", "Redija um comunicado para todos os colaboradores"],
   admin: ["Resuma os indicadores da empresa", "Quais areas precisam de atencao?", "Crie um resumo executivo"],
   gerente: ["Liste os principais riscos operacionais", "Resuma os projetos ativos", "Quais chamados exigem prioridade?"],
   tecnico: ["Resuma os tickets em atendimento", "Crie um checklist de diagnostico", "Quais OS aguardam acao tecnica?"],

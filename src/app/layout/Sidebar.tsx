@@ -9,6 +9,8 @@ import {
   Users,
   Target,
   Megaphone,
+  UserRound,
+  UsersRound,
   Wrench,
   FolderKanban,
   Boxes,
@@ -33,6 +35,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard, group: "Visão Geral" },
+  { module: "hr", label: "Meu RH", path: "/hr", icon: UserRound, group: "Pessoas" },
+  { module: "hr_manage", label: "Gestão de RH", path: "/hr/manage", icon: UsersRound, group: "Pessoas" },
   { module: "crm", label: "CRM", path: "/crm", icon: Users, group: "Comercial" },
   { module: "leads", label: "Prospecção", path: "/leads", icon: Megaphone, group: "Comercial" },
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
@@ -143,10 +147,8 @@ export function Sidebar() {
             </p>
             {items.map((item) => {
               const Icon = item.icon;
-              const active =
-                item.path === "/"
-                  ? location.pathname === "/"
-                  : location.pathname.startsWith(item.path);
+              const exact = item.path === "/" || item.path === "/hr";
+              const active = exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
               return (
                 <NavLink
                   key={item.path}

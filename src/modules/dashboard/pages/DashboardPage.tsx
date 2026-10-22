@@ -4,6 +4,8 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { can, hasFullTicketAccess, ROLE_LABELS } from "@/lib/permissions/rbac";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
+import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests, fetchRequests } from "@/lib/hr/queries";
+import { vacationBalance } from "@/lib/hr/rules";
 import {
   Users,
   Wrench,
@@ -13,6 +15,9 @@ import {
   TrendingUp,
   FolderKanban,
   Archive,
+  CalendarDays,
+  ClipboardCheck,
+  UsersRound,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -128,6 +133,21 @@ export default function DashboardPage() {
     queryFn: () => fetchKpis(session.company.id, role, session.user.id),
     refetchInterval: 30_000,
   });
+  // RH no dashboard de todos: saldo de férias e pendências do próprio colaborador; o RH vê também as solicitações pendentes.
+  const { data: hr } = useQuery({
+    queryKey: ["hr", "dashboard", session.company.id, session.user.id, role],
+    queryFn: async () => {
+      const me = await ensureMyEmployee(session);
+      const [mine, todos] = await Promise.all([fetchMyRequests(session.company.id, me.id), fetchMyHrTasks(session.company.id, me.id)]);
+      const pendingRequests = can(role, "view", "hr_admin") ? (await fetchRequests(session.company.id)).filter((request) => request.status === "pendente").length : 0;
+      return { available: vacationBalance(me, mine, new Date().getFullYear()).available, openTodos: todos.filter((todo) => todo.status === "pendente").length, pendingRequests };
+    },
+  });
+  const hrCards = hr ? [
+    { resource: "hr_self", title: "Férias disponíveis", value: `${hr.available} dias`, icon: CalendarDays },
+    { resource: "hr_self", title: "Pendências de RH", value: hr.openTodos, icon: ClipboardCheck },
+    { resource: "hr_admin", title: "Solicitações de RH a decidir", value: hr.pendingRequests, icon: UsersRound },
+  ] : [];
   const cards = data ? [
     { resource: "customers", title: "Clientes", value: data.customers, icon: Users },
     { resource: "opportunities", title: "Oportunidades abertas", value: data.openOpportunities, icon: TrendingUp },
@@ -138,6 +158,7 @@ export default function DashboardPage() {
     { resource: "custody", title: "Custódias de peças ativas", value: data.activeCustodies, icon: Archive },
     { resource: "payables", title: "A pagar (abertas)", value: data.openPayables, icon: Wallet },
     { resource: "receivables", title: "A receber (abertas)", value: data.openReceivables, icon: TrendingUp },
+    ...hrCards,
   ].filter((card) => can(role, "view", card.resource as Parameters<typeof can>[2]) && (card.resource !== "tickets" || role === "tecnico")) : [];
   const showTicketSeries = role === "tecnico";
   const showOperationalChart = showTicketSeries || can(role, "view", "work_orders");

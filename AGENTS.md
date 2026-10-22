@@ -10,7 +10,9 @@ Cada módulo é uma página lazy em `src/modules/<modulo>/pages/`, registrada em
 
 | Módulo (chave) | Rota | Recurso RBAC | Página | Observação |
 |---|---|---|---|---|
-| dashboard | `/` | — (sempre visível) | `dashboard/pages/DashboardPage.tsx` | KPIs |
+| dashboard | `/` | — (sempre visível) | `dashboard/pages/DashboardPage.tsx` | KPIs do que o papel pode ver, mais saldo de férias e pendências de RH |
+| hr | `/hr` | `hr_self` (todos os papéis) | `hr/pages/MyHrPage.tsx` | **Meu RH**: férias, solicitações, comunicados do RH e pendências do próprio colaborador |
+| hr_manage | `/hr/manage` | `hr_admin` (RH, CEO, admin) | `hr/pages/HrManagePage.tsx` | **Gestão de RH**: colaboradores, solicitações (aprovar/recusar), comunicados, pendências; sem salário |
 | crm | `/crm` | `customers` | `crm/pages/CrmPage.tsx` | clientes; `can()` só libera para o papel `comercial` |
 | leads | `/leads` | `leads` | `leads/pages/LeadsPage.tsx` | prospecção de sites: leads, cronograma, pacotes e preços, previsão, indicações |
 | opportunities | `/opportunities` | `opportunities` | `crm/pages/OpportunitiesPage.tsx` | funil de oportunidades |
@@ -26,7 +28,7 @@ Cada módulo é uma página lazy em `src/modules/<modulo>/pages/`, registrada em
 | settings | `/settings` | `settings` | `settings/pages/SettingsPage.tsx` | no menu da conta; IA, tema |
 | assistant | `/assistant` | — (sempre visível) | `assistant/pages/AssistantPage.tsx` | chat com API compatível com OpenAI |
 
-Papéis (`Role` em `src/types/index.ts`): `admin`, `gerente`, `tecnico`, `estoquista`, `financeiro`, `comercial`, `atendimento`, `produtos`, `auditor`.
+Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, `estoquista`, `financeiro`, `rh`, `comercial`, `atendimento`, `produtos`, `auditor`. **O papel vem da conta (e-mail + senha)**; a tela de login é única e cada setor só vê os módulos do seu papel (`visibleModules`). `ceo` tem controle geral (inclusive CRM, auditoria e Gestão de RH); `rh` vê só Gestão de RH, Meu RH, suporte e documentos; todos os papéis têm o Meu RH.
 
 ## 2. Árvore de pastas
 
@@ -49,7 +51,7 @@ Papéis (`Role` em `src/types/index.ts`): `admin`, `gerente`, `tecnico`, `estoqu
 │   ├── Cargo.toml                 # crate company-manager; plugins sql(sqlite)/fs/dialog/shell
 │   ├── tauri.conf.json            # identifier com.company.manager, devUrl :1420
 │   ├── capabilities/default.json  # permissões sql/fs/dialog/shell do webview
-│   ├── migrations/                # 0001_init … 0004_packages_referral, 0005_project_stages
+│   ├── migrations/                # 0001_init … 0004_packages_referral, 0005_project_stages, 0006_hr
 │   ├── src/lib.rs                 # registra as migrations (versão -> arquivo) e os plugins
 │   └── icons/
 └── src/
@@ -100,7 +102,7 @@ CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em 
 - **Navegador:** `src/lib/db/demo.ts` — banco em **localStorage** (`cm_demo_database_v4`) que **emula SQL por padrões de texto**. Seed fixo (empresa TechFlow, contas demo `DEMO_ACCOUNTS`). Consulta/comando fora dos padrões lança `Consulta demo nao suportada` / `Comando demo nao suportada`. Há um fallback genérico para `INSERT [OR IGNORE|OR REPLACE]`, `UPDATE ... WHERE id=?` e `SELECT ... WHERE id=?` nas tabelas novas (leads, service_packages, package_prices, revenue_scenarios, revenue_forecasts, settings, tasks).
 - Acesso: sempre `const db = await getDb()` (`src/lib/db/client.ts`) → `db.select<T>(sql, binds)` / `db.execute(sql, binds)`, com `?` posicionais. **O primeiro bind das consultas costuma ser `company_id`** (o demo depende disso).
 - Convenções do schema (0001): IDs `TEXT` (uuid gerado no app), timestamps `TEXT` ISO (`datetime('now')`), `company_id` em quase tudo (multiempresa), **soft delete** com `deleted_at` (não use `DELETE` no fluxo normal), FKs ativas, índices por `company_id`/status/datas.
-- Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003); `package_prices.feature_note` e, em `leads`, `pricing_segment, referred_by, referral_status` (0004); `project_stages` + `tasks.stage_id` (0005).
+- Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003); `package_prices.feature_note` e, em `leads`, `pricing_segment, referred_by, referral_status` (0004); `project_stages` + `tasks.stage_id` (0005); `employees, hr_requests, hr_announcements, hr_tasks` (0006).
 - Tipos TypeScript das tabelas: `src/types/index.ts` (mantenha em sincronia com as migrations).
 - **Prospecção de sites (migration 0003):** `leads` ganhou `project_id, category, business_type, whatsapp, google_rating, google_reviews, sem_site, online_presence, presence_kind, address, notes, source_url, package_id, estimated_setup, estimated_monthly, estimated_revenue, priority_rank, outreach_day, outreach_date, last_contact_at`. Status do funil: `novo → abordado → interessado → fechado` (os valores antigos `qualificado/descartado/convertido` seguem válidos no tipo). Valores de preço e previsão são **estimativas** (`is_estimate = 1`).
 - **Seed:** `src/lib/prospecting/seed.ts` roda no primeiro login de papel que pode criar `leads` (`useProspectingBootstrap`, chamado no `AppShell`). Idempotente (flag `seed.site_prospecting.v3` em `settings`; ids uuid v5; `INSERT OR IGNORE`). Quem tinha o seed v1 ou v2 é migrado: leads são reapontados, os pacotes antigos são apagados e a previsão é refeita, sem tocar em status, contato ou indicação. Cria o projeto "Desenvolvimento de Site" com 5 etapas e 10 tarefas, os 3 pacotes **Básico / Essencial / Premium**, 39 preços (13 segmentos de preço × 3), 3 cenários (5/10/20%), 42 linhas de previsão e 155 leads. Dados em `src/lib/prospecting/data/siteProspecting.generated.ts` (**gerado**).
@@ -165,6 +167,14 @@ O Project Manager (`~/Documents/Trabalho/Sites/Project-Manager`, repositório gi
 - `design-system.html`, `src-tauri/icons/` e `Cargo.lock` são artefatos versionados; não regenere sem motivo.
 - O repositório está em `~/Documents` (iCloud Drive): arquivos podem ficar "somente na nuvem" (dataless) e travar `tsc`/`vite`. Se acontecer: `brctl download "<pasta>"`.
 - Tema escuro é o padrão (`getTheme()`).
+
+## 8b. Contas, login e RH
+
+- **Login (`modules/settings/pages/LoginPage.tsx`):** tela única com e-mail e senha (mostrar/ocultar), "Esqueci minha senha" e botões GitHub, Google e Microsoft. **Os botões sociais ainda não entram**: `lib/auth/social.ts` explica o que falta (registrar o aplicativo no provedor e um servidor para concluir o OAuth). "Esqueci minha senha" é só informativo: hoje o administrador redefine. Não há mais lista de contas na tela.
+- **Contas demo (`DEMO_ACCOUNTS` em `lib/db/demo.ts`, só no navegador):** `ceo@techflow.com` (CEO, controle geral), `admin@techflow.com`, `gerencia@techflow.com`, e por setor `gerente.<setor>@techflow.com` / `<setor>@techflow.com` (ti, estoque, financeiro, comercial, atendimento, produtos, auditoria, rh). A senha demo fica no mesmo arquivo. Bancos já salvos no navegador recebem as contas novas e os dados de RH ao abrir.
+- **RH (`lib/hr/` + `modules/hr/`):** regras puras em `rules.ts` (dias da solicitação, saldo de férias do ano, quem está de férias, tempo de empresa), consultas em `queries.ts`. `ensureMyEmployee` cria o cadastro do próprio usuário na primeira visita ao Meu RH. A solicitação de férias só passa se houver saldo. Aprovar/recusar e criar colaborador/comunicado/pendência exigem `hr_admin`. **Sem salário em lugar nenhum do RH** (decisão: o RH não vê a parte salarial).
+- **Usuários e acessos** (Configurações, para quem tem `create` em `users`: CEO e admin): lista as contas, cria conta (nome, e-mail, senha inicial, papel) e troca o papel de alguém (menos o próprio). É assim que se cria o RH, o comercial etc. no app desktop; senha ainda usa o prefixo `plain:` e não há tela de troca de senha.
+- A autorização é feita no cliente (RBAC do front-end), como no resto do app: não há servidor que a imponha.
 
 ## 9. Regras de negócio do projeto de sites (instruções do André)
 

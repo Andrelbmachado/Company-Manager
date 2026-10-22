@@ -31,7 +31,9 @@ type Resource =
   | "users"
   | "settings"
   | "audit_logs"
-  | "automations";
+  | "automations"
+  | "hr_self"
+  | "hr_admin";
 
 interface PermissionMap {
   [role: string]: {
@@ -40,11 +42,13 @@ interface PermissionMap {
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
+  ceo: "Diretoria (CEO)",
   admin: "Administracao",
   gerente: "Gerencia",
   tecnico: "TI / Operacoes",
   estoquista: "Estoque",
   financeiro: "Contabilidade / Financeiro",
+  rh: "Recursos Humanos",
   comercial: "Comercial",
   atendimento: "Atendimento",
   produtos: "Desenvolvimento de Produtos",
@@ -52,6 +56,18 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 const PERMISSIONS: PermissionMap = {
+  // CEO: controle geral (vê todos os setores, inclusive CRM, auditoria e gestão de RH).
+  ceo: {
+    "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
+  },
+  // RH: gerencia pessoas (colaboradores, solicitações, comunicados). Não vê CRM, financeiro, estoque nem auditoria.
+  rh: {
+    hr_admin: ["view", "create", "edit", "delete", "approve", "export", "comment", "attach"],
+    tickets: ["view", "create"],
+    documents: ["view", "create", "edit", "attach"],
+    users: ["view"],
+    settings: ["view"],
+  },
   admin: {
     "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
   },
@@ -145,11 +161,17 @@ export function can(
   resource: Resource,
   _scope?: Scope
 ): boolean {
-  if (resource === "customers" && role !== "comercial") return false;
-  if (resource === "audit_logs" && role !== "tecnico") return false;
-
   const rolePerms = PERMISSIONS[role];
   if (!rolePerms) return false;
+
+  // CEO enxerga tudo (as exceções de setor abaixo não se aplicam a ele).
+  if (role === "ceo") return true;
+
+  // "Meu RH": todo colaborador, de qualquer setor, vê e abre solicitações do próprio RH.
+  if (resource === "hr_self") return action === "view" || action === "create" || action === "comment";
+
+  if (resource === "customers" && role !== "comercial") return false;
+  if (resource === "audit_logs" && role !== "tecnico") return false;
 
   // Admin wildcard
   if (rolePerms["*"]) return true;
@@ -172,6 +194,8 @@ export function visibleModules(role: Role): string[] {
   if (!rolePerms) return base;
 
   const moduleMap: Record<string, Resource> = {
+    hr: "hr_self",
+    hr_manage: "hr_admin",
     crm: "customers",
     leads: "leads",
     opportunities: "opportunities",

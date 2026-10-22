@@ -95,6 +95,9 @@ export type LeadStatus =
   | "descartado"
   | "convertido";
 
+/** Status do benefício do programa de indicação (NULL no lead = não é indicação). */
+export type ReferralStatus = "pendente" | "concedido";
+
 export type LeadPresenceKind = "site_quebrado" | "redes_agendamento" | "nenhuma";
 
 export interface Lead {
@@ -111,6 +114,8 @@ export interface Lead {
   // Prospecção (migration 0003)
   project_id?: string | null;
   category?: string | null;
+  /** Segmento de preço (a Proposta separa pet shop / banho e tosa / hotel da veterinária). */
+  pricing_segment?: string | null;
   business_type?: string | null;
   whatsapp?: string | null;
   google_rating?: number | null;
@@ -129,6 +134,9 @@ export interface Lead {
   outreach_day?: number | null;
   outreach_date?: string | null;
   last_contact_at?: string | null;
+  /** Quem indicou este lead. Benefícios só valem quando ele fecha o negócio. */
+  referred_by?: string | null;
+  referral_status?: ReferralStatus | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -156,6 +164,8 @@ export interface PackagePrice {
   segment: string;
   setup_price: number;
   monthly_price: number;
+  /** Escopo base do gerenciador no segmento (Essencial e Premium). */
+  feature_note?: string | null;
   is_estimate: number;
   created_at: string;
   updated_at: string;

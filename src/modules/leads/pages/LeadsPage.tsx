@@ -17,12 +17,14 @@ import { LeadsPanel } from "../components/LeadsPanel";
 import { SchedulePanel } from "../components/SchedulePanel";
 import { PackagesPanel } from "../components/PackagesPanel";
 import { ForecastPanel } from "../components/ForecastPanel";
+import { ReferralPanel } from "../components/ReferralPanel";
 
 const TABS = [
   { id: "leads", label: "Leads" },
   { id: "cronograma", label: "Cronograma de abordagem" },
   { id: "pacotes", label: "Pacotes e preços" },
   { id: "previsao", label: "Previsão de receita" },
+  { id: "indicacoes", label: "Indicações" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -70,7 +72,7 @@ export default function LeadsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Leads" value={leads.length} hint={`${broken} com site quebrado · ${withWhatsapp} com WhatsApp`} />
-        <Stat label="Potencial 1º ano (estimativa)" value={formatMoney(potential)} hint="implantação + 12 mensalidades" />
+        <Stat label="Potencial 1º ano (estimativa)" value={formatMoney(potential)} hint="implantação + 12 mensalidades, preços da Proposta" />
         <Stat label="Funil" value={`${count("abordado")} / ${count("interessado")} / ${count("fechado")}`} hint="abordados / interessados / fechados" />
         <Stat label="Novos" value={count("novo")} hint={`${PER_DAY} abordagens por dia útil`} />
       </div>
@@ -95,6 +97,7 @@ export default function LeadsPage() {
       {tab === "leads" && <LeadsPanel leads={leads} packages={packages} loading={isLoading} />}
       {tab === "cronograma" && <SchedulePanel leads={leads} perDay={PER_DAY} />}
       {tab === "pacotes" && <PackagesPanel packages={packages} prices={prices} leads={leads} />}
+      {tab === "indicacoes" && <ReferralPanel leads={leads} />}
       {tab === "previsao" && <ForecastPanel projectId={project?.id ?? null} scenarios={scenarios} forecasts={forecasts} leads={leads} />}
     </div>
   );

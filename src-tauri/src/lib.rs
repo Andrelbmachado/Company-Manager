@@ -25,6 +25,12 @@ pub fn run() {
             sql: include_str!("../migrations/0003_site_prospecting.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "packages_referral",
+            sql: include_str!("../migrations/0004_packages_referral.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

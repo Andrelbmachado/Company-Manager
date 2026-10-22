@@ -14,7 +14,10 @@ import type { Project, RevenueScenario, Session } from "@/types";
 const NAMESPACE = "6f1c9a52-6a0e-4a43-9c58-0d4b9d3a1e77";
 const LEAD_SOURCE = "Google Maps (SEM_SITE_sorocaba_filtrado.csv)";
 
-export const SEED_SETTING_KEY = "seed.site_prospecting.v1";
+export const SEED_SETTING_KEY = "seed.site_prospecting.v2";
+/** v1 usava os pacotes estimados (Básico / Com agendamento / Premium com SEO); o v2 migra para Básico / Essencial / Premium. */
+const LEGACY_SEED_KEYS = ["seed.site_prospecting.v1"];
+const LEGACY_PACKAGE_KEYS = ["package:agendamento", "package:premium_seo"];
 export const SITE_PROJECT_NAME = "Desenvolvimento de Site";
 
 const inflight = new Map<string, Promise<boolean>>();
@@ -40,6 +43,7 @@ async function runSeed(session: Session): Promise<boolean> {
 
   const settings = await db.select<{ key: string }[]>("SELECT * FROM settings WHERE company_id=?", [companyId]);
   if (settings.some((setting) => setting.key === SEED_SETTING_KEY)) return false;
+  const upgrading = settings.some((setting) => LEGACY_SEED_KEYS.includes(setting.key));
 
   const data = await import("./data/siteProspecting.generated");
 
@@ -57,20 +61,29 @@ async function runSeed(session: Session): Promise<boolean> {
     );
   }
 
-  // Pacotes e preços (estimativa)
+  // Pacotes e preços (Proposta Comercial). Insere se faltar e depois atualiza: o catálogo do seed vence.
   const packageIds = new Map<string, string>();
   for (const pkg of data.SITE_PACKAGES) {
     const id = seedId(companyId, `package:${pkg.code}`);
     packageIds.set(pkg.code, id);
     await db.execute(
       "INSERT OR IGNORE INTO service_packages (id, company_id, project_id, code, name, description, features_json, sort_order, is_estimate) VALUES (?,?,?,?,?,?,?,?,?)",
-      [id, companyId, projectId, pkg.code, pkg.name, pkg.description, JSON.stringify(pkg.features), pkg.sort_order, 1],
+      [id, companyId, projectId, pkg.code, pkg.name, pkg.description, JSON.stringify(pkg.features), pkg.sort_order, 0],
+    );
+    await db.execute(
+      "UPDATE service_packages SET code=?, name=?, description=?, features_json=?, sort_order=?, is_estimate=?, deleted_at=NULL, updated_at=datetime('now') WHERE id=?",
+      [pkg.code, pkg.name, pkg.description, JSON.stringify(pkg.features), pkg.sort_order, 0, id],
     );
   }
   for (const price of data.SITE_PRICES) {
+    const id = seedId(companyId, `price:${price.package_code}:${price.segment}`);
     await db.execute(
-      "INSERT OR IGNORE INTO package_prices (id, company_id, package_id, segment, setup_price, monthly_price, is_estimate) VALUES (?,?,?,?,?,?,?)",
-      [seedId(companyId, `price:${price.package_code}:${price.segment}`), companyId, packageIds.get(price.package_code), price.segment, price.setup_price, price.monthly_price, 1],
+      "INSERT OR IGNORE INTO package_prices (id, company_id, package_id, segment, setup_price, monthly_price, feature_note, is_estimate) VALUES (?,?,?,?,?,?,?,?)",
+      [id, companyId, packageIds.get(price.package_code), price.segment, price.setup_price, price.monthly_price, price.feature_note, 0],
+    );
+    await db.execute(
+      "UPDATE package_prices SET setup_price=?, monthly_price=?, feature_note=?, is_estimate=?, deleted_at=NULL, updated_at=datetime('now') WHERE id=?",
+      [price.setup_price, price.monthly_price, price.feature_note, 0, id],
     );
   }
 
@@ -89,18 +102,32 @@ async function runSeed(session: Session): Promise<boolean> {
   for (const lead of data.SITE_LEADS) {
     await db.execute(
       `INSERT OR IGNORE INTO leads
-         (id, company_id, name, phone, source, status, score, project_id, category, business_type, whatsapp,
+         (id, company_id, name, phone, source, status, score, project_id, category, pricing_segment, business_type, whatsapp,
           google_rating, google_reviews, sem_site, online_presence, presence_kind, address, notes, source_url,
           package_id, estimated_setup, estimated_monthly, estimated_revenue, priority_rank, outreach_day, outreach_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         seedId(companyId, `lead:site:${lead.seq}`), companyId, lead.name, lead.phone, LEAD_SOURCE, "novo", lead.score, projectId,
-        lead.category, lead.business_type, lead.whatsapp, lead.google_rating, lead.google_reviews, lead.sem_site,
+        lead.category, lead.pricing_segment, lead.business_type, lead.whatsapp, lead.google_rating, lead.google_reviews, lead.sem_site,
         lead.online_presence, lead.presence_kind, lead.address, lead.notes, lead.source_url,
         packageIds.get(lead.package_code), lead.estimated_setup, lead.estimated_monthly, lead.estimated_revenue,
         lead.priority_rank, lead.outreach_day, lead.outreach_date,
       ],
     );
+    if (upgrading) {
+      // Quem já tinha o seed v1: reaponta o pacote e os valores sem tocar em status, contato ou indicação.
+      await db.execute(
+        "UPDATE leads SET pricing_segment=?, package_id=?, estimated_setup=?, estimated_monthly=?, estimated_revenue=? WHERE id=?",
+        [lead.pricing_segment, packageIds.get(lead.package_code), lead.estimated_setup, lead.estimated_monthly, lead.estimated_revenue, seedId(companyId, `lead:site:${lead.seq}`)],
+      );
+    }
+  }
+
+  // Apaga os pacotes antigos (agora sem leads apontando para eles).
+  for (const key of LEGACY_PACKAGE_KEYS) {
+    const oldId = seedId(companyId, key);
+    await db.execute("DELETE FROM package_prices WHERE package_id=?", [oldId]);
+    await db.execute("DELETE FROM service_packages WHERE id=?", [oldId]);
   }
 
   for (const task of data.SITE_TASKS) {
@@ -110,7 +137,7 @@ async function runSeed(session: Session): Promise<boolean> {
     );
   }
 
-  await saveForecasts(db, companyId, projectId, scenarios, data.SITE_LEADS);
+  await saveForecasts(db, companyId, projectId, scenarios, data.SITE_LEADS.map((lead) => ({ ...lead, segment: lead.pricing_segment })));
 
   await db.execute(
     "INSERT OR REPLACE INTO settings (id, company_id, key, value_json) VALUES (?,?,?,?)",
@@ -125,7 +152,7 @@ async function runSeed(session: Session): Promise<boolean> {
     entityId: projectId,
     title: `Prospecção de sites importada: ${data.SITE_LEADS.length} leads, ${data.SITE_PACKAGES.length} pacotes, ${data.SITE_TASKS.length} tarefas`,
     module: "leads",
-    metadata: { version: data.SITE_SEED_VERSION, estimate: true },
+    metadata: { version: data.SITE_SEED_VERSION, upgradedFromV1: upgrading },
   });
 
   return true;

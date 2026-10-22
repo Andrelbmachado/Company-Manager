@@ -1,49 +1,88 @@
-// Tabela de pacotes e preços do projeto "Desenvolvimento de Site".
+// Pacotes e preços do projeto "Desenvolvimento de Site".
 //
-// ESTIMATIVA: ~/LeadingSitesSorocaba/Proposta_Comercial.md não existia quando esta tabela
-// foi criada. Todos os valores abaixo são faixas estimadas (is_estimate = 1) e devem ser
-// substituídos pelos valores da proposta comercial quando ela existir.
-// Faixa de implantação: R$ 1.200 (Básico, segmentos simples) a R$ 15.000 (Premium com SEO, clínicas).
+// Fonte: ~/LeadingSitesSorocaba/Proposta_Comercial.md (preços FIXOS por segmento, implantação + mensalidade,
+// com fidelidade mínima de 12 meses; faixa de implantação R$ 1.600 a R$ 12.000) e INSTRUCAO_PACOTES.md
+// (pacotes BÁSICO, ESSENCIAL e PREMIUM).
+//
+// Correspondência com as colunas da Proposta: BÁSICO = "Básico"; ESSENCIAL = "Com funcionalidade-chave";
+// PREMIUM = "Premium com SEO". O que muda é o produto (vitrine / gerenciador / os dois), o preço segue a tabela.
 
 export const PACKAGES = [
   {
     code: "basico",
     name: "Básico",
     sortOrder: 1,
-    description: "Site institucional de uma página, otimizado para celular, com botão de WhatsApp, mapa e perfil do Google conectado.",
-    features: ["Site de 1 página responsivo", "Botão de WhatsApp e ligação", "Mapa e horário de funcionamento", "Domínio e hospedagem configurados"],
+    description: "Só a vitrine: o site público para o cliente final, com fotos, cardápio ou serviços, preços, formulário de contato e atendente de WhatsApp. Sem painel de gestão. Mensalidade com fidelidade mínima de 12 meses.",
+    features: [
+      "Site público responsivo de 4 a 5 páginas",
+      "Fotos, cardápio ou serviços e preços do cliente",
+      "Formulário de contato e atendente de WhatsApp",
+      "Mapa, horários e link para as avaliações do Google",
+      "Domínio no nome do cliente, hospedagem e SSL",
+    ],
   },
   {
-    code: "agendamento",
-    name: "Com agendamento",
+    code: "essencial",
+    name: "Essencial",
     sortOrder: 2,
-    description: "Site multipáginas com agendamento/orçamento online, integração com WhatsApp e e-mail e painel simples de solicitações.",
-    features: ["Até 5 páginas", "Agendamento ou pedido de orçamento online", "Notificação por WhatsApp e e-mail", "Galeria e depoimentos", "Tudo do Básico"],
+    description: "Só o gerenciador: painel com login para donos e funcionários, específico do segmento. Sem vitrine pública. Mensalidade com fidelidade mínima de 12 meses.",
+    features: [
+      "Painel com login para donos e funcionários",
+      "Módulos do dia a dia do segmento",
+      "Perfis de acesso por função",
+      "Hospedagem, backup e suporte",
+    ],
   },
   {
-    code: "premium_seo",
-    name: "Premium com SEO",
+    code: "premium",
+    name: "Premium",
     sortOrder: 3,
-    description: "Site completo com SEO local, blog, conteúdo por serviço, analytics e acompanhamento mensal de posicionamento.",
-    features: ["Páginas por serviço com SEO local", "Blog e conteúdo inicial", "Google Analytics e Search Console", "Relatório mensal de posicionamento", "Tudo do Com agendamento"],
+    description: "Vitrine e gerenciador juntos, com chave para ativar ou desativar o módulo de gestão. Mensalidade com fidelidade mínima de 12 meses.",
+    features: [
+      "Tudo do Básico (vitrine pública)",
+      "Tudo do Essencial (painel de gestão do segmento)",
+      "Chave para ativar ou desativar o módulo de gestão",
+      "SEO local e relatório mensal",
+    ],
   },
 ];
 
-// Preço por segmento: [implantação, mensalidade] em R$ para cada pacote.
-// Chaves = valores da coluna "segmento" do CSV.
+export const PET_SHOP_SEGMENT = "Pet shop / banho e tosa / hotel";
+
+// Preço por segmento de preço: [implantação, mensalidade] em R$ para cada pacote (Proposta Comercial, seção 1).
+// Chaves = valores da coluna "segmento" do CSV, mais o segmento de pet shop, que a Proposta separa.
 export const PRICES = {
-  "Academias/Pilates/CrossFit": { basico: [1800, 150], agendamento: [3500, 250], premium_seo: [6500, 450] },
-  "Advocacia": { basico: [2500, 200], agendamento: [4500, 300], premium_seo: [9000, 600] },
-  "Arquitetura/Construção/Planejados": { basico: [3000, 200], agendamento: [5500, 300], premium_seo: [11000, 650] },
-  "Automotivo": { basico: [1500, 120], agendamento: [3200, 220], premium_seo: [6000, 400] },
-  "Clínicas": { basico: [3500, 250], agendamento: [6500, 400], premium_seo: [15000, 800] },
-  "Contabilidade": { basico: [2200, 180], agendamento: [3800, 280], premium_seo: [7500, 500] },
-  "Escolas/Idiomas": { basico: [2500, 200], agendamento: [4800, 320], premium_seo: [9500, 600] },
-  "Eventos/Buffets": { basico: [2800, 200], agendamento: [5000, 300], premium_seo: [10000, 600] },
-  "Imobiliárias": { basico: [4000, 300], agendamento: [7000, 450], premium_seo: [14000, 800] },
-  "Pet/Veterinária": { basico: [1800, 150], agendamento: [3600, 250], premium_seo: [7000, 450] },
-  "Restaurantes": { basico: [1200, 100], agendamento: [2800, 200], premium_seo: [5500, 350] },
-  "Salões/Barbearias": { basico: [1200, 100], agendamento: [2800, 200], premium_seo: [5000, 350] },
+  "Pet/Veterinária": { basico: [2200, 149], essencial: [4200, 249], premium: [7800, 449] },
+  [PET_SHOP_SEGMENT]: { basico: [1800, 129], essencial: [3200, 229], premium: [5900, 399] },
+  "Clínicas": { basico: [2600, 169], essencial: [4800, 279], premium: [9500, 549] },
+  "Advocacia": { basico: [2600, 169], essencial: [4800, 279], premium: [9500, 549] },
+  "Contabilidade": { basico: [2200, 149], essencial: [4500, 249], premium: [8500, 499] },
+  "Eventos/Buffets": { basico: [2200, 149], essencial: [4500, 279], premium: [8500, 499] },
+  "Academias/Pilates/CrossFit": { basico: [2000, 149], essencial: [4000, 249], premium: [7000, 449] },
+  "Automotivo": { basico: [2000, 149], essencial: [4500, 249], premium: [9500, 499] },
+  "Arquitetura/Construção/Planejados": { basico: [2600, 169], essencial: [4800, 279], premium: [9500, 549] },
+  "Escolas/Idiomas": { basico: [2000, 149], essencial: [4500, 249], premium: [8000, 449] },
+  "Restaurantes": { basico: [1600, 129], essencial: [3500, 229], premium: [6500, 399] },
+  "Salões/Barbearias": { basico: [1600, 129], essencial: [3200, 229], premium: [5900, 399] },
+  "Imobiliárias": { basico: [3000, 199], essencial: [6500, 349], premium: [12000, 649] },
+};
+
+// Escopo base do gerenciador por segmento (Essencial e Premium). Buffet, veterinária e restaurante vêm da
+// INSTRUCAO_PACOTES.md; os demais partem da "funcionalidade-chave" da Proposta e devem ser detalhados com o cliente.
+export const MANAGEMENT_SCOPE = {
+  "Pet/Veterinária": "Prontuários, agenda de consultas, vacinas e lembretes de retorno, tutores e pets",
+  [PET_SHOP_SEGMENT]: "Agenda de banho e tosa e de diárias, pets e tutores, lembretes",
+  "Clínicas": "Agenda, pacientes e lembretes de consulta",
+  "Advocacia": "Agenda de consultas e cadastro de clientes",
+  "Contabilidade": "Agenda de reuniões e cadastro de clientes",
+  "Eventos/Buffets": "Festas, reservas, cardápio e aniversariantes",
+  "Academias/Pilates/CrossFit": "Alunos, grade de horários e aulas experimentais",
+  "Automotivo": "Orçamentos, agenda de revisões e ordens de serviço",
+  "Arquitetura/Construção/Planejados": "Briefings, orçamentos e projetos em andamento",
+  "Escolas/Idiomas": "Matrículas, visitas e aulas experimentais, turmas",
+  "Restaurantes": "Comandas, maquininha, estoque e cozinha",
+  "Salões/Barbearias": "Agenda, clientes e lembretes",
+  "Imobiliárias": "Imóveis, visitas e contatos",
 };
 
 // Cenários de conversão (percentual de leads que fecham).
@@ -53,14 +92,17 @@ export const SCENARIOS = [
   { code: "otimista", label: "Otimista (20%)", rate: 0.2 },
 ];
 
-// Pacote sugerido por lead, a partir das avaliações no Google (demanda já comprovada).
-//   >= 200 avaliações  -> Premium com SEO
-//   50 a 199           -> Com agendamento
-//   < 50 ou sem dado   -> Básico
+// Segmento de preço de um lead: a Proposta separa pet shop / banho e tosa / hotel da veterinária.
+export function pricingSegment(name, category) {
+  if (category === "Pet/Veterinária" && /banho|tosa|hotel|creche|pet ?shop/i.test(name)) return PET_SHOP_SEGMENT;
+  return category;
+}
+
+// Pacote assumido na estimativa de receita de cada lead. Todos os 155 leads estão SEM SITE, então a porta de
+// entrada é a vitrine (Básico). Negócios com 200+ avaliações no Google (operação movimentada, mais clientes
+// para gerir) entram como Premium. O Essencial (só gerenciador) não é assumido: serve a quem já tem vitrine.
 export function suggestPackage(reviews) {
-  if (reviews !== null && reviews >= 200) return "premium_seo";
-  if (reviews !== null && reviews >= 50) return "agendamento";
-  return "basico";
+  return reviews !== null && reviews >= 200 ? "premium" : "basico";
 }
 
 // Tarefas iniciais do projeto "Desenvolvimento de Site" (tabela `tasks`).

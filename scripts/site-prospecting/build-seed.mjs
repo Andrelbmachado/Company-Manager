@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { OUTREACH, PACKAGES, PRICES, PROJECT_TASKS, SCENARIOS, suggestPackage } from "./pricing.mjs";
+import { MANAGEMENT_SCOPE, OUTREACH, PACKAGES, PRICES, PROJECT_TASKS, SCENARIOS, pricingSegment, suggestPackage } from "./pricing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const csvPath = process.argv[2] ?? resolve(homedir(), "LeadingSitesSorocaba/leads/SEM_SITE_sorocaba_filtrado.csv");
@@ -100,8 +100,9 @@ const unknownSegments = new Set();
 
 const leads = csvRows.map((row, index) => {
   const segment = row["segmento"];
-  const prices = PRICES[segment];
-  if (!prices) unknownSegments.add(segment);
+  const priceSegment = pricingSegment(row["nome"], segment);
+  const prices = PRICES[priceSegment];
+  if (!prices) unknownSegments.add(priceSegment);
 
   const phones = parsePhones(row["telefone"]);
   const { rating, reviews } = parseRating(row["avaliações Google"]);
@@ -121,6 +122,7 @@ const leads = csvRows.map((row, index) => {
     seq: index + 1,
     name: row["nome"],
     category: segment,
+    pricing_segment: priceSegment,
     business_type: row["o que o negócio faz"] || null,
     phone: phones[0]?.formatted ?? null,
     whatsapp,
@@ -163,17 +165,24 @@ ranked.forEach((lead, index) => {
 });
 
 const prices = Object.entries(PRICES).flatMap(([segment, byPackage]) =>
-  PACKAGES.map((pkg) => ({ segment, package_code: pkg.code, setup_price: byPackage[pkg.code][0], monthly_price: byPackage[pkg.code][1] })),
+  PACKAGES.map((pkg) => ({
+    segment,
+    package_code: pkg.code,
+    setup_price: byPackage[pkg.code][0],
+    monthly_price: byPackage[pkg.code][1],
+    // O escopo do gerenciador só vale para os pacotes que o incluem.
+    feature_note: pkg.code === "basico" ? null : MANAGEMENT_SCOPE[segment],
+  })),
 );
 
 const header = `// ARQUIVO GERADO por scripts/site-prospecting/build-seed.mjs — NÃO EDITE À MÃO.
 // Fonte dos leads: ${csvPath.replace(homedir(), "~")}
-// Preços: scripts/site-prospecting/pricing.mjs (ESTIMATIVA — Proposta_Comercial.md não existia).
+// Preços: scripts/site-prospecting/pricing.mjs (Proposta_Comercial.md: preços fixos; pacotes Básico, Essencial, Premium).
 // Para regenerar: node scripts/site-prospecting/build-seed.mjs
 `;
 
 const body = `
-export const SITE_SEED_VERSION = "v1";
+export const SITE_SEED_VERSION = "v2";
 
 export const SITE_PROJECT = {
   name: "Desenvolvimento de Site",
@@ -203,6 +212,7 @@ export interface SitePriceSeed {
   package_code: string;
   setup_price: number;
   monthly_price: number;
+  feature_note: string | null;
 }
 
 export interface SiteScenarioSeed {
@@ -224,6 +234,7 @@ export interface SiteLeadSeed {
   seq: number;
   name: string;
   category: string;
+  pricing_segment: string;
   business_type: string | null;
   phone: string | null;
   whatsapp: string | null;

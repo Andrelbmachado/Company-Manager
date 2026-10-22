@@ -41,7 +41,7 @@ export function ForecastPanel({ projectId, scenarios, forecasts, leads }: Foreca
     mutationFn: async () => {
       if (!projectId) return;
       const db = await getDb();
-      await saveForecasts(db, session.company.id, projectId, scenarios, leads, segments.map((row) => row.segment as string));
+      await saveForecasts(db, session.company.id, projectId, scenarios, leads.map((lead) => ({ ...lead, segment: lead.pricing_segment ?? lead.category })), segments.map((row) => row.segment as string));
       await emit({
         type: "revenue_forecast.recalculated",
         companyId: session.company.id,
@@ -66,7 +66,7 @@ export function ForecastPanel({ projectId, scenarios, forecasts, leads }: Foreca
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-3xl text-sm text-muted-foreground">
-          <strong className="text-foreground">Estimativa.</strong> Potencial por lead = implantação + 12 mensalidades do pacote sugerido (1º ano).
+          <strong className="text-foreground">Estimativa de receita.</strong> Potencial por lead = implantação + 12 mensalidades do pacote assumido (Premium com 200+ avaliações no Google, Básico nos demais), 1º ano, com os preços da Proposta Comercial. Descontos e meses grátis do Programa de Indicação não entram.
           Cada cenário aplica a taxa de conversão sobre toda a base de {leads.length} leads (potencial total: <strong className="text-foreground">{formatMoney(potential)}</strong>).
         </p>
         {canEdit && projectId && (

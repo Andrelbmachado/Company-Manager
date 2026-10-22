@@ -2,7 +2,8 @@
 // Todos os valores são ESTIMATIVAS derivadas da tabela de pacotes (service_packages / package_prices).
 
 export interface ForecastLead {
-  category?: string | null;
+  /** Segmento de preço do lead (agrupa a previsão por segmento). */
+  segment?: string | null;
   estimated_setup: number;
   estimated_monthly: number;
   estimated_revenue: number;
@@ -69,7 +70,7 @@ export function computeForecasts(
   const total = emptyBucket();
 
   for (const lead of leads) {
-    const segment = lead.category?.trim() || "Sem categoria";
+    const segment = lead.segment?.trim() || "Sem segmento";
     const bucket = bySegment.get(segment) ?? emptyBucket();
     bucket.leads += 1;
     bucket.setup += lead.estimated_setup;

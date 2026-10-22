@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/utils";
+import { referralStatusFor } from "@/lib/prospecting/referral";
+import { ReferralBox } from "./ReferralBox";
 import {
   LEAD_STATUSES,
   PRESENCE_LABELS,
@@ -64,7 +66,9 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
     mutationFn: async ({ lead, next }: { lead: Lead; next: LeadStatus }) => {
       const db = await getDb();
       const contactedAt = next === "novo" ? null : new Date().toISOString();
-      await db.execute("UPDATE leads SET status=?, last_contact_at=?, updated_at=datetime('now') WHERE id=?", [next, contactedAt, lead.id]);
+      // Indicação: o benefício só passa a "concedido" quando o indicado fecha.
+      const referral = referralStatusFor(next, lead.referred_by);
+      await db.execute("UPDATE leads SET status=?, last_contact_at=?, referral_status=?, updated_at=datetime('now') WHERE id=?", [next, contactedAt, referral, lead.id]);
       await emit({
         type: "lead.status_changed",
         companyId: session.company.id,
@@ -76,7 +80,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         oldValue: { status: lead.status },
         newValue: { status: next },
       });
-      return { ...lead, status: next, last_contact_at: contactedAt };
+      return { ...lead, status: next, last_contact_at: contactedAt, referral_status: referral };
     },
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ["leads", session.company.id] });
@@ -204,6 +208,13 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
               <DetailItem label="Mensalidade (estimativa)" value={formatMoney(selected.estimated_monthly)} />
             </DetailGrid>
             <DetailItem label="Observações" value={selected.notes} />
+            <ReferralBox
+              key={selected.id}
+              lead={selected}
+              canEdit={canEdit}
+              suggestions={[...new Set(leads.map((lead) => lead.name).filter((name) => name !== selected.name))].sort((a, b) => a.localeCompare(b, "pt-BR"))}
+              onSaved={setSelected}
+            />
             {selected.source_url && (
               <button type="button" className="text-sm text-primary hover:underline" onClick={() => void openExternal(selected.source_url!)}>
                 Ver no Google Maps

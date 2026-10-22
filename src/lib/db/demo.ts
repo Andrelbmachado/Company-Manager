@@ -297,6 +297,23 @@ function literalOrBind(token: string, nextBind: () => unknown): unknown {
   return token.replace(/^'|'$/g, "");
 }
 
+/** Converte "a=? and b is null and c is not null" em predicado, consumindo binds na ordem. */
+function parseWhere(clause: string, nextBind: () => unknown): (row: Row) => boolean {
+  const checks = clause.split(/ and /).map<(row: Row) => boolean>((part) => {
+    const isNull = part.match(/^(\w+) is null$/);
+    if (isNull) return (row) => row[isNull[1]] == null;
+    const notNull = part.match(/^(\w+) is not null$/);
+    if (notNull) return (row) => row[notNull[1]] != null;
+    const equals = part.match(/^(\w+) ?= ?\?$/);
+    if (equals) {
+      const value = nextBind();
+      return (row) => row[equals[1]] === value;
+    }
+    throw new Error(`Condição demo não suportada: ${part}`);
+  });
+  return (row) => checks.every((check) => check(row));
+}
+
 function orderByColumn(rows: Row[], sql: string): Row[] {
   const match = sql.match(/order by ([a-z_]+)( asc| desc)?/);
   if (!match) return rows;
@@ -572,16 +589,30 @@ class DemoDatabase implements DatabaseLike {
       return { rowsAffected: 1 };
     }
 
-    const update = sql.match(/^update (\w+) set (.*) where id ?= ?\?$/);
+    const update = sql.match(/^update (\w+) set (.*?) where (.+)$/);
     if (update && update[1] in this.tables) {
       const patch: Row = {};
       let bindIndex = 0;
+      const nextBind = () => bindValues[bindIndex++];
       for (const assignment of update[2].split(/, ?/)) {
         const [column, expression] = assignment.split(/ ?= ?/);
-        patch[column.trim()] = literalOrBind(expression.trim(), () => bindValues[bindIndex++]);
+        patch[column.trim()] = literalOrBind(expression.trim(), nextBind);
       }
-      this.update(update[1] as keyof DemoTables, bindValues[bindValues.length - 1], patch);
-      return { rowsAffected: 1 };
+      const matched = this.tables[update[1] as keyof DemoTables].filter(parseWhere(update[3], nextBind));
+      matched.forEach((row) => Object.assign(row, patch));
+      this.save();
+      return { rowsAffected: matched.length };
+    }
+
+    // DELETE físico: só para dados de catálogo substituídos pelo seed (o fluxo normal usa soft delete).
+    const remove = sql.match(/^delete from (\w+) where (.+)$/);
+    if (remove && remove[1] in this.tables) {
+      let bindIndex = 0;
+      const rows = this.tables[remove[1] as keyof DemoTables];
+      const doomed = new Set(rows.filter(parseWhere(remove[2], () => bindValues[bindIndex++])));
+      this.tables[remove[1] as keyof DemoTables] = rows.filter((row) => !doomed.has(row)) as Row[];
+      this.save();
+      return { rowsAffected: doomed.size };
     }
     return null;
   }

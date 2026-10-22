@@ -15,7 +15,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatCurrency, formatDay } from "@/lib/utils";
 import { formatMoney } from "@/lib/prospecting/contact";
 import { fetchEmployees } from "@/lib/hr/queries";
-import { fetchCompensation } from "@/lib/payroll/queries";
+import { fetchCompensation, monthlyPayroll } from "@/lib/payroll/queries";
 import type { Employee } from "@/types";
 
 /** Folha de pagamento: remuneração é questão administrativo-financeira, visível só para CEO e Administração. */
@@ -35,7 +35,7 @@ export default function PayrollPage() {
   const byEmployee = useMemo(() => new Map(compensation.map((entry) => [entry.employee_id, entry])), [compensation]);
   const active = employees.filter((employee) => employee.status !== "desligado");
   const withSalary = active.filter((employee) => (byEmployee.get(employee.id)?.base_salary ?? 0) > 0);
-  const monthly = withSalary.reduce((sum, employee) => sum + (byEmployee.get(employee.id)?.base_salary ?? 0), 0);
+  const monthly = monthlyPayroll(employees, compensation);
   const term = search.trim().toLowerCase();
   const rows = active.filter((employee) => !term || [employee.name, employee.department, employee.position].some((field) => (field ?? "").toLowerCase().includes(term)));
 
@@ -54,7 +54,7 @@ export default function PayrollPage() {
       // O valor não vai para o histórico de atividades: o log é visível a outros papéis.
       await emit({ type: "payroll.salary_updated", companyId, actorId: session.user.id, entityType: "employee", entityId: editing.id, title: `Remuneração atualizada: ${editing.name}`, module: "payroll" });
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll"] }); setEditing(null); setError(""); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll"] }); void qc.invalidateQueries({ queryKey: ["hr", "dashboard"] }); setEditing(null); setError(""); },
     onError: (cause) => setError(cause instanceof Error ? cause.message : String(cause)),
   });
 

@@ -4,9 +4,9 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { can, hasFullTicketAccess, ROLE_LABELS } from "@/lib/permissions/rbac";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
-import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests, fetchRequests } from "@/lib/hr/queries";
+import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests, fetchRequests, fetchEmployees } from "@/lib/hr/queries";
 import { vacationBalance } from "@/lib/hr/rules";
-import { fetchCompensation } from "@/lib/payroll/queries";
+import { fetchCompensation, monthlyPayroll } from "@/lib/payroll/queries";
 import { formatMoney } from "@/lib/prospecting/contact";
 import {
   Users,
@@ -144,7 +144,7 @@ export default function DashboardPage() {
       const [mine, todos] = await Promise.all([fetchMyRequests(session.company.id, me.id), fetchMyHrTasks(session.company.id, me.id)]);
       const pendingRequests = can(role, "view", "hr_admin") ? (await fetchRequests(session.company.id)).filter((request) => request.status === "pendente").length : 0;
       // Folha só para quem pode ver `payroll` (CEO e Administração).
-      const payroll = can(role, "view", "payroll") ? (await fetchCompensation(session.company.id)).reduce((sum, entry) => sum + entry.base_salary, 0) : 0;
+      const payroll = can(role, "view", "payroll") ? monthlyPayroll(await fetchEmployees(session.company.id), await fetchCompensation(session.company.id)) : 0;
       return { available: vacationBalance(me, mine, new Date().getFullYear()).available, openTodos: todos.filter((todo) => todo.status === "pendente").length, pendingRequests, payroll };
     },
   });

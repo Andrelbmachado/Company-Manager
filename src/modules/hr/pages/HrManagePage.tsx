@@ -11,10 +11,11 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { fetchAnnouncements, fetchEmployees, fetchHrTasks, fetchRequests } from "@/lib/hr/queries";
-import { REQUEST_TYPE_LABEL, isOnVacation, vacationBalance } from "@/lib/hr/rules";
-import type { Employee, EmployeeStatus, HrAnnouncementCategory } from "@/types";
+import { REQUEST_TYPE_LABEL, approvalError, isOnVacation, vacationBalance } from "@/lib/hr/rules";
+import type { Employee, EmployeeStatus, HrAnnouncementCategory, HrRequest } from "@/types";
 
 type Tab = "solicitacoes" | "colaboradores" | "comunicados" | "pendencias";
 type Dialog = "employee" | "announcement" | "task" | null;
@@ -52,6 +53,7 @@ export default function HrManagePage() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"pendente" | "todas">("pendente");
+  const [error, setError] = useState("");
 
   const { data: employees = [] } = useQuery({ queryKey: ["hr", "employees", companyId], queryFn: () => fetchEmployees(companyId) });
   const { data: requests = [] } = useQuery({ queryKey: ["hr", "requests", companyId], queryFn: () => fetchRequests(companyId) });
@@ -61,33 +63,49 @@ export default function HrManagePage() {
   const byId = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const active = employees.filter((employee) => employee.status !== "desligado");
   const pending = requests.filter((request) => request.status === "pendente");
+  const TAB_ITEMS = TABS.map((item) => ({ id: item.id, label: `${item.label}${item.id === "solicitacoes" && pending.length > 0 ? ` (${pending.length})` : ""}` }));
   const onVacation = active.filter((employee) => isOnVacation(requests, employee.id, today)).length;
-  const lateTasks = tasks.filter((task) => task.status === "pendente" && task.due_date && task.due_date < today).length;
   const year = Number(today.slice(0, 4));
+  const lateTasks = tasks.filter((task) => task.status === "pendente" && task.due_date && task.due_date < today).length;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["hr"] });
-  const done = () => { void refresh(); setDialog(null); setEditing(null); };
+  const done = () => { void refresh(); setDialog(null); setEditing(null); setError(""); };
+  const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
   const decide = useMutation({
     mutationFn: async ({ id, approve }: { id: string; approve: boolean }) => {
       const status = approve ? "aprovada" : "recusada";
-      await (await getDb()).execute(
-        "UPDATE hr_requests SET status=?, decided_by=?, decided_at=?, updated_at=datetime('now') WHERE id=? AND company_id=?",
+      const db = await getDb();
+      // Decide sobre o que está no banco agora, não sobre a tela: outra pessoa do RH pode ter decidido antes.
+      const [current] = await db.select<HrRequest[]>("SELECT * FROM hr_requests WHERE id=? AND company_id=?", [id, companyId]);
+      if (!current) throw new Error("Solicitação não encontrada.");
+      const fresh = await fetchRequests(companyId);
+      const problem = approve ? approvalError(current, byId.get(current.employee_id), fresh) : current.status !== "pendente" ? "Esta solicitação já foi decidida." : null;
+      if (problem) throw new Error(problem);
+      await db.execute(
+        "UPDATE hr_requests SET status=?, decided_by=?, decided_at=?, updated_at=datetime('now') WHERE id=? AND company_id=? AND status='pendente'",
         [status, session.user.id, new Date().toISOString(), id, companyId],
       );
       await emit({ type: "hr_request.decided", companyId, actorId: session.user.id, entityType: "hr_request", entityId: id, title: `Solicitação ${status}`, module: "hr" });
     },
-    onSuccess: () => void refresh(),
+    onSuccess: () => { void refresh(); setError(""); },
+    onError: (cause) => { void refresh(); fail(cause); },
   });
 
   const saveEmployee = useMutation({
     mutationFn: async () => {
       const db = await getDb();
       const values = [form.name.trim(), form.email.trim().toLowerCase() || null, form.department.trim() || null, form.position.trim() || null, form.hire_date || null, Number(form.vacation_days_entitled) || 30, form.status];
-      if (editing) await db.execute("UPDATE employees SET name=?, email=?, department=?, position=?, hire_date=?, vacation_days_entitled=?, status=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [...values, editing.id, companyId]);
+      const email = values[1] as string | null;
+      // Mesmo e-mail = mesma pessoa. O Meu RH cria o cadastro de quem já entrou; o RH completa esse cadastro em vez de duplicar.
+      const sameEmail = email ? (await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND email=? AND deleted_at IS NULL", [companyId, email])).find((row) => row.id !== editing?.id) : undefined;
+      if (editing && sameEmail) throw new Error(`Já existe um colaborador com este e-mail: ${sameEmail.name}.`);
+      const target = editing ?? sameEmail;
+      if (target) await db.execute("UPDATE employees SET name=?, email=?, department=?, position=?, hire_date=?, vacation_days_entitled=?, status=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [...values, target.id, companyId]);
       else await db.execute("INSERT INTO employees (id, company_id, name, email, department, position, hire_date, vacation_days_entitled, status) VALUES (?,?,?,?,?,?,?,?,?)", [uuidv4(), companyId, ...values]);
     },
     onSuccess: done,
+    onError: fail,
   });
 
   const saveAnnouncement = useMutation({
@@ -98,6 +116,7 @@ export default function HrManagePage() {
       );
     },
     onSuccess: done,
+    onError: fail,
   });
 
   const togglePin = useMutation({
@@ -105,6 +124,7 @@ export default function HrManagePage() {
       await (await getDb()).execute("UPDATE hr_announcements SET pinned=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [pinned ? 0 : 1, id, companyId]);
     },
     onSuccess: () => void refresh(),
+    onError: fail,
   });
 
   const removeAnnouncement = useMutation({
@@ -112,6 +132,7 @@ export default function HrManagePage() {
       await (await getDb()).execute("UPDATE hr_announcements SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND company_id=?", [id, companyId]);
     },
     onSuccess: () => void refresh(),
+    onError: fail,
   });
 
   const saveTask = useMutation({
@@ -126,9 +147,11 @@ export default function HrManagePage() {
       }
     },
     onSuccess: done,
+    onError: fail,
   });
 
   function openEmployee(employee: Employee | null) {
+    setError("");
     setEditing(employee);
     setForm(employee
       ? { name: employee.name, email: employee.email ?? "", department: employee.department ?? "", position: employee.position ?? "", hire_date: employee.hire_date?.slice(0, 10) ?? "", vacation_days_entitled: String(employee.vacation_days_entitled), status: employee.status === "em_ferias" ? "ativo" : employee.status }
@@ -159,21 +182,23 @@ export default function HrManagePage() {
         <StatCard title="Pendências em atraso" value={lateTasks} hint="Itens pedidos aos colaboradores, com prazo vencido" />
       </div>
 
+      {error && !dialog && (
+        <p role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-status-danger bg-card px-4 py-2.5 text-sm">
+          <span><strong className="text-status-danger dark:text-red-400">Não foi possível concluir. </strong>{error}</span>
+          <button onClick={() => setError("")} className="shrink-0 font-medium underline">fechar</button>
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-b">
-        <div role="tablist" className="flex gap-1">
-          {TABS.map((item) => (
-            <button key={item.id} role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)} className={cn("-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors", tab === item.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              {item.label}{item.id === "solicitacoes" && pending.length > 0 ? ` (${pending.length})` : ""}
-            </button>
-          ))}
-        </div>
+        <TabList tabs={TAB_ITEMS} value={tab} onChange={setTab} label="Seções da gestão de RH" idPrefix="rh" />
         <div className="mb-2 flex gap-2">
           {tab === "colaboradores" && canCreate && <button onClick={() => openEmployee(null)} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Plus size={14} /> Novo colaborador</button>}
-          {tab === "comunicados" && canCreate && <button onClick={() => { setForm({ title: "", body: "", category: "comunicado", pinned: "nao" }); setDialog("announcement"); }} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Plus size={14} /> Novo comunicado</button>}
-          {tab === "pendencias" && canCreate && <button onClick={() => { setForm({ employee_id: "todos", title: "", due_date: "" }); setDialog("task"); }} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Plus size={14} /> Nova pendência</button>}
+          {tab === "comunicados" && canCreate && <button onClick={() => { setError(""); setForm({ title: "", body: "", category: "comunicado", pinned: "nao" }); setDialog("announcement"); }} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Plus size={14} /> Novo comunicado</button>}
+          {tab === "pendencias" && canCreate && <button onClick={() => { setError(""); setForm({ employee_id: "todos", title: "", due_date: "" }); setDialog("task"); }} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Plus size={14} /> Nova pendência</button>}
         </div>
       </div>
 
+      <TabPanel idPrefix="rh" id={tab}>
       {tab === "solicitacoes" && (
         <section className="space-y-3">
           <div className="flex gap-2">
@@ -249,7 +274,7 @@ export default function HrManagePage() {
               <li key={item.id} className="rounded-xl border bg-card p-5">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={item.category} />
-                  {item.pinned ? <span className="text-xs font-semibold text-primary">Fixado</span> : null}
+                  {item.pinned ? <span className="text-xs font-semibold text-primary-text">Fixado</span> : null}
                   <span className="text-xs text-muted-foreground">{formatDay(item.published_at)}</span>
                   <span className="ml-auto flex gap-1">
                     {canEdit && <button onClick={() => togglePin.mutate({ id: item.id, pinned: item.pinned })} aria-label={item.pinned ? "Desafixar" : "Fixar"} className="rounded-md border p-1.5 hover:bg-muted"><Pin size={14} /></button>}
@@ -287,8 +312,12 @@ export default function HrManagePage() {
         )
       )}
 
+      </TabPanel>
+
       {dialog === "employee" && (
-        <CrudDialog title={editing ? "Editar colaborador" : "Novo colaborador"} fields={employeeFields} values={form} onChange={(k, v) => setForm((c) => ({ ...c, [k]: v }))} onClose={() => setDialog(null)} onSubmit={() => saveEmployee.mutate()} busy={saveEmployee.isPending} />
+        <CrudDialog title={editing ? "Editar colaborador" : "Novo colaborador"} fields={employeeFields} values={form} onChange={(k, v) => setForm((c) => ({ ...c, [k]: v }))} onClose={() => setDialog(null)} onSubmit={() => saveEmployee.mutate()} busy={saveEmployee.isPending}>
+          {error && <p role="alert" className="mt-3 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
+        </CrudDialog>
       )}
       {dialog === "announcement" && (
         <CrudDialog
@@ -300,7 +329,9 @@ export default function HrManagePage() {
             { key: "body", label: "Texto", type: "textarea", required: true },
           ]}
           values={form} onChange={(k, v) => setForm((c) => ({ ...c, [k]: v }))} onClose={() => setDialog(null)} onSubmit={() => saveAnnouncement.mutate()} busy={saveAnnouncement.isPending} submitLabel="Publicar"
-        />
+        >
+          {error && <p role="alert" className="mt-3 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
+        </CrudDialog>
       )}
       {dialog === "task" && (
         <CrudDialog
@@ -311,7 +342,9 @@ export default function HrManagePage() {
             { key: "due_date", label: "Prazo", type: "date" },
           ]}
           values={form} onChange={(k, v) => setForm((c) => ({ ...c, [k]: v }))} onClose={() => setDialog(null)} onSubmit={() => saveTask.mutate()} busy={saveTask.isPending} submitLabel="Criar pendência"
-        />
+        >
+          {error && <p role="alert" className="mt-3 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
+        </CrudDialog>
       )}
     </div>
   );

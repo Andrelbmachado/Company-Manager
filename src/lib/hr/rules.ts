@@ -50,6 +50,24 @@ export function validateRequest(input: { type: HrRequestType; start: string; end
   return null;
 }
 
+/**
+ * Pode aprovar? Só pedidos pendentes e, para férias, só se os dias aprovados do ano do pedido mais os dele não passam do direito.
+ * Retorna a mensagem de erro ou null.
+ */
+export function approvalError(
+  request: Pick<HrRequest, "id" | "type" | "status" | "days" | "start_date" | "employee_id">,
+  employee: Pick<Employee, "vacation_days_entitled"> | undefined,
+  requests: Pick<HrRequest, "id" | "employee_id" | "type" | "status" | "days" | "start_date">[],
+): string | null {
+  if (request.status !== "pendente") return "Esta solicitação já foi decidida.";
+  if (request.type !== "ferias" || !employee) return null;
+  const year = Number(request.start_date.slice(0, 4));
+  const approved = requests.filter((other) => other.id !== request.id && other.employee_id === request.employee_id).filter((other) => other.type === "ferias" && other.status === "aprovada" && Number(other.start_date.slice(0, 4)) === year);
+  const used = approved.reduce((sum, other) => sum + other.days, 0);
+  if (used + request.days > employee.vacation_days_entitled) return `Aprovar estes ${request.days} dia(s) passaria do direito de ${employee.vacation_days_entitled} dias em ${year} (já aprovados: ${used}).`;
+  return null;
+}
+
 /** Colaborador com férias aprovadas cobrindo a data. */
 export function isOnVacation(requests: Pick<HrRequest, "employee_id" | "type" | "status" | "start_date" | "end_date">[], employeeId: string, today: string): boolean {
   return requests.some((request) => request.employee_id === employeeId && request.type === "ferias" && request.status === "aprovada" && request.start_date <= today && today <= request.end_date);

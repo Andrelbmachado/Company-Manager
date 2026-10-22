@@ -44,7 +44,9 @@ export default function MyHrPage() {
     mutationFn: async () => {
       if (!me || !balance) return;
       const type = form.type as HrRequestType;
-      const error = validateRequest({ type, start: form.start_date, end: form.end_date }, balance, today);
+      // O saldo é o do ano em que as férias começam (não o de hoje): pedir para o ano que vem usa o saldo do ano que vem.
+      const requestYear = Number((form.start_date || today).slice(0, 4));
+      const error = validateRequest({ type, start: form.start_date, end: form.end_date }, vacationBalance(me, requests, requestYear), today);
       if (error) throw new Error(error);
       const id = uuidv4();
       await (await getDb()).execute(
@@ -140,7 +142,7 @@ export default function MyHrPage() {
                 <li key={item.id} className="space-y-1.5 px-5 py-4">
                   <div className="flex items-center gap-2">
                     <StatusBadge status={item.category} className="shrink-0" />
-                    {item.pinned ? <span className="text-xs font-semibold text-primary">Fixado</span> : null}
+                    {item.pinned ? <span className="text-xs font-semibold text-primary-text">Fixado</span> : null}
                     <span className="ml-auto text-xs text-muted-foreground">{formatDay(item.published_at)}</span>
                   </div>
                   <h3 className="text-sm font-bold leading-snug">{item.title}</h3>

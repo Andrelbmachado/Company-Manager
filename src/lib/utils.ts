@@ -34,9 +34,16 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-/** "YYYY-MM-DD" ou ISO → "dd/mm/aaaa" sem passar por Date (evita deslocar o dia por fuso). */
+/**
+ * "YYYY-MM-DD" → "dd/mm/aaaa" sem passar por Date (evita deslocar o dia por fuso).
+ * Timestamp (com horário) é um instante: mostra o dia no fuso local; horário sem fuso (datetime('now') do SQLite) é UTC.
+ */
 export function formatDay(date: string | null | undefined): string {
   if (!date) return "—";
+  if (date.length > 10 && /\d{2}:\d{2}/.test(date)) {
+    const instant = new Date(/(?:Z|[+-]\d{2}:?\d{2})$/.test(date) ? date : `${date.replace(" ", "T")}Z`);
+    if (!Number.isNaN(instant.getTime())) return `${String(instant.getDate()).padStart(2, "0")}/${String(instant.getMonth() + 1).padStart(2, "0")}/${instant.getFullYear()}`;
+  }
   const [year, month, day] = date.slice(0, 10).split("-");
   return year && month && day ? `${day}/${month}/${year}` : date;
 }

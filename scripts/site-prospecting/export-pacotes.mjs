@@ -69,7 +69,7 @@ md += `
 Vale para qualquer pacote e **só quando o indicado fecha o negócio** (contrato assinado e pago). Indicação que não fecha não conta nem gera benefício para ninguém.
 
 - Por indicado que fechar: quem indica ganha **1 mês grátis** na mensalidade e o indicado ganha **10% de desconto** no setup.
-- Bônus de nível para quem indica: **3 indicados fechados = +1 mês extra**; **5 indicados fechados = +2 meses extras** (os níveis se somam: com 5 fechados, são 5 meses + 1 + 2 = 8 meses grátis).
+- Bônus de nível para quem indica: **3 indicados fechados = +1 mês extra**; **5 indicados fechados = +2 meses extras** (os níveis **não se somam**: vale só o maior nível atingido; com 5 fechados, são 5 meses + 2 extras = 7 meses grátis).
 - No CRM: campo "indicado por", status do benefício (pendente até o fechamento, depois concedido), contagem de indicações fechadas por quem indicou e níveis atingidos.
 
 A redação comercial da seção "Programa de Indicação" da Proposta é feita à parte.

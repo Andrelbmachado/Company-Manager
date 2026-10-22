@@ -11,6 +11,7 @@ import {
   Megaphone,
   UserRound,
   UsersRound,
+  HandCoins,
   Wrench,
   FolderKanban,
   Boxes,
@@ -46,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { module: "inventory", label: "Estoque", path: "/inventory", icon: Package, group: "Logística" },
   { module: "custody", label: "Custódia de peça", path: "/custody", icon: Archive, group: "Logística" },
   { module: "finance", label: "Financeiro", path: "/finance", icon: Wallet, group: "Gestão" },
+  { module: "payroll", label: "Folha de pagamento", path: "/payroll", icon: HandCoins, group: "Gestão" },
   { module: "documents", label: "Documentos", path: "/documents", icon: FileText, group: "Gestão" },
   { module: "audit", label: "Auditoria", path: "/audit", icon: ShieldCheck, group: "Gestão" },
 ];

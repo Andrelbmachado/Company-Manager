@@ -33,7 +33,8 @@ type Resource =
   | "audit_logs"
   | "automations"
   | "hr_self"
-  | "hr_admin";
+  | "hr_admin"
+  | "payroll";
 
 interface PermissionMap {
   [role: string]: {
@@ -108,11 +109,12 @@ const PERMISSIONS: PermissionMap = {
     documents: ["view", "create", "edit", "attach"],
     settings: ["view"],
   },
+  // Financeiro: tudo do financeiro (contas a pagar e a receber), exceto questões administrativo-financeiras como a folha de pagamento (`payroll`).
   financeiro: {
     tickets: ["view", "create"],
-    finance: ["view", "create", "edit", "export"],
-    payables: ["view", "create", "edit", "approve", "export"],
-    receivables: ["view", "create", "edit", "export"],
+    finance: ["view", "create", "edit", "delete", "approve", "export"],
+    payables: ["view", "create", "edit", "delete", "approve", "export"],
+    receivables: ["view", "create", "edit", "delete", "approve", "export"],
     documents: ["view", "create", "edit", "attach", "export"],
     settings: ["view"],
   },
@@ -196,6 +198,7 @@ export function visibleModules(role: Role): string[] {
   const moduleMap: Record<string, Resource> = {
     hr: "hr_self",
     hr_manage: "hr_admin",
+    payroll: "payroll",
     crm: "customers",
     leads: "leads",
     opportunities: "opportunities",

@@ -510,3 +510,17 @@ export interface HrTask {
   updated_at: string;
   deleted_at?: string | null;
 }
+
+/** Remuneração do colaborador (folha de pagamento). Só CEO e Administração leem. */
+export interface EmployeeCompensation {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  base_salary: number;
+  effective_from?: string | null;
+  notes?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}

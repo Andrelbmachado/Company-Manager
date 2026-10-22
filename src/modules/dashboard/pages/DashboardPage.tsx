@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests, fetchRequests } from "@/lib/hr/queries";
 import { vacationBalance } from "@/lib/hr/rules";
+import { fetchCompensation } from "@/lib/payroll/queries";
+import { formatMoney } from "@/lib/prospecting/contact";
 import {
   Users,
   Wrench,
@@ -17,6 +19,7 @@ import {
   Archive,
   CalendarDays,
   ClipboardCheck,
+  HandCoins,
   UsersRound,
 } from "lucide-react";
 import {
@@ -140,13 +143,16 @@ export default function DashboardPage() {
       const me = await ensureMyEmployee(session);
       const [mine, todos] = await Promise.all([fetchMyRequests(session.company.id, me.id), fetchMyHrTasks(session.company.id, me.id)]);
       const pendingRequests = can(role, "view", "hr_admin") ? (await fetchRequests(session.company.id)).filter((request) => request.status === "pendente").length : 0;
-      return { available: vacationBalance(me, mine, new Date().getFullYear()).available, openTodos: todos.filter((todo) => todo.status === "pendente").length, pendingRequests };
+      // Folha só para quem pode ver `payroll` (CEO e Administração).
+      const payroll = can(role, "view", "payroll") ? (await fetchCompensation(session.company.id)).reduce((sum, entry) => sum + entry.base_salary, 0) : 0;
+      return { available: vacationBalance(me, mine, new Date().getFullYear()).available, openTodos: todos.filter((todo) => todo.status === "pendente").length, pendingRequests, payroll };
     },
   });
   const hrCards = hr ? [
     { resource: "hr_self", title: "Férias disponíveis", value: `${hr.available} dias`, icon: CalendarDays },
     { resource: "hr_self", title: "Pendências de RH", value: hr.openTodos, icon: ClipboardCheck },
     { resource: "hr_admin", title: "Solicitações de RH a decidir", value: hr.pendingRequests, icon: UsersRound },
+    { resource: "payroll", title: "Folha mensal (salários base)", value: formatMoney(hr.payroll), icon: HandCoins },
   ] : [];
   const cards = data ? [
     { resource: "customers", title: "Clientes", value: data.customers, icon: Users },

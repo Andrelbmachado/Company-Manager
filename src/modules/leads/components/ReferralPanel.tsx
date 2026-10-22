@@ -21,7 +21,7 @@ export function ReferralPanel({ leads }: { leads: Lead[] }) {
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           <li>Só vale quando o indicado fecha o negócio: contrato assinado e pago. Indicação que não fecha não conta nem gera benefício para ninguém.</li>
           <li>Por indicado que fechar, quem indicou ganha {months(REFERRAL_RULES.monthsPerClosed)} grátis na mensalidade e o indicado ganha {REFERRAL_RULES.referredSetupDiscount * 100}% de desconto no setup.</li>
-          <li>Bônus de nível para quem indica: {tierText}{REFERRAL_RULES.cumulative ? " (os níveis se somam)" : ""}.</li>
+          <li>Bônus de nível para quem indica: {tierText}{REFERRAL_RULES.cumulative ? " (os níveis se somam)" : " (não se somam: vale o maior nível atingido)"}.</li>
           <li>Vale para qualquer pacote: Básico, Essencial ou Premium.</li>
         </ul>
       </section>

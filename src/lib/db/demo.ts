@@ -57,9 +57,10 @@ interface DemoTables {
   hr_requests: Row[];
   hr_announcements: Row[];
   hr_tasks: Row[];
+  employee_compensation: Row[];
 }
 
-const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks", "project_stages", "employees", "hr_requests", "hr_announcements", "hr_tasks"] as const;
+const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks", "project_stages", "employees", "hr_requests", "hr_announcements", "hr_tasks", "employee_compensation"] as const;
 
 export interface DatabaseLike {
   select<T>(query: string, bindValues?: unknown[]): Promise<T>;
@@ -208,6 +209,7 @@ function createSeed(): DemoTables {
     tasks: [],
     project_stages: [],
     ...hrSeed(),
+    employee_compensation: payrollSeed(),
   };
 }
 
@@ -244,6 +246,21 @@ function dateOnly(daysFromToday: number): string {
   const date = new Date();
   date.setDate(date.getDate() + daysFromToday);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** Remuneração de exemplo (empresa fictícia). Valores inventados só para a demonstração. */
+function payrollSeed(): Row[] {
+  return DEMO_ACCOUNTS.map<Row>((account, index) => {
+    const salary = account.role === "ceo" ? 38000
+      : account.role === "admin" ? 14000
+      : account.role === "gerente" ? 16500
+      : account.position === "Gerente do setor" ? 9800
+      : 4200 + (index % 6) * 260;
+    return {
+      id: `comp-${account.id}`, company_id: COMPANY_ID, employee_id: `employee-${account.id}`, base_salary: salary,
+      effective_from: dateOnly(-300), notes: null, updated_by: null, created_at: iso(-300), updated_at: iso(-300), deleted_at: null,
+    };
+  });
 }
 
 /** Dados de exemplo de RH (empresa fictícia TechFlow): colaboradores das contas demo, solicitações, comunicados e pendências. */
@@ -720,6 +737,7 @@ class DemoDatabase implements DatabaseLike {
         }
       }
       if (tables.employees.length === 0) Object.assign(tables, hrSeed());
+      if (tables.employee_compensation.length === 0) tables.employee_compensation = payrollSeed();
       if (!tables.documents.some((doc) => doc.id === "doc-15")) {
         tables.documents.push(
           documentRow("doc-15", "Politica de ferias.pdf", "PDF", 1, -20, "/Recursos Humanos/Politicas/Politica de ferias.pdf"),

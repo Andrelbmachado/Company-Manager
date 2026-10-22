@@ -1,7 +1,7 @@
-// Programa de indicação. Regra do André (INSTRUCAO_INDICACAO.md, versão escalonada):
+// Programa de indicação. Regra do André (INSTRUCAO_INDICACAO.md, versão escalonada; níveis NÃO se somam):
 // tudo só vale quando o indicado FECHA (contrato assinado e pago). Indicação que não fecha não conta para ninguém.
 //  - por indicado que fechar: quem indicou ganha 1 mês grátis na mensalidade e o indicado ganha 10% de desconto no setup;
-//  - bônus de nível: 3 fechados = +1 mês extra; 5 fechados = +2 meses extras.
+//  - bônus de nível (só o maior atingido): 3 fechados = +1 mês extra; 5 fechados = +2 meses extras.
 // Vale para qualquer pacote (Básico, Essencial ou Premium).
 import type { Lead, ReferralStatus } from "@/types";
 
@@ -10,11 +10,8 @@ export const REFERRAL_RULES = {
   monthsPerClosed: 1,
   /** Desconto no setup do indicado (10%). */
   referredSetupDiscount: 0.1,
-  /**
-   * Bônus de nível, tratados como metas cumulativas: com 5 fechados, quem indica recebeu o bônus do nível 3 (+1) e do nível 5 (+2).
-   * A instrução original não diz se os níveis se somam; se for "só o maior nível", troque `cumulative` para false.
-   */
-  cumulative: true,
+  /** Os bônus de nível NÃO se somam (decisão do André): vale só o maior nível atingido. Com 5 fechados: 5 meses + 2 extras = 7. */
+  cumulative: false,
   tiers: [
     { closed: 3, extraMonths: 1 },
     { closed: 5, extraMonths: 2 },
@@ -52,10 +49,11 @@ export function referredDiscount(setup: number): number {
   return Math.round(setup * REFERRAL_RULES.referredSetupDiscount * 100) / 100;
 }
 
+/** Nível que vale para quem tem `closed` indicados fechados. Sem soma: só o maior nível atingido (`REFERRAL_RULES.cumulative`). */
 export function bonusFor(closed: number): { tiersReached: { closed: number; extraMonths: number }[]; bonusMonths: number } {
   const reached = REFERRAL_RULES.tiers.filter((tier) => closed >= tier.closed);
   const counted = REFERRAL_RULES.cumulative ? reached : reached.slice(-1);
-  return { tiersReached: reached.map((tier) => ({ ...tier })), bonusMonths: counted.reduce((sum, tier) => sum + tier.extraMonths, 0) };
+  return { tiersReached: counted.map((tier) => ({ ...tier })), bonusMonths: counted.reduce((sum, tier) => sum + tier.extraMonths, 0) };
 }
 
 /** Contagem de indicações fechadas por indicador (agrupado pelo nome, sem diferenciar maiúsculas/espaços). */

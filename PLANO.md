@@ -1,8 +1,11 @@
 # PLANO — Company Manager
 
 ## Fase 1 — Auditoria
-- [ ] Listar, por módulo, o que é tela real com dados no SQLite vs. mock.
-- [ ] Testes (vitest) para regras de negócio; adicioná-los ao `ci.yml` existente.
+- [x] Listar, por módulo, o que é tela real com dados no SQLite vs. mock. → ver [AUDITORIA.md](AUDITORIA.md).
+- [x] Testes (vitest) para regras de negócio; adicioná-los ao `ci.yml` existente.
+  - Regras extraídas para módulos puros: `src/modules/finance/finance.ts`, `src/modules/crm/pipeline.ts`.
+  - Testes: `finance.test.ts`, `pipeline.test.ts`, `rbac.test.ts`, `utils.test.ts`. Rodar com `npm test`.
+  - CI roda os testes em `.github/workflows/ci.yml` (passo "Unit tests").
 
 ## Fase 2 — Núcleo comercial
 - [ ] CRM: contatos, empresas, histórico de interações.

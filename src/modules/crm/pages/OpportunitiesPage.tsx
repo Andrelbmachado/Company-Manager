@@ -5,10 +5,9 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { STAGES, groupByStage, stageTotal } from "@/modules/crm/pipeline";
 import { Target } from "lucide-react";
 import type { Opportunity } from "@/types";
-
-const STAGES = ["novo", "qualificacao", "proposta", "negociacao", "ganho", "perdido"] as const;
 
 export default function OpportunitiesPage() {
   const session = useRequiredSession();
@@ -24,7 +23,7 @@ export default function OpportunitiesPage() {
     },
   });
 
-  const byStage = Object.fromEntries(STAGES.map((s) => [s, opps.filter((o) => o.stage === s)]));
+  const byStage = groupByStage(opps);
 
   if (isLoading) {
     return (
@@ -49,7 +48,7 @@ export default function OpportunitiesPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-start">
           {STAGES.map((stage) => {
             const items = byStage[stage] ?? [];
-            const total = items.reduce((s, o) => s + o.value, 0);
+            const total = stageTotal(items);
             return (
               <div key={stage} className="rounded-xl border bg-card p-3 space-y-2">
                 <div className="flex items-center justify-between">

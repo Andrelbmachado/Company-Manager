@@ -54,6 +54,7 @@ const STATUS_TONE: Record<string, Tone> = {
   paga: "success",
   recebida: "success",
   vencida: "danger",
+  atrasada: "danger",
   // Projetos e tarefas
   planejado: "neutral",
   andamento: "info",
@@ -111,6 +112,7 @@ export const STATUS_LABELS: Record<string, string> = {
   paga: "Paga",
   recebida: "Recebida",
   vencida: "Vencida",
+  atrasada: "Atrasada",
   planejado: "Planejado",
   andamento: "Em andamento",
   pausado: "Pausado",

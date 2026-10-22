@@ -32,12 +32,12 @@ function TaskRow({ task, canEdit, onToggle, onEdit }: { task: Task; canEdit: boo
         onClick={onToggle}
         disabled={!canEdit}
         aria-label={done ? `Reabrir tarefa ${task.title}` : `Concluir tarefa ${task.title}`}
-        className="shrink-0 rounded-full disabled:cursor-default"
+        className="-m-1 shrink-0 rounded-full p-1 disabled:cursor-default"
       >
         <TaskIcon status={task.status} />
       </button>
       <div className="min-w-0 flex-1">
-        <button type="button" onClick={onEdit} disabled={!canEdit} className={cn("block max-w-full truncate text-left text-sm font-medium disabled:cursor-default", done && "text-muted-foreground line-through", canEdit && "hover:underline")}>
+        <button type="button" onClick={onEdit} disabled={!canEdit} className={cn("block max-w-full break-words text-left text-sm font-medium disabled:cursor-default", done && "text-muted-foreground line-through", canEdit && "hover:underline")}>
           {task.title}
         </button>
         <p className="text-xs text-muted-foreground">
@@ -64,15 +64,15 @@ export function StagePlan({ flow, canEdit, onToggleTask, onEditTask, onAddTask, 
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
                 step.status === "concluida" && "bg-status-success text-white",
                 step.status === "em_andamento" && "bg-primary text-primary-foreground",
-                step.status === "a_seguir" && "border-2 border-input text-muted-foreground",
+                step.status === "a_seguir" && "border-2 border-muted-foreground text-muted-foreground",
               )}>{index + 1}</span>
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-base font-bold">{step.stage.name}</h3>
+                <h3 className="break-words text-base font-bold leading-snug">{step.stage.name}</h3>
                 <p className="truncate text-xs text-muted-foreground">
                   {step.stage.start_date || step.stage.end_date ? `${formatDay(step.stage.start_date)} a ${formatDay(step.stage.end_date)}` : "Sem datas definidas"}
                 </p>
               </div>
-              {step.late && <StatusBadge status="vencida" />}
+              {step.late && <StatusBadge status="atrasada" />}
               <StatusBadge status={step.status} />
               <div className="hidden w-28 sm:block">
                 <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${step.percent}%` }} /></div>
@@ -98,10 +98,10 @@ export function StagePlan({ flow, canEdit, onToggleTask, onEditTask, onAddTask, 
                     <Plus size={14} /> Nova tarefa
                   </button>
                   <div className="flex items-center gap-1">
-                    <button type="button" disabled={index === 0} onClick={() => onMoveStage(step.stage.id, -1)} aria-label={`Mover ${step.stage.name} para antes`} className="rounded-md border p-1.5 hover:bg-muted disabled:opacity-30"><ArrowUp size={14} /></button>
-                    <button type="button" disabled={index === flow.steps.length - 1} onClick={() => onMoveStage(step.stage.id, 1)} aria-label={`Mover ${step.stage.name} para depois`} className="rounded-md border p-1.5 hover:bg-muted disabled:opacity-30"><ArrowDown size={14} /></button>
-                    <button type="button" onClick={() => onEditStage(step)} aria-label={`Editar etapa ${step.stage.name}`} className="rounded-md border p-1.5 hover:bg-muted"><Pencil size={14} /></button>
-                    <button type="button" onClick={() => onDeleteStage(step)} aria-label={`Remover etapa ${step.stage.name}`} className="rounded-md border p-1.5 text-status-danger hover:bg-muted dark:text-red-400"><Trash2 size={14} /></button>
+                    <button type="button" disabled={index === 0} onClick={() => onMoveStage(step.stage.id, -1)} aria-label={`Mover ${step.stage.name} para antes`} className="rounded-md border p-2 hover:bg-muted disabled:opacity-30"><ArrowUp size={14} /></button>
+                    <button type="button" disabled={index === flow.steps.length - 1} onClick={() => onMoveStage(step.stage.id, 1)} aria-label={`Mover ${step.stage.name} para depois`} className="rounded-md border p-2 hover:bg-muted disabled:opacity-30"><ArrowDown size={14} /></button>
+                    <button type="button" onClick={() => onEditStage(step)} aria-label={`Editar etapa ${step.stage.name}`} className="rounded-md border p-2 hover:bg-muted"><Pencil size={14} /></button>
+                    <button type="button" onClick={() => onDeleteStage(step)} aria-label={`Remover etapa ${step.stage.name}`} className="rounded-md border p-2 text-status-danger hover:bg-muted dark:text-red-400"><Trash2 size={14} /></button>
                   </div>
                 </div>
               )}

@@ -22,7 +22,7 @@ export function FlowStepper({ steps, currentIndex, onSelect }: FlowStepperProps)
       <ul className="mb-5 flex flex-wrap gap-x-5 gap-y-1 text-sm" aria-label="Legenda do fluxo">
         <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-status-success" />Concluídas <strong>{counts.concluida}</strong></li>
         <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-primary" />Em andamento <strong>{counts.em_andamento}</strong></li>
-        <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border-2 border-input" />A seguir <strong>{counts.a_seguir}</strong></li>
+        <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border-2 border-muted-foreground" />A seguir <strong>{counts.a_seguir}</strong></li>
       </ul>
 
       <ol className="flex flex-col md:flex-row md:items-start">
@@ -36,20 +36,20 @@ export function FlowStepper({ steps, currentIndex, onSelect }: FlowStepperProps)
             ? `${formatShortDay(step.stage.start_date) || "?"} a ${formatShortDay(step.stage.end_date) || "?"}`
             : null;
           return (
-            <li key={step.stage.id} className="relative flex gap-3 pb-7 last:pb-0 md:flex-1 md:flex-col md:items-center md:gap-0 md:pb-0">
+            <li key={step.stage.id} aria-current={isCurrent ? "step" : undefined} className="relative flex gap-3 pb-7 last:pb-0 md:flex-1 md:flex-col md:items-center md:gap-0 md:pb-0">
               {!last && (
                 <>
                   {/* conector vertical (celular) */}
                   <span aria-hidden className="absolute left-[17px] top-10 -bottom-0 w-0.5 md:hidden">
                     {done ? <span className="block h-full w-full bg-status-success" />
                       : started ? <span className="block h-full w-full bg-border"><span className="block w-full bg-primary" style={{ height: `${step.percent}%` }} /></span>
-                      : <span className="block h-full w-0 border-l-2 border-dashed border-input" />}
+                      : <span className="block h-full w-0 border-l-2 border-dashed border-muted-foreground/70" />}
                   </span>
                   {/* conector horizontal (desktop) */}
                   <span aria-hidden className="absolute left-[calc(50%+26px)] right-[calc(-50%+26px)] top-[17px] hidden h-0.5 md:block">
                     {done ? <span className="block h-full w-full bg-status-success" />
                       : started ? <span className="block h-full w-full bg-border"><span className="block h-full bg-primary" style={{ width: `${step.percent}%` }} /></span>
-                      : <span className="block h-0 w-full border-t-2 border-dashed border-input" />}
+                      : <span className="block h-0 w-full border-t-2 border-dashed border-muted-foreground/70" />}
                   </span>
                 </>
               )}
@@ -62,7 +62,7 @@ export function FlowStepper({ steps, currentIndex, onSelect }: FlowStepperProps)
                   "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
                   done && "bg-status-success text-white",
                   started && "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-card",
-                  !done && !started && "border-2 border-input bg-card text-muted-foreground",
+                  !done && !started && "border-2 border-muted-foreground bg-card text-muted-foreground",
                   !done && !started && isCurrent && "border-primary text-primary",
                 )}
               >
@@ -74,7 +74,7 @@ export function FlowStepper({ steps, currentIndex, onSelect }: FlowStepperProps)
                 <p className={cn("text-sm font-semibold leading-snug", !done && !started && !isCurrent && "text-muted-foreground")}>{step.stage.name}</p>
                 <p className="mt-0.5 text-xs">
                   {done && <span className="font-semibold text-status-success dark:text-green-400">Concluída</span>}
-                  {started && <span className="font-semibold text-primary">Em andamento, {step.percent}%</span>}
+                  {started && <span className="font-semibold text-foreground">Em andamento, {step.percent}%</span>}
                   {!done && !started && <span className="text-muted-foreground">{isCurrent ? "Próxima etapa" : "A seguir"}</span>}
                   {step.late && <span className="ml-1.5 font-semibold text-status-danger dark:text-red-400">Atrasada</span>}
                 </p>

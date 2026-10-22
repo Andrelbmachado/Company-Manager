@@ -8,7 +8,8 @@ export type Priority = "baixa" | "media" | "alta" | "urgente";
 export type StageStatus = "a_seguir" | "em_andamento" | "concluida";
 
 export const PROJECT_STATUSES: ProjectStatus[] = ["planejado", "andamento", "pausado", "concluido", "cancelado"];
-export const TASK_STATUSES: TaskStatus[] = ["aberta", "em_andamento", "bloqueada", "concluida"];
+/** Ordem das colunas do quadro: o fluxo normal primeiro e Bloqueada por último (é desvio, não etapa do caminho). */
+export const TASK_STATUSES: TaskStatus[] = ["aberta", "em_andamento", "concluida", "bloqueada"];
 export const PRIORITIES: Priority[] = ["baixa", "media", "alta", "urgente"];
 export const STAGE_STATUSES: StageStatus[] = ["a_seguir", "em_andamento", "concluida"];
 
@@ -93,7 +94,14 @@ export interface ProjectProgress {
   percent: number;
 }
 
+/** Percentual inteiro que só chega a 100 quando está tudo feito (199/200 mostra 99%, não 100%) e só é 0 quando nada foi feito. */
+export function percentOf(done: number, total: number): number {
+  if (total <= 0) return 0;
+  if (done >= total) return 100;
+  return Math.max(done > 0 ? 1 : 0, Math.floor((done / total) * 100));
+}
+
 export function projectProgress(tasks: Pick<Task, "status">[]): ProjectProgress {
   const done = tasks.filter((task) => task.status === "concluida").length;
-  return { total: tasks.length, done, percent: tasks.length ? Math.round((done / tasks.length) * 100) : 0 };
+  return { total: tasks.length, done, percent: percentOf(done, tasks.length) };
 }

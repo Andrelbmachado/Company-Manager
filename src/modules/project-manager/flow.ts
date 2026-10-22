@@ -1,7 +1,7 @@
 // Fluxo do projeto: transforma etapas + tarefas no plano linear (concluídas, em andamento, a seguir).
 // Função pura, sem acesso a banco — é o que a tela "Fluxo" desenha.
 import { todayIso } from "./ui/format";
-import type { ProjectStage, StageStatus, Task } from "./types";
+import { percentOf, type ProjectStage, type StageStatus, type Task } from "./types";
 
 export interface FlowStep {
   stage: ProjectStage;
@@ -47,7 +47,7 @@ export function buildFlow(stages: ProjectStage[], tasks: Task[], today: string =
     const own = live.filter((task) => task.stage_id === stage.id);
     const status = deriveStageStatus(stage, own);
     const done = own.filter((task) => task.status === "concluida").length;
-    const percent = own.length ? Math.round((done / own.length) * 100) : status === "concluida" ? 100 : 0;
+    const percent = own.length ? percentOf(done, own.length) : status === "concluida" ? 100 : 0;
     const end = stage.end_date?.slice(0, 10);
     return {
       stage,
@@ -65,9 +65,7 @@ export function buildFlow(stages: ProjectStage[], tasks: Task[], today: string =
   for (const step of steps) counts[step.status] += 1;
 
   const tasksDone = live.filter((task) => task.status === "concluida").length;
-  const overallPercent = live.length
-    ? Math.round((tasksDone / live.length) * 100)
-    : steps.length ? Math.round((counts.concluida / steps.length) * 100) : 0;
+  const overallPercent = live.length ? percentOf(tasksDone, live.length) : percentOf(counts.concluida, steps.length);
   const currentIndex = steps.findIndex((step) => step.status !== "concluida");
 
   return {

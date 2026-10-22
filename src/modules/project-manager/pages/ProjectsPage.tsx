@@ -9,7 +9,7 @@ import { StatusBadge, STATUS_LABELS } from "../ui/StatusBadge";
 import { formatCurrency, formatDay } from "../ui/format";
 import { buildFlow } from "../flow";
 import { useProjectManager } from "../context";
-import { exportBundle, importBundle, parseBundle, type ImportSummary } from "../integration/bundle";
+import { exportBundleReport, importBundle, parseBundle, type ImportSummary } from "../integration/bundle";
 import { pickTextFile, saveTextFile } from "../integration/files";
 import { PROJECT_STATUSES, type Project, type ProjectStatus } from "../types";
 
@@ -17,8 +17,9 @@ const EMPTY = { name: "", status: "planejado", budget: "0", start_date: "", end_
 
 function describe(summary: ImportSummary): string {
   const { projects, stages, tasks } = summary;
-  const skipped = projects.skipped + stages.skipped + tasks.skipped;
-  return `Importado: ${projects.created} projeto(s) novo(s) e ${projects.updated} atualizado(s); ${stages.created} etapa(s) nova(s); ${tasks.created} tarefa(s) nova(s) e ${tasks.updated} atualizada(s); ${skipped} ignorado(s).`;
+  const unchanged = projects.unchanged + stages.unchanged + tasks.unchanged;
+  const rejected = projects.skipped + stages.skipped + tasks.skipped;
+  return `Importado: projetos ${projects.created} novo(s) e ${projects.updated} atualizado(s); etapas ${stages.created} nova(s) e ${stages.updated} atualizada(s); tarefas ${tasks.created} nova(s) e ${tasks.updated} atualizada(s). ${unchanged} já estavam em dia e ${rejected} foram rejeitados (outra empresa ou sem projeto válido).`;
 }
 
 export default function ProjectsPage() {
@@ -28,10 +29,16 @@ export default function ProjectsPage() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState<Record<string, string>>(EMPTY);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [dialogError, setDialogError] = useState("");
 
-  const { data: projects = [], isLoading } = useQuery({ queryKey: ["pm", "projects", companyId], queryFn: repo.listProjects });
-  const { data: tasks = [] } = useQuery({ queryKey: ["pm", "tasks", companyId], queryFn: repo.listAllTasks });
-  const { data: stages = [] } = useQuery({ queryKey: ["pm", "stages", companyId], queryFn: repo.listAllStages });
+  const projectsQuery = useQuery({ queryKey: ["pm", "projects", companyId], queryFn: repo.listProjects });
+  const projects = projectsQuery.data ?? [];
+  const isLoading = projectsQuery.isLoading;
+  const tasksQuery = useQuery({ queryKey: ["pm", "tasks", companyId], queryFn: repo.listAllTasks });
+  const stagesQuery = useQuery({ queryKey: ["pm", "stages", companyId], queryFn: repo.listAllStages });
+  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const stages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
+  const planLoading = tasksQuery.isLoading || stagesQuery.isLoading;
 
   const flows = useMemo(() => new Map(projects.map((project) => [
     project.id,
@@ -42,25 +49,29 @@ export default function ProjectsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (form.start_date && form.end_date && form.end_date < form.start_date) throw new Error("O prazo não pode ser anterior ao início.");
+      const budget = Number(form.budget) || 0;
+      if (budget < 0) throw new Error("O orçamento não pode ser negativo.");
       const input = {
         name: form.name.trim(),
         status: form.status as ProjectStatus,
-        budget: Number(form.budget) || 0,
+        budget,
         start_date: form.start_date || null,
         end_date: form.end_date || null,
       };
       if (dialog === "edit" && editing) await repo.updateProject(editing.id, input);
       else await repo.createProject(input);
     },
-    onSuccess: () => { void refresh(); setDialog(null); setEditing(null); setForm(EMPTY); },
-    onError: (error) => setNotice({ kind: "error", text: `Não foi possível salvar o projeto: ${error instanceof Error ? error.message : String(error)}` }),
+    onSuccess: () => { void refresh(); setDialog(null); setEditing(null); setForm(EMPTY); setDialogError(""); },
+    onError: (error) => setDialogError(error instanceof Error ? error.message : String(error)),
   });
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      const bundle = await exportBundle(db, companyId, fileExchange?.source);
+      const { bundle, skipped } = await exportBundleReport(db, companyId, fileExchange?.source);
       const saved = await saveTextFile(`project-manager-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(bundle, null, 2));
-      return saved ? `Exportado: ${bundle.projects.length} projeto(s), ${bundle.stages.length} etapa(s) e ${bundle.tasks.length} tarefa(s).` : null;
+      const left = skipped.projects + skipped.stages + skipped.tasks;
+      return saved ? `Exportado: ${bundle.projects.length} projeto(s), ${bundle.stages.length} etapa(s) e ${bundle.tasks.length} tarefa(s).${left ? ` ${left} registro(s) com dados fora do padrão ficaram de fora.` : ""}` : null;
     },
     onSuccess: (text) => text && setNotice({ kind: "ok", text }),
     onError: (error) => setNotice({ kind: "error", text: String(error instanceof Error ? error.message : error) }),
@@ -77,12 +88,14 @@ export default function ProjectsPage() {
   });
 
   function openCreate() {
+    setDialogError("");
     setForm(EMPTY);
     setEditing(null);
     setDialog("create");
   }
 
   function openEdit(project: Project) {
+    setDialogError("");
     setForm({ name: project.name, status: project.status, budget: String(project.budget), start_date: project.start_date?.slice(0, 10) ?? "", end_date: project.end_date?.slice(0, 10) ?? "" });
     setEditing(project);
     setDialog("edit");
@@ -97,7 +110,7 @@ export default function ProjectsPage() {
         description="Plano em etapas, tarefas e andamento de cada projeto."
         actions={
           <>
-            {fileExchange && canEdit && <button onClick={() => importMutation.mutate()} disabled={importMutation.isPending} className={buttonClass}><Upload size={14} /> {fileExchange.importLabel}</button>}
+            {fileExchange && canEdit && canCreate && <button onClick={() => importMutation.mutate()} disabled={importMutation.isPending} className={buttonClass}><Upload size={14} /> {fileExchange.importLabel}</button>}
             {fileExchange && <button onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending || projects.length === 0} className={buttonClass}><Download size={14} /> {fileExchange.exportLabel}</button>}
             {canCreate && (
               <button onClick={openCreate} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
@@ -116,6 +129,8 @@ export default function ProjectsPage() {
 
       {isLoading ? (
         <div className="h-36 animate-pulse rounded-xl border bg-card" />
+      ) : projectsQuery.isError ? (
+        <EmptyState title="Não foi possível carregar os projetos" description={projectsQuery.error instanceof Error ? projectsQuery.error.message : String(projectsQuery.error)} />
       ) : projects.length === 0 ? (
         <EmptyState icon={FolderKanban} title="Nenhum projeto ainda" description={canCreate ? "Crie um projeto e monte o plano em etapas." : "Quando houver projetos, eles aparecem aqui."} />
       ) : (
@@ -130,6 +145,7 @@ export default function ProjectsPage() {
                   <StatusBadge status={project.status} />
                 </div>
 
+                {planLoading ? <div className="h-16 animate-pulse rounded-lg bg-muted" /> : <>
                 <div>
                   <div className="flex items-end justify-between">
                     <p className="font-display text-[2rem] font-bold leading-none tabular-nums">{flow?.overallPercent ?? 0}%</p>
@@ -153,6 +169,7 @@ export default function ProjectsPage() {
                 ) : (
                   <p className="text-xs text-muted-foreground">Sem etapas definidas.</p>
                 )}
+                </>}
 
                 <p className="text-xs text-muted-foreground">{formatDay(project.start_date)} a {formatDay(project.end_date)}. Orçamento {formatCurrency(project.budget)}.</p>
                 <div className="mt-auto flex gap-2">
@@ -176,10 +193,11 @@ export default function ProjectsPage() {
             { key: "end_date", label: "Prazo", type: "date" },
           ]}
           values={form}
-          onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
+          onChange={(key, value) => { setDialogError(""); setForm((current) => ({ ...current, [key]: value })); }}
           onClose={() => setDialog(null)}
           onSubmit={() => saveMutation.mutate()}
           busy={saveMutation.isPending}
+          error={dialogError}
         />
       )}
     </div>

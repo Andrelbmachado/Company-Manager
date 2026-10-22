@@ -1,19 +1,45 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "./db";
+import { deriveStageStatus } from "./flow";
 import type { Project, ProjectInput, ProjectStage, StageInput, Task, TaskInput, TaskStatus } from "./types";
+
+// SQLite (datetime('now') tem resolução de 1 s) e os bancos demo desempatam de formas diferentes; por isso a ordem
+// final é sempre fixada aqui, em JS, com desempate por created_at e id.
+const byStage = (a: ProjectStage, b: ProjectStage) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
+const byCreatedAsc = <T extends { created_at: string; id: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
+const byCreatedDesc = <T extends { created_at: string; id: string }>(a: T, b: T) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id);
+
+/**
+ * Grava na etapa o status derivado das suas tarefas. Sem isso, apagar a última tarefa de uma etapa concluída
+ * faria a etapa "regredir" para o status velho gravado. Etapa sem tarefas mantém o último status gravado.
+ */
+export async function syncStageStatus(db: DatabaseLike, companyId: string, stageId: string | null | undefined): Promise<void> {
+  if (!stageId) return;
+  const stage = (await db.select<ProjectStage[]>("SELECT * FROM project_stages WHERE id=? AND company_id=? AND deleted_at IS NULL", [stageId, companyId]))[0];
+  if (!stage) return;
+  const tasks = await db.select<Task[]>("SELECT * FROM tasks WHERE company_id=? AND stage_id=? AND deleted_at IS NULL", [companyId, stageId]);
+  if (tasks.length === 0) return;
+  const status = deriveStageStatus(stage, tasks);
+  if (status !== stage.status) {
+    await db.execute("UPDATE project_stages SET status=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [status, stageId, companyId]);
+  }
+}
 
 /** Acesso a projetos, etapas e tarefas. SQL idêntico para SQLite (Tauri) e para os bancos demo do navegador. */
 export function createProjectRepository(db: DatabaseLike, companyId: string, actorId: string | null) {
-  const listStages = (projectId: string) =>
-    db.select<ProjectStage[]>(
+  const listStages = async (projectId: string) =>
+    (await db.select<ProjectStage[]>(
       "SELECT * FROM project_stages WHERE company_id=? AND project_id=? AND deleted_at IS NULL ORDER BY position ASC",
       [companyId, projectId],
-    );
+    )).sort(byStage);
+
+  const syncStage = (stageId: string | null | undefined) => syncStageStatus(db, companyId, stageId);
+  const getTask = async (id: string) => (await db.select<Task[]>("SELECT * FROM tasks WHERE id=? AND company_id=?", [id, companyId]))[0] ?? null;
 
   return {
     // ── Projetos ──────────────────────────────────────────────
-    listProjects: () =>
-      db.select<Project[]>("SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC", [companyId]),
+    listProjects: async () =>
+      (await db.select<Project[]>("SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC", [companyId])).sort(byCreatedDesc),
 
     async getProject(id: string): Promise<Project | null> {
       const rows = await db.select<Project[]>("SELECT * FROM projects WHERE id=? AND company_id=? AND deleted_at IS NULL", [id, companyId]);
@@ -39,8 +65,8 @@ export function createProjectRepository(db: DatabaseLike, companyId: string, act
     // ── Etapas (plano linear) ─────────────────────────────────
     listStages,
 
-    listAllStages: () =>
-      db.select<ProjectStage[]>("SELECT * FROM project_stages WHERE company_id=? AND deleted_at IS NULL ORDER BY position ASC", [companyId]),
+    listAllStages: async () =>
+      (await db.select<ProjectStage[]>("SELECT * FROM project_stages WHERE company_id=? AND deleted_at IS NULL ORDER BY position ASC", [companyId])).sort(byStage),
 
     async createStage(projectId: string, input: StageInput): Promise<string> {
       const id = uuidv4();
@@ -57,17 +83,24 @@ export function createProjectRepository(db: DatabaseLike, companyId: string, act
         "UPDATE project_stages SET name=?, description=?, status=?, start_date=?, end_date=?, updated_at=datetime('now') WHERE id=? AND company_id=?",
         [input.name, input.description, input.status, input.start_date, input.end_date, id, companyId],
       );
+      await syncStage(id);
     },
 
-    /** Troca a posição da etapa com a vizinha (direction -1 = para trás no plano, +1 = para frente). */
+    /**
+     * Move a etapa uma posição (direction -1 = para trás no plano, +1 = para frente) e **renumera o plano inteiro** (1..n),
+     * o que também conserta posições repetidas (importação ou criações simultâneas) e buracos.
+     */
     async moveStage(projectId: string, id: string, direction: -1 | 1): Promise<void> {
       const stages = await listStages(projectId);
       const index = stages.findIndex((stage) => stage.id === id);
-      const other = stages[index + direction];
-      if (index === -1 || !other) return;
-      const current = stages[index];
-      await db.execute("UPDATE project_stages SET position=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [other.position, current.id, companyId]);
-      await db.execute("UPDATE project_stages SET position=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [current.position, other.id, companyId]);
+      if (index === -1) return;
+      const target = index + direction;
+      if (target >= 0 && target < stages.length) [stages[index], stages[target]] = [stages[target], stages[index]];
+      for (const [position, stage] of stages.entries()) {
+        if (stage.position !== position + 1) {
+          await db.execute("UPDATE project_stages SET position=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [position + 1, stage.id, companyId]);
+        }
+      }
     },
 
     /** Soft delete da etapa; as tarefas dela ficam sem etapa (não são apagadas). */
@@ -77,14 +110,14 @@ export function createProjectRepository(db: DatabaseLike, companyId: string, act
     },
 
     // ── Tarefas ───────────────────────────────────────────────
-    listTasks: (projectId: string) =>
-      db.select<Task[]>(
+    listTasks: async (projectId: string) =>
+      (await db.select<Task[]>(
         "SELECT * FROM tasks WHERE company_id=? AND project_id=? AND deleted_at IS NULL ORDER BY created_at ASC",
         [companyId, projectId],
-      ),
+      )).sort(byCreatedAsc),
 
-    listAllTasks: () =>
-      db.select<Task[]>("SELECT * FROM tasks WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at ASC", [companyId]),
+    listAllTasks: async () =>
+      (await db.select<Task[]>("SELECT * FROM tasks WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at ASC", [companyId])).sort(byCreatedAsc),
 
     async createTask(projectId: string, input: TaskInput): Promise<string> {
       const id = uuidv4();
@@ -92,23 +125,31 @@ export function createProjectRepository(db: DatabaseLike, companyId: string, act
         "INSERT INTO tasks (id, company_id, project_id, stage_id, title, description, status, priority, due_date, estimate_hours) VALUES (?,?,?,?,?,?,?,?,?,?)",
         [id, companyId, projectId, input.stage_id, input.title, input.description, input.status, input.priority, input.due_date, input.estimate_hours],
       );
+      await syncStage(input.stage_id);
       return id;
     },
 
     async updateTask(id: string, input: TaskInput): Promise<void> {
+      const before = await getTask(id);
       await db.execute(
         "UPDATE tasks SET title=?, description=?, stage_id=?, status=?, priority=?, due_date=?, estimate_hours=?, updated_at=datetime('now') WHERE id=? AND company_id=?",
         [input.title, input.description, input.stage_id, input.status, input.priority, input.due_date, input.estimate_hours, id, companyId],
       );
+      await syncStage(input.stage_id);
+      if (before?.stage_id && before.stage_id !== input.stage_id) await syncStage(before.stage_id);
     },
 
     async moveTask(id: string, status: TaskStatus): Promise<void> {
+      const task = await getTask(id);
       await db.execute("UPDATE tasks SET status=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [status, id, companyId]);
+      await syncStage(task?.stage_id);
     },
 
     /** Soft delete (convenção do Company Manager: nunca DELETE no fluxo normal). */
     async deleteTask(id: string): Promise<void> {
+      const task = await getTask(id);
       await db.execute("UPDATE tasks SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND company_id=?", [id, companyId]);
+      await syncStage(task?.stage_id);
     },
   };
 }

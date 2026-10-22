@@ -1,4 +1,4 @@
-// Semeia o projeto "Desenvolvimento de Site": projeto, tarefas, pacotes, preços, cenários, leads e previsão.
+// Semeia o projeto "Desenvolvimento de Site": projeto, etapas, tarefas, pacotes, preços, cenários, leads e previsão.
 //
 // - Roda uma vez por empresa (flag em `settings`) e é idempotente: IDs determinísticos (uuid v5)
 //   + INSERT OR IGNORE, então repetir não duplica nada e nunca sobrescreve edições.
@@ -14,9 +14,12 @@ import type { Project, RevenueScenario, Session } from "@/types";
 const NAMESPACE = "6f1c9a52-6a0e-4a43-9c58-0d4b9d3a1e77";
 const LEAD_SOURCE = "Google Maps (SEM_SITE_sorocaba_filtrado.csv)";
 
-export const SEED_SETTING_KEY = "seed.site_prospecting.v2";
-/** v1 usava os pacotes estimados (Básico / Com agendamento / Premium com SEO); o v2 migra para Básico / Essencial / Premium. */
-const LEGACY_SEED_KEYS = ["seed.site_prospecting.v1"];
+export const SEED_SETTING_KEY = "seed.site_prospecting.v3";
+/**
+ * v1: pacotes estimados (Básico / Com agendamento / Premium com SEO). v2: pacotes Básico / Essencial / Premium, sem etapas.
+ * v3: etapas do projeto. Quem tem v1 ou v2 é atualizado sem perder edições (tudo idempotente).
+ */
+const LEGACY_SEED_KEYS = ["seed.site_prospecting.v1", "seed.site_prospecting.v2"];
 const LEGACY_PACKAGE_KEYS = ["package:agendamento", "package:premium_seo"];
 export const SITE_PROJECT_NAME = "Desenvolvimento de Site";
 
@@ -130,11 +133,32 @@ async function runSeed(session: Session): Promise<boolean> {
     await db.execute("DELETE FROM service_packages WHERE id=?", [oldId]);
   }
 
-  for (const task of data.SITE_TASKS) {
+  // Etapas do plano (fluxo do Project Manager) e tarefas ligadas a elas.
+  const stageIds = new Map<string, string>();
+  for (const stage of data.SITE_STAGES) {
+    const id = seedId(companyId, `stage:${stage.key}`);
+    stageIds.set(stage.key, id);
     await db.execute(
-      "INSERT OR IGNORE INTO tasks (id, company_id, project_id, title, description, status, priority, due_date) VALUES (?,?,?,?,?,?,?,?)",
-      [seedId(companyId, `task:${task.key}`), companyId, projectId, task.title, task.description, task.status, task.priority, task.due_date],
+      "INSERT OR IGNORE INTO project_stages (id, company_id, project_id, name, description, position, status, start_date, end_date) VALUES (?,?,?,?,?,?,?,?,?)",
+      [id, companyId, projectId, stage.name, stage.description, stage.position, "a_seguir", stage.start_date, stage.end_date],
     );
+  }
+  for (const task of data.SITE_TASKS) {
+    const taskId = seedId(companyId, `task:${task.key}`);
+    const stageId = stageIds.get(task.stage_key);
+    await db.execute(
+      "INSERT OR IGNORE INTO tasks (id, company_id, project_id, stage_id, title, description, status, priority, due_date) VALUES (?,?,?,?,?,?,?,?,?)",
+      [taskId, companyId, projectId, stageId, task.title, task.description, task.status, task.priority, task.due_date],
+    );
+    // Seed v1 não tinha etapas: encaixa a tarefa só se ainda estiver sem etapa (não desfaz escolha do usuário).
+    await db.execute("UPDATE tasks SET stage_id=? WHERE id=? AND stage_id IS NULL", [stageId, taskId]);
+    if (upgrading && task.legacy_title) {
+      // Renomeia para os novos pacotes só se o título ainda for o do seed v1 (ninguém editou).
+      await db.execute(
+        "UPDATE tasks SET title=?, description=?, status=?, updated_at=datetime('now') WHERE id=? AND title=?",
+        [task.title, task.description, task.status, taskId, task.legacy_title],
+      );
+    }
   }
 
   await saveForecasts(db, companyId, projectId, scenarios, data.SITE_LEADS.map((lead) => ({ ...lead, segment: lead.pricing_segment })));
@@ -150,7 +174,7 @@ async function runSeed(session: Session): Promise<boolean> {
     actorId: session.user.id,
     entityType: "project",
     entityId: projectId,
-    title: `Prospecção de sites importada: ${data.SITE_LEADS.length} leads, ${data.SITE_PACKAGES.length} pacotes, ${data.SITE_TASKS.length} tarefas`,
+    title: `Prospecção de sites importada: ${data.SITE_LEADS.length} leads, ${data.SITE_PACKAGES.length} pacotes, ${data.SITE_STAGES.length} etapas, ${data.SITE_TASKS.length} tarefas`,
     module: "leads",
     metadata: { version: data.SITE_SEED_VERSION, upgradedFromV1: upgrading },
   });

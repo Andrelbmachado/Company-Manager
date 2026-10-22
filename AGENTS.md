@@ -16,7 +16,7 @@ Cada módulo é uma página lazy em `src/modules/<modulo>/pages/`, registrada em
 | opportunities | `/opportunities` | `opportunities` | `crm/pages/OpportunitiesPage.tsx` | funil de oportunidades |
 | support | `/support` | `tickets` | `support/pages/SupportPage.tsx` | tickets/ITSM; fica no menu da conta, não na sidebar |
 | operations | `/work-orders` | `work_orders` | `operations/pages/WorkOrdersPage.tsx` | ordens de serviço |
-| projects | `/projects` | `projects` | `projects/pages/ProjectsPage.tsx` | projetos + troca de arquivo com o Project Manager |
+| projects | `/projects` | `projects` | `projects/pages/ProjectsPage.tsx` | **Project Manager embutido** (`modules/project-manager`): projetos, etapas, fluxo visual e quadro de tarefas |
 | products | `/products` | `product_development` | `products/pages/ProductDevelopmentPage.tsx` | desenvolvimento de produtos |
 | inventory | `/inventory` | `inventory` | `inventory/pages/InventoryPage.tsx` | estoque, fornecedores |
 | custody | `/custody` | `custody` | `custody/pages/CustodyPage.tsx` | custódia de peças |
@@ -41,6 +41,7 @@ Papéis (`Role` em `src/types/index.ts`): `admin`, `gerente`, `tecnico`, `estoqu
 ├── tailwind.config.js             # tokens shadcn (hsl(var(--...))), darkMode: class
 ├── scripts/site-prospecting/      # gerador do seed de prospecção (ver §4 e §8)
 │   ├── pricing.mjs                #   pacotes Básico/Essencial/Premium, preços da Proposta, cenários, tarefas, cronograma
+│   ├── sync-project-manager.mjs   #   copia o módulo do Project Manager para src/modules/project-manager
 │   ├── build-seed.mjs             #   CSV -> src/lib/prospecting/data/siteProspecting.generated.ts
 │   └── export-pacotes.mjs         #   gera ~/LeadingSitesSorocaba/PACOTES_PRECOS.md (preços + previsão)
 ├── .github/workflows/             # ci.yml (tsc + cargo check), release.yml (tags v*)
@@ -48,7 +49,7 @@ Papéis (`Role` em `src/types/index.ts`): `admin`, `gerente`, `tecnico`, `estoqu
 │   ├── Cargo.toml                 # crate company-manager; plugins sql(sqlite)/fs/dialog/shell
 │   ├── tauri.conf.json            # identifier com.company.manager, devUrl :1420
 │   ├── capabilities/default.json  # permissões sql/fs/dialog/shell do webview
-│   ├── migrations/                # 0001_init, 0002_assistant_support_inventory, 0003_site_prospecting, 0004_packages_referral
+│   ├── migrations/                # 0001_init … 0004_packages_referral, 0005_project_stages
 │   ├── src/lib.rs                 # registra as migrations (versão -> arquivo) e os plugins
 │   └── icons/
 └── src/
@@ -67,9 +68,9 @@ Papéis (`Role` em `src/types/index.ts`): `admin`, `gerente`, `tecnico`, `estoqu
     │   ├── events/bus.ts          # emit()/on(): grava em `activities` e dispara handlers
     │   ├── assistant/             # config.ts (provedores), client.ts (chat/completions)
     │   ├── prospecting/           # seed, forecast, queries, contact (+ data/*.generated.ts)
-    │   ├── integrations/          # projectBundle.ts (contrato com o Project Manager), files.ts
     │   ├── theme.ts / utils.ts    # tema claro/escuro, cn(), formatCurrency(), formatDate()
-    ├── modules/<modulo>/pages/    # uma página por rota (ver tabela do §1); leads e projects têm components/
+    ├── modules/<modulo>/pages/    # uma página por rota (ver tabela do §1); leads tem components/
+    ├── modules/project-manager/   # CÓPIA do módulo do app Project Manager (não edite aqui; ver §7)
     ├── styles/globals.css         # variáveis CSS (tema), .kpi-card
     └── types/index.ts             # tipos de domínio espelhando as tabelas
 ```
@@ -89,6 +90,7 @@ Node 20+ (CI usa 20), npm, Rust estável (só para o desktop). Dependências pri
 | Testes | **não existe test runner configurado** (sem vitest/jest). Verifique com typecheck + build e exercite a UI. |
 | Lint | **não existe** ESLint configurado. |
 | Regenerar seed de prospecção | `node scripts/site-prospecting/build-seed.mjs [caminho.csv]` |
+| Atualizar o módulo Project Manager | `npm run sync:project-manager` (`-- --check` só compara) |
 
 CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em `src-tauri`.
 
@@ -98,10 +100,10 @@ CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em 
 - **Navegador:** `src/lib/db/demo.ts` — banco em **localStorage** (`cm_demo_database_v4`) que **emula SQL por padrões de texto**. Seed fixo (empresa TechFlow, contas demo `DEMO_ACCOUNTS`). Consulta/comando fora dos padrões lança `Consulta demo nao suportada` / `Comando demo nao suportada`. Há um fallback genérico para `INSERT [OR IGNORE|OR REPLACE]`, `UPDATE ... WHERE id=?` e `SELECT ... WHERE id=?` nas tabelas novas (leads, service_packages, package_prices, revenue_scenarios, revenue_forecasts, settings, tasks).
 - Acesso: sempre `const db = await getDb()` (`src/lib/db/client.ts`) → `db.select<T>(sql, binds)` / `db.execute(sql, binds)`, com `?` posicionais. **O primeiro bind das consultas costuma ser `company_id`** (o demo depende disso).
 - Convenções do schema (0001): IDs `TEXT` (uuid gerado no app), timestamps `TEXT` ISO (`datetime('now')`), `company_id` em quase tudo (multiempresa), **soft delete** com `deleted_at` (não use `DELETE` no fluxo normal), FKs ativas, índices por `company_id`/status/datas.
-- Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003); `package_prices.feature_note` e, em `leads`, `pricing_segment, referred_by, referral_status` (0004).
+- Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003); `package_prices.feature_note` e, em `leads`, `pricing_segment, referred_by, referral_status` (0004); `project_stages` + `tasks.stage_id` (0005).
 - Tipos TypeScript das tabelas: `src/types/index.ts` (mantenha em sincronia com as migrations).
 - **Prospecção de sites (migration 0003):** `leads` ganhou `project_id, category, business_type, whatsapp, google_rating, google_reviews, sem_site, online_presence, presence_kind, address, notes, source_url, package_id, estimated_setup, estimated_monthly, estimated_revenue, priority_rank, outreach_day, outreach_date, last_contact_at`. Status do funil: `novo → abordado → interessado → fechado` (os valores antigos `qualificado/descartado/convertido` seguem válidos no tipo). Valores de preço e previsão são **estimativas** (`is_estimate = 1`).
-- **Seed:** `src/lib/prospecting/seed.ts` roda no primeiro login de papel que pode criar `leads` (`useProspectingBootstrap`, chamado no `AppShell`). Idempotente (flag `seed.site_prospecting.v2` em `settings`; ids uuid v5; `INSERT OR IGNORE`). Quem tinha o seed v1 (pacotes estimados) é migrado: leads são reapontados, os pacotes antigos são apagados e a previsão é refeita, sem tocar em status, contato ou indicação. Cria o projeto "Desenvolvimento de Site", 10 tarefas, os 3 pacotes **Básico / Essencial / Premium**, 39 preços (13 segmentos de preço × 3), 3 cenários (5/10/20%), 42 linhas de previsão e 155 leads. Dados em `src/lib/prospecting/data/siteProspecting.generated.ts` (**gerado**).
+- **Seed:** `src/lib/prospecting/seed.ts` roda no primeiro login de papel que pode criar `leads` (`useProspectingBootstrap`, chamado no `AppShell`). Idempotente (flag `seed.site_prospecting.v3` em `settings`; ids uuid v5; `INSERT OR IGNORE`). Quem tinha o seed v1 ou v2 é migrado: leads são reapontados, os pacotes antigos são apagados e a previsão é refeita, sem tocar em status, contato ou indicação. Cria o projeto "Desenvolvimento de Site" com 5 etapas e 10 tarefas, os 3 pacotes **Básico / Essencial / Premium**, 39 preços (13 segmentos de preço × 3), 3 cenários (5/10/20%), 42 linhas de previsão e 155 leads. Dados em `src/lib/prospecting/data/siteProspecting.generated.ts` (**gerado**).
 - Sessão: `sessionStorage` (`cm_session`). Tema: `localStorage` (`cm_theme`). Sidebar: `cm_sidebar_width`, `cm_sidebar_collapsed`.
 
 ## 5. Convenções
@@ -143,18 +145,19 @@ CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em 
 
 ## 7. Integração Company Manager ⇄ Project Manager
 
-Project Manager é um app irmão em `~/Documents/Trabalho/Sites/Project-Manager` (mesma stack e convenções; repositório git local separado). A integração é **por arquivo JSON**, sem acoplar os dois builds:
+O Project Manager (`~/Documents/Trabalho/Sites/Project-Manager`, repositório git local separado, mesma stack) é a fonte da verdade do módulo de projetos. O Company Manager **embute o módulo**:
 
-- **Contrato:** `company-manager.project-bundle` v1 — `{ format, version, exportedAt, source, projects[], tasks[] }` com as colunas de `projects` e `tasks` (ver `src/lib/integrations/projectBundle.ts`, validado com zod). O Project Manager tem o espelho em `src/module/integration/bundle.ts`. **Mantenha os dois arquivos sincronizados.**
-- **UI:** `ProjectsPage` → botões *Importar do Project Manager* / *Exportar para o Project Manager* (`modules/projects/components/ProjectManagerSync.tsx`); detalhe do projeto lista as tarefas (`ProjectTasks.tsx`, somente leitura). Visível para quem tem `edit` em `projects`.
-- **Regras de importação:** upsert por `id`; só atualiza se `updated_at` do arquivo for mais novo; linhas de outra empresa são ignoradas; `company_id` é reescrito para o da sessão; projetos novos ficam com o usuário atual como `owner_id`; `parent_task_id` só é mantido se a tarefa pai existir; `assignee_id`, `customer_id`, `contract_id` não trafegam.
-- **Projeto exemplo:** "Desenvolvimento de Site" (criado pelo seed) já tem 10 tarefas e viaja no bundle.
-- O Project Manager também exporta um módulo React (`ProjectManagerModule`) que pode ser montado dentro do Company Manager no futuro; hoje **não está montado aqui** (evita dependência entre repositórios).
+- **Código:** `src/modules/project-manager/` é uma **cópia** de `Project-Manager/src/module`, feita por `npm run sync:project-manager` (`scripts/sync-project-manager.mjs`). O módulo só usa imports relativos e pacotes que já existem aqui (react, react-router-dom, @tanstack/react-query, lucide-react, zod, uuid, clsx, tailwind-merge). **Não edite a cópia**: altere no Project Manager, rode o sync e commite o resultado (`--check` diz se está desatualizada).
+- **Montagem:** `modules/projects/pages/ProjectsPage.tsx` renderiza `<ProjectManagerModule db companyId userId canEdit canCreate fileExchange />` na rota `/projects/*` (item "Project Manager" da sidebar), com o mesmo banco do Company Manager (tabelas `projects`, `project_stages` e `tasks`) e as permissões do recurso `projects`.
+- **Funcionalidades:** lista de projetos com progresso e etapa atual; página do projeto com indicadores, **fluxo linear** (etapas concluídas, em andamento e a seguir; status derivado das tarefas), plano por etapa e quadro kanban; criar/editar/reordenar/remover etapas e tarefas.
+- **Troca de arquivo com o app Project Manager:** botões *Importar/Exportar ... app Project Manager* geram/leem o bundle JSON `company-manager.project-bundle` v2 (projetos, etapas, tarefas; v1 ainda é lido). Upsert por `id`, só sobrescreve se `updated_at` for mais novo, `company_id` reescrito para o da sessão.
+- **O seed** cria o projeto "Desenvolvimento de Site" com etapas e tarefas, que já aparecem no fluxo.
+- Se o módulo precisar de SQL novo, o banco demo (`src/lib/db/demo.ts`) precisa entendê-lo; os testes do módulo ficam no Project Manager (vitest, com SQLite real) e, daqui, valide com typecheck + build.
 
 ## 8. Cuidados (o que não mexer)
 
-- **Migrations já existentes (`0001`–`0004`) não se editam:** o `tauri-plugin-sql` guarda checksum; mudar uma já aplicada quebra o banco do usuário. Sempre crie a próxima (`0004_...`) e registre no `lib.rs`.
-- **Não edite** `src/lib/prospecting/data/siteProspecting.generated.ts` à mão — rode o gerador. Preços ficam em `scripts/site-prospecting/pricing.mjs` e vêm da Proposta Comercial (`~/LeadingSitesSorocaba/Proposta_Comercial.md`, preços fixos); a previsão de receita continua sendo estimativa.
+- **Migrations já existentes (`0001`–`0005`) não se editam:** o `tauri-plugin-sql` guarda checksum; mudar uma já aplicada quebra o banco do usuário. Sempre crie a próxima (`0004_...`) e registre no `lib.rs`.
+- **Não edite** `src/modules/project-manager/` (cópia do Project Manager; ver §7) nem `src/lib/prospecting/data/siteProspecting.generated.ts` à mão — rode o gerador. Preços ficam em `scripts/site-prospecting/pricing.mjs` e vêm da Proposta Comercial (`~/LeadingSitesSorocaba/Proposta_Comercial.md`, preços fixos); a previsão de receita continua sendo estimativa.
 - **Não toque no banco real** (`~/Library/Application Support/com.company.manager/company-manager.db`) por fora do app; teste com migrations em um SQLite temporário.
 - **Segredos:** nunca commitar `.env*`, `*.db`, chaves de API. A chave do Assistente IA fica em `localStorage` (`cm_assistant_api_<userId>`) em texto puro e a CSP do Tauri está `null` — não coloque credenciais de produção em testes. Senhas V1 usam prefixo `plain:` (`lib/auth/login.ts`, TODO: argon2 via comando Tauri); as contas demo são só para demonstração.
 - **RBAC com exceções embutidas:** `can()` bloqueia `customers` para qualquer papel que não seja `comercial` e `audit_logs` para qualquer papel que não seja `tecnico` (inclusive `admin`). Mudar isso altera o acesso a CRM e Auditoria.

@@ -3,7 +3,7 @@
 // Preços: scripts/site-prospecting/pricing.mjs (Proposta_Comercial.md: preços fixos; pacotes Básico, Essencial, Premium).
 // Para regenerar: node scripts/site-prospecting/build-seed.mjs
 
-export const SITE_SEED_VERSION = "v2";
+export const SITE_SEED_VERSION = "v3";
 
 export const SITE_PROJECT = {
   name: "Desenvolvimento de Site",
@@ -42,8 +42,20 @@ export interface SiteScenarioSeed {
   conversion_rate: number;
 }
 
+export interface SiteStageSeed {
+  key: string;
+  name: string;
+  description: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+}
+
 export interface SiteTaskSeed {
   key: string;
+  stage_key: string;
+  /** Título do seed v1, quando mudou no v2 (para o upgrade só mexer em tarefa não editada). */
+  legacy_title: string | null;
   title: string;
   description: string | null;
   status: "aberta" | "em_andamento" | "concluida" | "bloqueada";
@@ -411,9 +423,54 @@ export const SITE_SCENARIOS: SiteScenarioSeed[] = [
   }
 ];
 
+export const SITE_STAGES: SiteStageSeed[] = [
+  {
+    "key": "preparacao",
+    "name": "Preparação comercial",
+    "description": "Leads, pacotes, preços e mensagem de abordagem prontos.",
+    "position": 1,
+    "start_date": "2026-10-22T12:00:00.000Z",
+    "end_date": "2026-10-26T12:00:00.000Z"
+  },
+  {
+    "key": "prospeccao",
+    "name": "Prospecção",
+    "description": "Abordar os leads, 5 por dia útil, do mais prioritário ao menos.",
+    "position": 2,
+    "start_date": "2026-10-23T12:00:00.000Z",
+    "end_date": "2026-12-08T12:00:00.000Z"
+  },
+  {
+    "key": "templates",
+    "name": "Produção dos templates",
+    "description": "Templates de site para cada pacote.",
+    "position": 3,
+    "start_date": null,
+    "end_date": null
+  },
+  {
+    "key": "entrega",
+    "name": "Entrega ao cliente",
+    "description": "Do briefing à publicação do site do cliente.",
+    "position": 4,
+    "start_date": null,
+    "end_date": null
+  },
+  {
+    "key": "recorrencia",
+    "name": "Mensalidade e pós-venda",
+    "description": "Cobrança recorrente e acompanhamento.",
+    "position": 5,
+    "start_date": null,
+    "end_date": null
+  }
+];
+
 export const SITE_TASKS: SiteTaskSeed[] = [
   {
     "key": "importar-leads",
+    "stage_key": "preparacao",
+    "legacy_title": null,
     "title": "Importar leads de Sorocaba para o CRM",
     "description": "155 leads do SEM_SITE_sorocaba_filtrado.csv com WhatsApp apenas para celular.",
     "status": "concluida",
@@ -422,30 +479,28 @@ export const SITE_TASKS: SiteTaskSeed[] = [
   },
   {
     "key": "cadastrar-pacotes",
+    "stage_key": "preparacao",
+    "legacy_title": null,
     "title": "Cadastrar pacotes, preços e previsão de receita",
-    "description": "Valores são estimativa até existir a Proposta Comercial.",
+    "description": "Pacotes Básico, Essencial e Premium com a tabela de preços da Proposta Comercial.",
     "status": "concluida",
     "priority": "alta",
     "due_date": "2026-10-22T12:00:00.000Z"
   },
   {
     "key": "validar-precos",
+    "stage_key": "preparacao",
+    "legacy_title": "Validar preços com a Proposta Comercial",
     "title": "Validar preços com a Proposta Comercial",
-    "description": "Substituir a tabela estimada (Prospecção > Pacotes e preços) pelos valores reais.",
-    "status": "aberta",
+    "description": "Preços fixos da Proposta Comercial aplicados à tabela do CRM.",
+    "status": "concluida",
     "priority": "alta",
     "due_date": "2026-10-26T12:00:00.000Z"
   },
   {
-    "key": "abordar-leads",
-    "title": "Abordar leads: 5 por dia útil",
-    "description": "Seguir o cronograma de abordagem (Prospecção > Cronograma): sites quebrados primeiro, depois mais avaliações.",
-    "status": "aberta",
-    "priority": "media",
-    "due_date": "2026-12-08T12:00:00.000Z"
-  },
-  {
     "key": "mensagem-whatsapp",
+    "stage_key": "preparacao",
+    "legacy_title": null,
     "title": "Redigir mensagem de abordagem por WhatsApp",
     "description": null,
     "status": "aberta",
@@ -453,8 +508,20 @@ export const SITE_TASKS: SiteTaskSeed[] = [
     "due_date": "2026-10-23T12:00:00.000Z"
   },
   {
+    "key": "abordar-leads",
+    "stage_key": "prospeccao",
+    "legacy_title": null,
+    "title": "Abordar leads: 5 por dia útil",
+    "description": "Seguir o cronograma de abordagem (Prospecção > Cronograma): sites quebrados primeiro, depois mais avaliações.",
+    "status": "aberta",
+    "priority": "media",
+    "due_date": "2026-12-08T12:00:00.000Z"
+  },
+  {
     "key": "template-basico",
-    "title": "Montar template de site Básico",
+    "stage_key": "templates",
+    "legacy_title": "Montar template de site Básico",
+    "title": "Montar template do Básico (vitrine)",
     "description": null,
     "status": "aberta",
     "priority": "media",
@@ -462,7 +529,9 @@ export const SITE_TASKS: SiteTaskSeed[] = [
   },
   {
     "key": "template-agendamento",
-    "title": "Montar template com agendamento",
+    "stage_key": "templates",
+    "legacy_title": "Montar template com agendamento",
+    "title": "Montar template do Essencial (gerenciador)",
     "description": null,
     "status": "aberta",
     "priority": "media",
@@ -470,7 +539,9 @@ export const SITE_TASKS: SiteTaskSeed[] = [
   },
   {
     "key": "template-premium",
-    "title": "Montar template Premium com SEO",
+    "stage_key": "templates",
+    "legacy_title": "Montar template Premium com SEO",
+    "title": "Montar template do Premium (vitrine + gerenciador)",
     "description": null,
     "status": "aberta",
     "priority": "baixa",
@@ -478,6 +549,8 @@ export const SITE_TASKS: SiteTaskSeed[] = [
   },
   {
     "key": "processo-entrega",
+    "stage_key": "entrega",
+    "legacy_title": null,
     "title": "Definir processo de entrega (briefing até publicação)",
     "description": null,
     "status": "aberta",
@@ -486,6 +559,8 @@ export const SITE_TASKS: SiteTaskSeed[] = [
   },
   {
     "key": "cobranca-mensalidade",
+    "stage_key": "recorrencia",
+    "legacy_title": null,
     "title": "Configurar cobrança de mensalidade",
     "description": null,
     "status": "aberta",

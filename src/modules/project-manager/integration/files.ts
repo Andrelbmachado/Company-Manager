@@ -1,8 +1,8 @@
 // Salvar/abrir arquivos de texto: diálogo nativo + plugin-fs no Tauri; download/input no navegador.
-import { isTauriRuntime } from "@/lib/db/client";
+const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 export async function saveTextFile(defaultName: string, content: string): Promise<boolean> {
-  if (isTauriRuntime()) {
+  if (isTauri()) {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const { writeTextFile } = await import("@tauri-apps/plugin-fs");
     const path = await save({ defaultPath: defaultName, filters: [{ name: "JSON", extensions: ["json"] }] });
@@ -20,7 +20,7 @@ export async function saveTextFile(defaultName: string, content: string): Promis
 }
 
 export async function pickTextFile(): Promise<string | null> {
-  if (isTauriRuntime()) {
+  if (isTauri()) {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const { readTextFile } = await import("@tauri-apps/plugin-fs");
     const path = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });

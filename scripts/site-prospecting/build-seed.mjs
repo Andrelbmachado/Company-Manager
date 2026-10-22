@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MANAGEMENT_SCOPE, OUTREACH, PACKAGES, PRICES, PROJECT_TASKS, SCENARIOS, pricingSegment, suggestPackage } from "./pricing.mjs";
+import { MANAGEMENT_SCOPE, OUTREACH, PACKAGES, PRICES, LEGACY_TASK_TITLES, PROJECT_STAGES, PROJECT_TASKS, SCENARIOS, pricingSegment, suggestPackage } from "./pricing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const csvPath = process.argv[2] ?? resolve(homedir(), "LeadingSitesSorocaba/leads/SEM_SITE_sorocaba_filtrado.csv");
@@ -182,7 +182,7 @@ const header = `// ARQUIVO GERADO por scripts/site-prospecting/build-seed.mjs �
 `;
 
 const body = `
-export const SITE_SEED_VERSION = "v2";
+export const SITE_SEED_VERSION = "v3";
 
 export const SITE_PROJECT = {
   name: "Desenvolvimento de Site",
@@ -221,8 +221,20 @@ export interface SiteScenarioSeed {
   conversion_rate: number;
 }
 
+export interface SiteStageSeed {
+  key: string;
+  name: string;
+  description: string;
+  position: number;
+  start_date: string | null;
+  end_date: string | null;
+}
+
 export interface SiteTaskSeed {
   key: string;
+  stage_key: string;
+  /** Título do seed v1, quando mudou no v2 (para o upgrade só mexer em tarefa não editada). */
+  legacy_title: string | null;
   title: string;
   description: string | null;
   status: "aberta" | "em_andamento" | "concluida" | "bloqueada";
@@ -262,7 +274,9 @@ export const SITE_PRICES: SitePriceSeed[] = ${JSON.stringify(prices, null, 2)};
 
 export const SITE_SCENARIOS: SiteScenarioSeed[] = ${JSON.stringify(SCENARIOS.map((s) => ({ code: s.code, label: s.label, conversion_rate: s.rate })), null, 2)};
 
-export const SITE_TASKS: SiteTaskSeed[] = ${JSON.stringify(PROJECT_TASKS.map((t) => ({ key: t.key, title: t.title, description: t.description, status: t.status, priority: t.priority, due_date: t.due ? `${t.due}T12:00:00.000Z` : null })), null, 2)};
+export const SITE_STAGES: SiteStageSeed[] = ${JSON.stringify(PROJECT_STAGES.map((st, index) => ({ key: st.key, name: st.name, description: st.description, position: index + 1, start_date: st.start ? `${st.start}T12:00:00.000Z` : null, end_date: st.end ? `${st.end}T12:00:00.000Z` : null })), null, 2)};
+
+export const SITE_TASKS: SiteTaskSeed[] = ${JSON.stringify(PROJECT_TASKS.map((t) => ({ key: t.key, stage_key: t.stage, legacy_title: LEGACY_TASK_TITLES[t.key] ?? null, title: t.title, description: t.description, status: t.status, priority: t.priority, due_date: t.due ? `${t.due}T12:00:00.000Z` : null })), null, 2)};
 
 export const SITE_LEADS: SiteLeadSeed[] = ${JSON.stringify(ranked, null, 2)};
 `;

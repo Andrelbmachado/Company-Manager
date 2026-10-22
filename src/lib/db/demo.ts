@@ -49,9 +49,10 @@ interface DemoTables {
   revenue_forecasts: Row[];
   settings: Row[];
   tasks: Row[];
+  project_stages: Row[];
 }
 
-const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks"] as const;
+const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks", "project_stages"] as const;
 
 export interface DatabaseLike {
   select<T>(query: string, bindValues?: unknown[]): Promise<T>;
@@ -216,6 +217,7 @@ function createSeed(): DemoTables {
     revenue_forecasts: [],
     settings: [],
     tasks: [],
+    project_stages: [],
   };
 }
 
@@ -359,12 +361,6 @@ class DemoDatabase implements DatabaseLike {
     if (sql.includes("from companies where id")) {
       return this.tables.companies.filter((row) => row.id === bindValues[0] && !row.deleted_at).slice(0, 1) as T;
     }
-    // Busca por id (importação de bundle): o 1º bind é o id, não a empresa.
-    const byId = sql.match(/^select \* from (\w+) where id ?= ?\?(?: and company_id ?= ?\?)?$/);
-    if (byId && byId[1] in this.tables) {
-      return this.tables[byId[1] as keyof DemoTables]
-        .filter((row) => row.id === bindValues[0] && (bindValues.length < 2 || row.company_id === bindValues[1])) as T;
-    }
     if (sql.includes("count(*) as n from customers")) return [{ n: this.active("customers", companyId).length }] as T;
     if (sql.includes("count(*) as n from opportunities")) {
       const rows = this.active("opportunities", companyId).filter((row) => row.status === "open");
@@ -421,7 +417,18 @@ class DemoDatabase implements DatabaseLike {
     const table = (Object.keys(this.tables) as (keyof DemoTables)[]).find((name) => sql.includes(`from ${name}`));
     if (!table) throw new Error(`Consulta demo nao suportada: ${query}`);
 
-    let rows = table === "audit_logs"
+    // WHERE completo (col=?, col is null, ...) quando o interpretador entende; senão, o filtro antigo por empresa.
+    let rows: Row[] | null = null;
+    const whereClause = sql.match(/ where (.+?)(?: order by| limit|$)/)?.[1];
+    if (whereClause && table !== "audit_logs") {
+      try {
+        let bindIndex = 0;
+        rows = this.tables[table].filter(parseWhere(whereClause, () => bindValues[bindIndex++]));
+      } catch {
+        rows = null;
+      }
+    }
+    rows ??= table === "audit_logs"
       ? this.tables[table].filter((row) => row.company_id === companyId)
       : this.active(table, companyId);
 
@@ -431,7 +438,8 @@ class DemoDatabase implements DatabaseLike {
     if (sql.includes("order by checked_out_at desc")) rows = [...rows].sort((a, b) => String(b.checked_out_at).localeCompare(String(a.checked_out_at)));
     if (EXTRA_TABLES.includes(table as (typeof EXTRA_TABLES)[number])) rows = orderByColumn(rows, sql);
     if (sql.includes("limit 200")) rows = rows.slice(0, 200);
-    return rows as T;
+    // Cópias: quem consulta não pode enxergar (nem mutar) as linhas vivas do banco.
+    return rows.map((row) => ({ ...row })) as T;
   }
 
   async execute(query: string, bindValues: unknown[] = []): Promise<unknown> {

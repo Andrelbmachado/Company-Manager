@@ -30,7 +30,7 @@ const COMMANDS = [
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target },
   { module: "support", label: "Suporte / Tickets", path: "/support", icon: HeadphonesIcon },
   { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench },
-  { module: "projects", label: "Projetos", path: "/projects", icon: FolderKanban },
+  { module: "projects", label: "Project Manager (projetos)", path: "/projects", icon: FolderKanban },
   { module: "products", label: "Desenvolvimento de Produtos", path: "/products", icon: Boxes },
   { module: "inventory", label: "Estoque", path: "/inventory", icon: Package },
   { module: "custody", label: "Custódia de peça", path: "/custody", icon: Archive },

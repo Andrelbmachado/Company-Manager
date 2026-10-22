@@ -37,7 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { module: "leads", label: "Prospecção", path: "/leads", icon: Megaphone, group: "Comercial" },
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
   { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench, group: "Operações" },
-  { module: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, group: "Operações" },
+  { module: "projects", label: "Project Manager", path: "/projects", icon: FolderKanban, group: "Operações" },
   { module: "products", label: "Desenv. de Produtos", path: "/products", icon: Boxes, group: "Produto" },
   { module: "inventory", label: "Estoque", path: "/inventory", icon: Package, group: "Logística" },
   { module: "custody", label: "Custódia de peça", path: "/custody", icon: Archive, group: "Logística" },

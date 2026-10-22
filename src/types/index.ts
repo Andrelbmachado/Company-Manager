@@ -294,10 +294,28 @@ export interface Project {
   deleted_at?: string | null;
 }
 
+export type StageStatus = "a_seguir" | "em_andamento" | "concluida";
+
+export interface ProjectStage {
+  id: string;
+  company_id: string;
+  project_id: string;
+  name: string;
+  description?: string | null;
+  position: number;
+  status: StageStatus;
+  start_date?: string | null;
+  end_date?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
 export interface Task {
   id: string;
   company_id: string;
   project_id?: string | null;
+  stage_id?: string | null;
   parent_task_id?: string | null;
   title: string;
   description?: string | null;

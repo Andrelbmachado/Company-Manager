@@ -105,21 +105,37 @@ export function suggestPackage(reviews) {
   return reviews !== null && reviews >= 200 ? "premium" : "basico";
 }
 
-// Tarefas iniciais do projeto "Desenvolvimento de Site" (tabela `tasks`).
-// As duas primeiras já estão feitas por esta própria importação; o resto é o plano de trabalho.
-// Sem horas estimadas de propósito: não há base para prometer esses números.
-export const PROJECT_TASKS = [
-  { key: "importar-leads", title: "Importar leads de Sorocaba para o CRM", status: "concluida", priority: "alta", due: "2026-10-22", description: "155 leads do SEM_SITE_sorocaba_filtrado.csv com WhatsApp apenas para celular." },
-  { key: "cadastrar-pacotes", title: "Cadastrar pacotes, preços e previsão de receita", status: "concluida", priority: "alta", due: "2026-10-22", description: "Valores são estimativa até existir a Proposta Comercial." },
-  { key: "validar-precos", title: "Validar preços com a Proposta Comercial", status: "aberta", priority: "alta", due: "2026-10-26", description: "Substituir a tabela estimada (Prospecção > Pacotes e preços) pelos valores reais." },
-  { key: "abordar-leads", title: "Abordar leads: 5 por dia útil", status: "aberta", priority: "media", due: "2026-12-08", description: "Seguir o cronograma de abordagem (Prospecção > Cronograma): sites quebrados primeiro, depois mais avaliações." },
-  { key: "mensagem-whatsapp", title: "Redigir mensagem de abordagem por WhatsApp", status: "aberta", priority: "media", due: "2026-10-23", description: null },
-  { key: "template-basico", title: "Montar template de site Básico", status: "aberta", priority: "media", due: null, description: null },
-  { key: "template-agendamento", title: "Montar template com agendamento", status: "aberta", priority: "media", due: null, description: null },
-  { key: "template-premium", title: "Montar template Premium com SEO", status: "aberta", priority: "baixa", due: null, description: null },
-  { key: "processo-entrega", title: "Definir processo de entrega (briefing até publicação)", status: "aberta", priority: "media", due: null, description: null },
-  { key: "cobranca-mensalidade", title: "Configurar cobrança de mensalidade", status: "aberta", priority: "baixa", due: null, description: null },
+// Plano do projeto "Desenvolvimento de Site": etapas em ordem (fluxo do Project Manager) e as tarefas de cada uma.
+// Status da etapa é derivado das tarefas. Sem horas estimadas de propósito: não há base para prometer esses números.
+export const PROJECT_STAGES = [
+  { key: "preparacao", name: "Preparação comercial", description: "Leads, pacotes, preços e mensagem de abordagem prontos.", start: "2026-10-22", end: "2026-10-26" },
+  { key: "prospeccao", name: "Prospecção", description: "Abordar os leads, 5 por dia útil, do mais prioritário ao menos.", start: "2026-10-23", end: "2026-12-08" },
+  { key: "templates", name: "Produção dos templates", description: "Templates de site para cada pacote.", start: null, end: null },
+  { key: "entrega", name: "Entrega ao cliente", description: "Do briefing à publicação do site do cliente.", start: null, end: null },
+  { key: "recorrencia", name: "Mensalidade e pós-venda", description: "Cobrança recorrente e acompanhamento.", start: null, end: null },
 ];
+
+export const PROJECT_TASKS = [
+  { key: "importar-leads", stage: "preparacao", title: "Importar leads de Sorocaba para o CRM", status: "concluida", priority: "alta", due: "2026-10-22", description: "155 leads do SEM_SITE_sorocaba_filtrado.csv com WhatsApp apenas para celular." },
+  { key: "cadastrar-pacotes", stage: "preparacao", title: "Cadastrar pacotes, preços e previsão de receita", status: "concluida", priority: "alta", due: "2026-10-22", description: "Pacotes Básico, Essencial e Premium com a tabela de preços da Proposta Comercial." },
+  { key: "validar-precos", stage: "preparacao", title: "Validar preços com a Proposta Comercial", status: "concluida", priority: "alta", due: "2026-10-26", description: "Preços fixos da Proposta Comercial aplicados à tabela do CRM." },
+  { key: "mensagem-whatsapp", stage: "preparacao", title: "Redigir mensagem de abordagem por WhatsApp", status: "aberta", priority: "media", due: "2026-10-23", description: null },
+  { key: "abordar-leads", stage: "prospeccao", title: "Abordar leads: 5 por dia útil", status: "aberta", priority: "media", due: "2026-12-08", description: "Seguir o cronograma de abordagem (Prospecção > Cronograma): sites quebrados primeiro, depois mais avaliações." },
+  { key: "template-basico", stage: "templates", title: "Montar template do Básico (vitrine)", status: "aberta", priority: "media", due: null, description: null },
+  { key: "template-agendamento", stage: "templates", title: "Montar template do Essencial (gerenciador)", status: "aberta", priority: "media", due: null, description: null },
+  { key: "template-premium", stage: "templates", title: "Montar template do Premium (vitrine + gerenciador)", status: "aberta", priority: "baixa", due: null, description: null },
+  { key: "processo-entrega", stage: "entrega", title: "Definir processo de entrega (briefing até publicação)", status: "aberta", priority: "media", due: null, description: null },
+  { key: "cobranca-mensalidade", stage: "recorrencia", title: "Configurar cobrança de mensalidade", status: "aberta", priority: "baixa", due: null, description: null },
+];
+
+// Títulos do seed v1 que mudaram no v2 (renomeados para os novos pacotes). O upgrade só altera a tarefa se o
+// título ainda for o antigo, ou seja, se ninguém a editou.
+export const LEGACY_TASK_TITLES = {
+  "validar-precos": "Validar preços com a Proposta Comercial",
+  "template-agendamento": "Montar template com agendamento",
+  "template-premium": "Montar template Premium com SEO",
+  "template-basico": "Montar template de site Básico",
+};
 
 // Parâmetros do cronograma de abordagem.
 export const OUTREACH = {

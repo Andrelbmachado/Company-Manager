@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Users,
   Target,
+  Megaphone,
   Wrench,
   FolderKanban,
   Boxes,
@@ -33,6 +34,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard, group: "Visão Geral" },
   { module: "crm", label: "CRM", path: "/crm", icon: Users, group: "Comercial" },
+  { module: "leads", label: "Prospecção", path: "/leads", icon: Megaphone, group: "Comercial" },
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
   { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench, group: "Operações" },
   { module: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, group: "Operações" },

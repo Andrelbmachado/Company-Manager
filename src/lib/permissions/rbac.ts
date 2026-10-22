@@ -173,6 +173,7 @@ export function visibleModules(role: Role): string[] {
 
   const moduleMap: Record<string, Resource> = {
     crm: "customers",
+    leads: "leads",
     opportunities: "opportunities",
     support: "tickets",
     operations: "work_orders",

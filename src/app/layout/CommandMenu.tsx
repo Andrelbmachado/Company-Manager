@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Users,
   Target,
+  Megaphone,
   HeadphonesIcon,
   Wrench,
   FolderKanban,
@@ -25,6 +26,7 @@ import {
 const COMMANDS = [
   { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard },
   { module: "crm", label: "CRM / Clientes", path: "/crm", icon: Users },
+  { module: "leads", label: "Prospecção de Sites", path: "/leads", icon: Megaphone },
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target },
   { module: "support", label: "Suporte / Tickets", path: "/support", icon: HeadphonesIcon },
   { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench },

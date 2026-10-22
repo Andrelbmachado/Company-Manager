@@ -4,6 +4,7 @@ import { Sidebar } from "./Sidebar";
 import { CommandMenu } from "./CommandMenu";
 import { Bell, ChevronDown, HeadphonesIcon, LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
+import { useProspectingBootstrap } from "@/hooks/useProspectingBootstrap";
 import { logout } from "@/lib/auth/login";
 import { ROLE_LABELS, visibleModules } from "@/lib/permissions/rbac";
 import { getTheme, saveTheme, type Theme } from "@/lib/theme";
@@ -18,6 +19,7 @@ export function AppShell() {
   const session = useRequiredSession();
   const { setSession } = useSession();
   const navigate = useNavigate();
+  useProspectingBootstrap();
   const canAccessSupport = visibleModules(session.membership.role as Role).includes("support");
   const initials = session.user.name
     .split(" ")

@@ -1,13 +1,16 @@
 import { getDb } from "@/lib/db/client";
 import type { Lead, PackagePrice, Project, RevenueForecast, RevenueScenario, ServicePackage } from "@/types";
-import { SITE_PROJECT_NAME } from "./seed";
+import { SITE_PROJECT_NAME, siteProjectSeedId } from "./seed";
 
 export async function fetchSiteProject(companyId: string): Promise<Project | null> {
   const projects = await (await getDb()).select<Project[]>(
     "SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC",
     [companyId],
   );
-  return projects.find((project) => project.name.trim().toLowerCase() === SITE_PROJECT_NAME.toLowerCase()) ?? null;
+  // Primeiro pelo id do seed (sobrevive a renomear o projeto); depois pelo nome, para projetos criados à mão.
+  return projects.find((project) => project.id === siteProjectSeedId(companyId))
+    ?? projects.find((project) => project.name.trim().toLowerCase() === SITE_PROJECT_NAME.toLowerCase())
+    ?? null;
 }
 
 export async function fetchLeads(companyId: string): Promise<Lead[]> {

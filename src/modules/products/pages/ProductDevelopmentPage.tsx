@@ -64,7 +64,7 @@ export default function ProductDevelopmentPage() {
               onClick={() => setTypeFilter(value)}
               className={cn(
                 "rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
-                typeFilter === value && "border-primary/40 bg-primary/10 text-primary"
+                typeFilter === value && "border-primary/40 bg-primary/10 text-primary-text"
               )}
             >
               {label}
@@ -100,7 +100,7 @@ export default function ProductDevelopmentPage() {
                   <tr key={product.id} className="hover:bg-muted/20">
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-2 font-medium">
-                        <Icon size={15} className="text-primary" />
+                        <Icon size={15} className="text-primary-text" />
                         {product.name}
                       </span>
                     </td>
@@ -130,7 +130,7 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function Status({ status }: { status: ProductStatus }) {
   return (
-    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary-text">
       {status}
     </span>
   );

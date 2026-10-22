@@ -17,6 +17,8 @@
     --popover-foreground: 223 37% 12%;
     --primary: 225 74% 52%;
     --primary-foreground: 0 0% 100%;
+    /* Cor do primário quando usada como TEXTO (links, destaques): contraste >= 4,5 sobre o fundo do tema. */
+    --primary-text: 225 74% 42%;
     --secondary: 225 25% 92%;
     --secondary-foreground: 223 37% 12%;
     --muted: 224 25% 93%;
@@ -48,6 +50,7 @@
     --popover-foreground: 222 38% 94%;
     --primary: 225 84% 59%;
     --primary-foreground: 0 0% 100%;
+    --primary-text: 225 100% 77%;
     --secondary: 226 28% 18%;
     --secondary-foreground: 222 38% 94%;
     --muted: 226 28% 18%;

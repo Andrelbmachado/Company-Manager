@@ -92,7 +92,7 @@ export function AppShell() {
               aria-label="Abrir menu da conta"
               className="flex items-center gap-1 rounded-lg p-1 pr-1.5 hover:bg-muted transition-colors"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary-text">
                 {initials}
               </span>
               <ChevronDown size={13} className="text-muted-foreground" />
@@ -102,7 +102,7 @@ export function AppShell() {
               <div className="absolute right-9 top-11 z-50 w-80 overflow-hidden rounded-xl border bg-popover shadow-xl">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                   <p className="text-sm font-semibold">Notificacoes</p>
-                  {notificationUnread && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">1 nova</span>}
+                  {notificationUnread && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary-text">1 nova</span>}
                 </div>
                 <button
                   onClick={() => setNotificationUnread(false)}
@@ -119,7 +119,7 @@ export function AppShell() {
                     <span className="mt-2 block text-[11px] text-muted-foreground">Ha 8 minutos</span>
                   </span>
                 </button>
-                <button onClick={() => setNotificationUnread(false)} className="w-full border-t px-4 py-2.5 text-center text-xs font-medium text-primary hover:bg-muted/60">
+                <button onClick={() => setNotificationUnread(false)} className="w-full border-t px-4 py-2.5 text-center text-xs font-medium text-primary-text hover:bg-muted/60">
                   Marcar todas como lidas
                 </button>
               </div>
@@ -130,7 +130,7 @@ export function AppShell() {
                 <div className="border-b px-4 py-3">
                   <p className="truncate text-sm font-semibold">{session.user.name}</p>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">{session.user.email}</p>
-                  <p className="mt-1 text-[11px] font-medium text-primary">{ROLE_LABELS[session.membership.role as Role]}</p>
+                  <p className="mt-1 text-[11px] font-medium text-primary-text">{ROLE_LABELS[session.membership.role as Role]}</p>
                 </div>
                 <div className="p-1.5">
                   <button

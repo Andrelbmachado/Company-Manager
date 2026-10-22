@@ -22,6 +22,13 @@ export const SEED_SETTING_KEY = "seed.site_prospecting.v3";
 const LEGACY_SEED_KEYS = ["seed.site_prospecting.v1", "seed.site_prospecting.v2"];
 const LEGACY_PACKAGE_KEYS = ["package:agendamento", "package:premium_seo"];
 export const SITE_PROJECT_NAME = "Desenvolvimento de Site";
+/** Descrição da tarefa de pacotes no seed v2, trocada quando a Proposta Comercial passou a existir. */
+const STALE_TASK_DESCRIPTION = "Valores são estimativa até existir a Proposta Comercial.";
+
+/** Id determinístico do projeto criado pelo seed. Quem renomeou o projeto continua sendo achado por ele. */
+export function siteProjectSeedId(companyId: string): string {
+  return seedId(companyId, "project:desenvolvimento-de-site");
+}
 
 const inflight = new Map<string, Promise<boolean>>();
 
@@ -56,7 +63,7 @@ async function runSeed(session: Session): Promise<boolean> {
     [companyId],
   );
   const existing = projects.find((project) => project.name.trim().toLowerCase() === SITE_PROJECT_NAME.toLowerCase());
-  const projectId = existing?.id ?? seedId(companyId, "project:desenvolvimento-de-site");
+  const projectId = existing?.id ?? siteProjectSeedId(companyId);
   if (!existing) {
     await db.execute(
       "INSERT OR IGNORE INTO projects (id, company_id, name, status, budget, start_date, end_date, owner_id) VALUES (?,?,?,?,?,?,?,?)",
@@ -118,10 +125,10 @@ async function runSeed(session: Session): Promise<boolean> {
       ],
     );
     if (upgrading) {
-      // Quem já tinha o seed v1: reaponta o pacote e os valores sem tocar em status, contato ou indicação.
+      // Quem já tinha um seed anterior: reaponta pacote, valores e agenda de abordagem (catálogo do seed) sem tocar em status, contato ou indicação.
       await db.execute(
-        "UPDATE leads SET pricing_segment=?, package_id=?, estimated_setup=?, estimated_monthly=?, estimated_revenue=? WHERE id=?",
-        [lead.pricing_segment, packageIds.get(lead.package_code), lead.estimated_setup, lead.estimated_monthly, lead.estimated_revenue, seedId(companyId, `lead:site:${lead.seq}`)],
+        "UPDATE leads SET pricing_segment=?, package_id=?, estimated_setup=?, estimated_monthly=?, estimated_revenue=?, priority_rank=?, outreach_day=?, outreach_date=? WHERE id=?",
+        [lead.pricing_segment, packageIds.get(lead.package_code), lead.estimated_setup, lead.estimated_monthly, lead.estimated_revenue, lead.priority_rank, lead.outreach_day, lead.outreach_date, seedId(companyId, `lead:site:${lead.seq}`)],
       );
     }
   }
@@ -152,6 +159,8 @@ async function runSeed(session: Session): Promise<boolean> {
     );
     // Seed v1 não tinha etapas: encaixa a tarefa só se ainda estiver sem etapa (não desfaz escolha do usuário).
     await db.execute("UPDATE tasks SET stage_id=? WHERE id=? AND stage_id IS NULL", [stageId, taskId]);
+    // Só troca a descrição se ainda for a do seed antigo (ninguém editou).
+    if (upgrading) await db.execute("UPDATE tasks SET description=? WHERE id=? AND description=?", [task.description, taskId, STALE_TASK_DESCRIPTION]);
     if (upgrading && task.legacy_title) {
       // Renomeia para os novos pacotes só se o título ainda for o do seed v1 e a tarefa continuar aberta (ninguém editou).
       await db.execute(

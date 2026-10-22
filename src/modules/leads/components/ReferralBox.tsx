@@ -53,6 +53,7 @@ export function ReferralBox({ lead, canEdit, suggestions, onSaved }: ReferralBox
   return (
     <section className="rounded-lg border p-4">
       <h3 className="text-sm font-semibold">Programa de indicação</h3>
+      {save.isError && <p role="alert" className="text-sm font-medium text-status-danger dark:text-red-400">Não foi possível salvar: {save.error instanceof Error ? save.error.message : String(save.error)}</p>}
       <div className="mt-3 flex gap-2">
         <input
           list={listId}

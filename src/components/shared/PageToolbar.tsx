@@ -41,7 +41,7 @@ export function PageToolbar({
             title="Filtrar resultados"
             className={cn(
               "flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              filterActive && "border-primary/40 bg-primary/10 text-primary"
+              filterActive && "border-primary/40 bg-primary/10 text-primary-text"
             )}
           >
             <ListFilter size={16} />

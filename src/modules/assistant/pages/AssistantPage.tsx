@@ -71,7 +71,7 @@ export default function AssistantPage() {
     <div className="-m-6 flex h-[calc(100vh-3.5rem)] flex-col bg-background">
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary-text">
             <Sparkles size={17} />
           </div>
           <div>
@@ -90,7 +90,7 @@ export default function AssistantPage() {
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-8 pb-20 text-center">
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border bg-muted/40 text-primary">
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border bg-muted/40 text-primary-text">
               <Bot size={24} />
             </div>
             <h2 className="text-2xl font-semibold tracking-tight">Como posso ajudar?</h2>
@@ -114,7 +114,7 @@ export default function AssistantPage() {
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.author === "user" ? "justify-end" : ""}`}>
                 {message.author === "assistant" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-text">
                     <Sparkles size={15} />
                   </div>
                 )}
@@ -134,7 +134,7 @@ export default function AssistantPage() {
             ))}
             {sending && (
               <div className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-text">
                   <Sparkles size={15} />
                 </div>
                 <p className="pt-1 text-sm text-muted-foreground">Consultando assistente...</p>

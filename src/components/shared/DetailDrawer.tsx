@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Pencil, X } from "lucide-react";
+import { useModalFocus } from "./useModalFocus";
 
 interface DetailDrawerProps {
   title: string;
@@ -10,17 +11,18 @@ interface DetailDrawerProps {
 }
 
 export function DetailDrawer({ title, subtitle, onClose, onEdit, children }: DetailDrawerProps) {
+  const panel = useModalFocus<HTMLElement>(onClose);
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/60" onClick={onClose}>
-      <aside className="h-full w-full max-w-xl overflow-y-auto border-l bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <aside ref={panel} role="dialog" aria-modal="true" aria-label={title} className="h-full w-full max-w-xl overflow-y-auto border-l bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b pb-5">
           <div>
-            {subtitle && <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>}
             <h2 className="mt-1 text-xl font-semibold">{title}</h2>
           </div>
           <div className="flex gap-1">
             {onEdit && <button onClick={onEdit} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"><Pencil size={14} /> Editar</button>}
-            <button onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X size={17} /></button>
+            <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X size={17} /></button>
           </div>
         </div>
         <div className="py-5">{children}</div>

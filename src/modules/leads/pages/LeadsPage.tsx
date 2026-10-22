@@ -4,7 +4,7 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { cn } from "@/lib/utils";
+import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { formatMoney } from "@/lib/prospecting/contact";
 import {
   fetchLeads,
@@ -68,28 +68,15 @@ export default function LeadsPage() {
         <StatCard title="Novos" value={count("novo")} hint={`${PER_DAY} abordagens por dia útil`} />
       </div>
 
-      <div role="tablist" className="flex gap-1 border-b">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            role="tab"
-            aria-selected={tab === item.id}
-            onClick={() => setTab(item.id)}
-            className={cn(
-              "-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
-              tab === item.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <div className="border-b"><TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da prospecção" idPrefix="leads" /></div>
 
+      <TabPanel idPrefix="leads" id={tab}>
       {tab === "leads" && <LeadsPanel leads={leads} packages={packages} loading={isLoading} />}
       {tab === "cronograma" && <SchedulePanel leads={leads} perDay={PER_DAY} />}
       {tab === "pacotes" && <PackagesPanel packages={packages} prices={prices} leads={leads} />}
       {tab === "indicacoes" && <ReferralPanel leads={leads} />}
       {tab === "previsao" && <ForecastPanel projectId={project?.id ?? null} scenarios={scenarios} forecasts={forecasts} leads={leads} />}
+      </TabPanel>
     </div>
   );
 }

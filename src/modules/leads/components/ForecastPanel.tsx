@@ -64,6 +64,7 @@ export function ForecastPanel({ projectId, scenarios, forecasts, leads }: Foreca
 
   return (
     <div className="space-y-6">
+      {recalc.isError && <p role="alert" className="text-sm font-medium text-status-danger dark:text-red-400">Não foi possível recalcular: {recalc.error instanceof Error ? recalc.error.message : String(recalc.error)}</p>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-3xl text-sm text-muted-foreground">
           <strong className="text-foreground">Estimativa de receita.</strong> Potencial por lead = implantação + 12 mensalidades do pacote assumido (Premium com 200+ avaliações no Google, Básico nos demais), 1º ano, com os preços da Proposta Comercial. Descontos e meses grátis do Programa de Indicação não entram.

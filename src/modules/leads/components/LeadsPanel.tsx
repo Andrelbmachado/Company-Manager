@@ -129,7 +129,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
       {loading ? (
         <div className="space-y-2">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-lg bg-muted/30" />)}</div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Megaphone} title="Nenhum lead encontrado" description={leads.length ? "Ajuste os filtros para ver mais resultados." : "Os leads de prospecção são importados no primeiro acesso de Administração, Gerência ou Comercial."} />
+        <EmptyState icon={Megaphone} title="Nenhum lead encontrado" description={leads.length ? "Ajuste os filtros para ver mais resultados." : "Os leads de prospecção são importados no primeiro acesso do CEO, da Administração, da Gerência ou do Comercial."} />
       ) : (
         <>
           <p className="text-xs text-muted-foreground">{filtered.length} de {leads.length} leads · ordenados por prioridade de abordagem</p>
@@ -146,7 +146,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
                 {filtered.map((lead) => {
                   const wa = whatsappUrl(lead.whatsapp);
                   return (
-                    <tr key={lead.id} onClick={() => setSelected(lead)} className="cursor-pointer transition-colors hover:bg-muted/20">
+                    <tr key={lead.id} tabIndex={0} aria-label={`Abrir ${lead.name}`} onClick={() => setSelected(lead)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelected(lead); } }} className="cursor-pointer transition-colors hover:bg-muted/20 focus-visible:bg-muted/30">
                       <td className="px-3 py-2.5 text-muted-foreground">{lead.priority_rank}</td>
                       <td className="max-w-64 px-3 py-2.5">
                         <p className="truncate font-medium">{lead.name}</p>
@@ -161,7 +161,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
                             title="Abrir WhatsApp"
                             aria-label={`Abrir WhatsApp de ${lead.name}`}
                             onClick={(event) => { event.stopPropagation(); void openExternal(wa); }}
-                            className="ml-2 inline-flex align-middle text-emerald-600 hover:text-emerald-700"
+                            className="ml-2 inline-flex align-middle text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                           >
                             <MessageCircle size={15} />
                           </button>
@@ -192,8 +192,8 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
             <DetailGrid>
               <DetailItem label="Status" value={statusControl(selected)} />
               <DetailItem label="Prioridade" value={selected.priority_rank ? `#${selected.priority_rank} (dia ${selected.outreach_day} · ${formatIsoDate(selected.outreach_date)})` : null} />
-              <DetailItem label="Telefone" value={selected.phone && (telUrl(selected.phone) ? <button type="button" className="text-primary hover:underline" onClick={() => void openExternal(telUrl(selected.phone)!)}>{selected.phone}</button> : selected.phone)} />
-              <DetailItem label="WhatsApp" value={selected.whatsapp ? <button type="button" className="text-emerald-700 hover:underline" onClick={() => void openExternal(whatsappUrl(selected.whatsapp)!)}>{selected.whatsapp}</button> : "Sem celular"} />
+              <DetailItem label="Telefone" value={selected.phone && (telUrl(selected.phone) ? <button type="button" className="text-primary-text hover:underline" onClick={() => void openExternal(telUrl(selected.phone)!)}>{selected.phone}</button> : selected.phone)} />
+              <DetailItem label="WhatsApp" value={selected.whatsapp ? <button type="button" className="text-emerald-700 hover:underline dark:text-emerald-400" onClick={() => void openExternal(whatsappUrl(selected.whatsapp)!)}>{selected.whatsapp}</button> : "Sem celular"} />
               <DetailItem label="Nota no Google" value={formatRating(selected.google_rating, selected.google_reviews)} />
               <DetailItem label="Sem site" value={selected.sem_site ? "Sim" : "Não"} />
               <DetailItem label="Último contato" value={selected.last_contact_at ? formatDateTime(selected.last_contact_at) : null} />
@@ -216,7 +216,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
               onSaved={setSelected}
             />
             {selected.source_url && (
-              <button type="button" className="text-sm text-primary hover:underline" onClick={() => void openExternal(selected.source_url!)}>
+              <button type="button" className="text-sm text-primary-text hover:underline" onClick={() => void openExternal(selected.source_url!)}>
                 Ver no Google Maps
               </button>
             )}

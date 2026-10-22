@@ -257,7 +257,7 @@ export default function SupportPage() {
                 {timeline.map((activity, index) => (
                   <div key={activity.id} className="relative flex gap-3 pb-6">
                     {index < timeline.length - 1 && <div className="absolute left-3 top-7 h-full w-px bg-border" />}
-                    <div className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background text-primary">
+                    <div className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background text-primary-text">
                       <CheckCircle2 size={13} />
                     </div>
                     <div>

@@ -36,7 +36,8 @@ export interface ReferrerSummary {
   toNextTier: number | null;
 }
 
-const normalize = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
+/** Chave do indicador: sem diferenciar maiúsculas, espaços repetidos nem acentos ("João Silva" = "Joao Silva"). */
+const normalize = (name: string) => name.trim().toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/\s+/g, " ");
 
 /** Status do benefício derivado do status do lead: só "concedido" quando o indicado fecha. */
 export function referralStatusFor(leadStatus: string, referredBy: string | null | undefined): ReferralStatus | null {

@@ -44,9 +44,9 @@ interface PermissionMap {
 
 export const ROLE_LABELS: Record<Role, string> = {
   ceo: "Diretoria (CEO)",
-  admin: "Administracao",
-  gerente: "Gerencia",
-  tecnico: "TI / Operacoes",
+  admin: "Administração",
+  gerente: "Gerência",
+  tecnico: "TI / Operações",
   estoquista: "Estoque",
   financeiro: "Contabilidade / Financeiro",
   rh: "Recursos Humanos",

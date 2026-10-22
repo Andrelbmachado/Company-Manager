@@ -68,7 +68,7 @@ export function SchedulePanel({ leads, perDay }: { leads: Lead[]; perDay: number
               <header className="flex items-center justify-between border-b px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold">Dia {entry.day} · {formatIsoDate(entry.date)}</p>
-                  <p className="text-xs capitalize text-muted-foreground">{weekday(entry.date)}{highlight ? " · próximo a abordar" : ""}</p>
+                  <p className="text-xs text-muted-foreground first-letter:uppercase">{weekday(entry.date)}{highlight ? " · próximo a abordar" : ""}</p>
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {entry.leads.filter((lead) => lead.status !== "novo").length}/{entry.leads.length} abordados
@@ -93,7 +93,7 @@ export function SchedulePanel({ leads, perDay }: { leads: Lead[]; perDay: number
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {wa && (
-                          <button type="button" title="Abrir WhatsApp" aria-label={`Abrir WhatsApp de ${lead.name}`} onClick={() => void openExternal(wa)} className="text-emerald-600 hover:text-emerald-700">
+                          <button type="button" title="Abrir WhatsApp" aria-label={`Abrir WhatsApp de ${lead.name}`} onClick={() => void openExternal(wa)} className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300">
                             <MessageCircle size={16} />
                           </button>
                         )}

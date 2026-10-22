@@ -5,11 +5,12 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
 import { emit } from "@/lib/events/bus";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 import { CrudDialog } from "@/components/shared/CrudDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { Package, Plus, AlertTriangle, Building2, Mail, Phone, Star, X, Pencil } from "lucide-react";
+import { Package, Plus, AlertTriangle, Building2, Mail, Phone, Star, X, Pencil, Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { InventoryItem } from "@/types";
 
@@ -39,6 +40,11 @@ export default function InventoryPage() {
   const qc = useQueryClient();
   const canCreateItem = usePermission("create", "inventory");
   const canEditItem = usePermission("edit", "inventory");
+  const canDeleteItem = usePermission("delete", "inventory");
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const [listEditing, setListEditing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemWithBalance | null>(null);
   const [editing, setEditing] = useState(false);
@@ -128,22 +134,80 @@ export default function InventoryPage() {
       setForm({ name: "", sku: "", category: "", supplier_id: "", unit: "un", min_stock: "0", cost: "0" });
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await (await getDb()).execute(
+        "UPDATE inventory_items SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE id=?",
+        [id]
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory", session.company.id] });
+      qc.invalidateQueries({ queryKey: ["inventory-options", session.company.id] });
+      qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+      setSelectedItem(null);
+    },
+  });
+  const categories = [...new Set(items.map((item) => item.category).filter(Boolean))] as string[];
+  const filteredItems = items.filter((item) => {
+    const query = normalizeSearch(search);
+    const matchesSearch = [item.name, item.sku, item.category, item.supplier_name]
+      .some((value) => normalizeSearch(value ?? "").includes(query));
+    return matchesSearch && (categoryFilter === "all" || item.category === categoryFilter);
+  });
+
+  function removeItem(item: ItemWithBalance) {
+    if (window.confirm(`Remover "${item.name}" do estoque?`)) deleteMutation.mutate(item.id);
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Estoque"
         description="Itens, saldos e movimentações"
-        actions={canCreateItem ? (
+      />
+
+      <PageToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar no estoque..."
+        onFilterClick={() => setShowFilters((visible) => !visible)}
+        filterActive={categoryFilter !== "all"}
+      >
+        {canEditItem && (
+          <button
+            onClick={() => setListEditing((active) => !active)}
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+          >
+            <Pencil size={14} />
+            {listEditing ? "Concluir" : "Editar"}
+          </button>
+        )}
+        {canCreateItem && (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <Plus size={14} />
-            Novo item
+            Adicionar
           </button>
-        ) : undefined}
-      />
+        )}
+      </PageToolbar>
+
+      {showFilters && (
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-4 py-3">
+          <label className="text-sm font-medium" htmlFor="inventory-category-filter">Categoria</label>
+          <select
+            id="inventory-category-filter"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="all">Todas</option>
+            {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+        </div>
+      )}
 
       {showForm && (
         <div className="rounded-xl border bg-card p-5 space-y-4">
@@ -196,8 +260,8 @@ export default function InventoryPage() {
             <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />
           ))}
         </div>
-      ) : items.length === 0 ? (
-        <EmptyState icon={Package} title="Nenhum item no estoque" />
+      ) : filteredItems.length === 0 ? (
+        <EmptyState icon={Package} title={items.length === 0 ? "Nenhum item no estoque" : "Nenhum item encontrado"} />
       ) : (
         <div className="rounded-xl border overflow-hidden">
           <table className="w-full text-sm">
@@ -210,10 +274,11 @@ export default function InventoryPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Saldo</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mínimo</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Custo unit.</th>
+                {listEditing && canDeleteItem && <th className="w-16 px-4 py-3 text-right font-medium text-muted-foreground">Ação</th>}
               </tr>
             </thead>
             <tbody className="divide-y">
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const belowMin = item.quantity < item.min_stock;
                 return (
                   <tr key={item.id} onClick={() => setSelectedItem(item)} className="cursor-pointer hover:bg-muted/20 transition-colors">
@@ -231,6 +296,22 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.min_stock} {item.unit}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatCurrency(item.cost)}</td>
+                    {listEditing && canDeleteItem && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removeItem(item);
+                          }}
+                          aria-label={`Remover ${item.name}`}
+                          title={`Remover ${item.name}`}
+                          className="rounded-md p-1.5 text-destructive transition-colors hover:bg-destructive/10"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -275,10 +356,10 @@ export default function InventoryPage() {
             </section>
 
             <section className="py-5">
-              <h3 className="text-sm font-semibold">Historico de custodia</h3>
+              <h3 className="text-sm font-semibold">Histórico de custódia de peça</h3>
               <div className="mt-4 space-y-3">
                 {custodies.filter((custody) => custody.item_id === selectedItem.id).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma movimentacao de custodia para esta peca.</p>
+                  <p className="text-sm text-muted-foreground">Nenhuma movimentação de custódia para esta peça.</p>
                 ) : custodies.filter((custody) => custody.item_id === selectedItem.id).map((custody) => (
                   <div key={custody.id} className="rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-3">
@@ -335,4 +416,8 @@ function Detail({ icon: Icon, value }: { icon: React.ElementType; value: string 
       <span>{value}</span>
     </div>
   );
+}
+
+function normalizeSearch(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }

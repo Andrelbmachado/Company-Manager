@@ -18,10 +18,11 @@ const SUGGESTIONS: Record<Role, string[]> = {
   admin: ["Resuma os indicadores da empresa", "Quais areas precisam de atencao?", "Crie um resumo executivo"],
   gerente: ["Liste os principais riscos operacionais", "Resuma os projetos ativos", "Quais chamados exigem prioridade?"],
   tecnico: ["Resuma os tickets em atendimento", "Crie um checklist de diagnostico", "Quais OS aguardam acao tecnica?"],
-  estoquista: ["Quais itens estao abaixo do minimo?", "Resuma as custodias ativas", "Liste fornecedores por item critico"],
+  estoquista: ["Quais itens estao abaixo do minimo?", "Resuma as custódias de peças ativas", "Liste fornecedores por item critico"],
   financeiro: ["Resuma contas a pagar e receber", "Quais vencimentos estao proximos?", "Calcule o saldo projetado"],
   comercial: ["Resuma oportunidades em negociacao", "Quais propostas precisam de retorno?", "Organize o funil comercial"],
   atendimento: ["Resuma tickets abertos", "Quais chamados aguardam retorno?", "Crie uma resposta para o solicitante"],
+  produtos: ["Resuma os produtos em desenvolvimento", "Quais entregas estao em validacao?", "Liste os proximos marcos do roadmap"],
   auditor: ["Resuma os eventos recentes", "Liste operacoes sensiveis", "Quais documentos precisam de revisao?"],
 };
 

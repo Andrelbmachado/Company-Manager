@@ -36,6 +36,7 @@ const ROOT_ACCESS: Record<Role, string[] | "*"> = {
   financeiro: ["Financeiro", "Compartilhados"],
   comercial: ["Comercial", "Compartilhados"],
   atendimento: ["Atendimento", "Compartilhados"],
+  produtos: ["Desenvolvimento de Produtos", "Compartilhados"],
 };
 
 export default function DocumentsPage() {

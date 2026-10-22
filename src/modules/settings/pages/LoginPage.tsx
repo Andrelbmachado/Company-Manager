@@ -6,6 +6,8 @@ import { Building2, Loader2 } from "lucide-react";
 import { getDb, isTauriRuntime } from "@/lib/db/client";
 import { DEMO_ACCOUNTS } from "@/lib/db/demo";
 
+type DemoAccount = (typeof DEMO_ACCOUNTS)[number];
+
 export default function LoginPage() {
   const { setSession } = useSession();
   const navigate = useNavigate();
@@ -15,6 +17,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(false);
   const showDemoAccounts = !isTauriRuntime();
+  const accountGroups = DEMO_ACCOUNTS.reduce<Record<string, DemoAccount[]>>((groups, account) => {
+    (groups[account.area] ??= []).push(account);
+    return groups;
+  }, {});
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +57,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <div className={`w-full ${showDemoAccounts ? "max-w-5xl" : "max-w-sm"}`}>
+      <div className={`w-full ${showDemoAccounts ? "max-w-7xl" : "max-w-sm"}`}>
         <div className="mb-8 flex flex-col items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary shadow-lg">
             <Building2 size={24} className="text-primary-foreground" />
@@ -62,7 +68,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className={showDemoAccounts ? "grid gap-4 lg:grid-cols-[22rem_1fr]" : ""}>
+        <div className={showDemoAccounts ? "grid gap-4 lg:grid-cols-[20rem_1fr]" : ""}>
           <form
             onSubmit={handleSubmit}
             className="rounded-xl border bg-card p-6 shadow-sm space-y-4"
@@ -115,27 +121,34 @@ export default function LoginPage() {
           </form>
 
           {showDemoAccounts && (
-            <div className="rounded-xl border bg-card p-5 shadow-sm">
+            <div className="max-h-[calc(100vh-10rem)] overflow-y-auto rounded-xl border bg-card p-5 shadow-sm">
               <div className="mb-4">
                 <h2 className="font-semibold">Acessos de demonstracao</h2>
                 <p className="text-xs text-muted-foreground">
-                  Selecione um funcionario para preencher o login e comparar as permissoes de cada area.
+                  Cada setor possui um gerente e um funcionario com as mesmas permissoes nesta versao.
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {DEMO_ACCOUNTS.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    onClick={() => {
-                      setEmail(account.email);
-                      setPassword(account.password);
-                    }}
-                    className="rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted"
-                  >
-                    <span className="block text-sm font-medium">{account.area}</span>
-                    <span className="block text-xs text-muted-foreground">{account.email}</span>
-                  </button>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {Object.entries(accountGroups).map(([area, accounts]) => (
+                  <section key={area} className="rounded-lg border p-2.5">
+                    <h3 className="px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{area}</h3>
+                    <div className="space-y-1.5">
+                      {accounts.map((account) => (
+                        <button
+                          key={account.email}
+                          type="button"
+                          onClick={() => {
+                            setEmail(account.email);
+                            setPassword(account.password);
+                          }}
+                          className="w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-muted"
+                        >
+                          <span className="block text-sm font-medium">{account.position}</span>
+                          <span className="block truncate text-xs text-muted-foreground">{account.email}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
               <p className="mt-4 text-xs text-muted-foreground">

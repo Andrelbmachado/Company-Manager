@@ -17,6 +17,7 @@ const OpportunitiesPage = lazy(() => import("@/modules/crm/pages/OpportunitiesPa
 const SupportPage = lazy(() => import("@/modules/support/pages/SupportPage"));
 const WorkOrdersPage = lazy(() => import("@/modules/operations/pages/WorkOrdersPage"));
 const ProjectsPage = lazy(() => import("@/modules/projects/pages/ProjectsPage"));
+const ProductDevelopmentPage = lazy(() => import("@/modules/products/pages/ProductDevelopmentPage"));
 const InventoryPage = lazy(() => import("@/modules/inventory/pages/InventoryPage"));
 const CustodyPage = lazy(() => import("@/modules/custody/pages/CustodyPage"));
 const FinancePage = lazy(() => import("@/modules/finance/pages/FinancePage"));
@@ -65,6 +66,7 @@ export function AppRoutes() {
           <Route path="/support/*" element={<RequireModule module="support"><SupportPage /></RequireModule>} />
           <Route path="/work-orders/*" element={<RequireModule module="operations"><WorkOrdersPage /></RequireModule>} />
           <Route path="/projects/*" element={<RequireModule module="projects"><ProjectsPage /></RequireModule>} />
+          <Route path="/products/*" element={<RequireModule module="products"><ProductDevelopmentPage /></RequireModule>} />
           <Route path="/inventory/*" element={<RequireModule module="inventory"><InventoryPage /></RequireModule>} />
           <Route path="/custody/*" element={<RequireModule module="custody"><CustodyPage /></RequireModule>} />
           <Route path="/finance/*" element={<RequireModule module="finance"><FinancePage /></RequireModule>} />

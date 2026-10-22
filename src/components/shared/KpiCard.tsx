@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export interface KpiTimelinePoint {
   week: string;
@@ -33,7 +33,7 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "kpi-card flex min-h-52 flex-col gap-3 p-5",
+        "kpi-card flex min-h-56 flex-col gap-3 p-5",
         className
       )}
     >
@@ -65,11 +65,23 @@ export function KpiCard({
           </span>
         )}
       </div>
-      <div className="mt-auto h-20 w-full pt-1">
+      <div className="mt-auto h-24 w-full pt-1">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={monthlyTimeline} margin={{ top: 3, right: 3, bottom: 0, left: -16 }}>
-            <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} width={30} allowDecimals={false} />
+          <LineChart data={monthlyTimeline} margin={{ top: 14, right: 8, bottom: 0, left: -12 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="week"
+              axisLine={{ stroke: "hsl(var(--border))" }}
+              tickLine={{ stroke: "hsl(var(--border))" }}
+              tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+            />
+            <YAxis
+              axisLine={{ stroke: "hsl(var(--border))" }}
+              tickLine={{ stroke: "hsl(var(--border))" }}
+              tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+              width={30}
+              allowDecimals={false}
+            />
             <Tooltip
               cursor={{ stroke: "hsl(var(--border))" }}
               contentStyle={{
@@ -80,7 +92,9 @@ export function KpiCard({
               }}
               labelStyle={{ color: "hsl(var(--popover-foreground))" }}
             />
-            <Line type="monotone" dataKey="value" name={title} stroke="hsl(var(--primary))" strokeWidth={2.2} dot={{ r: 2, fill: "hsl(var(--primary))" }} activeDot={{ r: 3 }} />
+            <Line type="monotone" dataKey="value" name={title} stroke="hsl(var(--primary))" strokeWidth={2.2} dot={{ r: 2, fill: "hsl(var(--primary))" }} activeDot={{ r: 3 }}>
+              <LabelList dataKey="value" position="top" fill="hsl(var(--muted-foreground))" fontSize={9} />
+            </Line>
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -22,6 +22,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  LabelList,
   ReferenceLine,
 } from "recharts";
 import type { Role } from "@/types";
@@ -134,7 +135,7 @@ export default function DashboardPage() {
     { resource: "work_orders", title: "OS em aberto", value: data.openWorkOrders, icon: Wrench, iconClassName: "bg-orange-50 text-orange-600", timeline: monthly(data.openWorkOrders, [0.7, 0.86, 1.12, 1]) },
     { resource: "projects", title: "Projetos ativos", value: data.openProjects, icon: FolderKanban, iconClassName: "bg-indigo-50 text-indigo-600", timeline: monthly(data.openProjects, [0.58, 0.72, 0.86, 1]) },
     { resource: "inventory", title: "Itens abaixo do minimo", value: data.itemsBelowMin, icon: Package, iconClassName: "bg-red-50 text-red-600", timeline: monthly(data.itemsBelowMin, [1.42, 1.18, 1.08, 1]) },
-    { resource: "custody", title: "Custodias ativas", value: data.activeCustodies, icon: Archive, iconClassName: "bg-purple-50 text-purple-600", timeline: monthly(data.activeCustodies, [0.72, 0.92, 1.15, 1]) },
+    { resource: "custody", title: "Custódias de peças ativas", value: data.activeCustodies, icon: Archive, iconClassName: "bg-purple-50 text-purple-600", timeline: monthly(data.activeCustodies, [0.72, 0.92, 1.15, 1]) },
     { resource: "payables", title: "A pagar (abertas)", value: data.openPayables, icon: Wallet, iconClassName: "bg-rose-50 text-rose-600", timeline: monthly(data.openPayables, [1.2, 1.08, 0.96, 1]) },
     { resource: "receivables", title: "A receber (abertas)", value: data.openReceivables, icon: TrendingUp, iconClassName: "bg-emerald-50 text-emerald-600", timeline: monthly(data.openReceivables, [0.66, 0.84, 0.9, 1]) },
   ].filter((card) => can(role, "view", card.resource as Parameters<typeof can>[2]) && (card.resource !== "tickets" || role === "tecnico")) : [];
@@ -151,7 +152,7 @@ export default function DashboardPage() {
       {isLoading || !data ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-52 rounded-xl border bg-muted/30 animate-pulse" />
+            <div key={i} className="h-56 rounded-xl border bg-muted/30 animate-pulse" />
           ))}
         </div>
       ) : (
@@ -186,8 +187,14 @@ export default function DashboardPage() {
               />
               {/* Linha horizontal para indicar valor-chave (ex: Meta/Média) */}
               <ReferenceLine y={5} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" label={{ position: 'top', value: 'Meta (5)', fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <Bar dataKey="os" name="OS" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              {showTicketSeries && <Bar dataKey="tickets" name="Tickets" fill="hsl(var(--primary) / 0.4)" radius={[4, 4, 0, 0]} />}
+              <Bar dataKey="os" name="OS" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="os" position="top" fill="hsl(var(--muted-foreground))" fontSize={11} />
+              </Bar>
+              {showTicketSeries && (
+                <Bar dataKey="tickets" name="Tickets" fill="hsl(var(--primary) / 0.4)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="tickets" position="top" fill="hsl(var(--muted-foreground))" fontSize={11} />
+                </Bar>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>

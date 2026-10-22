@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { CommandMenu } from "./CommandMenu";
-import { Bell, ChevronDown, HeadphonesIcon, LogOut, Moon, Search, Settings, Sun, UserRound } from "lucide-react";
+import { Bell, ChevronDown, HeadphonesIcon, LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
 import { logout } from "@/lib/auth/login";
 import { ROLE_LABELS, visibleModules } from "@/lib/permissions/rbac";
@@ -66,16 +66,7 @@ export function AppShell() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-6">
-          <button
-            onClick={() => setCmdOpen(true)}
-            className="flex w-[32rem] max-w-[50vw] items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors"
-          >
-            <Search size={14} />
-            <span>Buscar...</span>
-            <kbd className="ml-auto rounded bg-background border px-1.5 text-[10px] font-medium">
-              ⌘K
-            </kbd>
-          </button>
+          <CommandMenu open={cmdOpen} onOpen={() => setCmdOpen(true)} onClose={() => setCmdOpen(false)} />
 
           <div ref={menusRef} className="relative flex items-center gap-2">
             <button
@@ -181,7 +172,6 @@ export function AppShell() {
         </main>
       </div>
 
-      <CommandMenu open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>
   );
 }

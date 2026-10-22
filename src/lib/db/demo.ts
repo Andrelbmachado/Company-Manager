@@ -1,18 +1,26 @@
-const STORAGE_KEY = "cm_demo_database_v3";
+const STORAGE_KEY = "cm_demo_database_v4";
 const COMPANY_ID = "demo-company";
 const ADMIN_ID = "demo-admin";
 
 type Row = Record<string, unknown>;
 
 export const DEMO_ACCOUNTS = [
-  { role: "admin", area: "Administracao", name: "Mariana Costa", email: "admin@techflow.com", password: "demo123" },
-  { role: "gerente", area: "Gerencia", name: "Ricardo Almeida", email: "gerencia@techflow.com", password: "demo123" },
-  { role: "tecnico", area: "TI / Operacoes", name: "Lucas Ribeiro", email: "ti@techflow.com", password: "demo123" },
-  { role: "estoquista", area: "Estoque", name: "Patricia Gomes", email: "estoque@techflow.com", password: "demo123" },
-  { role: "financeiro", area: "Contabilidade / Financeiro", name: "Fernanda Lima", email: "financeiro@techflow.com", password: "demo123" },
-  { role: "comercial", area: "Comercial", name: "Camila Martins", email: "comercial@techflow.com", password: "demo123" },
-  { role: "atendimento", area: "Atendimento", name: "Joao Santos", email: "atendimento@techflow.com", password: "demo123" },
-  { role: "auditor", area: "Auditoria", name: "Beatriz Souza", email: "auditoria@techflow.com", password: "demo123" },
+  { id: ADMIN_ID, role: "admin", area: "Administracao", position: "Administrador", name: "Mariana Costa", email: "admin@techflow.com", password: "demo123" },
+  { id: "demo-gerente", role: "gerente", area: "Gerencia Geral", position: "Gerente geral", name: "Ricardo Almeida", email: "gerencia@techflow.com", password: "demo123" },
+  { id: "demo-tecnico-gerente", role: "tecnico", area: "TI / Operacoes", position: "Gerente do setor", name: "Renata Carvalho", email: "gerente.ti@techflow.com", password: "demo123" },
+  { id: "demo-tecnico", role: "tecnico", area: "TI / Operacoes", position: "Funcionario", name: "Lucas Ribeiro", email: "ti@techflow.com", password: "demo123" },
+  { id: "demo-estoquista-gerente", role: "estoquista", area: "Estoque", position: "Gerente do setor", name: "Rafael Moraes", email: "gerente.estoque@techflow.com", password: "demo123" },
+  { id: "demo-estoquista", role: "estoquista", area: "Estoque", position: "Funcionario", name: "Patricia Gomes", email: "estoque@techflow.com", password: "demo123" },
+  { id: "demo-financeiro-gerente", role: "financeiro", area: "Contabilidade / Financeiro", position: "Gerente do setor", name: "Carlos Mendes", email: "gerente.financeiro@techflow.com", password: "demo123" },
+  { id: "demo-financeiro", role: "financeiro", area: "Contabilidade / Financeiro", position: "Funcionario", name: "Fernanda Lima", email: "financeiro@techflow.com", password: "demo123" },
+  { id: "demo-comercial-gerente", role: "comercial", area: "Comercial", position: "Gerente do setor", name: "Diego Oliveira", email: "gerente.comercial@techflow.com", password: "demo123" },
+  { id: "demo-comercial", role: "comercial", area: "Comercial", position: "Funcionario", name: "Camila Martins", email: "comercial@techflow.com", password: "demo123" },
+  { id: "demo-atendimento-gerente", role: "atendimento", area: "Atendimento", position: "Gerente do setor", name: "Juliana Castro", email: "gerente.atendimento@techflow.com", password: "demo123" },
+  { id: "demo-atendimento", role: "atendimento", area: "Atendimento", position: "Funcionario", name: "Joao Santos", email: "atendimento@techflow.com", password: "demo123" },
+  { id: "demo-produtos-gerente", role: "produtos", area: "Desenvolvimento de Produtos", position: "Gerente do setor", name: "Aline Rocha", email: "gerente.produtos@techflow.com", password: "demo123" },
+  { id: "demo-produtos", role: "produtos", area: "Desenvolvimento de Produtos", position: "Funcionario", name: "Bruno Martins", email: "produtos@techflow.com", password: "demo123" },
+  { id: "demo-auditor-gerente", role: "auditor", area: "Auditoria", position: "Gerente do setor", name: "Marcelo Nunes", email: "gerente.auditoria@techflow.com", password: "demo123" },
+  { id: "demo-auditor", role: "auditor", area: "Auditoria", position: "Funcionario", name: "Beatriz Souza", email: "auditoria@techflow.com", password: "demo123" },
 ] as const;
 
 interface DemoTables {
@@ -61,7 +69,7 @@ function createSeed(): DemoTables {
       },
     ],
     users: DEMO_ACCOUNTS.map((account) => ({
-      id: account.role === "admin" ? ADMIN_ID : `demo-${account.role}`,
+      id: account.id,
       name: account.name,
       email: account.email,
       password_hash: `plain:${account.password}`,
@@ -73,9 +81,9 @@ function createSeed(): DemoTables {
       deleted_at: null,
     })),
     memberships: DEMO_ACCOUNTS.map((account) => ({
-      id: `demo-membership-${account.role}`,
+      id: `demo-membership-${account.id}`,
       company_id: COMPANY_ID,
-      user_id: account.role === "admin" ? ADMIN_ID : `demo-${account.role}`,
+      user_id: account.id,
       role: account.role,
       scope: account.role === "gerente" || account.role === "admin" ? "empresa" : "setor",
       created_at: iso(-365),
@@ -172,6 +180,8 @@ function createSeed(): DemoTables {
       documentRow("doc-10", "Politica de seguranca.pdf", "PDF", 2, -12, "/Compartilhados/Politicas/Politica de seguranca.pdf"),
       documentRow("doc-11", "Procedimento de triagem.docx", "DOCX", 3, -2, "/Atendimento/Processos/Procedimento de triagem.docx"),
       documentRow("doc-12", "Relatorio de auditoria Q1.pdf", "PDF", 1, -14, "/Auditoria/Relatorios/Relatorio de auditoria Q1.pdf"),
+      documentRow("doc-13", "Roadmap de produtos Q3.xlsx", "XLSX", 2, -3, "/Desenvolvimento de Produtos/Roadmaps/Roadmap de produtos Q3.xlsx"),
+      documentRow("doc-14", "Especificacao gateway industrial.pdf", "PDF", 1, -5, "/Desenvolvimento de Produtos/Especificacoes/Especificacao gateway industrial.pdf"),
     ],
     activities: [
       ticketActivity("activity-1", "ticket-1", "ticket.created", "Ticket aberto pela area de TI / Operacoes", "demo-tecnico", -1, 8),
@@ -418,12 +428,20 @@ class DemoDatabase implements DatabaseLike {
       this.insert("inventory_items", bindValues, ["id", "company_id", "name", "sku", "category", "supplier_id", "unit", "min_stock", "cost"]);
       return { rowsAffected: 1 };
     }
+    if (sql.startsWith("update inventory_items set deleted_at")) {
+      this.update("inventory_items", bindValues[0], { deleted_at: iso(0), updated_at: iso(0) });
+      return { rowsAffected: 1 };
+    }
     if (sql.startsWith("update inventory_items set")) {
       this.update("inventory_items", bindValues[7], { name: bindValues[0], sku: bindValues[1], category: bindValues[2], supplier_id: bindValues[3], unit: bindValues[4], min_stock: bindValues[5], cost: bindValues[6], updated_at: iso(0) });
       return { rowsAffected: 1 };
     }
     if (sql.startsWith("insert into custodies")) {
       this.insert("custodies", bindValues, ["id", "company_id", "item_id", "holder_id", "quantity", "status", "due_back_at"], { checked_out_at: iso(0) });
+      return { rowsAffected: 1 };
+    }
+    if (sql.startsWith("update custodies set deleted_at")) {
+      this.update("custodies", bindValues[0], { deleted_at: iso(0), updated_at: iso(0) });
       return { rowsAffected: 1 };
     }
     if (sql.startsWith("update custodies set")) {

@@ -42,7 +42,7 @@
     --popover: 225 30% 5.5%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -99,6 +99,21 @@
   }
   .dark .kpi-card::before {
     background: rgba(255, 255, 255, 0.085);
+  }
+  .dark button {
+    color: hsl(var(--foreground));
+  }
+  .dark button[class~="text-primary-foreground"] {
+    color: hsl(var(--primary-foreground));
+  }
+  .dark button[class~="text-muted-foreground"] {
+    color: hsl(var(--muted-foreground));
+  }
+  .dark button[class~="text-primary"] {
+    color: hsl(var(--primary));
+  }
+  .dark button[class~="text-destructive"] {
+    color: rgb(248 113 113);
   }
 }
 

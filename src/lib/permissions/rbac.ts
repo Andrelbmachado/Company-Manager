@@ -21,6 +21,7 @@ type Resource =
   | "work_orders"
   | "projects"
   | "tasks"
+  | "product_development"
   | "inventory"
   | "custody"
   | "finance"
@@ -46,6 +47,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   financeiro: "Contabilidade / Financeiro",
   comercial: "Comercial",
   atendimento: "Atendimento",
+  produtos: "Desenvolvimento de Produtos",
   auditor: "Auditoria",
 };
 
@@ -61,6 +63,7 @@ const PERMISSIONS: PermissionMap = {
     work_orders: ["view", "create", "edit", "approve", "comment"],
     projects: ["view", "create", "edit", "approve", "comment"],
     tasks: ["view", "create", "edit", "delete"],
+    product_development: ["view", "approve", "comment"],
     inventory: ["view", "export"],
     custody: ["view"],
     finance: ["view", "approve", "export"],
@@ -69,7 +72,6 @@ const PERMISSIONS: PermissionMap = {
     documents: ["view", "create", "edit", "attach", "export"],
     users: ["view"],
     settings: ["view"],
-    audit_logs: ["view"],
     automations: ["view", "edit"],
   },
   tecnico: {
@@ -80,12 +82,13 @@ const PERMISSIONS: PermissionMap = {
     inventory: ["view", "request"],
     custody: ["view", "request"],
     documents: ["view", "create", "edit", "attach"],
+    audit_logs: ["view"],
     settings: ["view"],
   },
   estoquista: {
     tickets: ["view", "create"],
-    inventory: ["view", "create", "edit", "transfer", "export"],
-    custody: ["view", "create", "edit", "transfer"],
+    inventory: ["view", "create", "edit", "delete", "transfer", "export"],
+    custody: ["view", "create", "edit", "delete", "transfer"],
     documents: ["view", "create", "edit", "attach"],
     settings: ["view"],
   },
@@ -95,7 +98,6 @@ const PERMISSIONS: PermissionMap = {
     payables: ["view", "create", "edit", "approve", "export"],
     receivables: ["view", "create", "edit", "export"],
     documents: ["view", "create", "edit", "attach", "export"],
-    audit_logs: ["view", "export"],
     settings: ["view"],
   },
   comercial: {
@@ -113,17 +115,25 @@ const PERMISSIONS: PermissionMap = {
     documents: ["view", "create", "edit", "attach"],
     settings: ["view"],
   },
+  produtos: {
+    tickets: ["view", "create"],
+    projects: ["view", "create", "edit", "comment"],
+    tasks: ["view", "create", "edit", "comment"],
+    product_development: ["view", "create", "edit", "comment", "attach"],
+    documents: ["view", "create", "edit", "attach"],
+    settings: ["view"],
+  },
   auditor: {
     tickets: ["view", "create", "export"],
     work_orders: ["view", "export"],
     projects: ["view", "export"],
+    product_development: ["view", "export"],
     inventory: ["view", "export"],
     custody: ["view", "export"],
     finance: ["view", "export"],
     payables: ["view", "export"],
     receivables: ["view", "export"],
     documents: ["view", "export"],
-    audit_logs: ["view", "export"],
     users: ["view"],
     settings: ["view"],
   },
@@ -136,6 +146,7 @@ export function can(
   _scope?: Scope
 ): boolean {
   if (resource === "customers" && role !== "comercial") return false;
+  if (resource === "audit_logs" && role !== "tecnico") return false;
 
   const rolePerms = PERMISSIONS[role];
   if (!rolePerms) return false;
@@ -166,6 +177,7 @@ export function visibleModules(role: Role): string[] {
     support: "tickets",
     operations: "work_orders",
     projects: "projects",
+    products: "product_development",
     inventory: "inventory",
     custody: "custody",
     finance: "finance",

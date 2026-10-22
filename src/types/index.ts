@@ -8,6 +8,7 @@ export type Role =
   | "financeiro"
   | "comercial"
   | "atendimento"
+  | "produtos"
   | "auditor";
 
 export type Scope = "proprio" | "time" | "setor" | "empresa";

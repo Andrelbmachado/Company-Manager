@@ -10,7 +10,7 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { CrudDialog } from "@/components/shared/CrudDialog";
 import type { Membership, Role, User } from "@/types";
 
-const ROLES = Object.keys(ROLE_LABELS) as Role[];
+const ALL_ROLES = Object.keys(ROLE_LABELS) as Role[];
 const EMPTY = { name: "", email: "", password: "", role: "comercial" };
 
 /** Usuários e acessos da empresa: quem tem conta e qual papel (setor) define o que cada um vê. */
@@ -18,6 +18,9 @@ export function UsersAccess() {
   const session = useRequiredSession();
   const qc = useQueryClient();
   const companyId = session.company.id;
+  // Só o CEO concede (ou retira) o papel de CEO; a Administração não pode se promover nem criar um CEO.
+  const isCeo = session.membership.role === "ceo";
+  const ROLES = isCeo ? ALL_ROLES : ALL_ROLES.filter((role) => role !== "ceo");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Record<string, string>>(EMPTY);
   const [error, setError] = useState("");
@@ -41,6 +44,7 @@ export function UsersAccess() {
     mutationFn: async () => {
       const db = await getDb();
       const email = form.email.trim().toLowerCase();
+      if (form.role === "ceo" && !isCeo) throw new Error("Só o CEO pode criar uma conta de CEO.");
       if (form.password.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
       if ((await db.select<User[]>("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1", [email])).length) throw new Error("Já existe uma conta com este e-mail.");
       const id = uuidv4();
@@ -54,10 +58,12 @@ export function UsersAccess() {
 
   const changeRole = useMutation({
     mutationFn: async ({ membership, role }: { membership: Membership; role: Role }) => {
+      if (!isCeo && (role === "ceo" || membership.role === "ceo")) throw new Error("Só o CEO altera o papel de CEO.");
       await (await getDb()).execute("UPDATE memberships SET role=?, updated_at=datetime('now') WHERE id=?", [role, membership.id]);
       await emit({ type: "user.role_changed", companyId, actorId: session.user.id, entityType: "user", entityId: membership.user_id, title: `Papel alterado para ${ROLE_LABELS[role]}`, module: "settings", oldValue: { role: membership.role }, newValue: { role } });
     },
-    onSuccess: () => void refresh(),
+    onSuccess: () => { void refresh(); setError(""); },
+    onError: (err) => setError(err instanceof Error ? err.message : String(err)),
   });
 
   return (
@@ -82,17 +88,19 @@ export function UsersAccess() {
             </div>
             <select
               value={membership.role}
-              disabled={user.id === session.user.id}
+              disabled={user.id === session.user.id || (!isCeo && membership.role === "ceo")}
               onChange={(event) => changeRole.mutate({ membership, role: event.target.value as Role })}
               aria-label={`Papel de ${user.name}`}
-              title={user.id === session.user.id ? "Você não altera o seu próprio papel" : undefined}
+              title={user.id === session.user.id ? "Você não altera o seu próprio papel" : !isCeo && membership.role === "ceo" ? "Só o CEO altera o papel de CEO" : undefined}
               className="h-9 rounded-md border border-input bg-background px-2.5 text-sm disabled:opacity-60"
             >
-              {ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+              {(isCeo || membership.role !== "ceo" ? ROLES : ALL_ROLES).map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
             </select>
           </li>
         ))}
       </ul>
+
+      {error && !open && <p role="alert" className="text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
 
       {open && (
         <CrudDialog

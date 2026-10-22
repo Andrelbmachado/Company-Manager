@@ -18,10 +18,18 @@ export async function fetchMyEmployee(companyId: string, userId: string): Promis
 export async function ensureMyEmployee(session: Session): Promise<Employee> {
   const existing = await fetchMyEmployee(session.company.id, session.user.id);
   if (existing) return existing;
+  // O RH pode ter cadastrado esta pessoa antes de ela entrar: liga o cadastro pelo e-mail (gravado em minúsculas) em vez de duplicar.
+  const email = session.user.email.trim().toLowerCase();
+  const db = await getDb();
+  const preRegistered = (await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND email=? AND user_id IS NULL AND deleted_at IS NULL", [session.company.id, email]))[0];
+  if (preRegistered) {
+    await db.execute("UPDATE employees SET user_id=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [session.user.id, preRegistered.id, session.company.id]);
+    return { ...preRegistered, user_id: session.user.id };
+  }
   const id = uuidv5(`${session.company.id}:employee:${session.user.id}`, NAMESPACE);
-  await (await getDb()).execute(
+  await db.execute(
     "INSERT OR IGNORE INTO employees (id, company_id, user_id, name, email, department, position, vacation_days_entitled, status) VALUES (?,?,?,?,?,?,?,?,?)",
-    [id, session.company.id, session.user.id, session.user.name, session.user.email, ROLE_LABELS[session.membership.role as Role], "Colaborador", 30, "ativo"],
+    [id, session.company.id, session.user.id, session.user.name, email, ROLE_LABELS[session.membership.role as Role], "Colaborador", 30, "ativo"],
   );
   return (await fetchMyEmployee(session.company.id, session.user.id)) as Employee;
 }

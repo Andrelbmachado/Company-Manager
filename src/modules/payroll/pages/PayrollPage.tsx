@@ -25,6 +25,7 @@ export default function PayrollPage() {
   const companyId = session.company.id;
   const canEdit = usePermission("edit", "payroll");
   const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
   const [editing, setEditing] = useState<Employee | null>(null);
   const [form, setForm] = useState<Record<string, string>>({ base_salary: "", effective_from: "", notes: "" });
 
@@ -43,6 +44,7 @@ export default function PayrollPage() {
       if (!editing) return;
       const db = await getDb();
       const salary = Number(form.base_salary.replace(",", "."));
+      if (!Number.isFinite(salary) || salary < 0) throw new Error("Informe um salário válido (zero ou maior).");
       const existing = byEmployee.get(editing.id);
       if (existing) {
         await db.execute("UPDATE employee_compensation SET base_salary=?, effective_from=?, notes=?, updated_by=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [salary, form.effective_from || null, form.notes.trim() || null, session.user.id, existing.id, companyId]);
@@ -52,12 +54,14 @@ export default function PayrollPage() {
       // O valor não vai para o histórico de atividades: o log é visível a outros papéis.
       await emit({ type: "payroll.salary_updated", companyId, actorId: session.user.id, entityType: "employee", entityId: editing.id, title: `Remuneração atualizada: ${editing.name}`, module: "payroll" });
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll"] }); setEditing(null); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll"] }); setEditing(null); setError(""); },
+    onError: (cause) => setError(cause instanceof Error ? cause.message : String(cause)),
   });
 
   function openEdit(employee: Employee) {
     const entry = byEmployee.get(employee.id);
     setForm({ base_salary: entry ? String(entry.base_salary) : "", effective_from: entry?.effective_from?.slice(0, 10) ?? "", notes: entry?.notes ?? "" });
+    setError("");
     setEditing(employee);
   }
 
@@ -111,7 +115,9 @@ export default function PayrollPage() {
           onClose={() => setEditing(null)}
           onSubmit={() => save.mutate()}
           busy={save.isPending}
-        />
+        >
+          {error && <p role="alert" className="mt-3 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
+        </CrudDialog>
       )}
     </div>
   );

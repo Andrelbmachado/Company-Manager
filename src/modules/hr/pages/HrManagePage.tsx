@@ -83,7 +83,7 @@ export default function HrManagePage() {
   const saveEmployee = useMutation({
     mutationFn: async () => {
       const db = await getDb();
-      const values = [form.name.trim(), form.email.trim() || null, form.department.trim() || null, form.position.trim() || null, form.hire_date || null, Number(form.vacation_days_entitled) || 30, form.status];
+      const values = [form.name.trim(), form.email.trim().toLowerCase() || null, form.department.trim() || null, form.position.trim() || null, form.hire_date || null, Number(form.vacation_days_entitled) || 30, form.status];
       if (editing) await db.execute("UPDATE employees SET name=?, email=?, department=?, position=?, hire_date=?, vacation_days_entitled=?, status=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [...values, editing.id, companyId]);
       else await db.execute("INSERT INTO employees (id, company_id, name, email, department, position, hire_date, vacation_days_entitled, status) VALUES (?,?,?,?,?,?,?,?,?)", [uuidv4(), companyId, ...values]);
     },

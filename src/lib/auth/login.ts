@@ -19,9 +19,10 @@ interface UserRow {
 export async function login(email: string, password: string): Promise<Session> {
   const db = await getDb();
 
+  // E-mail não diferencia maiúsculas de minúsculas (contas antigas podem ter sido gravadas como digitadas).
   const users = await db.select<UserRow[]>(
-    "SELECT * FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1",
-    [email]
+    "SELECT * FROM users WHERE lower(email) = ? AND deleted_at IS NULL LIMIT 1",
+    [email.trim().toLowerCase()]
   );
 
   if (!users.length) throw new Error("Credenciais inválidas");
@@ -53,6 +54,22 @@ export async function login(email: string, password: string): Promise<Session> {
   const session: Session = { user: safeUser as Session["user"], membership, company };
   setSession(session);
   return session;
+}
+
+/**
+ * Confere no banco se o acesso da sessão continua valendo. Papel rebaixado ou conta removida passam a valer sem sair e entrar de novo.
+ * Retorna a mesma sessão se nada mudou, uma sessão com o papel novo, ou null se o acesso acabou.
+ */
+export async function revalidateSession(session: Session): Promise<Session | null> {
+  const db = await getDb();
+  const [membership] = await db.select<Membership[]>("SELECT * FROM memberships WHERE id = ? AND deleted_at IS NULL LIMIT 1", [session.membership.id]);
+  if (!membership) return null;
+  const [user] = await db.select<UserRow[]>("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1", [session.user.id]);
+  if (!user || user.status === "suspended") return null;
+  if (membership.role === session.membership.role && membership.scope === session.membership.scope) return session;
+  const next: Session = { ...session, membership };
+  setSession(next);
+  return next;
 }
 
 export function logout(): void {

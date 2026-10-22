@@ -44,17 +44,21 @@ export default function SetupPage() {
       const userId = uuidv4();
       const membershipId = uuidv4();
       const hash = await hashPassword(adminPassword);
+      const email = adminEmail.trim().toLowerCase();
+      if ((await db.select<unknown[]>("SELECT * FROM users WHERE lower(email) = ? AND deleted_at IS NULL LIMIT 1", [email])).length) {
+        throw new Error("Já existe uma conta com este e-mail.");
+      }
 
       await db.execute(
         "INSERT INTO companies (id, name, document) VALUES (?, ?, ?)",
-        [companyId, companyName, companyDoc || null]
+        [companyId, companyName.trim(), companyDoc || null]
       );
       await db.execute(
         "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-        [userId, adminName, adminEmail, hash]
+        [userId, adminName.trim(), email, hash]
       );
       await db.execute(
-        "INSERT INTO memberships (id, company_id, user_id, role, scope) VALUES (?, ?, ?, 'admin', 'empresa')",
+        "INSERT INTO memberships (id, company_id, user_id, role, scope) VALUES (?, ?, ?, 'ceo', 'empresa')",
         [membershipId, companyId, userId]
       );
 
@@ -96,7 +100,7 @@ export default function SetupPage() {
           <div className="text-center">
             <h1 className="text-2xl font-bold">Configuração inicial</h1>
             <p className="text-sm text-muted-foreground">
-              {step === "company" ? "Dados da empresa" : "Conta de administrador"}
+              {step === "company" ? "Dados da empresa" : "Conta do CEO (acesso a tudo)"}
             </p>
           </div>
         </div>
@@ -169,7 +173,7 @@ export default function SetupPage() {
                 onChange={(e) => setAdminEmail(e.target.value)}
                 required
                 className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="admin@empresa.com"
+                placeholder="ceo@empresa.com"
               />
             </div>
             <div className="space-y-1.5">

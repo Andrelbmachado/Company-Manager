@@ -119,7 +119,7 @@ export default function LoginPage() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label htmlFor="password" className="text-sm font-medium">Senha</label>
-                    <button type="button" onClick={() => { setError(""); setView("forgot"); }} className="text-sm font-medium text-primary hover:underline">Esqueci minha senha</button>
+                    <button type="button" onClick={() => { setError(""); setView("forgot"); }} className="text-sm font-medium text-primary-text hover:underline">Esqueci minha senha</button>
                   </div>
                   <div className="relative">
                     <input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="Sua senha" className={`${field} pr-11`} />
@@ -159,7 +159,7 @@ export default function LoginPage() {
               {isTauriRuntime() && (
                 <p className="mt-8 text-center text-sm text-muted-foreground">
                   Primeiro acesso?{" "}
-                  <button onClick={handleSetup} disabled={checkingSetup} className="font-medium text-primary hover:underline disabled:opacity-50">Configurar empresa</button>
+                  <button onClick={handleSetup} disabled={checkingSetup} className="font-medium text-primary-text hover:underline disabled:opacity-50">Configurar empresa</button>
                 </p>
               )}
             </>
@@ -168,7 +168,7 @@ export default function LoginPage() {
               <button type="button" onClick={() => setView("login")} className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Voltar para entrar</button>
               <h1 className="font-display text-[2rem] font-bold leading-tight tracking-tight">Esqueci minha senha</h1>
               <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-                <p>A redefinição por e-mail ainda não está ativa neste sistema. Por enquanto, quem redefine a senha é o administrador da empresa.</p>
+                <p>A redefinição por e-mail ainda não está ativa neste sistema. Por enquanto, quem redefine a senha é o CEO ou a Administração da empresa, em Configurações, Usuários e acessos.</p>
                 <p>Peça a ele para redefinir a senha da conta <strong className="text-foreground">{email.trim() || "do seu e-mail"}</strong> e entre de novo com a senha nova.</p>
               </div>
               <button type="button" onClick={() => setView("login")} className="mt-8 flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Voltar para entrar</button>

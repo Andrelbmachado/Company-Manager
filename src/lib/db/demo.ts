@@ -450,14 +450,15 @@ class DemoDatabase implements DatabaseLike {
     if (sql.includes("select id from companies")) {
       return this.tables.companies.filter((row) => !row.deleted_at).slice(0, 1) as T;
     }
-    if (sql.includes("from users where email")) {
-      return this.tables.users.filter((row) => row.email === bindValues[0] && !row.deleted_at).slice(0, 1) as T;
+    if (sql.includes("from users where lower(email)") || sql.includes("from users where email")) {
+      const wanted = String(bindValues[0]).toLowerCase();
+      return this.tables.users.filter((row) => String(row.email).toLowerCase() === wanted && !row.deleted_at).slice(0, 1).map((row) => ({ ...row })) as T;
     }
     if (sql.includes("from memberships where user_id")) {
-      return this.tables.memberships.filter((row) => row.user_id === bindValues[0] && !row.deleted_at).slice(0, 1) as T;
+      return this.tables.memberships.filter((row) => row.user_id === bindValues[0] && !row.deleted_at).slice(0, 1).map((row) => ({ ...row })) as T;
     }
     if (sql.includes("from companies where id")) {
-      return this.tables.companies.filter((row) => row.id === bindValues[0] && !row.deleted_at).slice(0, 1) as T;
+      return this.tables.companies.filter((row) => row.id === bindValues[0] && !row.deleted_at).slice(0, 1).map((row) => ({ ...row })) as T;
     }
     if (sql.includes("count(*) as n from customers")) return [{ n: this.active("customers", companyId).length }] as T;
     if (sql.includes("count(*) as n from opportunities")) {
@@ -522,7 +523,10 @@ class DemoDatabase implements DatabaseLike {
       try {
         let bindIndex = 0;
         rows = this.tables[table].filter(parseWhere(whereClause, () => bindValues[bindIndex++]));
-      } catch {
+      } catch (error) {
+        // Tabelas novas não têm o filtro antigo por empresa como rede de segurança: WHERE que o demo não entende é erro,
+        // como seria no UPDATE. Devolver linhas a mais em silêncio esconderia a divergência entre demo e SQLite.
+        if (EXTRA_TABLES.includes(table as (typeof EXTRA_TABLES)[number])) throw error;
         rows = null;
       }
     }

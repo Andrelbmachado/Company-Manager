@@ -28,7 +28,7 @@ export default function SettingsPage() {
       <div className="rounded-xl border bg-card p-5 space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Building2 size={18} className="text-primary" />
+            <Building2 size={18} className="text-primary-text" />
           </div>
           <div>
             <p className="font-semibold">{session.company.name}</p>
@@ -40,7 +40,7 @@ export default function SettingsPage() {
       {/* User card */}
       <div className="rounded-xl border bg-card p-5 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary-text font-semibold">
             {session.user.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
           </div>
           <div>
@@ -57,7 +57,7 @@ export default function SettingsPage() {
       <div className="rounded-xl border bg-card p-5 space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <KeyRound size={18} className="text-primary" />
+            <KeyRound size={18} className="text-primary-text" />
           </div>
           <div>
             <h3 className="text-sm font-semibold">Assistente IA</h3>
@@ -127,7 +127,7 @@ export default function SettingsPage() {
             <Save size={14} />
             Salvar conexao
           </button>
-          {saved && <span className="text-xs text-emerald-600">Configuracao salva para esta conta.</span>}
+          {saved && <span className="text-xs text-emerald-700 dark:text-emerald-400">Configuração salva para esta conta.</span>}
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
           No prototipo web a configuracao fica armazenada localmente. Em producao, a chave deve ser protegida por um servico seguro.

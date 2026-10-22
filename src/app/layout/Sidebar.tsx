@@ -3,6 +3,9 @@ import { cn } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
+import { visibleDepartments } from "@/lib/departments/access";
+import { accessContextFromSession } from "@/hooks/useDepartmentAccess";
+import { DepartmentIcon } from "@/modules/departments/components/DepartmentIcon";
 import {
   LayoutDashboard,
   Users,
@@ -48,6 +51,8 @@ export function Sidebar() {
   const allowed = new Set(visibleModules(session.membership.role as Role));
 
   const visible = NAV_ITEMS.filter((item) => allowed.has(item.module));
+
+  const myDepartments = visibleDepartments(accessContextFromSession(session));
 
   const groups: Record<string, NavItem[]> = {};
   for (const item of visible) {
@@ -100,6 +105,37 @@ export function Sidebar() {
             })}
           </div>
         ))}
+
+        {myDepartments.length > 0 && (
+          <div className="mb-4">
+            <NavLink
+              to="/departamentos"
+              end
+              className="block px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground"
+            >
+              Departamentos
+            </NavLink>
+            {myDepartments.map((d) => {
+              const path = `/departamentos/${d.slug}`;
+              const active = location.pathname.startsWith(path);
+              return (
+                <NavLink
+                  key={d.slug}
+                  to={path}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <DepartmentIcon name={d.icon} size={15} className="shrink-0" />
+                  <span className="truncate">{d.name}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       {/* User */}

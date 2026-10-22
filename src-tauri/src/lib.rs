@@ -11,6 +11,12 @@ pub fn run() {
         description: "create_initial_tables",
         sql: include_str!("../migrations/0001_init.sql"),
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 2,
+        description: "departments_and_access",
+        sql: include_str!("../migrations/0002_departments.sql"),
+        kind: MigrationKind::Up,
     }];
 
     tauri::Builder::default()

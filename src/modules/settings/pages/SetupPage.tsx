@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/login";
 import { Building2, Loader2, CheckCircle2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+import { DEPARTMENTS } from "@/lib/departments/catalog";
 
 type Step = "company" | "admin" | "done";
 
@@ -57,6 +58,12 @@ export default function SetupPage() {
         "INSERT INTO memberships (id, company_id, user_id, role, scope) VALUES (?, ?, ?, 'admin', 'empresa')",
         [membershipId, companyId, userId]
       );
+      for (const dept of DEPARTMENTS) {
+        await db.execute(
+          "INSERT OR IGNORE INTO departments (id, company_id, name, slug) VALUES (?, ?, ?, ?)",
+          [uuidv4(), companyId, dept.name, dept.slug]
+        );
+      }
 
       setStep("done");
     } catch (err) {

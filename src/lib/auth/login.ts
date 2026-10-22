@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { setSession, clearSession } from "./session";
-import type { Session, Membership, Company } from "@/types";
+import type { Session, Membership, Company, SessionDepartmentMembership } from "@/types";
+import { isDepartmentSlug } from "@/lib/departments/catalog";
 
 interface UserRow {
   id: string;
@@ -35,7 +36,7 @@ export async function login(email: string, password: string): Promise<Session> {
       id: "demo-membership-0001", company_id: company.id, user_id: user.id,
       role: "admin" as const, scope: "empresa" as const, created_at: now, updated_at: now,
     };
-    const session = { user, membership, company };
+    const session = { user, membership, company, departments: [] };
     setSession(session);
     return session;
   }
@@ -72,7 +73,8 @@ export async function login(email: string, password: string): Promise<Session> {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { password_hash: _ph, ...safeUser } = user;
-  const session: Session = { user: safeUser as Session["user"], membership, company };
+  const departments = await loadDepartmentMemberships(company.id, user.id);
+  const session: Session = { user: safeUser as Session["user"], membership, company, departments };
   setSession(session);
   return session;
 }
@@ -93,4 +95,21 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 export async function hashPassword(password: string): Promise<string> {
   // Stored as plain prefix for V1 bootstrap; replace with tauri argon2 command in V1.5
   return `plain:${password}`;
+}
+
+async function loadDepartmentMemberships(
+  companyId: string,
+  userId: string
+): Promise<SessionDepartmentMembership[]> {
+  const db = await getDb();
+  const rows = await db.select<{ slug: string; role: SessionDepartmentMembership["role"] }[]>(
+    `SELECT d.slug AS slug, dm.role AS role
+       FROM department_members dm
+       JOIN departments d ON d.id = dm.department_id
+      WHERE dm.user_id = ? AND d.company_id = ? AND dm.deleted_at IS NULL AND d.deleted_at IS NULL`,
+    [userId, companyId]
+  );
+  return rows
+    .filter((r) => isDepartmentSlug(r.slug))
+    .map((r) => ({ department: r.slug as SessionDepartmentMembership["department"], role: r.role }));
 }

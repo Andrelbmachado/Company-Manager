@@ -41,7 +41,16 @@ interface DemoTables {
   documents: Row[];
   activities: Row[];
   audit_logs: Row[];
+  // Prospecção de sites (migration 0003). Tabelas novas nascem vazias; o seed vem de lib/prospecting/seed.ts.
+  leads: Row[];
+  service_packages: Row[];
+  package_prices: Row[];
+  revenue_scenarios: Row[];
+  revenue_forecasts: Row[];
+  settings: Row[];
 }
+
+const PROSPECTING_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings"] as const;
 
 export interface DatabaseLike {
   select<T>(query: string, bindValues?: unknown[]): Promise<T>;
@@ -199,6 +208,12 @@ function createSeed(): DemoTables {
       audit("audit-4", "work_order.closed", "work_order", -5),
       audit("audit-5", "settings.updated", "settings", -8),
     ],
+    leads: [],
+    service_packages: [],
+    package_prices: [],
+    revenue_scenarios: [],
+    revenue_forecasts: [],
+    settings: [],
   };
 }
 
@@ -264,6 +279,29 @@ function ticketActivity(id: string, entityId: string, action: string, title: str
 
 function normalize(query: string): string {
   return query.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** "?" consome o próximo bind; datetime('now') vira agora; null/números/strings literais são convertidos. */
+function literalOrBind(token: string, nextBind: () => unknown): unknown {
+  if (token === "?") return nextBind() ?? null;
+  if (token.startsWith("datetime(")) return iso(0);
+  if (token === "null") return null;
+  if (/^-?\d+(\.\d+)?$/.test(token)) return Number(token);
+  return token.replace(/^'|'$/g, "");
+}
+
+function orderByColumn(rows: Row[], sql: string): Row[] {
+  const match = sql.match(/order by ([a-z_]+)( asc| desc)?/);
+  if (!match) return rows;
+  const [, column, direction] = match;
+  const factor = direction?.trim() === "desc" ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const left = a[column];
+    const right = b[column];
+    if (left == null || right == null) return left == null && right == null ? 0 : left == null ? 1 : -1;
+    if (typeof left === "number" && typeof right === "number") return (left - right) * factor;
+    return String(left).localeCompare(String(right), "pt-BR") * factor;
+  });
 }
 
 function matchesCompany(row: Row, companyId: unknown): boolean {
@@ -361,6 +399,7 @@ class DemoDatabase implements DatabaseLike {
     if (sql.includes("order by created_at desc")) rows = [...rows].sort(createdAtDesc);
     if (sql.includes("order by due_date asc")) rows = [...rows].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
     if (sql.includes("order by checked_out_at desc")) rows = [...rows].sort((a, b) => String(b.checked_out_at).localeCompare(String(a.checked_out_at)));
+    if (PROSPECTING_TABLES.includes(table as (typeof PROSPECTING_TABLES)[number])) rows = orderByColumn(rows, sql);
     if (sql.includes("limit 200")) rows = rows.slice(0, 200);
     return rows as T;
   }
@@ -488,13 +527,53 @@ class DemoDatabase implements DatabaseLike {
       this.insert("memberships", bindValues, ["id", "company_id", "user_id"], { role: "admin", scope: "empresa" });
       return { rowsAffected: 1 };
     }
+    const generic = this.executeGeneric(sql, bindValues);
+    if (generic) return generic;
     throw new Error(`Comando demo nao suportado: ${query}`);
+  }
+
+  /** Fallback genérico: INSERT [OR IGNORE|OR REPLACE] INTO t (cols) VALUES (...) e UPDATE t SET a=?, ... WHERE id=? em qualquer tabela demo. */
+  private executeGeneric(sql: string, bindValues: unknown[]): { rowsAffected: number } | null {
+    const insert = sql.match(/^insert(?: or (ignore|replace))? into (\w+) ?\(([^)]*)\) ?values ?\((.*)\)$/);
+    if (insert && insert[2] in this.tables) {
+      const table = insert[2] as keyof DemoTables;
+      const columns = insert[3].split(",").map((column) => column.trim());
+      let bindIndex = 0;
+      const row: Row = {};
+      insert[4].split(",").forEach((token, index) => {
+        row[columns[index]] = literalOrBind(token.trim(), () => bindValues[bindIndex++]);
+      });
+      const rows = this.tables[table];
+      const existing = rows.findIndex((candidate) => candidate.id === row.id);
+      if (existing >= 0 && insert[1] === "ignore") return { rowsAffected: 0 };
+      const stamped = { created_at: iso(0), updated_at: iso(0), deleted_at: null, ...row };
+      if (existing >= 0) rows[existing] = stamped;
+      else rows.push(stamped);
+      this.save();
+      return { rowsAffected: 1 };
+    }
+
+    const update = sql.match(/^update (\w+) set (.*) where id ?= ?\?$/);
+    if (update && update[1] in this.tables) {
+      const patch: Row = {};
+      let bindIndex = 0;
+      for (const assignment of update[2].split(/, ?/)) {
+        const [column, expression] = assignment.split(/ ?= ?/);
+        patch[column.trim()] = literalOrBind(expression.trim(), () => bindValues[bindIndex++]);
+      }
+      this.update(update[1] as keyof DemoTables, bindValues[bindValues.length - 1], patch);
+      return { rowsAffected: 1 };
+    }
+    return null;
   }
 
   private load(): DemoTables {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? (JSON.parse(saved) as DemoTables) : createSeed();
+      if (!saved) return createSeed();
+      const tables = JSON.parse(saved) as DemoTables;
+      for (const name of PROSPECTING_TABLES) tables[name] ??= [];
+      return tables;
     } catch {
       return createSeed();
     }

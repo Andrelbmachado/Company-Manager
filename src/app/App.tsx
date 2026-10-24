@@ -5,11 +5,13 @@ import { AppRoutes } from "./routes";
 import { clearSession, getSession } from "@/lib/auth/session";
 import { mustChangePassword, revalidateSession } from "@/lib/auth/login";
 import { upgradeLegacyPasswords } from "@/lib/auth/password";
+import { startDailyBackup } from "@/lib/backup/backup";
 import { isTauriRuntime } from "@/lib/db/client";
 import ChangePasswordPage from "@/modules/settings/pages/ChangePasswordPage";
 import type { Session } from "@/types";
 
 let legacyUpgradeStarted = false;
+let dailyBackupStarted = false;
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => getSession());
@@ -19,6 +21,13 @@ export default function App() {
     if (legacyUpgradeStarted || !isTauriRuntime()) return;
     legacyUpgradeStarted = true;
     upgradeLegacyPasswords().catch((error) => console.warn("[auth] não foi possível converter as senhas antigas", error));
+  }, []);
+
+  // Backup automático diário do banco e dos anexos (só desktop; mantém os 14 mais recentes): src/lib/backup/backup.ts.
+  useEffect(() => {
+    if (dailyBackupStarted || !isTauriRuntime()) return;
+    dailyBackupStarted = true;
+    startDailyBackup();
   }, []);
 
   // Papel alterado, conta removida ou troca de senha exigida por outra pessoa vale já na próxima vez que a janela ganha foco.

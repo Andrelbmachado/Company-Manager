@@ -17,8 +17,15 @@ const SIDES = [
 
 const AXIS = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
 const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
-/** A vencer em cinza, atraso do amarelo ao vermelho, sem vencimento neutro. */
-const BUCKET_COLORS = ["hsl(var(--muted-foreground) / 0.5)", "hsl(45 93% 47%)", "hsl(32 95% 44%)", "hsl(14 90% 50%)", "hsl(0 72% 45%)", "hsl(var(--muted-foreground) / 0.3)"];
+/** A vencer em cinza, atraso no vermelho do tema cada vez mais forte, sem vencimento neutro (só tokens: claro e escuro). */
+const BUCKET_COLORS = [
+  "hsl(var(--muted-foreground) / 0.5)",
+  "hsl(var(--destructive) / 0.35)",
+  "hsl(var(--destructive) / 0.55)",
+  "hsl(var(--destructive) / 0.75)",
+  "hsl(var(--destructive))",
+  "hsl(var(--muted-foreground) / 0.3)",
+];
 
 /** Aging: saldo em aberto de contas a receber e a pagar por faixa de atraso, por cliente/fornecedor e por título. */
 export default function AgingReportPage() {

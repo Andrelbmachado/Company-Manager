@@ -188,7 +188,7 @@ async function seedCoreData(companyId: string): Promise<void> {
     ["Treinamento da equipe", 3200, "aprovada", 20, 4, 2],
   ];
   await insert("payables", companyId, payables.map(([description, amount, status, due, cc, sup], i) => ({
-    id: `dev-pay-${i + 1}`, description, supplier_id: `dev-supplier-${sup}`, amount, due_date: day(due), status, cost_center_id: `dev-cc-${cc}`, approver_id: status === "aberta" ? null : financeiro, paid_at: status === "paga" ? ts(due) : null,
+    id: `dev-pay-${i + 1}`, description, supplier_id: `dev-supplier-${sup}`, amount, due_date: day(due), status, cost_center_id: `dev-cc-${cc}`, approver_id: status === "aberta" ? null : financeiro, paid_at: status === "paga" ? ts(due) : null, paid_amount: status === "paga" ? amount : 0,
   })));
   const receivables: [string, number, string, number, string][] = [
     ["Contrato NorteLog - parcela 5/12", 12500, "aberta", 4, "dev-customer-1"],
@@ -202,8 +202,8 @@ async function seedCoreData(companyId: string): Promise<void> {
     ["Backup Clínica Bem Viver - sinal", 5600, "aberta", 11, "dev-customer-9"],
     ["Suporte Studio Aurora", 1800, "recebida", -2, "dev-customer-7"],
   ];
-  await insert("receivables", companyId, receivables.map(([ref_id, amount, status, due, customer_id], i) => ({
-    id: `dev-rec-${i + 1}`, customer_id, ref_type: "Contrato", ref_id, amount, due_date: day(due), status, received_at: status === "recebida" ? ts(due) : null,
+  await insert("receivables", companyId, receivables.map(([description, amount, status, due, customer_id], i) => ({
+    id: `dev-rec-${i + 1}`, customer_id, ref_type: "Contrato", description, amount, due_date: day(due), status, received_at: status === "recebida" ? ts(due) : null, received_amount: status === "recebida" ? amount : 0,
   })));
 
   // ---- Documentos (metadados; ainda sem arquivo real) ----------------------------

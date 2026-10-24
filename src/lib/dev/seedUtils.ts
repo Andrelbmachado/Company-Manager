@@ -1,12 +1,19 @@
 // TEMPORÁRIO (login rápido de desenvolvimento): utilitários dos dados de exemplo (devSeed.ts e seeds/<area>.ts).
 // SQL só nos padrões que o banco demo do navegador entende (INSERT OR IGNORE e SELECT * com WHERE col=?).
 import { getDb } from "@/lib/db/client";
+import { todayIso } from "@/lib/utils";
 import type { Role } from "@/types";
 
-/** 'YYYY-MM-DD' a `offset` dias de hoje (UTC). */
-export const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
-/** Timestamp ISO a `offset` dias de hoje, na hora dada (UTC). */
-export const ts = (offset: number, hour = 9) => `${day(offset)}T${String(hour).padStart(2, "0")}:00:00.000Z`;
+/** Meia-noite local de hoje + `offset` dias, na hora dada (conta por calendário: não escorrega em horário de verão). */
+function localDate(offset: number, hour = 0): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, hour);
+}
+
+/** 'YYYY-MM-DD' a `offset` dias de hoje, no dia local (como todayIso; o dia UTC vira depois das 21h no Brasil). */
+export const day = (offset: number) => todayIso(localDate(offset));
+/** Timestamp ISO (UTC, como o resto do app) a `offset` dias de hoje, na hora local dada. */
+export const ts = (offset: number, hour = 9) => localDate(offset, hour).toISOString();
 /** Id da conta de desenvolvimento de cada papel (criada pelo login rápido). */
 export const devUserId = (role: Role) => `dev-user-${role}`;
 

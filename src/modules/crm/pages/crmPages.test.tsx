@@ -196,6 +196,26 @@ describe("telas do CRM", () => {
     expect(await testDb().select("SELECT id FROM sales_orders WHERE company_id=?", [companyId])).toEqual([]);
   });
 
+  it("funil: soltar um cartão fechado na própria coluna não reabre o ganho nem a perda", async () => {
+    const closedAt = new Date().toISOString();
+    await testDb().execute("INSERT INTO opportunities (id, company_id, title, value, stage, probability, status, owner_id, closed_at) VALUES (?,?,?,?,?,?,?,?,?)", ["opp-won", companyId, "Contrato fechado", 1000, "ganho", 100, "won", USER, closedAt]);
+    await testDb().execute("INSERT INTO opportunities (id, company_id, title, value, stage, probability, status, owner_id, closed_at, lost_reason) VALUES (?,?,?,?,?,?,?,?,?,?)", ["opp-lost", companyId, "Negócio perdido", 500, "perdido", 0, "lost", USER, closedAt, "Preço"]);
+    await renderAt("/crm/funil", "/crm/funil", <PipelineBoardPage />);
+    await until(() => !!container.querySelector('[role=button][aria-label^="Contrato fechado"]') && !!container.querySelector('[role=button][aria-label^="Negócio perdido"]'), "cartões fechados no funil");
+    const data = new Map<string, string>();
+
+    await drag("dragstart", container.querySelector('[role=button][aria-label^="Contrato fechado"]'), data);
+    await drag("dragover", container.querySelector('section[aria-label^="Ganho:"]'), data);
+    await drag("drop", container.querySelector('section[aria-label^="Ganho:"]'), data);
+    expect(dialog("Ganhar oportunidade")).toBeNull();
+
+    await drag("dragstart", container.querySelector('[role=button][aria-label^="Negócio perdido"]'), data);
+    await drag("dragover", container.querySelector('section[aria-label^="Perdido:"]'), data);
+    await drag("drop", container.querySelector('section[aria-label^="Perdido:"]'), data);
+    expect(dialog("Perder oportunidade")).toBeNull();
+    expect(await one<Row>("SELECT * FROM opportunities WHERE id=?", ["opp-lost"])).toMatchObject({ status: "lost", stage: "perdido", lost_reason: "Preço", closed_at: closedAt });
+  });
+
   it("proposta nova: item avulso, total na tela e gravação com número", async () => {
     await testDb().execute("INSERT INTO customers (id, company_id, name, payment_terms) VALUES (?,?,?,?)", ["cust-1", companyId, "Clínica Vida", "30 dias"]);
     await renderAt("/crm/propostas/nova?cliente=cust-1", "/crm/propostas/:id", <ProposalEditorPage />);

@@ -80,7 +80,9 @@ export default function PipelineBoardPage() {
     const id = event.dataTransfer.getData("text/plain") || dragging;
     setDragging(null);
     const opp = opportunities.find((item) => item.id === id);
-    if (!opp || !canEdit || (opp.stage === stage && opp.status === "open")) return;
+    if (!opp || !canEdit) return;
+    // Soltar na própria coluna não faz nada: em Ganho/Perdido reabriria o diálogo e a perda regravaria motivo e data.
+    if (opp.stage === stage && (opp.status === "open" || stage === "ganho" || stage === "perdido")) return;
     if (stage === "ganho") return setWinning(opp);
     if (stage === "perdido") return setLosing(opp);
     // Otimista: o cartão muda de coluna já; a lista é recarregada quando a gravação termina (ou falha).

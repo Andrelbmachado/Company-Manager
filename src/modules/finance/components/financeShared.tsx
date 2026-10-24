@@ -6,7 +6,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { isTrue } from "@/lib/erp/financeCommon";
 import { cn, formatCurrency } from "@/lib/utils";
-import type { BankAccount, CostCenter, Customer, FinanceCategory, Supplier } from "@/types";
+import type { BankAccount, BankAccountKind, CostCenter, Customer, FinanceCategory, Supplier } from "@/types";
 
 export const inputClass = "h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 export const primaryButton = "flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50";
@@ -24,6 +24,14 @@ export const PAYMENT_METHODS = [
   { value: "cheque", label: "Cheque" },
   { value: "debito_automatico", label: "Débito automático" },
 ];
+
+export const BANK_ACCOUNT_KIND_LABELS: Record<BankAccountKind, string> = {
+  corrente: "Conta corrente",
+  poupanca: "Poupança",
+  caixa: "Caixa (dinheiro)",
+  cartao: "Cartão",
+  investimento: "Investimento",
+};
 
 export const paymentMethodLabel = (value: string | null | undefined) => PAYMENT_METHODS.find((method) => method.value === value)?.label ?? value ?? "—";
 

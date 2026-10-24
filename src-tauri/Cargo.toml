@@ -21,6 +21,8 @@ tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
+# Hash de senha (comandos hash_password/verify_password). "std" liga o OsRng para gerar o sal.
+argon2 = { version = "0.5", features = ["std"] }
 
 [profile.release]
 panic = "abort"
@@ -28,6 +30,13 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+# Sem otimização o argon2 leva segundos por login no `tauri dev`; otimizado, fica em dezenas de milissegundos.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
 
 # O strip do perfil release corrompe o LINKEDIT dos dylibs de proc-macro com o ld atual do macOS; só o app final fica stripped.
 [profile.release.build-override]

@@ -1,6 +1,9 @@
 import { getDb } from "@/lib/db/client";
 import { setSession, clearSession } from "./session";
+import { hashPassword, verifyPassword } from "./hash";
 import type { Session, Membership, Company } from "@/types";
+
+export { hashPassword } from "./hash";
 
 interface UserRow {
   id: string;
@@ -11,9 +14,16 @@ interface UserRow {
   status: "active" | "suspended";
   locale: string;
   last_login_at?: string | null;
+  must_change_password?: number | null;
+  password_changed_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+}
+
+/** 0/1 do SQLite; ausente nas linhas do banco demo antigo. */
+function flag(value: unknown): number {
+  return Number(value) === 1 ? 1 : 0;
 }
 
 export async function login(email: string, password: string): Promise<Session> {
@@ -28,10 +38,18 @@ export async function login(email: string, password: string): Promise<Session> {
   if (!users.length) throw new Error("Credenciais inválidas");
   const user = users[0];
 
-  // In production, use Argon2 via Tauri command. For V1, we do plain comparison
-  // TODO: replace with tauri command for argon2 verify
-  const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) throw new Error("Credenciais inválidas");
+  const check = await verifyPassword(password, user.password_hash);
+  if (!check.ok) throw new Error("Credenciais inválidas");
+  if (user.status === "suspended") throw new Error("Conta suspensa. Fale com o CEO ou a Administração da empresa.");
+
+  if (check.needsRehash) {
+    // Senha legada ("plain:") ou hash fraco: regrava no formato atual. Falhar aqui não pode impedir a entrada.
+    try {
+      await db.execute("UPDATE users SET password_hash=? WHERE id=?", [await hashPassword(password), user.id]);
+    } catch (error) {
+      console.warn("[auth] não foi possível atualizar o hash da senha; fica para o próximo login", error);
+    }
+  }
 
   const memberships = await db.select<Membership[]>(
     "SELECT * FROM memberships WHERE user_id = ? AND deleted_at IS NULL LIMIT 1",
@@ -49,16 +67,28 @@ export async function login(email: string, password: string): Promise<Session> {
 
   await db.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?", [user.id]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { password_hash: _ph, ...safeUser } = user;
-  const session: Session = { user: safeUser as Session["user"], membership, company };
+  const session: Session = { user: { ...safeUser, must_change_password: flag(user.must_change_password) } as Session["user"], membership, company };
   setSession(session);
   return session;
 }
 
+/** A conta precisa trocar a senha antes de usar o sistema (primeiro acesso ou pedido do CEO/Administração). */
+export function mustChangePassword(session: Session): boolean {
+  return flag(session.user.must_change_password) === 1;
+}
+
+/** Sessão depois que a própria pessoa trocou a senha (a troca obrigatória acabou). */
+export function sessionAfterPasswordChange(session: Session): Session {
+  const next: Session = { ...session, user: { ...session.user, must_change_password: 0 } };
+  setSession(next);
+  return next;
+}
+
 /**
- * Confere no banco se o acesso da sessão continua valendo. Papel rebaixado ou conta removida passam a valer sem sair e entrar de novo.
- * Retorna a mesma sessão se nada mudou, uma sessão com o papel novo, ou null se o acesso acabou.
+ * Confere no banco se o acesso da sessão continua valendo. Papel rebaixado, conta removida ou troca de senha exigida
+ * passam a valer sem sair e entrar de novo.
+ * Retorna a mesma sessão se nada mudou, uma sessão atualizada, ou null se o acesso acabou.
  */
 export async function revalidateSession(session: Session): Promise<Session | null> {
   const db = await getDb();
@@ -66,26 +96,14 @@ export async function revalidateSession(session: Session): Promise<Session | nul
   if (!membership) return null;
   const [user] = await db.select<UserRow[]>("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1", [session.user.id]);
   if (!user || user.status === "suspended") return null;
-  if (membership.role === session.membership.role && membership.scope === session.membership.scope) return session;
-  const next: Session = { ...session, membership };
+  const mustChange = flag(user.must_change_password);
+  const sameAccess = membership.role === session.membership.role && membership.scope === session.membership.scope;
+  if (sameAccess && mustChange === flag(session.user.must_change_password)) return session;
+  const next: Session = { ...session, membership, user: { ...session.user, must_change_password: mustChange } };
   setSession(next);
   return next;
 }
 
 export function logout(): void {
   clearSession();
-}
-
-// Simplified password check for V1. Argon2 verify via Rust command in V1.5.
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  // Hash stored as "plain:<password>" in setup wizard for initial accounts
-  if (hash.startsWith("plain:")) {
-    return hash.slice(6) === password;
-  }
-  return false;
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  // Stored as plain prefix for V1 bootstrap; replace with tauri argon2 command in V1.5
-  return `plain:${password}`;
 }

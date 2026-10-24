@@ -13,6 +13,7 @@ import {
   invoiceSalesOrder,
   updateSalesOrder,
 } from "./orders";
+import { deleteProduct } from "./catalog";
 import { seedTradeFixture, type TradeFixture } from "./tradeFixtures";
 
 let db: TestDb | null = null;
@@ -278,5 +279,20 @@ describe("entrega e baixa no estoque", () => {
 
     const draft = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.otherCustomerId, items: [{ productId: fx.products.visita, qty: 1 }] });
     await expect(deliverSalesOrder(db, draft, { companyId: fx.companyId })).rejects.toThrow(/confirm/i);
+  });
+
+  it("produto excluído do catálogo depois do pedido continua dando baixa no estoque e levando a categoria para a fatura", async () => {
+    const { db, fx } = await setup();
+    await db.execute("INSERT INTO finance_categories (id, company_id, code, name, kind, dre_group, position, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ["fx-cat-1-2", fx.companyId, "1.2", "Revenda de equipamentos", "receita", "receita", 3, 1]);
+    await db.execute("UPDATE products SET revenue_category_id=? WHERE id=?", ["fx-cat-1-2", fx.products.switch]);
+    const id = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.otherCustomerId, locationId: fx.locationId, items: [{ productId: fx.products.switch, qty: 2 }], confirm: true });
+    await deleteProduct(db, fx.companyId, fx.products.switch);
+
+    const { movementIds } = await deliverSalesOrder(db, id, { companyId: fx.companyId });
+    expect(movementIds).toHaveLength(1);
+    expect(await balance(fx.items.switch, fx.locationId)).toBe(8);
+
+    const { invoiceId } = await invoiceSalesOrder(db, id, { companyId: fx.companyId });
+    expect((await one<Invoice>("invoices", invoiceId)).category_id).toBe("fx-cat-1-2");
   });
 });

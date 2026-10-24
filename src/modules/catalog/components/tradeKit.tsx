@@ -80,6 +80,11 @@ export function useProducts(companyId: string) {
   return useQuery({ queryKey: ["products", companyId], queryFn: () => companyRows<Product>("SELECT * FROM products WHERE company_id=? AND deleted_at IS NULL ORDER BY name", companyId) });
 }
 
+/** Produtos inclusive os excluídos do catálogo, para ler documentos já gravados que ainda apontam para eles. */
+export function useProductsWithDeleted(companyId: string) {
+  return useQuery({ queryKey: ["products", companyId, "com-excluidos"], queryFn: () => companyRows<Product>("SELECT * FROM products WHERE company_id=? ORDER BY name", companyId) });
+}
+
 export function useCustomers(companyId: string) {
   return useQuery({ queryKey: ["customers", companyId, "trade"], queryFn: () => companyRows<Customer>("SELECT * FROM customers WHERE company_id=? AND deleted_at IS NULL ORDER BY name", companyId) });
 }

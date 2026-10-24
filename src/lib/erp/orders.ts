@@ -12,7 +12,6 @@ import { effectivePriceList, quoteItems, type ComputedLine, type QuoteItemInput 
 import { assertStockAvailable, postStockMovement } from "./stockPosting";
 import {
   activeRow,
-  activeRows,
   activeRowsBy,
   addDaysIso,
   claimStatus,
@@ -72,6 +71,15 @@ export function loadSalesOrder(db: DatabaseLike, orderId: string, companyId?: st
 export async function loadSalesOrderItems(db: DatabaseLike, companyId: string, orderId: string): Promise<SalesOrderItem[]> {
   const items = await activeRowsBy<SalesOrderItem>(db, "sales_order_items", companyId, "order_id", orderId);
   return items.sort((a, b) => a.position - b.position);
+}
+
+/**
+ * Produtos da empresa por id, inclusive os excluídos do catálogo: o pedido já gravado continua apontando para eles,
+ * e a entrega precisa do item de estoque (e a fatura, da categoria de receita) mesmo depois da exclusão.
+ */
+async function productsOfOrder(db: DatabaseLike, companyId: string): Promise<Map<string, Product>> {
+  const rows = await db.select<Product[]>("SELECT * FROM products WHERE company_id=?", [companyId]);
+  return new Map(rows.map((product) => [product.id, product]));
 }
 
 function checkInstallments(value: number): number {
@@ -308,7 +316,7 @@ export async function invoiceSalesOrder(db: DatabaseLike, orderId: string, optio
   const dueDates = resolveDueDates(issueDate, options, Number(order.installments) || 1);
   const amounts = splitInstallments(total, dueDates.length);
 
-  const products = new Map((await activeRows<Product>(db, "products", companyId)).map((product) => [product.id, product]));
+  const products = await productsOfOrder(db, companyId);
   const productCategory = items.map((item) => (item.product_id ? products.get(item.product_id)?.revenue_category_id : null)).find(Boolean) ?? null;
   const categoryId = options.categoryId ?? productCategory ?? (await defaultFinanceCategory(db, companyId, "receita"));
   const customer = order.customer_id ? await activeRow<Customer>(db, "customers", companyId, order.customer_id) : null;
@@ -489,7 +497,7 @@ export async function deliverSalesOrder(db: DatabaseLike, orderId: string, optio
   if (order.status === "cancelado") fail("Pedido cancelado não pode ser entregue.");
 
   const items = await loadSalesOrderItems(db, companyId, orderId);
-  const products = new Map((await activeRows<Product>(db, "products", companyId)).map((product) => [product.id, product]));
+  const products = await productsOfOrder(db, companyId);
   const stockLines = items
     .map((item) => ({ item, product: item.product_id ? products.get(item.product_id) : undefined }))
     .filter((entry): entry is { item: SalesOrderItem; product: Product } => Boolean(entry.product && entry.product.kind === "produto" && entry.product.inventory_item_id));

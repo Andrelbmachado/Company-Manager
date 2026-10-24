@@ -51,7 +51,7 @@ import {
   useInvoices,
   useLocations,
   usePriceLists,
-  useProducts,
+  useProductsWithDeleted,
   useReceivables,
   useStockBalances,
 } from "@/modules/catalog/components/tradeKit";
@@ -140,7 +140,8 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
   const { data: customers = [] } = useCustomers(companyId);
   const { data: lists = [] } = usePriceLists(companyId);
   const { data: locations = [] } = useLocations(companyId);
-  const { data: products = [] } = useProducts(companyId);
+  // Inclui excluídos: a prévia da entrega precisa do item de estoque de produto que saiu do catálogo depois do pedido.
+  const { data: products = [] } = useProductsWithDeleted(companyId);
   const { data: inventoryItems = [] } = useInventoryItems(companyId);
   const { data: balances = [] } = useStockBalances(companyId);
   const { data: invoices = [] } = useInvoices(companyId, canSeeInvoices);

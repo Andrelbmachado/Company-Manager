@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema/acl/capability.json",
   "identifier": "default",
-  "description": "Default capability for Company Manager. Arquivos: anexos e backup em $APPDATA/$APPCONFIG; importar/exportar em Downloads, Documentos e Mesa (e no caminho escolhido no diálogo).",
+  "description": "Default capability for Company Manager. Arquivos: ler, gravar, copiar, renomear e apagar só em $APPDATA (anexos, backup); ler também em Downloads e Documentos. Fora disso, só o caminho escolhido pela pessoa em dialog.open/save (o diálogo libera esse caminho).",
   "windows": [
     "main"
   ],
@@ -13,22 +13,50 @@
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
-    "fs:allow-read-file",
-    "fs:allow-write-file",
-    "fs:allow-remove",
-    "fs:allow-copy-file",
-    "fs:allow-rename",
-    "fs:allow-stat",
-    "fs:allow-read-dir",
-    "fs:allow-mkdir",
-    "fs:allow-exists",
-    "fs:scope-appdata-recursive",
-    "fs:scope-appconfig-recursive",
-    "fs:scope-download-recursive",
-    "fs:scope-document-recursive",
-    "fs:scope-desktop-recursive",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT" }, { "path": "$DOCUMENT/**" }]
+    },
+    {
+      "identifier": "fs:allow-stat",
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-copy-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",

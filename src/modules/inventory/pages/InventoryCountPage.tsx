@@ -7,7 +7,7 @@ import { formatSequence } from "@/lib/db/sequence";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
 import { emit } from "@/lib/events/bus";
-import { addCountItem, cancelInventoryCount, finishInventoryCount, loadInventoryCount, removeCountItem, setCountedQuantity, type InventoryCountLine } from "@/lib/inventory/counts";
+import { addCountItem, cancelInventoryCount, finishInventoryCount, loadInventoryCount, removeCountItem, setCountedQuantity, setCountItemNote, type InventoryCountLine } from "@/lib/inventory/counts";
 import { loadStockSnapshot } from "@/lib/inventory/queries";
 import { formatQty, roundQty } from "@/lib/inventory/stock";
 import { lineTotal, sumMoney } from "@/lib/money";
@@ -133,7 +133,8 @@ function CountSheet({ countId }: { countId: string }) {
     if (draft === undefined || draft.trim() === (line.notes ?? "")) return;
     void withSaving(
       line.id,
-      async () => setCountedQuantity(await getDb(), { companyId, countItemId: line.id, countedQty: line.counted_qty == null ? null : Number(line.counted_qty), notes: draft }),
+      // Só a observação: reenviar a quantidade desta tela poderia desfazer uma contagem gravada logo antes.
+      async () => setCountItemNote(await getDb(), { companyId, countItemId: line.id, notes: draft }),
       () => setNoteDrafts(({ [line.id]: _omit, ...rest }) => rest),
     );
   }

@@ -129,6 +129,16 @@ export async function setCountedQuantity(
 }
 
 /**
+ * Só a observação do item da contagem. Separada da quantidade para não regravar `counted_qty` com o valor que a tela
+ * tinha antes: uma quantidade gravada logo antes (outro campo, outra janela) não volta ao valor antigo.
+ */
+export async function setCountItemNote(db: DatabaseLike, input: { companyId: string; countItemId: string; notes: string | null }): Promise<void> {
+  const { row, count } = await loadCountItem(db, input.companyId, input.countItemId);
+  requireOpen(count);
+  await db.execute("UPDATE inventory_count_items SET notes=?, updated_at=datetime('now') WHERE company_id=? AND id=?", [input.notes?.trim() || null, input.companyId, row.id]);
+}
+
+/**
  * Conclui a contagem e ajusta o estoque do local. A diferença é calculada contra o saldo **atual** (o que entrou ou saiu
  * durante a contagem já está no saldo e não é ajustado de novo); o `expected_qty` final guarda esse saldo. Exige todos
  * os itens contados. Item já ajustado (conclusão interrompida e repetida) não é ajustado outra vez.

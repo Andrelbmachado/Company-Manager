@@ -2,7 +2,7 @@
 // O estoque também roda no banco demo do navegador (localStorage), que só entende SQL simples: SQL fora dos padrões é erro.
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDemoDb, DEMO_COMPANY_ID, type DatabaseLike } from "@/lib/db/demo";
-import { cancelInventoryCount, finishInventoryCount, listInventoryCounts, loadInventoryCount, openInventoryCount, setCountedQuantity, addCountItem, removeCountItem } from "./counts";
+import { cancelInventoryCount, finishInventoryCount, listInventoryCounts, loadInventoryCount, openInventoryCount, setCountedQuantity, setCountItemNote, addCountItem, removeCountItem } from "./counts";
 import { archiveStockLocation, listLocationSummaries, saveStockLocation } from "./locations";
 import { groupTransfers, listStockMovements, loadStockSnapshot } from "./queries";
 import { createReorderPurchaseOrders, reorderSuggestions } from "./reorder";
@@ -81,6 +81,8 @@ describe("estoque no banco demo", () => {
       await setCountedQuantity(db, { companyId: C, countItemId: line.id, countedQty: index === 0 ? Number(line.expected_qty) + 2 : Number(line.expected_qty), notes: index === 0 ? "Caixa achada" : undefined });
     }
     const first = detail!.items[0];
+    await setCountItemNote(db, { companyId: C, countItemId: first.id, notes: "Caixa achada no fundo" });
+    expect((await loadInventoryCount(db, C, id))!.items[0]).toMatchObject({ counted_qty: Number(first.expected_qty) + 2, notes: "Caixa achada no fundo" });
     const result = await finishInventoryCount(db, { companyId: C, countId: id, userId: USER });
     expect(result.movementIds).toHaveLength(1);
     expect(await quantity(db, first.item_id, MAIN)).toBe(Number(first.expected_qty) + 2);

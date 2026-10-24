@@ -10,6 +10,7 @@ import {
   openInventoryCount,
   removeCountItem,
   setCountedQuantity,
+  setCountItemNote,
 } from "./counts";
 import { recordStockMovement, StockError } from "./stock";
 import { balanceOf, countRows, seedStockFixture } from "./testFixtures";
@@ -81,6 +82,20 @@ describe("contagem", () => {
 
     await cancelInventoryCount(db, { companyId: C, countId: id });
     await expectStockError(setCountedQuantity(db, { companyId: C, countItemId: String(first.id), countedQty: 1 }), "contagem_fechada");
+  });
+
+  it("a observação muda sozinha: não regrava a quantidade contada (a gravada por último não volta ao valor antigo)", async () => {
+    const { id } = await openInventoryCount(db, { companyId: C, locationId: "loc-a", userId: user });
+    const [first] = await countItems(id);
+    await setCountedQuantity(db, { companyId: C, countItemId: String(first.id), countedQty: 9 });
+    await setCountItemNote(db, { companyId: C, countItemId: String(first.id), notes: "  Uma caixa amassada " });
+    expect((await countItems(id))[0]).toMatchObject({ counted_qty: 9, notes: "Uma caixa amassada" });
+    await setCountItemNote(db, { companyId: C, countItemId: String(first.id), notes: "   " });
+    expect((await countItems(id))[0]).toMatchObject({ counted_qty: 9, notes: null });
+
+    await cancelInventoryCount(db, { companyId: C, countId: id });
+    await expectStockError(setCountItemNote(db, { companyId: C, countItemId: String(first.id), notes: "x" }), "contagem_fechada");
+    await expectStockError(setCountItemNote(db, { companyId: C, countItemId: "nao-existe", notes: "x" }), "contagem_invalida");
   });
 
   it("adiciona e remove itens da contagem aberta; item repetido é recusado", async () => {

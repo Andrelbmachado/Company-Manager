@@ -36,6 +36,14 @@ describe("recordStockMovement", () => {
     expect(await countRows(db, "stock_balances")).toBe(4);
   });
 
+  it("custo unitário da movimentação é dinheiro: gravado em centavos (2 casas), informado ou vindo do item", async () => {
+    await db.execute("UPDATE inventory_items SET cost=10.555 WHERE id='item-1'");
+    const fromItem = await recordStockMovement(db, { companyId: C, itemId: "item-1", type: "entrada", quantity: 1, toLocationId: "loc-a" });
+    const typed = await recordStockMovement(db, { companyId: C, itemId: "item-1", type: "entrada", quantity: 1, toLocationId: "loc-a", unitCost: 3.14159 });
+    const rows = await db.select<Row[]>("SELECT id, unit_cost FROM stock_movements");
+    expect(Object.fromEntries(rows.map((row) => [row.id, row.unit_cost]))).toEqual({ [fromItem]: 10.56, [typed]: 3.14 });
+  });
+
   it("saída baixa o saldo; saída maior que o saldo é recusada sem gravar nada", async () => {
     await recordStockMovement(db, { companyId: C, itemId: "item-1", type: "saida", quantity: 3, fromLocationId: "loc-a" });
     expect(await balanceOf(db, "item-1", "loc-a")).toBe(7);

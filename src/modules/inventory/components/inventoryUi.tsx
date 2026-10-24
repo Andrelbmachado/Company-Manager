@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, X } from "lucide-react";
 import { roundQty, StockError } from "@/lib/inventory/stock";
 import { MOVEMENT_TYPE_LABELS } from "@/lib/inventory/queries";
+import { roundMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { StockMovementType } from "@/types";
 
@@ -93,10 +94,22 @@ export function readItemNumbers(form: ItemNumberFields): { minStock: number; max
   const minStock = roundQty(read(form.min_stock, "Estoque mínimo") ?? 0);
   const max = read(form.max_stock, "Estoque máximo");
   const maxStock = max == null ? null : roundQty(max);
-  const cost = read(form.cost, "Custo") ?? 0;
+  // Dinheiro em centavos (AGENTS §4): o mesmo valor que a tela mostra e que vai no pedido de compra da reposição.
+  const cost = roundMoney(read(form.cost, "Custo") ?? 0);
   const initialQty = roundQty(read(form.initial_qty, "Saldo inicial") ?? 0);
   if (maxStock != null && maxStock < minStock) throw new StockError("valor_invalido", "O estoque máximo não pode ser menor que o mínimo.");
   return { minStock, maxStock, cost, initialQty };
+}
+
+/**
+ * Custo unitário digitado numa entrada manual: vazio = usar o custo do item (null); número igual ou maior que zero vira
+ * centavos. Texto que não é número ou negativo é recusado, em vez de virar o custo do item sem aviso.
+ */
+export function readUnitCost(text: string): number | null {
+  if (!text.trim()) return null;
+  const value = parseDecimal(text);
+  if (!Number.isFinite(value) || value < 0) throw new StockError("valor_invalido", "Custo unitário: informe um número igual ou maior que zero (ex.: 12,50), ou deixe em branco para usar o custo do item.");
+  return roundMoney(value);
 }
 
 export const INPUT = "h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";

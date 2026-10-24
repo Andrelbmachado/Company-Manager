@@ -7,7 +7,7 @@ import { emit } from "@/lib/events/bus";
 import type { StockItemRow } from "@/lib/inventory/queries";
 import { formatQty, recordStockMovement, roundQty } from "@/lib/inventory/stock";
 import type { StockLocation, StockMovementType } from "@/types";
-import { ErrorBanner, errorText, parseDecimal } from "./inventoryUi";
+import { ErrorBanner, errorText, parseDecimal, readUnitCost } from "./inventoryUi";
 
 export type ManualMovementKind = "entrada" | "saida" | "ajuste_falta" | "ajuste_sobra";
 
@@ -56,7 +56,8 @@ export function StockMovementDialog({ companyId, userId, items, locations, initi
     mutationFn: async () => {
       if (!item) throw new Error("Escolha o item.");
       if (!location) throw new Error("Escolha o local.");
-      const unitCost = type === "entrada" ? parseDecimal(values.unit_cost) : Number.NaN;
+      // Custo digitado errado é recusado (antes virava o custo do item sem aviso); em branco usa o custo do item.
+      const unitCost = type === "entrada" ? readUnitCost(values.unit_cost) : null;
       const db = await getDb();
       const id = await recordStockMovement(db, {
         companyId,
@@ -65,7 +66,7 @@ export function StockMovementDialog({ companyId, userId, items, locations, initi
         quantity,
         fromLocationId: leaves ? location.id : null,
         toLocationId: leaves ? null : location.id,
-        unitCost: Number.isFinite(unitCost) ? unitCost : null,
+        unitCost,
         refType: "manual",
         userId,
         note: values.note,

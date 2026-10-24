@@ -8,6 +8,7 @@
 // SQL só nos padrões do banco demo (SELECT * com WHERE col=?, uma linha por INSERT); somas e junções em TypeScript.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
+import { roundMoney } from "@/lib/money";
 import type { InventoryItem, StockBalance, StockLocation, StockMovementType } from "@/types";
 
 export type StockErrorCode =
@@ -220,7 +221,7 @@ export interface StockMovementInput {
   fromLocationId?: string | null;
   /** Destino: entrada, transferência e ajuste de sobra. */
   toLocationId?: string | null;
-  /** Custo unitário da movimentação; padrão = custo do item. */
+  /** Custo unitário da movimentação (gravado em centavos); padrão = custo do item. */
   unitCost?: number | null;
   /** Origem do lançamento (goods_receipt, sales_order, inventory_count, transfer); padrão "manual". */
   refType?: string | null;
@@ -231,7 +232,10 @@ export interface StockMovementInput {
 }
 
 function plannedFrom(input: StockMovementInput, quantity: number, item: InventoryItem, from: StockLocation | null, to: StockLocation | null, balances: StockBalance[]): PlannedMovement {
-  const unitCost = typeof input.unitCost === "number" && Number.isFinite(input.unitCost) && input.unitCost >= 0 ? input.unitCost : Number(item.cost ?? 0) || 0;
+  const itemCost = Number(item.cost ?? 0);
+  const typed = typeof input.unitCost === "number" && Number.isFinite(input.unitCost) && input.unitCost >= 0 ? input.unitCost : null;
+  // Dinheiro em centavos (AGENTS §4): o custo do item pode ter mais casas (cadastro antigo ou importado).
+  const unitCost = roundMoney(typed ?? (Number.isFinite(itemCost) ? itemCost : 0));
   return {
     id: input.id ?? uuidv4(),
     companyId: input.companyId,

@@ -2,7 +2,7 @@
 // quando digitado, e texto inválido é recusado em vez de virar 0 sem aviso.
 import { describe, expect, it } from "vitest";
 import { formatQty, StockError } from "@/lib/inventory/stock";
-import { parseDecimal, readItemNumbers } from "./inventoryUi";
+import { parseDecimal, readItemNumbers, readUnitCost } from "./inventoryUi";
 
 describe("parseDecimal", () => {
   it("vírgula decimal, ponto de milhar como a tela mostra e ponto decimal quando não é milhar", () => {
@@ -30,6 +30,11 @@ describe("readItemNumbers", () => {
     expect(readItemNumbers({ min_stock: "5", max_stock: "1.000", cost: "2.180,50", initial_qty: "0,5" })).toEqual({ minStock: 5, maxStock: 1000, cost: 2180.5, initialQty: 0.5 });
   });
 
+  it("custo é dinheiro: arredondado a centavos, como a tela mostra e como vai no pedido de compra", () => {
+    expect(readItemNumbers({ min_stock: "", max_stock: "", cost: "10,555" }).cost).toBe(10.56);
+    expect(readItemNumbers({ min_stock: "", max_stock: "", cost: "0,125" }).cost).toBe(0.13);
+  });
+
   it("recusa texto inválido ou negativo com o nome do campo, e máximo menor que o mínimo", () => {
     const cases: [Parameters<typeof readItemNumbers>[0], RegExp][] = [
       [{ min_stock: "abc", max_stock: "", cost: "0" }, /mínimo/i],
@@ -47,6 +52,30 @@ describe("readItemNumbers", () => {
       }
       expect(error, JSON.stringify(form)).toBeInstanceOf(StockError);
       expect((error as StockError).message).toMatch(message);
+    }
+  });
+});
+
+describe("readUnitCost (custo da entrada manual)", () => {
+  it("vazio = usar o custo do item; número vira centavos", () => {
+    expect(readUnitCost("")).toBeNull();
+    expect(readUnitCost("   ")).toBeNull();
+    expect(readUnitCost("12,5")).toBe(12.5);
+    expect(readUnitCost("R$ 1.234,567")).toBe(1234.57);
+    expect(readUnitCost("0")).toBe(0);
+  });
+
+  it("texto que não é número ou negativo é recusado com o nome do campo (antes virava o custo do item sem aviso)", () => {
+    for (const text of ["1O,50", "abc", "-1", "2,5 kg"]) {
+      let error: unknown = null;
+      try {
+        readUnitCost(text);
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error, text).toBeInstanceOf(StockError);
+      expect((error as StockError).code).toBe("valor_invalido");
+      expect((error as StockError).message).toMatch(/custo unitário/i);
     }
   });
 });

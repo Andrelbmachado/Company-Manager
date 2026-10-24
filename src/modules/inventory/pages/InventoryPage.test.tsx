@@ -135,6 +135,38 @@ describe("InventoryPage — novo item", () => {
     expect(await itemCount()).toBe(0);
   });
 
+  it("entrada manual com custo unitário digitado errado é recusada (não vira o custo do item sem aviso); certo vai em centavos", async () => {
+    const db = testDb();
+    await db.execute("INSERT INTO stock_locations (id, company_id, name) VALUES ('loc-1', ?, 'Depósito')", [companyId]);
+    await db.execute("INSERT INTO inventory_items (id, company_id, name, unit, cost) VALUES ('item-1', ?, 'Cabo Cat6', 'cx', 10)", [companyId]);
+    await render();
+    await click(button("Movimentar"));
+    const dialog = () => container.querySelector('[role="dialog"]')!;
+    const field = <T extends HTMLElement>(label: string) =>
+      [...dialog().querySelectorAll("label")].find((element) => element.textContent?.startsWith(label))?.querySelector<T>("input, select") ?? null;
+    async function fill(label: string, value: string) {
+      const element = field<HTMLInputElement | HTMLSelectElement>(label);
+      if (!element) throw new Error(`campo ${label} não encontrado`);
+      const proto = element instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(element, value);
+      await act(async () => {
+        element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+      });
+    }
+    await fill("Item", "item-1");
+    await fill("Quantidade", "2");
+    await fill("Custo unitário", "1O,50");
+    await click(button("Gravar movimentação"));
+    await until(() => /custo unitário/i.test(alerts()), "aviso de custo unitário inválido");
+    expect(await db.select("SELECT * FROM stock_movements")).toEqual([]);
+
+    await fill("Custo unitário", "12,345");
+    await click(button("Gravar movimentação"));
+    await until(() => !container.querySelector('[role="dialog"]'), "diálogo fechado");
+    const movements = await db.select<{ quantity: number; unit_cost: number; to_location_id: string }[]>("SELECT * FROM stock_movements");
+    expect(movements).toEqual([expect.objectContaining({ quantity: 2, unit_cost: 12.35, to_location_id: "loc-1" })]);
+  });
+
   it("cria o item e lança o saldo inicial como entrada no local escolhido ('1.250' = mil duzentos e cinquenta)", async () => {
     const db = testDb();
     await db.execute("INSERT INTO stock_locations (id, company_id, name) VALUES ('loc-1', ?, 'Depósito')", [companyId]);

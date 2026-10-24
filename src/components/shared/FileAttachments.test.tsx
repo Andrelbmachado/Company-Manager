@@ -159,4 +159,30 @@ describe("FileAttachments", () => {
     expect(row.deleted_at).toBeTruthy();
     expect(memory.keys()).toHaveLength(0);
   });
+
+  it("pré-visualiza texto (inclusive o começo de um arquivo grande, sem estragar os acentos) e nunca oferece HTML", async () => {
+    await render(true);
+    await until(() => text().includes("Nenhum anexo"), "estado vazio");
+    // ~420 KB de texto: a prévia mostra os primeiros 256 KB (262.144 bytes). "ação " tem 7 bytes; com o prefixo de
+    // 4 bytes, o último byte da prévia é o primeiro dos 2 bytes de um "ã".
+    const longText = `Ata ${"ação ".repeat(60_000)}`;
+    expect((262_144 - 4) % 7).toBe(4);
+    await choose(container.querySelector<HTMLInputElement>('input[aria-label="Escolher arquivos para anexar"]'), [
+      new File([longText], "notas.txt", { type: "text/plain" }),
+      new File(["<script>alert(1)</script>"], "pagina.html", { type: "text/html" }),
+    ]);
+    await until(() => text().includes("2 arquivos enviados"), "envio");
+    expect(button("Visualizar pagina.html")).toBeNull();
+    expect(button("Visualizar notas.txt")).not.toBeNull();
+
+    await act(async () => button("Visualizar notas.txt")!.click());
+    const preview = () => document.querySelector('[role="dialog"][aria-label="Pré-visualização: notas.txt"]');
+    await until(() => Boolean(preview()?.querySelector("pre")), "texto da prévia");
+    const shown = preview()!.querySelector("pre")!.textContent ?? "";
+    expect(shown.startsWith("Ata ação ação")).toBe(true);
+    expect(shown).not.toContain("Ã");
+    expect(longText.startsWith(shown)).toBe(true);
+    expect(preview()!.textContent).toContain("Mostrando os primeiros 256 KB");
+    expect(document.querySelector("iframe")).toBeNull();
+  });
 });

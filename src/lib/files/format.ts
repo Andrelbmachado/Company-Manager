@@ -56,10 +56,13 @@ export function guessMime(name: string, given?: string | null): string {
   return MIME_BY_EXTENSION[fileExtension(name)] ?? "application/octet-stream";
 }
 
-/** "512 bytes", "12,4 KB", "50 MB" (pt-BR; número inteiro sem casas). */
+/** "512 bytes", "12,4 KB", "50 MB" (pt-BR; número inteiro sem casas). Valor inválido ou negativo vira "0 bytes". */
 export function formatBytes(bytes: number | null | undefined): string {
   const value = Number(bytes ?? 0);
-  if (!Number.isFinite(value) || value < 1024) return `${Math.max(0, Math.trunc(value))} ${value === 1 ? "byte" : "bytes"}`;
+  if (!Number.isFinite(value) || value < 1024) {
+    const whole = Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+    return `${whole} ${whole === 1 ? "byte" : "bytes"}`;
+  }
   const units = ["KB", "MB", "GB"];
   let amount = value;
   let unit = -1;
@@ -105,12 +108,29 @@ export function formatTimestamp(value: string | null | undefined): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
-/** Texto de um arquivo: UTF-8 (com ou sem BOM); se não for UTF-8 válido, Windows-1252 (CSV antigo do Excel). */
-export function decodeText(bytes: Uint8Array): string {
+/**
+ * Texto de um arquivo: UTF-8 (com ou sem BOM); se não for UTF-8 válido, Windows-1252 (CSV antigo do Excel).
+ * `truncated`: os bytes são só o começo do arquivo (pré-visualização). O corte pode cair no meio de um caractere
+ * ("ç" = 2 bytes); sem descartar esse pedaço, o UTF-8 estrito falharia e o texto inteiro viraria "Ã§".
+ */
+export function decodeText(bytes: Uint8Array, options: { truncated?: boolean } = {}): string {
+  const utf8 = options.truncated ? bytes.subarray(0, completeUtf8Length(bytes)) : bytes;
   try {
     // O TextDecoder já descarta o BOM do começo.
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return new TextDecoder("utf-8", { fatal: true }).decode(utf8);
   } catch {
     return new TextDecoder("windows-1252").decode(bytes);
   }
+}
+
+/** Tamanho sem o caractere UTF-8 incompleto do fim (byte inicial seguido de menos continuações do que pede). */
+function completeUtf8Length(bytes: Uint8Array): number {
+  const end = bytes.length;
+  for (let back = 1; back <= Math.min(4, end); back++) {
+    const byte = bytes[end - back];
+    if ((byte & 0xc0) === 0x80) continue; // continuação (10xxxxxx): o início do caractere está antes
+    const needed = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
+    return needed > back ? end - back : end;
+  }
+  return end;
 }

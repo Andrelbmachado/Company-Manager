@@ -33,7 +33,8 @@ export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose:
         const blob = await openFile(doc);
         if (kind === "text") {
           const bytes = await readBlobBytes(blob);
-          if (!cancelled) setLoaded({ status: "text", text: decodeText(bytes.subarray(0, TEXT_PREVIEW_BYTES)), truncated: bytes.byteLength > TEXT_PREVIEW_BYTES });
+          const truncated = bytes.byteLength > TEXT_PREVIEW_BYTES;
+          if (!cancelled) setLoaded({ status: "text", text: decodeText(bytes.subarray(0, TEXT_PREVIEW_BYTES), { truncated }), truncated });
           return;
         }
         if (cancelled) return;

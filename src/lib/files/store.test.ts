@@ -93,6 +93,18 @@ describe("sanitizeFileName", () => {
     expect(long.length).toBeLessThanOrEqual(180);
     expect(long.endsWith(".pdf")).toBe(true);
   });
+
+  it("nome longo com acentos, ideogramas ou emoji cabe no limite de bytes do macOS (255) e mantém a extensão", () => {
+    for (const name of [`${"ção".repeat(100)}.pdf`, `${"文".repeat(300)}.xlsx`, `${"📎".repeat(150)}.txt`, `${"é".repeat(179)}`]) {
+      const clean = sanitizeFileName(name);
+      const bytes = new TextEncoder().encode(clean);
+      expect(bytes.length, name.slice(0, 12)).toBeLessThanOrEqual(240);
+      expect(new TextDecoder().decode(bytes), "sem caractere cortado ao meio").toBe(clean);
+      const dot = name.lastIndexOf(".");
+      if (dot > 0) expect(clean.endsWith(name.slice(dot))).toBe(true);
+    }
+    expect(sanitizeFileName("Cotação final.xlsx")).toBe("Cotação final.xlsx");
+  });
 });
 
 describe("saveFile", () => {

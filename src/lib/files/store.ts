@@ -25,6 +25,8 @@ export const DEFAULT_MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const HARD_MAX_FILE_BYTES = 500 * 1024 * 1024;
 export const MAX_FILE_SETTING = "documents.max_file_mb";
 const MAX_NAME_LENGTH = 180;
+/** O macOS aceita até 255 bytes (UTF-8) por nome; a folga cobre o " (1)" que o navegador acrescenta ao baixar. */
+const MAX_NAME_BYTES = 240;
 /** Proteção contra corrente de versões circular ou absurda (dado corrompido). */
 const MAX_CHAIN = 1000;
 
@@ -76,10 +78,12 @@ const BIDI_CHARS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const FORBIDDEN_CHARS = /[<>:"|?*]/g;
 const RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
+const utf8Length = (text: string) => new TextEncoder().encode(text).length;
+
 /**
  * Nome seguro para mostrar e baixar: só a última parte do caminho (sem pastas nem ".."), sem caracteres de controle,
- * de direção ou proibidos no Windows/macOS, sem pontos/espaços nas pontas, NFC e no máximo 180 caracteres (mantendo a
- * extensão). Vazio vira `fallback`.
+ * de direção ou proibidos no Windows/macOS, sem pontos/espaços nas pontas, NFC e no máximo 180 caracteres e 240 bytes
+ * (mantendo a extensão). Vazio vira `fallback`.
  */
 export function sanitizeFileName(name: string, fallback = "arquivo"): string {
   const segments = String(name ?? "")
@@ -94,11 +98,18 @@ export function sanitizeFileName(name: string, fallback = "arquivo"): string {
     .replace(/^[\s.]+|[\s.]+$/g, "");
   if (!clean) return fallback;
   if (RESERVED_NAMES.test(clean.split(".")[0])) clean = `_${clean}`;
-  const chars = Array.from(clean);
-  if (chars.length > MAX_NAME_LENGTH) {
+  if (Array.from(clean).length > MAX_NAME_LENGTH || utf8Length(clean) > MAX_NAME_BYTES) {
     const dot = clean.lastIndexOf(".");
     const ext = dot > 0 && clean.length - dot <= 11 ? clean.slice(dot) : "";
-    clean = chars.slice(0, MAX_NAME_LENGTH - Array.from(ext).length).join("").trimEnd() + ext;
+    // Corta o nome (nunca a extensão) por caractere inteiro: acento, ideograma e emoji ocupam 2 a 4 bytes.
+    let budget = MAX_NAME_BYTES - utf8Length(ext);
+    const kept: string[] = [];
+    for (const char of Array.from(clean.slice(0, clean.length - ext.length)).slice(0, MAX_NAME_LENGTH - Array.from(ext).length)) {
+      budget -= utf8Length(char);
+      if (budget < 0) break;
+      kept.push(char);
+    }
+    clean = kept.join("").trimEnd() + ext;
   }
   return clean;
 }

@@ -5,9 +5,9 @@
 export type SocialProvider = "github" | "google" | "microsoft";
 
 export const SOCIAL_PROVIDERS: { id: SocialProvider; label: string }[] = [
-  { id: "github", label: "GitHub" },
   { id: "google", label: "Google" },
   { id: "microsoft", label: "Microsoft" },
+  { id: "github", label: "GitHub" },
 ];
 
 const CLIENT_ID_VARS: Record<SocialProvider, string> = {

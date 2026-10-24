@@ -5,6 +5,7 @@ import { login } from "@/lib/auth/login";
 import { SOCIAL_PROVIDERS, startSocialLogin, type SocialProvider } from "@/lib/auth/social";
 import { getDb, isTauriRuntime } from "@/lib/db/client";
 import { useSession } from "@/hooks/useSession";
+import { DevQuickLogin } from "@/components/dev/DevQuickLogin";
 
 const field = "flex h-11 w-full rounded-lg border border-input bg-background px-3.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -83,99 +84,83 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-      <aside className="hidden flex-col justify-between bg-sidebar p-14 lg:flex">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"><Building2 size={20} className="text-primary-foreground" /></span>
-          <span className="font-display text-xl font-bold tracking-tight text-sidebar-accent-foreground">Company Manager</span>
+    <main className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
+      <DevQuickLogin onSession={setSession} onError={setError} />
+      <div className="w-full max-w-[26rem] rounded-xl border bg-card p-6 shadow-lg sm:p-8">
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary"><Building2 size={18} className="text-primary-foreground" /></span>
+          <span className="font-display text-lg font-bold tracking-tight">Company Manager</span>
         </div>
-        <div className="max-w-lg">
-          <h2 className="font-display text-[3.25rem] font-bold leading-[1.05] tracking-tight text-sidebar-accent-foreground">Cada setor entra e vê o que é seu.</h2>
-          <p className="mt-6 max-w-md text-base leading-relaxed text-sidebar-foreground">
-            Comercial, projetos, estoque, financeiro, suporte e pessoas no mesmo sistema. O seu e-mail define o seu acesso: quem é de vendas não vê o RH da empresa, e todo colaborador tem o seu Meu RH.
-          </p>
-        </div>
-        <p className="text-sm text-sidebar-foreground">Dúvida sobre o seu acesso? Fale com o administrador da empresa.</p>
-      </aside>
 
-      <main className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-[26rem]">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary"><Building2 size={18} className="text-primary-foreground" /></span>
-            <span className="font-display text-lg font-bold tracking-tight">Company Manager</span>
-          </div>
+        {view === "login" ? (
+          <>
+            <h1 className="text-center font-display text-[1.75rem] font-bold leading-tight tracking-tight">Entrar</h1>
 
-          {view === "login" ? (
-            <>
-              <h1 className="font-display text-[2rem] font-bold leading-tight tracking-tight">Entrar</h1>
-              <p className="mt-1.5 text-sm text-muted-foreground">Use o e-mail e a senha da sua conta.</p>
+            {error && <p role="alert" className="mt-5 rounded-lg border border-status-danger bg-background px-3.5 py-2.5 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
 
-              <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
-                <div className="space-y-1.5">
-                  <label htmlFor="email" className="text-sm font-medium">E-mail</label>
-                  <input id="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus placeholder="voce@empresa.com" className={field} />
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm font-medium">Senha</label>
-                    <button type="button" onClick={() => { setError(""); setView("forgot"); }} className="text-sm font-medium text-primary-text hover:underline">Esqueci minha senha</button>
-                  </div>
-                  <div className="relative">
-                    <input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="Sua senha" className={`${field} pr-11`} />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((current) => !current)}
-                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                      aria-pressed={showPassword}
-                      className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-
-                {error && <p role="alert" className="rounded-lg border border-status-danger bg-card px-3.5 py-2.5 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
-
-                <button type="submit" disabled={loading || !email || !password} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-                  {loading && <Loader2 size={16} className="animate-spin" />}
-                  Entrar
+            <div className="mt-6 space-y-2.5">
+              {SOCIAL_PROVIDERS.map((provider) => (
+                <button key={provider.id} type="button" onClick={() => handleSocial(provider.id)} className="flex h-11 w-full items-center justify-center gap-2.5 rounded-lg border bg-background px-4 text-sm font-medium hover:bg-muted">
+                  {SOCIAL_ICONS[provider.id]}
+                  Entrar com {provider.label}
                 </button>
-              </form>
+              ))}
+            </div>
 
-              <div className="my-7 flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border" />ou continue com<span className="h-px flex-1 bg-border" />
+            <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />ou entre com e-mail<span className="h-px flex-1 bg-border" />
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+              <div className="space-y-1.5">
+                <label htmlFor="email" className="text-sm font-medium">E-mail</label>
+                <input id="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus placeholder="voce@empresa.com" className={field} />
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                {SOCIAL_PROVIDERS.map((provider) => (
-                  <button key={provider.id} type="button" onClick={() => handleSocial(provider.id)} aria-label={`Entrar com ${provider.label}`} className="flex h-11 items-center justify-center gap-2 rounded-lg border bg-card text-sm font-medium hover:bg-muted">
-                    {SOCIAL_ICONS[provider.id]}
-                    <span className="hidden sm:inline" aria-hidden="true">{provider.label}</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-sm font-medium">Senha</label>
+                  <button type="button" onClick={() => { setError(""); setView("forgot"); }} className="text-sm font-medium text-primary-text hover:underline">Esqueci minha senha</button>
+                </div>
+                <div className="relative">
+                  <input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="Sua senha" className={`${field} pr-11`} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
-                ))}
+                </div>
               </div>
 
-              {isTauriRuntime() && (
-                <p className="mt-8 text-center text-sm text-muted-foreground">
-                  Primeiro acesso?{" "}
-                  <button onClick={handleSetup} disabled={checkingSetup} className="font-medium text-primary-text hover:underline disabled:opacity-50">Configurar empresa</button>
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setView("login")} className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Voltar para entrar</button>
-              <h1 className="font-display text-[2rem] font-bold leading-tight tracking-tight">Esqueci minha senha</h1>
-              <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-                <p>A redefinição por e-mail ainda não está ativa neste sistema. Por enquanto, quem redefine a senha é o CEO ou a Administração da empresa, em Configurações, Usuários e acessos.</p>
-                <p>Peça a ele para redefinir a senha da conta <strong className="text-foreground">{email.trim() || "do seu e-mail"}</strong> e entre de novo com a senha nova.</p>
-              </div>
-              <button type="button" onClick={() => setView("login")} className="mt-8 flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Voltar para entrar</button>
-            </>
-          )}
-        </div>
-      </main>
-    </div>
+              <button type="submit" disabled={loading || !email || !password} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+                {loading && <Loader2 size={16} className="animate-spin" />}
+                Entrar
+              </button>
+            </form>
+
+            {isTauriRuntime() && (
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                Primeiro acesso?{" "}
+                <button onClick={handleSetup} disabled={checkingSetup} className="font-medium text-primary-text hover:underline disabled:opacity-50">Configurar empresa</button>
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={() => setView("login")} className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Voltar para entrar</button>
+            <h1 className="font-display text-[1.75rem] font-bold leading-tight tracking-tight">Esqueci minha senha</h1>
+            <div className="mt-4 space-y-3 text-sm text-muted-foreground">
+              <p>A redefinição por e-mail ainda não está ativa neste sistema. Por enquanto, quem redefine a senha é o CEO ou a Administração da empresa, em Configurações, Usuários e acessos.</p>
+              <p>Peça a ele para redefinir a senha da conta <strong className="text-foreground">{email.trim() || "do seu e-mail"}</strong> e entre de novo com a senha nova.</p>
+            </div>
+            <button type="button" onClick={() => setView("login")} className="mt-8 flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Voltar para entrar</button>
+          </>
+        )}
+      </div>
+    </main>
   );
 }

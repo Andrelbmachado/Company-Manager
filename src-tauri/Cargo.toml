@@ -28,3 +28,7 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+# O strip do perfil release corrompe o LINKEDIT dos dylibs de proc-macro com o ld atual do macOS; só o app final fica stripped.
+[profile.release.build-override]
+strip = "none"

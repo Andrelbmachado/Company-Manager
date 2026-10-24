@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDb } from "@/lib/db/client";
-import { createUserAccount, emailInUse, isValidEmail, normalizeEmail, type CreatedAccount } from "@/lib/auth/accounts";
+import { emailInUse, insertUserAccount, isValidEmail, normalizeEmail, type CreatedAccount } from "@/lib/auth/accounts";
+import { hashPassword } from "@/lib/auth/hash";
 import { PASSWORD_MIN_LENGTH, passwordProblem } from "@/lib/auth/password";
 import { ALL_ROLES, isValidDomain, normalizeDomain, ROLE_ACCOUNT_DOMAIN, roleAccountEmail, seedRoleAccounts } from "@/lib/auth/seedRoleAccounts";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
@@ -69,11 +70,13 @@ export default function SetupPage() {
         setError(problem);
         return;
       }
+      // O hash (a etapa que pode falhar) vem antes de gravar: empresa sem CEO trancaria o Setup e o login.
+      const ceoPasswordHash = await hashPassword(adminPassword);
       const db = await getDb();
       const companyId = uuidv4();
       await db.execute("INSERT INTO companies (id, name, document) VALUES (?, ?, ?)", [companyId, companyName.trim(), companyDoc.trim() || null]);
-      // A conta criada aqui é o CEO: só o CEO concede o papel de CEO depois.
-      await createUserAccount({ companyId, name: adminName, email: adminEmail, password: adminPassword, role: "ceo" });
+      // A conta criada aqui é o CEO: só o CEO concede o papel de CEO depois. Nome, e-mail e senha já passaram por validate().
+      await insertUserAccount({ companyId, name: adminName.trim(), email: normalizeEmail(adminEmail), role: "ceo", passwordHash: ceoPasswordHash });
 
       if (withSectors) {
         try {

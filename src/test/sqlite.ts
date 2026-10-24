@@ -4,12 +4,13 @@
 import Database from "better-sqlite3";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL as NodeURL } from "node:url";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
 
-export const MIGRATIONS_DIR = fileURLToPath(new URL("../../src-tauri/migrations", import.meta.url));
+// URL do Node, não a global: nos testes de componente (jsdom) a global é a do jsdom, que o fileURLToPath recusa.
+export const MIGRATIONS_DIR = fileURLToPath(new NodeURL("../../src-tauri/migrations", import.meta.url));
 
 export interface MigrationFile {
   version: number;

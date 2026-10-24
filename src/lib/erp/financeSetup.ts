@@ -17,6 +17,7 @@ import {
   isTrue,
   loadBankAccounts,
   loadCategories,
+  monthLabel,
   type EntryKind,
   type FinanceDb,
 } from "./financeCommon";
@@ -131,7 +132,14 @@ export async function updateEntry(db: FinanceDb, companyId: string, kind: EntryK
   const dueDate = input.dueDate === undefined ? (raw.due_date ?? null) : optionalDay(input.dueDate, "Vencimento");
   const issueDate = input.issueDate === undefined ? (raw.issue_date ?? null) : optionalDay(input.issueDate, "Data de emissão");
   const competence = input.competence === undefined ? (raw.competence ?? null) : blank(input.competence);
-  if (competence !== null && !isIsoMonth(competence)) throw new Error("Competência inválida: use AAAA-MM.");
+  // Lançamento de recorrência semanal guarda o dia ('YYYY-MM-DD'): o formulário devolve esse valor sem mudar.
+  const competenceChanged = competence !== (raw.competence ?? null);
+  if (competence !== null && competenceChanged && !isIsoMonth(competence)) throw new Error("Competência inválida: use AAAA-MM.");
+  if (competence !== null && competenceChanged && entry.recurringEntryId) {
+    // Uma competência por recorrência (o índice único inclui os excluídos): erro legível em vez do UNIQUE do SQLite.
+    const siblings = await db.select<{ id: string; competence?: string | null }[]>(`SELECT * FROM ${ENTRY_TABLE[kind]} WHERE company_id=? AND recurring_entry_id=?`, [companyId, entry.recurringEntryId]);
+    if (siblings.some((row) => row.id !== id && row.competence === competence)) throw new Error(`Esta recorrência já tem um lançamento na competência ${monthLabel(competence)}.`);
+  }
 
   const paidCents = toCents(entry.paid);
   const amountCents = toCents(amount);

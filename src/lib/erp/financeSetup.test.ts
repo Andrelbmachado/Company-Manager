@@ -2,7 +2,8 @@
 // e recorrências — validações, conta padrão única, ciclo no plano de contas e exclusão só do que não está em uso.
 import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
-import { addBankAccount, addCategory, addPayable, insertRow } from "@/test/financeFixtures";
+import { addBankAccount, addCategory, addPayable, addRecurring, insertRow } from "@/test/financeFixtures";
+import { runRecurring } from "./recurring";
 import {
   createEntries,
   deleteBankAccount,
@@ -69,6 +70,25 @@ describe("createEntries / updateEntry", () => {
     expect(await row("payables", id)).toMatchObject({ description: "Serviço revisado", amount: 400, status: "paga", paid_amount: 400, due_date: "2026-10-12" });
     await updateEntry(db, companyId, "payable", id, { description: "Serviço revisado", amount: 500 });
     expect(await row("payables", id)).toMatchObject({ status: "paga_parcial", paid_at: null });
+  });
+
+  it("editar conta gerada por recorrência semanal: a competência com o dia, devolvida pelo formulário, continua valendo", async () => {
+    await addRecurring(db, companyId, { id: "rec-sem", amount: 50, frequency: "semanal", start_date: "2026-10-02" });
+    await runRecurring(db, companyId, "2026-10-24");
+    const [generated] = await db.select<Row[]>("SELECT * FROM payables WHERE company_id = ? ORDER BY competence", [companyId]);
+    const id = String(generated.id);
+    await updateEntry(db, companyId, "payable", id, { description: "Diarista", amount: 60, competence: String(generated.competence) });
+    expect(await row("payables", id)).toMatchObject({ description: "Diarista", amount: 60, competence: "2026-10-02", recurring_entry_id: "rec-sem" });
+    await expect(updateEntry(db, companyId, "payable", id, { description: "Diarista", amount: 60, competence: "2026-10-09" })).rejects.toThrow(/Competência inválida/);
+  });
+
+  it("competência de lançamento recorrente não pode repetir a de outro lançamento da mesma recorrência", async () => {
+    await addRecurring(db, companyId, { id: "rec-men", amount: 100, day_of_month: 5, start_date: "2026-01-01", last_competence: "2026-08" });
+    await runRecurring(db, companyId, "2026-10-24");
+    const [september] = await db.select<Row[]>("SELECT * FROM payables WHERE company_id = ? AND competence = ?", [companyId, "2026-09"]);
+    await expect(updateEntry(db, companyId, "payable", String(september.id), { description: "Aluguel", amount: 100, competence: "2026-10" })).rejects.toThrow(/já tem um lançamento na competência 10\/2026/);
+    await updateEntry(db, companyId, "payable", String(september.id), { description: "Aluguel", amount: 100, competence: "2026-11" });
+    expect(await row("payables", String(september.id))).toMatchObject({ competence: "2026-11" });
   });
 
   it("editar conta a receber antiga preserva ref_type/ref_id e normaliza o legado quitado", async () => {

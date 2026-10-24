@@ -237,6 +237,21 @@ describe("saveFile", () => {
     await expectStoreError(openFile({ ...mine, storage_key: theirs.storage_key }), "invalid", /inválid/);
   });
 
+  it("linha com storage_key de outra empresa (dado adulterado): excluir não apaga o arquivo dela e restaurar é recusado", async () => {
+    await insertTestCompany(testDb(), { companyId: "outra-empresa", roles: [] });
+    const theirs = await saveFile("outra-empresa", file("conteúdo deles", "Deles.txt"), { userId: U, folder: "Comercial" });
+    const v1 = await saveFile(C, file("meu v1", "Meu.txt"), { userId: U });
+    await saveFile(C, file("meu v2", "Meu.txt"), { userId: U });
+    await testDb().execute("UPDATE documents SET storage_key=?, sha256=? WHERE id=?", [theirs.storage_key, theirs.sha256, v1.id]);
+    const forged = { ...v1, storage_key: theirs.storage_key, sha256: theirs.sha256 };
+
+    await expectStoreError(restoreVersion(forged, U), "invalid", /inválid/);
+    expect(await rows()).toHaveLength(2);
+
+    await deleteFile(forged, { userId: U });
+    expect(new TextDecoder().decode(await (await openFile(theirs)).arrayBuffer())).toBe("conteúdo deles");
+  });
+
   it("normaliza a pasta (sem .., sem barras extras)", async () => {
     const doc = await saveFile(C, file("x", "x.txt"), { userId: U, folder: "/../Comercial//./Contratos/../" });
     expect(doc.folder).toBe("Comercial/Contratos");

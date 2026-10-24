@@ -417,13 +417,22 @@ export async function saveFile(companyId: string, file: File, meta: SaveFileMeta
 
 // ── Ler e baixar ──────────────────────────────────────────────────
 
+/** A chave é válida e fica na pasta da empresa: um cadastro adulterado não alcança o arquivo de outra empresa. */
+function isCompanyStorageKey(companyId: string, key: string | null | undefined): key is string {
+  return isValidStorageKey(key) && key.startsWith(`${companyId}/`);
+}
+
+function assertOwnStorageKey(doc: Pick<DocumentRow, "company_id" | "storage_key" | "sha256">): void {
+  if (!isCompanyStorageKey(doc.company_id, doc.storage_key) || (doc.sha256 && !doc.storage_key.endsWith(`/${doc.sha256}`))) {
+    throw new FileStoreError("invalid", "Caminho de arquivo inválido no cadastro do documento.");
+  }
+}
+
 /** Bytes do documento (conferidos pelo SHA-256). */
 export async function openFile(doc: DocumentRow): Promise<Blob> {
   if (!doc.storage_key) throw new FileStoreError("no_content", `"${doc.title}" não tem arquivo salvo: é um registro antigo, só com os dados.`);
   const key = doc.storage_key;
-  if (!isValidStorageKey(key) || !key.startsWith(`${doc.company_id}/`) || (doc.sha256 && !key.endsWith(`/${doc.sha256}`))) {
-    throw new FileStoreError("invalid", "Caminho de arquivo inválido no cadastro do documento.");
-  }
+  assertOwnStorageKey(doc);
   const backend = getFileBackend();
   let bytes: Uint8Array;
   try {
@@ -469,9 +478,9 @@ export async function downloadFile(doc: DocumentRow): Promise<boolean> {
 
 // ── Excluir, renomear, restaurar ──────────────────────────────────
 
-/** Apaga os bytes se nenhuma linha ativa da empresa usa a mesma chave. */
+/** Apaga os bytes se nenhuma linha ativa da empresa usa a mesma chave. Chave de outra empresa nunca é apagada daqui. */
 async function removeIfUnused(db: DatabaseLike, companyId: string, storageKey: string): Promise<void> {
-  if (!isValidStorageKey(storageKey)) return;
+  if (!isCompanyStorageKey(companyId, storageKey)) return;
   const users = await db.select<DocumentRow[]>("SELECT * FROM documents WHERE company_id=? AND storage_key=? AND deleted_at IS NULL LIMIT 1", [companyId, storageKey]);
   if (users.length === 0) await getFileBackend().remove(storageKey);
 }
@@ -539,7 +548,8 @@ export async function restoreVersion(version: DocumentRow, userId: string): Prom
   const db = await getDb();
   const latest = await latestOf(db, version);
   if (latest.id === version.id) return latest;
-  if (!isValidStorageKey(version.storage_key) || !(await getFileBackend().exists(version.storage_key))) {
+  assertOwnStorageKey(version);
+  if (!(await getFileBackend().exists(version.storage_key))) {
     throw new FileStoreError("missing", `O arquivo da versão v${version.version} não foi encontrado no armazenamento.`);
   }
   const now = new Date().toISOString();

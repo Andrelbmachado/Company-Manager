@@ -65,6 +65,29 @@ describe("contatos", () => {
     expect((await fetchContacts(db, companyId, "cust-1")).map((c) => c.name)).toEqual(["Bruno"]);
     expect((await fetchContacts(db, companyId)).map((c) => c.name)).toEqual(["Bruno"]);
   });
+
+  it("trocar o contato principal de cliente não deixa dois principais no destino nem o cliente antigo sem principal", async () => {
+    const { db, companyId } = await setup();
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-1", companyId, "Clínica"]);
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-2", companyId, "Hospital"]);
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-3", companyId, "Laboratório"]);
+    const ana = await saveContact(db, companyId, { customer_id: "cust-1", name: "Ana" });
+    await saveContact(db, companyId, { customer_id: "cust-1", name: "Bruno" });
+    await saveContact(db, companyId, { customer_id: "cust-2", name: "Carla" });
+    const primaries = async (customerId: string) => (await fetchContacts(db, companyId, customerId)).map((c) => [c.name, c.is_primary]);
+
+    // Ana (principal da Clínica) vai para o Hospital, que já tem a Carla como principal.
+    await saveContact(db, companyId, { customer_id: "cust-2", name: "Ana" }, ana);
+    expect(await primaries("cust-1")).toEqual([["Bruno", 1]]);
+    expect(await primaries("cust-2")).toEqual([["Carla", 1], ["Ana", 0]]);
+
+    // Cliente sem contatos adota o contato que chega como principal; editar sem trocar de cliente não mexe na marca.
+    await saveContact(db, companyId, { customer_id: "cust-3", name: "Ana" }, ana);
+    expect(await primaries("cust-3")).toEqual([["Ana", 1]]);
+    await saveContact(db, companyId, { customer_id: "cust-3", name: "Ana Paula" }, ana);
+    expect(await primaries("cust-3")).toEqual([["Ana Paula", 1]]);
+    expect(await primaries("cust-2")).toEqual([["Carla", 1]]);
+  });
 });
 
 describe("oportunidades e funil", () => {

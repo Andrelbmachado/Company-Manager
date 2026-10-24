@@ -251,14 +251,32 @@ export interface ContactInput {
   notes?: string | null;
 }
 
-/** Cria ou edita um contato. O primeiro contato ativo do cliente vira o principal. */
+/**
+ * Cria ou edita um contato. O primeiro contato ativo do cliente vira o principal. Ao trocar de cliente, o contato
+ * não leva a marca de principal: o cliente antigo promove o próximo e o novo só o adota se não tiver principal.
+ */
 export async function saveContact(db: DatabaseLike, companyId: string, input: ContactInput, id?: string): Promise<string> {
   const name = clean(input.name);
   if (!name) throw new Error("Informe o nome do contato.");
   const customerId = clean(input.customer_id);
   const values = [customerId, name, clean(input.email)?.toLowerCase() ?? null, clean(input.phone), clean(input.whatsapp), clean(input.role), clean(input.notes)];
   if (id) {
-    await db.execute("UPDATE contacts SET customer_id=?, name=?, email=?, phone=?, whatsapp=?, role=?, notes=?, updated_at=? WHERE company_id=? AND id=?", [...values, nowIso(), companyId, id]);
+    const [current] = (await db.select<Contact[]>("SELECT * FROM contacts WHERE company_id=? AND id=?", [companyId, id])).filter((row) => row.id === id);
+    const now = nowIso();
+    await db.execute("UPDATE contacts SET customer_id=?, name=?, email=?, phone=?, whatsapp=?, role=?, notes=?, updated_at=? WHERE company_id=? AND id=?", [...values, now, companyId, id]);
+    const previousCustomerId = current?.customer_id ?? null;
+    if (current && !current.deleted_at && previousCustomerId !== customerId) {
+      const wasPrimary = Number(current.is_primary ?? 0) === 1;
+      if (wasPrimary) await db.execute("UPDATE contacts SET is_primary=?, updated_at=? WHERE company_id=? AND id=?", [0, now, companyId, id]);
+      if (wasPrimary && previousCustomerId) {
+        const [next] = await fetchContacts(db, companyId, previousCustomerId);
+        if (next) await setPrimaryContact(db, companyId, next.id);
+      }
+      if (customerId) {
+        const others = (await fetchContacts(db, companyId, customerId)).filter((row) => row.id !== id);
+        if (!others.some((row) => Number(row.is_primary ?? 0) === 1)) await setPrimaryContact(db, companyId, id);
+      }
+    }
     return id;
   }
   const isFirst = customerId ? (await fetchContacts(db, companyId, customerId)).length === 0 : false;

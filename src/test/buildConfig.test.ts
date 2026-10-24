@@ -10,6 +10,7 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const read = (file: string) => readFileSync(path.join(ROOT, file), "utf8");
 
 interface TauriConf {
+  $schema?: string;
   version: string;
   productName: string;
   bundle: {
@@ -42,6 +43,11 @@ describe("empacotamento DMG (macOS)", () => {
     expect(dmg?.windowSize).toEqual({ width: 660, height: 400 });
     expect(dmg?.appPosition).toEqual({ x: 180, y: 170 });
     expect(dmg?.applicationFolderPosition).toEqual({ x: 480, y: 170 });
+  });
+
+  it("$schema do tauri.conf.json aponta para o schema da CLI instalada (o editor valida as chaves do bundle)", () => {
+    expect(tauriConf.$schema).toMatch(/^\.\.\/node_modules\/@tauri-apps\/cli\//);
+    expect(existsSync(path.join(ROOT, "src-tauri", tauriConf.$schema ?? ""))).toBe(true);
   });
 
   it("versão é a mesma no tauri.conf.json, package.json e Cargo.toml (nome do DMG usa a do Tauri)", () => {

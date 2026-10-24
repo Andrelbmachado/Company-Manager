@@ -2,7 +2,7 @@
 // O RH completo também roda no banco demo do navegador (SQL só nos padrões do demo; nada de JOIN, IN ou "<").
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDemoDb, DEMO_COMPANY_ID } from "@/lib/db/demo";
-import { emptyEmployeeInput, fetchEmployee, saveEmployee } from "./employees";
+import { emptyEmployeeInput, employeeToInput, fetchEmployee, saveEmployee } from "./employees";
 import { applyDueTerminations, cancelTermination, cycleCases, setTaskDone, startAdmission, startTermination } from "./employment";
 import { addTimeEntry, decideTimeEntry, fetchEmployeeTimeEntries, fetchTimeEntries, withdrawTimeEntry } from "./timebank";
 import { employeeImportSchema, upsertEmployees, type EmployeeImportRow } from "./employeeImport";
@@ -42,6 +42,14 @@ describe("RH no banco demo", () => {
     const cases = cycleCases(employees, tasks, TODAY);
     expect(cases.map((item) => [item.employee.name, item.kind])).toEqual([["Novo Técnico", "admissao"], ["Camila Martins", "desligamento"]]);
     expect(cases[0].done).toBe(1);
+
+    // Readmissão pela ficha: volta a ativo, o desligamento sai e não é efetivado de novo.
+    const out = (await fetchEmployee(db, C, merged.id))!;
+    await saveEmployee(db, C, { ...employeeToInput(out), status: "ativo" }, merged.id, TODAY);
+    expect(await applyDueTerminations(db, C, "2026-11-11")).toBe(0);
+    expect(await fetchEmployee(db, C, merged.id)).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
+    const left = await db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND deleted_at IS NULL", [C, merged.id]);
+    expect(left.filter((task) => task.category === "desligamento")).toHaveLength(0);
   });
 
   it("banco de horas: lançar, aprovar e retirar", async () => {

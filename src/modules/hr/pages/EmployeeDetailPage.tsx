@@ -110,7 +110,13 @@ export default function EmployeeDetailPage() {
   const year = Number(today.slice(0, 4));
   const balance = employee ? vacationBalance(employee, myRequests, year) : null;
   const managers = employees.filter((item) => item.id !== id && (item.status !== "desligado" || item.id === form.manager_employee_id));
-  const statusOptions = EMPLOYEE_STATUSES.filter((option) => option.value !== "desligado" || form.status === "desligado");
+  // "Desligado" só aparece para quem já está desligado (desligar é pelo diálogo, que gera o checklist de saída).
+  const statusOptions = EMPLOYEE_STATUSES.filter((option) => option.value !== "desligado" || employee?.status === "desligado");
+  const statusHint = isNew
+    ? undefined
+    : employee?.status === "desligado"
+      ? "Para readmitir, mude para Ativo e salve: a data e o motivo do desligamento e o checklist de saída deixam de valer."
+      : "Para desligar, use “Registrar desligamento” (gera o checklist de saída).";
   const canTerminate = canEdit && !!employee && employee.status !== "desligado" && !employee.termination_date;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["hr"] });
@@ -128,7 +134,7 @@ export default function EmployeeDetailPage() {
     onSuccess: (result) => {
       void refresh();
       setError("");
-      setNotice(result.merged ? "Já havia um cadastro com este e-mail (criado no primeiro acesso ao Meu RH): a ficha dele foi completada." : result.created ? "Colaborador cadastrado. Agora dá para lançar horas e anexar documentos." : "Ficha salva.");
+      setNotice(result.merged ? "Já havia uma ficha com este e-mail: ela foi completada com o que você preencheu (campos em branco mantiveram o que já estava nela)." : result.created ? "Colaborador cadastrado. Agora dá para lançar horas e anexar documentos." : "Ficha salva.");
       if (isNew) navigate(`/hr/manage/colaboradores/${result.id}`, { replace: true });
     },
     onError: (cause) => { setNotice(""); setError(errorMessage(cause)); },
@@ -203,7 +209,7 @@ export default function EmployeeDetailPage() {
         </Field>
         <Field label="Jornada diária" hint="Base do banco de horas (ex.: 8h, 8:48, 6h)."><input className={INPUT} value={journey} onChange={(event) => setJourney(event.target.value)} disabled={!canSave} /></Field>
         <Field label="Dias de férias por ano"><input type="number" min={0} max={60} className={INPUT} value={form.vacation_days_entitled} onChange={(event) => set("vacation_days_entitled", Number(event.target.value))} disabled={!canSave} /></Field>
-        <Field label="Situação" hint={isNew || form.status === "desligado" ? undefined :"Para desligar, use “Registrar desligamento” (gera o checklist de saída)."}>
+        <Field label="Situação" hint={statusHint}>
           <select className={INPUT} value={form.status} onChange={(event) => set("status", event.target.value as EmployeeStatus)} disabled={!canSave}>
             {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>

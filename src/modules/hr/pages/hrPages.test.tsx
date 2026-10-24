@@ -245,6 +245,26 @@ describe("Ficha do colaborador", () => {
   });
 });
 
+describe("Readmissão pela ficha", () => {
+  it("desligado volta a Ativo pela ficha: o desligamento e o checklist de saída deixam de valer", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    const id = await newEmployee("Ivo Ramos", { hire_date: "2020-01-01" });
+    await startTermination(db, C, id, { date: "2020-06-01", reason: "Outro" }, "test-user-rh", todayIso());
+    await render("rh", `/hr/manage/colaboradores/${id}`, "/hr/manage/colaboradores/:id", <EmployeeDetailPage />);
+    await waitFor(() => container.querySelector("h1")?.textContent === "Ivo Ramos" && has("Para readmitir"), "ficha do desligado");
+
+    await fill("Situação", "ativo");
+    // Dá para voltar atrás antes de salvar: "Desligado" continua na lista.
+    expect(Array.from((control("Situação") as HTMLSelectElement).options).map((option) => option.value)).toContain("desligado");
+    await click("Salvar ficha");
+    await waitFor(() => has("Ficha salva."), "ficha salva");
+    expect((await db.select<Employee[]>("SELECT * FROM employees WHERE id=?", [id]))[0]).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
+    expect(await db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE employee_id=? AND deleted_at IS NULL", [id])).toHaveLength(0);
+    await waitFor(() => has("Registrar desligamento"), "pode desligar de novo");
+  });
+});
+
 describe("Admissões e desligamentos", () => {
   it("inicia admissão com checklist, efetiva desligamento agendado vencido e cancela um agendado futuro", async () => {
     const db = testDb();

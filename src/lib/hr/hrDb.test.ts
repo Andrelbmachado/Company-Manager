@@ -60,6 +60,25 @@ describe("ficha do colaborador", () => {
     expect(rows[0]).toMatchObject({ user_id: "test-user-comercial", name: "Maria Souza", position: "Vendedora" });
   });
 
+  it("cadastrar com o e-mail de uma ficha já preenchida só completa: campo vazio no formulário não apaga o que existe", async () => {
+    const full = await saveEmployee(db, C, input({
+      position: "Vendedora",
+      hire_date: "2024-03-01",
+      document: "123.456.789-09",
+      pis: "120.12345.67-8",
+      notes: "Fala inglês",
+      address: { ...EMPTY_ADDRESS, cidade: "Sorocaba", uf: "SP" },
+    }), null, TODAY);
+    const result = await saveEmployee(db, C, input({ name: "Maria S. Souza", phone: "(15) 99999-0000", address: { ...EMPTY_ADDRESS, cep: "18035-100" } }), null, TODAY);
+    expect(result).toEqual({ id: full.id, created: false, merged: true });
+    const saved = await fetchEmployee(db, C, full.id);
+    expect(saved).toMatchObject({ name: "Maria S. Souza", phone: "(15) 99999-0000", position: "Vendedora", hire_date: "2024-03-01", document: "123.456.789-09", pis: "120.12345.67-8", notes: "Fala inglês" });
+    expect(JSON.parse(saved!.address_json!)).toEqual({ cidade: "Sorocaba", uf: "SP", cep: "18035-100" });
+    // Editar a ficha (não é cadastro novo) continua podendo limpar campos.
+    await saveEmployee(db, C, { ...employeeToInput(saved!), notes: "" }, full.id, TODAY);
+    expect((await fetchEmployee(db, C, full.id))?.notes).toBeNull();
+  });
+
   it("editar recusa e-mail e CPF de outro colaborador (CPF comparado só pelos dígitos)", async () => {
     const first = await saveEmployee(db, C, input({ document: "123.456.789-09" }), null, TODAY);
     const second = await saveEmployee(db, C, input({ name: "Pedro", email: "pedro@empresa.com" }), null, TODAY);
@@ -150,6 +169,36 @@ describe("admissão e desligamento", () => {
     const all = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [C]);
     const [exit] = cycleCases(all, await tasksOf(id), TODAY);
     expect(exit).toMatchObject({ kind: "desligamento", done: 0, total: again.taskIds.length });
+  });
+
+  it("readmitir pela ficha: desligado → Ativo limpa data e motivo, retira o checklist de saída e não volta a desligar", async () => {
+    const { id } = await saveEmployee(db, C, input({ hire_date: "2020-01-10" }), null, TODAY);
+    await startTermination(db, C, id, { date: "2026-10-20", reason: "Pedido de demissão" }, RH, TODAY);
+    await db.execute("INSERT INTO hr_tasks (id, company_id, employee_id, title, status, category) VALUES (?,?,?,?,?,?)", ["geral-1", C, id, "Devolver crachá", "pendente", "geral"]);
+    // Os caminhos de "nova admissão"/"novo cadastro"/"cancelar" apontam para a ficha em vez de duplicar a pessoa.
+    await expect(cancelTermination(db, C, id)).rejects.toThrow(/mude a situação para Ativo/);
+    await expect(startAdmission(db, C, { name: "Maria", email: "maria@empresa.com", department: "", position: "", hire_date: "2026-11-02", contract_type: "" }, RH)).rejects.toThrow(/desligado com este e-mail: Maria Souza.*situação para Ativo/);
+    await expect(saveEmployee(db, C, input({ name: "Maria de Novo" }), null, TODAY)).rejects.toThrow(/desligado com este e-mail: Maria Souza/);
+
+    // Editar outro campo de quem segue desligado não mexe no desligamento.
+    const desligado = (await fetchEmployee(db, C, id))!;
+    await saveEmployee(db, C, { ...employeeToInput(desligado), phone: "(15) 99999-0000" }, id, TODAY);
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "desligado", termination_date: "2026-10-20" });
+
+    await saveEmployee(db, C, { ...employeeToInput(desligado), status: "ativo" }, id, TODAY);
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
+    expect(await applyDueTerminations(db, C, TODAY)).toBe(0);
+    expect((await fetchEmployee(db, C, id))?.status).toBe("ativo");
+    expect((await tasksOf(id)).map((task) => task.id)).toEqual(["geral-1"]);
+    // Um desligamento novo começa do zero (o checklist antigo não bloqueia).
+    const again = await startTermination(db, C, id, { date: "2026-12-10", reason: "Outro" }, RH, TODAY);
+    expect(again).toMatchObject({ effective: false, taskIds: expect.any(Array) });
+  });
+
+  it("admissão reconhece o e-mail sem diferenciar maiúsculas (cadastro antigo gravado com maiúsculas)", async () => {
+    await db.execute("INSERT INTO employees (id, company_id, name, email, status) VALUES (?,?,?,?,?)", ["e-old", C, "Ana Antiga", "Ana@Empresa.com", "ativo"]);
+    await expect(startAdmission(db, C, { name: "Ana", email: "ana@empresa.com", department: "", position: "", hire_date: "2026-11-02", contract_type: "" }, RH)).rejects.toThrow(/Ana Antiga/);
+    expect(await employees()).toHaveLength(1);
   });
 
   it("checklist: marcar e desmarcar; cycleCases agrupa, conta e ordena (em andamento primeiro)", async () => {

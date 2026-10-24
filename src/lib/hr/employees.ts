@@ -4,6 +4,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import type { ContractType, Employee, EmployeeStatus } from "@/types";
+import { clearTermination, duplicateEmailMessage } from "./employment";
 
 export interface EmployeeAddress {
   logradouro: string;
@@ -175,7 +176,9 @@ export interface SaveEmployeeResult {
 
 /**
  * Cria ou atualiza a ficha. Mesmo e-mail = mesma pessoa: ao cadastrar, completa o cadastro existente (o Meu RH cria o
- * de quem já entrou) em vez de duplicar; ao editar, recusa e-mail ou CPF de outro colaborador.
+ * de quem já entrou) em vez de duplicar, sem apagar o que o formulário deixou em branco; quem foi desligado volta pela
+ * própria ficha. Ao editar, recusa e-mail ou CPF de outro colaborador; desligado que volta a Ativo/Afastado é
+ * readmissão (data, motivo e checklist de saída deixam de valer).
  */
 export async function saveEmployee(db: DatabaseLike, companyId: string, input: EmployeeInput, existingId: string | null, today: string): Promise<SaveEmployeeResult> {
   const problem = validateEmployee(input, today);
@@ -186,37 +189,49 @@ export async function saveEmployee(db: DatabaseLike, companyId: string, input: E
   if (existingId && !all.some((employee) => employee.id === existingId)) throw new Error("Colaborador não encontrado.");
   const sameEmail = email ? all.find((employee) => employee.id !== existingId && employee.email?.toLowerCase() === email) : undefined;
   if (existingId && sameEmail) throw new Error(`Já existe um colaborador com este e-mail: ${sameEmail.name}.`);
+  if (!existingId && sameEmail?.status === "desligado") throw new Error(duplicateEmailMessage(sameEmail));
   const target = existingId ?? sameEmail?.id ?? null;
+  const current = target ? all.find((employee) => employee.id === target) ?? null : null;
   const sameCpf = cpf ? all.find((employee) => employee.id !== target && digits(employee.document) === cpf) : undefined;
   if (sameCpf) throw new Error(`Já existe um colaborador com este CPF: ${sameCpf.name}.`);
   if (input.manager_employee_id && input.manager_employee_id === target) throw new Error("O colaborador não pode ser o próprio gestor.");
 
+  // Completar (cadastro novo com e-mail existente): campo em branco mantém o que já está na ficha, como na importação.
+  // Editar a ficha grava o formulário como está (limpar um campo apaga o valor).
+  const merging = !existingId && !!current;
+  const keep = (value: string | null, kept: string | null | undefined) => (merging ? value ?? kept ?? null : value);
+  const address: EmployeeAddress = merging
+    ? { ...parseAddress(current!.address_json), ...Object.fromEntries(Object.entries(input.address).filter(([, value]) => value.trim())) }
+    : input.address;
+
   const values = [
     input.name.trim(),
     email,
-    blank(input.department),
-    blank(input.position),
-    blank(input.hire_date),
-    input.contract_type || null,
+    keep(blank(input.department), current?.department),
+    keep(blank(input.position), current?.position),
+    keep(blank(input.hire_date), current?.hire_date),
+    keep(input.contract_type || null, current?.contract_type),
     input.daily_minutes,
     input.vacation_days_entitled,
     input.status,
-    blank(input.manager_employee_id),
-    blank(input.document),
-    blank(input.rg),
-    blank(input.pis),
-    blank(input.phone),
-    blank(input.birth_date),
-    addressJson(input.address),
-    blank(input.emergency_contact_name),
-    blank(input.emergency_contact_phone),
-    blank(input.notes),
+    keep(blank(input.manager_employee_id), current?.manager_employee_id),
+    keep(blank(input.document), current?.document),
+    keep(blank(input.rg), current?.rg),
+    keep(blank(input.pis), current?.pis),
+    keep(blank(input.phone), current?.phone),
+    keep(blank(input.birth_date), current?.birth_date),
+    addressJson(address),
+    keep(blank(input.emergency_contact_name), current?.emergency_contact_name),
+    keep(blank(input.emergency_contact_phone), current?.emergency_contact_phone),
+    keep(blank(input.notes), current?.notes),
   ];
   if (target) {
     await db.execute(
       "UPDATE employees SET name=?, email=?, department=?, position=?, hire_date=?, contract_type=?, daily_minutes=?, vacation_days_entitled=?, status=?, manager_employee_id=?, document=?, rg=?, pis=?, phone=?, birth_date=?, address_json=?, emergency_contact_name=?, emergency_contact_phone=?, notes=?, updated_at=datetime('now') WHERE company_id=? AND id=?",
       [...values, companyId, target],
     );
+    // Readmissão: sem isso applyDueTerminations desligaria de novo na próxima abertura do RH.
+    if (current?.status === "desligado" && input.status !== "desligado") await clearTermination(db, companyId, target);
     return { id: target, created: false, merged: !existingId };
   }
   const id = uuidv4();

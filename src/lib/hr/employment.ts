@@ -82,6 +82,13 @@ export interface AdmissionInput {
   contract_type: ContractType | "";
 }
 
+/** Recusa de cadastro novo com o e-mail de quem já tem ficha; quem foi desligado volta pela ficha (readmissão). */
+export function duplicateEmailMessage(existing: Pick<Employee, "name" | "status">): string {
+  return existing.status === "desligado"
+    ? `Já existe um colaborador desligado com este e-mail: ${existing.name}. Para readmitir, abra a ficha dele e mude a situação para Ativo.`
+    : `Já existe um colaborador com este e-mail: ${existing.name}. Abra a ficha dele.`;
+}
+
 /** Cadastra quem está entrando (status ativo) e cria o checklist de admissão com prazos a partir da data de início. */
 export async function startAdmission(db: DatabaseLike, companyId: string, input: AdmissionInput, actorId: string): Promise<{ employeeId: string; taskIds: string[] }> {
   const name = input.name.trim();
@@ -90,8 +97,10 @@ export async function startAdmission(db: DatabaseLike, companyId: string, input:
   if (!DATE.test(input.hire_date)) throw new Error("Informe a data de início.");
   if (email && !EMAIL.test(email)) throw new Error("E-mail inválido.");
   if (email) {
-    const [same] = (await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND email=? AND deleted_at IS NULL", [companyId, email]));
-    if (same) throw new Error(`Já existe um colaborador com este e-mail: ${same.name}. Abra a ficha dele.`);
+    // E-mail sem diferenciar maiúsculas (cadastros antigos ou importados podem ter sido gravados como digitados).
+    const all = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [companyId]);
+    const same = all.find((employee) => employee.email?.trim().toLowerCase() === email);
+    if (same) throw new Error(duplicateEmailMessage(same));
   }
   const employeeId = uuidv4();
   await db.execute(
@@ -146,8 +155,17 @@ export async function startTermination(db: DatabaseLike, companyId: string, empl
  */
 export async function cancelTermination(db: DatabaseLike, companyId: string, employeeId: string): Promise<void> {
   const employee = await loadEmployee(db, companyId, employeeId);
-  if (employee.status === "desligado") throw new Error("O desligamento já foi efetivado; para voltar, faça uma nova admissão.");
+  if (employee.status === "desligado") throw new Error("O desligamento já foi efetivado; para readmitir, abra a ficha e mude a situação para Ativo.");
   if (!employee.termination_date) throw new Error("Não há desligamento agendado.");
+  await clearTermination(db, companyId, employeeId);
+}
+
+/**
+ * Tira o desligamento da ficha (data e motivo) e retira o checklist de saída inteiro (soft delete): usado ao cancelar
+ * um agendado e ao readmitir pela ficha (senão applyDueTerminations desligaria a pessoa de novo e o checklist antigo
+ * bloquearia um desligamento futuro). Pendências gerais ficam.
+ */
+export async function clearTermination(db: DatabaseLike, companyId: string, employeeId: string): Promise<void> {
   await db.execute("UPDATE employees SET termination_date=NULL, termination_reason=NULL, updated_at=datetime('now') WHERE company_id=? AND id=?", [companyId, employeeId]);
   const tasks = await db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND deleted_at IS NULL", [companyId, employeeId]);
   for (const task of tasks.filter((item) => item.category === "desligamento")) {

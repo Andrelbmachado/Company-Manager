@@ -91,19 +91,21 @@ export function computeLines(drafts: readonly LineDraft[]): ComputedLine[] {
     if (!description) fail(`${label}: informe a descrição.`);
     if (!Number.isFinite(draft.qty) || draft.qty <= 0) fail(`${label} (${description}): a quantidade deve ser maior que zero.`);
     if (!Number.isFinite(draft.unitPrice) || draft.unitPrice < 0) fail(`${label} (${description}): o preço não pode ser negativo.`);
-    const discount = Number.isFinite(draft.discount) ? draft.discount : 0;
+    // Preço e desconto valem como gravados (2 casas): total da linha = subtotal do pedido (orderTotals usa unit_price gravado).
+    const unitPrice = roundMoney(draft.unitPrice);
+    const discount = roundMoney(Number.isFinite(draft.discount) ? draft.discount : 0);
     if (discount < 0) fail(`${label} (${description}): o desconto não pode ser negativo.`);
-    if (toCents(discount) > toCents(draft.qty * draft.unitPrice)) fail(`${label} (${description}): o desconto é maior que o valor do item.`);
+    if (toCents(discount) > toCents(draft.qty * unitPrice)) fail(`${label} (${description}): o desconto é maior que o valor do item.`);
     const taxRate = Number.isFinite(draft.taxRate) ? draft.taxRate : 0;
     if (taxRate < 0 || taxRate > 100) fail(`${label} (${description}): o imposto deve ficar entre 0% e 100%.`);
     return {
       ...draft,
       description,
       unit: cleanText(draft.unit) ?? "un",
-      unitPrice: roundMoney(draft.unitPrice),
-      discount: roundMoney(discount),
+      unitPrice,
+      discount,
       taxRate,
-      total: lineTotal(draft.qty, draft.unitPrice, discount),
+      total: lineTotal(draft.qty, unitPrice, discount),
       position: index + 1,
     };
   });

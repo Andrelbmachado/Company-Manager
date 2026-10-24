@@ -132,6 +132,9 @@ describe("linhas e margem", () => {
     expect(() => computeLines([{ ...base, description: "A", qty: 1, unitPrice: 10, discount: 10.01 }])).toThrow(/desconto/i);
     expect(() => computeLines([{ ...base, description: "  ", qty: 1, unitPrice: 10, discount: 0 }])).toThrow(/descrição/i);
     expect(() => computeLines([{ ...base, description: "A", qty: Number.NaN, unitPrice: 10, discount: 0 }])).toThrow(/quantidade/i);
+    // Preço com mais de 2 casas: o total usa o preço gravado (10,01), como o subtotal do pedido (orderTotals).
+    expect(computeLines([{ ...base, description: "A", qty: 3, unitPrice: 10.005, discount: 0 }])[0]).toMatchObject({ unitPrice: 10.01, total: 30.03 });
+    expect(computeLines([{ ...base, description: "A", qty: 3, unitPrice: 10.005, discount: 30.03 }])[0].total).toBe(0);
   });
 
   it("margem sobre o preço de venda", () => {

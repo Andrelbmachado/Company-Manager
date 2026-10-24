@@ -331,3 +331,61 @@ describe("dados de exemplo de CRM, vendas, compras, estoque, RH, importação e 
     expect(entries.some((row) => row.employee_id === leaver.id)).toBe(false);
   });
 });
+
+describe("no app desktop, os dados de exemplo só usam registros de exemplo", () => {
+  type Row = Record<string, unknown>;
+
+  // Registros de quem já usa o app (ids que vêm antes de "dev-" na ordem, como um uuid "0..."): o login rápido roda no
+  // banco de verdade e não pode mexer neles nem pendurar pedido, fatura, tag, atividade, documento, baixa ou extrato neles.
+  const REAL: [table: string, row: Row][] = [
+    ["users", { id: "0-real-user", name: "Pessoa Real", email: "pessoa@empresa-real.com.br", password_hash: "plain:segredo" }],
+    ["memberships", { id: "0-real-member", company_id: COMPANY_ID, user_id: "0-real-user", role: "comercial", scope: "setor" }],
+    ["customers", { id: "0-real-customer", company_id: COMPANY_ID, type: "PJ", name: "Cliente Real Ltda", email: "contato@cliente-real.com.br" }],
+    ["opportunities", { id: "0-real-opp", company_id: COMPANY_ID, customer_id: "0-real-customer", title: "Oportunidade real", value: 1000, stage: "novo", status: "open" }],
+    ["proposals", { id: "0-real-proposal", company_id: COMPANY_ID, opportunity_id: "0-real-opp", value: 1000, status: "rascunho" }],
+    ["employees", { id: "0-real-employee", company_id: COMPANY_ID, name: "Funcionária Real", email: "funcionaria@empresa-real.com.br", status: "ativo" }],
+    ["suppliers", { id: "0-real-supplier", company_id: COMPANY_ID, name: "Fornecedor Real" }],
+    ["stock_locations", { id: "0-real-location", company_id: COMPANY_ID, name: "Depósito real" }],
+    ["inventory_items", { id: "0-real-item", company_id: COMPANY_ID, name: "Switch do depósito real", sku: "SW-GER-24", cost: 100 }],
+    ["stock_balances", { id: "0-real-balance", company_id: COMPANY_ID, item_id: "0-real-item", location_id: "0-real-location", quantity: 50 }],
+    ["bank_accounts", { id: "0-real-bank", company_id: COMPANY_ID, name: "Conta real", is_default: 1 }],
+    ["payables", { id: "0-real-payable", company_id: COMPANY_ID, description: "Aluguel da sala", supplier_id: "0-real-supplier", amount: 1000, status: "paga", paid_amount: 1000, due_date: "2026-01-05", paid_at: "2026-01-05T12:00:00.000Z" }],
+    ["receivables", { id: "0-real-receivable", company_id: COMPANY_ID, customer_id: "0-real-customer", description: "Serviço real", amount: 500, status: "recebida", received_amount: 500, due_date: "2026-01-10", received_at: "2026-01-10T12:00:00.000Z" }],
+  ];
+  const REAL_IDS = new Set(REAL.map(([, row]) => String(row.id)));
+
+  async function realRows(db: TestDb): Promise<Row[]> {
+    const result: Row[] = [];
+    for (const [table, row] of REAL) result.push(...(await db.select<Row[]>(`SELECT * FROM ${table} WHERE id = ?`, [row.id])));
+    return result;
+  }
+
+  it("não altera registros reais nem liga dados de exemplo a eles", async () => {
+    const db = testDb();
+    await createDevCompany(db);
+    for (const [table, row] of REAL) {
+      const cols = Object.keys(row);
+      await db.execute(`INSERT INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, cols.map((col) => row[col]));
+    }
+    const before = await realRows(db);
+
+    await seedDevData(COMPANY_ID);
+
+    expect(await realRows(db)).toEqual(before);
+    const links: string[] = [];
+    for (const table of await allTables(db)) {
+      for (const row of await db.select<Row[]>(`SELECT * FROM ${table}`)) {
+        if (REAL_IDS.has(String(row.id))) continue;
+        for (const [col, value] of Object.entries(row)) if (typeof value === "string" && REAL_IDS.has(value)) links.push(`${table}.${col} (${String(row.id)}) -> ${value}`);
+      }
+    }
+    expect(links).toEqual([]);
+
+    // Os dados de exemplo continuam saindo inteiros, só em cima dos registros de exemplo.
+    const flags = await db.select<{ key: string }[]>("SELECT key FROM settings WHERE company_id = ? AND key LIKE 'seed.dev.%' ORDER BY key", [COMPANY_ID]);
+    expect(flags.map((row) => row.key)).toEqual(areaSeeds.map((seed) => `seed.dev.${seed.name}.v1`).sort());
+    for (const [table, n] of Object.entries({ sales_orders: 5, invoices: 2, purchase_orders: 4, goods_receipts: 2, inventory_counts: 2, crm_activities: 10, hr_time_entries: 8 })) {
+      expect(await count(db, table), table).toBe(n);
+    }
+  });
+});

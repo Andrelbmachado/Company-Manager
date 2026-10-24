@@ -4,7 +4,7 @@
 import { getDb } from "@/lib/db/client";
 import { formatSequence, nextSequenceNumber } from "@/lib/db/sequence";
 import { lineTotal, orderTotals, splitInstallments } from "@/lib/money";
-import { applyStockMovement, day, hasSeedFlag, insertRows, memberFor, membersByRole, selectAll, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
+import { applyStockMovement, day, exampleRows, hasSeedFlag, insertRows, isExampleRecord, memberFor, membersByRole, selectAll, setSeedFlag, ts, type SeedRow } from "../seedUtils";
 
 const AREA = "sales";
 
@@ -61,8 +61,8 @@ const isTrue = (value: unknown) => value === 1 || value === true || value === "1
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const customers = await selectRows<CustomerRow>("customers", companyId);
-  const products = await selectRows<ProductRow>("products", companyId);
+  const customers = await exampleRows<CustomerRow>("customers", companyId);
+  const products = await exampleRows<ProductRow>("products", companyId);
   if (customers.length < 2 || products.length < 3) return;
 
   const db = await getDb();
@@ -71,11 +71,11 @@ export async function seed(companyId: string): Promise<void> {
   const billing = memberFor(members, "financeiro", "admin", "ceo");
   const stockUser = memberFor(members, "estoquista", "admin", "ceo");
   const bySku = new Map(products.filter((product) => product.sku).map((product) => [String(product.sku).toUpperCase(), product]));
-  const categories = await selectRows<CodeRow>("finance_categories", companyId);
+  const categories = await exampleRows<CodeRow>("finance_categories", companyId);
   const revenueCategory = categories.find((category) => category.code === "1.1")?.id ?? null;
-  const accounts = await selectRows<CodeRow>("bank_accounts", companyId);
+  const accounts = await exampleRows<CodeRow>("bank_accounts", companyId);
   const bankAccount = (accounts.find((account) => isTrue(account.is_default)) ?? accounts[0])?.id ?? null;
-  const location = (await selectRows<{ id: string }>("stock_locations", companyId))[0]?.id ?? null;
+  const location = (await exampleRows<{ id: string }>("stock_locations", companyId))[0]?.id ?? null;
 
   for (const [index, sale] of SALES.entries()) {
     const orderId = `dev-sales-order-${index + 1}`;
@@ -136,8 +136,10 @@ export async function seed(companyId: string): Promise<void> {
       const balances = await selectAll<BalanceRow>("stock_balances", companyId);
       for (const line of lines) {
         const itemId = line.product.kind === "servico" ? null : line.product.inventory_item_id;
-        if (!itemId) continue;
-        const from = balances.filter((row) => row.item_id === itemId && Number(row.quantity) >= line.qty).sort((a, b) => Number(b.quantity) - Number(a.quantity))[0];
+        if (!itemId || !isExampleRecord(itemId)) continue;
+        const from = balances
+          .filter((row) => row.item_id === itemId && isExampleRecord(row.location_id) && Number(row.quantity) >= line.qty)
+          .sort((a, b) => Number(b.quantity) - Number(a.quantity))[0];
         if (!from) continue;
         await applyStockMovement(companyId, {
           id: `${orderId}-move-${line.position}`,

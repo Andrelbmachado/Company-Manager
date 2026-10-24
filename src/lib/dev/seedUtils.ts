@@ -1,6 +1,6 @@
 // TEMPORÁRIO (login rápido de desenvolvimento): utilitários dos dados de exemplo (devSeed.ts e seeds/<area>.ts).
 // SQL só nos padrões que o banco demo do navegador entende (INSERT OR IGNORE e SELECT * com WHERE col=?).
-import { getDb } from "@/lib/db/client";
+import { getDb, isTauriRuntime } from "@/lib/db/client";
 import { todayIso } from "@/lib/utils";
 import type { Role } from "@/types";
 
@@ -39,6 +39,20 @@ export async function selectRows<T extends { id: string }>(table: string, compan
   return [...rows].sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/**
+ * Registro em que os dados de exemplo podem se apoiar ou mexer. No app desktop o login rápido roda no banco de verdade:
+ * só valem os registros de exemplo (id "dev-..."), para nenhum cliente, colaborador, conta, item, local ou extrato real
+ * ganhar pedido, fatura, tag, documento, baixa ou movimentação fictícios. No navegador o banco demo é todo de exemplo.
+ */
+export function isExampleRecord(id: string | null | undefined): boolean {
+  return !isTauriRuntime() || (typeof id === "string" && id.startsWith("dev-"));
+}
+
+/** Linhas ativas da empresa que os seeds de área usam como base (ver isExampleRecord), ordenadas por id. */
+export async function exampleRows<T extends { id: string }>(table: string, companyId: string): Promise<T[]> {
+  return (await selectRows<T>(table, companyId)).filter((row) => isExampleRecord(row.id));
+}
+
 const flagKey = (area: string) => `seed.dev.${area}.v1`;
 
 /** Cada seed de área tem a sua flag em `settings` (independente da flag do seed principal). */
@@ -67,7 +81,8 @@ export async function selectAll<T extends { id: string }>(table: string, company
 
 /**
  * Conta (user_id) de cada papel na empresa, pelos vínculos (memberships): a primeira por id. Serve tanto para as
- * contas do login rápido (dev-user-<papel>) quanto para as contas do banco demo do navegador.
+ * contas do login rápido (dev-user-<papel>) quanto para as contas do banco demo do navegador; no desktop, só os
+ * vínculos de exemplo (ver isExampleRecord), para nada fictício sair em nome de uma pessoa de verdade.
  */
 export async function membersByRole(companyId: string): Promise<Map<Role, string>> {
   const db = await getDb();
@@ -77,7 +92,7 @@ export async function membersByRole(companyId: string): Promise<Map<Role, string
   );
   const members = new Map<Role, string>();
   for (const row of [...rows].sort((a, b) => a.id.localeCompare(b.id))) {
-    if (!row.deleted_at && row.user_id && !members.has(row.role)) members.set(row.role, row.user_id);
+    if (!row.deleted_at && row.user_id && isExampleRecord(row.id) && !members.has(row.role)) members.set(row.role, row.user_id);
   }
   return members;
 }

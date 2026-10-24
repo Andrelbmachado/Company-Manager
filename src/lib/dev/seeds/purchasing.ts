@@ -4,7 +4,7 @@
 import { getDb } from "@/lib/db/client";
 import { nextSequenceNumber } from "@/lib/db/sequence";
 import { lineTotal, orderTotals, splitInstallments, sumMoney } from "@/lib/money";
-import { applyStockMovement, day, hasSeedFlag, insertRows, memberFor, membersByRole, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
+import { applyStockMovement, day, exampleRows, hasSeedFlag, insertRows, memberFor, membersByRole, setSeedFlag, ts, type SeedRow } from "../seedUtils";
 
 const AREA = "purchasing";
 
@@ -52,20 +52,20 @@ const PURCHASES: PurchaseSeed[] = [
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const suppliers = await selectRows<SupplierRow>("suppliers", companyId);
-  const items = await selectRows<ItemRow>("inventory_items", companyId);
-  const locations = await selectRows<{ id: string }>("stock_locations", companyId);
+  const suppliers = await exampleRows<SupplierRow>("suppliers", companyId);
+  const items = await exampleRows<ItemRow>("inventory_items", companyId);
+  const locations = await exampleRows<{ id: string }>("stock_locations", companyId);
   if (suppliers.length === 0 || items.length < 2 || locations.length === 0) return;
 
   const db = await getDb();
   const members = await membersByRole(companyId);
   const buyer = memberFor(members, "estoquista", "admin", "ceo");
   const approver = memberFor(members, "gerente", "admin", "ceo");
-  const products = await selectRows<ProductRow>("products", companyId);
+  const products = await exampleRows<ProductRow>("products", companyId);
   const productOf = new Map(products.filter((product) => product.inventory_item_id).map((product) => [String(product.inventory_item_id), product.id]));
-  const categories = await selectRows<CodeRow>("finance_categories", companyId);
+  const categories = await exampleRows<CodeRow>("finance_categories", companyId);
   const categoryId = categories.find((category) => category.code === "3.1")?.id ?? null;
-  const costCenterId = (await selectRows<{ id: string }>("cost_centers", companyId))[0]?.id ?? null;
+  const costCenterId = (await exampleRows<{ id: string }>("cost_centers", companyId))[0]?.id ?? null;
   const location = locations[0].id;
   const itemBySku = new Map(items.filter((item) => item.sku).map((item) => [String(item.sku).toUpperCase(), item]));
 

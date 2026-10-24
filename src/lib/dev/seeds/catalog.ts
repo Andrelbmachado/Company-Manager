@@ -1,7 +1,7 @@
 // TEMPORÁRIO (dados de exemplo): catálogo de produtos e serviços e tabelas de preço.
 // Produtos com SKU igual ao de um item de estoque da empresa ficam ligados a ele (inventory_item_id).
 import { roundMoney } from "@/lib/money";
-import { hasSeedFlag, insertRows, selectRows, setSeedFlag, type SeedRow } from "../seedUtils";
+import { exampleRows, hasSeedFlag, insertRows, setSeedFlag, type SeedRow } from "../seedUtils";
 
 const AREA = "catalog";
 
@@ -27,7 +27,7 @@ const PRODUCTS: ProductSeed[] = [
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const items = await selectRows<{ id: string; sku: string | null }>("inventory_items", companyId);
+  const items = await exampleRows<{ id: string; sku: string | null }>("inventory_items", companyId);
   const itemBySku = new Map(items.filter((item) => item.sku).map((item) => [String(item.sku).toUpperCase(), item.id]));
 
   const products: SeedRow[] = PRODUCTS.map(([sku, name, kind, category, unit, price, cost], index) => ({

@@ -3,7 +3,7 @@
 // Precisa de itens com saldo; sem eles não grava nada (nem a flag).
 import { getDb } from "@/lib/db/client";
 import { nextSequenceNumber } from "@/lib/db/sequence";
-import { applyStockMovement, hasSeedFlag, insertRows, memberFor, membersByRole, selectAll, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
+import { applyStockMovement, exampleRows, hasSeedFlag, insertRows, memberFor, membersByRole, selectAll, setSeedFlag, ts, type SeedRow } from "../seedUtils";
 
 const AREA = "inventory";
 
@@ -25,10 +25,13 @@ interface ItemRow {
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const locations = await selectRows<LocationRow>("stock_locations", companyId);
-  const items = await selectRows<ItemRow>("inventory_items", companyId);
+  const locations = await exampleRows<LocationRow>("stock_locations", companyId);
+  const items = await exampleRows<ItemRow>("inventory_items", companyId);
   const itemIds = new Set(items.map((item) => item.id));
-  const balances = (await selectAll<BalanceRow>("stock_balances", companyId)).filter((row) => itemIds.has(row.item_id) && Number(row.quantity) > 0);
+  const locationIds = new Set(locations.map((location) => location.id));
+  const balances = (await selectAll<BalanceRow>("stock_balances", companyId)).filter(
+    (row) => itemIds.has(row.item_id) && locationIds.has(row.location_id) && Number(row.quantity) > 0,
+  );
   if (locations.length === 0 || balances.length < 3) return;
 
   const db = await getDb();

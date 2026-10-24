@@ -4,7 +4,7 @@
 import { getDb } from "@/lib/db/client";
 import { nextSequenceNumber } from "@/lib/db/sequence";
 import { lineTotal, orderTotals } from "@/lib/money";
-import { day, hasSeedFlag, insertRows, memberFor, membersByRole, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
+import { day, exampleRows, hasSeedFlag, insertRows, memberFor, membersByRole, setSeedFlag, ts, type SeedRow } from "../seedUtils";
 
 const AREA = "crm";
 
@@ -59,7 +59,7 @@ const NEW_PROPOSALS: [string, number, "rascunho" | "enviada" | "aceita", number,
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const customers = await selectRows<CustomerRow>("customers", companyId);
+  const customers = await exampleRows<CustomerRow>("customers", companyId);
   if (customers.length === 0) return;
 
   const db = await getDb();
@@ -79,7 +79,7 @@ export async function seed(companyId: string): Promise<void> {
   await insertRows("entity_tags", companyId, [...tagRows.values()]);
 
   // ---- Contato principal: marca o primeiro contato de cada cliente e cria um para quem não tem ---------------
-  const contacts = await selectRows<ContactRow>("contacts", companyId);
+  const contacts = await exampleRows<ContactRow>("contacts", companyId);
   const firstContact = new Map<string, string>();
   for (const contact of contacts) if (contact.customer_id && !firstContact.has(contact.customer_id)) firstContact.set(contact.customer_id, contact.id);
   for (const contactId of firstContact.values()) {
@@ -105,7 +105,7 @@ export async function seed(companyId: string): Promise<void> {
   const contactOf = (customerId: string) => firstContact.get(customerId) ?? null;
 
   // ---- Atividades: atrasadas, para os próximos dias e já feitas ---------------------------------------------
-  const opportunities = await selectRows<OpportunityRow>("opportunities", companyId);
+  const opportunities = await exampleRows<OpportunityRow>("opportunities", companyId);
   const openOpps = opportunities.filter((opp) => opp.customer_id && (opp.status ?? "open") === "open");
   type ActivitySeed = [kind: string, subject: string, body: string, due: number | null, done: number | null, outcome: string | null, owner: string | null];
   const activities: ActivitySeed[] = [
@@ -142,7 +142,7 @@ export async function seed(companyId: string): Promise<void> {
   }));
 
   // ---- Propostas: as antigas ganham número, título e cliente; depois as novas, com itens -------------------
-  const proposals = await selectRows<ProposalRow>("proposals", companyId);
+  const proposals = await exampleRows<ProposalRow>("proposals", companyId);
   const oppById = new Map(opportunities.map((opp) => [opp.id, opp]));
   const unnumbered = proposals.filter((proposal) => proposal.number == null).sort((a, b) => String(a.created_at ?? a.id).localeCompare(String(b.created_at ?? b.id)));
   for (const proposal of unnumbered) {
@@ -157,7 +157,7 @@ export async function seed(companyId: string): Promise<void> {
     ]);
   }
 
-  const products = await selectRows<ProductRow>("products", companyId);
+  const products = await exampleRows<ProductRow>("products", companyId);
   const bySku = new Map(products.filter((product) => product.sku).map((product) => [String(product.sku).toUpperCase(), product]));
   for (const [index, [title, customerIndex, status, validDays, lines]] of NEW_PROPOSALS.entries()) {
     const id = `dev-crm-proposal-${index + 1}`;

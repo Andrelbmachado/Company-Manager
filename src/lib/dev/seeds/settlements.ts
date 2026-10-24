@@ -5,7 +5,7 @@
 import { getDb } from "@/lib/db/client";
 import { roundMoney } from "@/lib/money";
 import { todayIso } from "@/lib/utils";
-import { day, hasSeedFlag, insertRows, memberFor, membersByRole, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
+import { day, exampleRows, hasSeedFlag, insertRows, memberFor, membersByRole, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
 
 const AREA = "settlements";
 
@@ -63,18 +63,18 @@ function localDay(value: string | null | undefined, fallback: string): string {
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const accounts = await selectRows<AccountRow>("bank_accounts", companyId);
+  const accounts = await exampleRows<AccountRow>("bank_accounts", companyId);
   if (accounts.length === 0) return;
   const account = (accounts.find((item) => isTrue(item.is_default)) ?? accounts[0]).id;
 
   const db = await getDb();
   const members = await membersByRole(companyId);
   const finance = memberFor(members, "financeiro", "admin", "ceo");
-  const categories = await selectRows<CodeRow>("finance_categories", companyId);
+  const categories = await exampleRows<CodeRow>("finance_categories", companyId);
   const category = (code: string) => categories.find((item) => item.code === code)?.id ?? null;
-  const costCenters = await selectRows<{ id: string; name: string }>("cost_centers", companyId);
+  const costCenters = await exampleRows<{ id: string; name: string }>("cost_centers", companyId);
   const costCenter = (name: string) => costCenters.find((item) => item.name === name)?.id ?? costCenters[0]?.id ?? null;
-  const customers = await selectRows<{ id: string }>("customers", companyId);
+  const customers = await exampleRows<{ id: string }>("customers", companyId);
 
   // ---- Recorrências -----------------------------------------------------------------------------------------------
   const competence = day(0).slice(0, 7);
@@ -86,8 +86,8 @@ export async function seed(companyId: string): Promise<void> {
   ];
   await insertRows("recurring_entries", companyId, recurring.map((row) => ({ active: 1, created_by: finance, ...row })));
 
-  const payables = await selectRows<PayableRow>("payables", companyId);
-  const receivables = await selectRows<ReceivableRow>("receivables", companyId);
+  const payables = await exampleRows<PayableRow>("payables", companyId);
+  const receivables = await exampleRows<ReceivableRow>("receivables", companyId);
 
   // Contas antigas de aluguel e licenças passam a vir da recorrência (uma por competência).
   for (const [recurringId, prefix] of [["dev-settlements-recurring-1", "Aluguel"], ["dev-settlements-recurring-2", "Licenças de software"]] as const) {

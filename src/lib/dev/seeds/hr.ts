@@ -2,16 +2,22 @@
 // um desligamento com checklist e lançamentos de banco de horas. Documentos e endereços são fictícios.
 // Precisa de colaboradores; sem eles não grava nada (nem a flag).
 import { getDb } from "@/lib/db/client";
-import { day, hasSeedFlag, insertRows, memberFor, membersByRole, selectRows, setSeedFlag, ts } from "../seedUtils";
+import { day, exampleRows, hasSeedFlag, insertRows, memberFor, membersByRole, setSeedFlag, ts } from "../seedUtils";
 
 const AREA = "hr";
 
-interface EmployeeRow {
+/** Dados de admissão que o seed preenche (0008/0011). */
+type AdmissionField = "document" | "rg" | "pis" | "phone" | "birth_date" | "contract_type" | "address_json" | "emergency_contact_name" | "emergency_contact_phone";
+
+type EmployeeRow = {
   id: string;
   name: string;
   user_id?: string | null;
   status?: string | null;
-}
+} & Partial<Record<AdmissionField, string | null>>;
+
+/** Campo ainda não preenchido (endereço vazio = '{}', o DEFAULT da 0011). */
+const isBlank = (value: unknown) => value == null || value === "" || value === "{}";
 
 const STREETS = ["Rua das Palmeiras", "Avenida São Paulo", "Rua XV de Novembro", "Rua Barão de Tatuí", "Avenida Itavuvu", "Rua da Penha"];
 const DISTRICTS = ["Centro", "Jardim Europa", "Campolim", "Vila Hortência", "Éden", "Santa Rosália"];
@@ -46,32 +52,34 @@ function addressFor(index: number): string {
 export async function seed(companyId: string): Promise<void> {
   if (await hasSeedFlag(AREA, companyId)) return;
 
-  const employees = await selectRows<EmployeeRow>("employees", companyId);
+  const employees = await exampleRows<EmployeeRow>("employees", companyId);
   if (employees.length === 0) return;
 
   const db = await getDb();
   const members = await membersByRole(companyId);
   const hrUser = memberFor(members, "rh", "admin", "ceo");
 
-  // ---- Dados de admissão de quem ainda não tem (rg IS NULL: não sobrescreve o que o RH já preencheu) -----------
+  // ---- Dados de admissão: só os campos ainda vazios (não sobrescreve o que o RH já preencheu) ---------------------
   for (const [index, employee] of employees.entries()) {
     const docs = documentsFor(index);
-    await db.execute(
-      "UPDATE employees SET document=?, rg=?, pis=?, phone=?, birth_date=?, contract_type=?, address_json=?, emergency_contact_name=?, emergency_contact_phone=? WHERE company_id=? AND id=? AND rg IS NULL",
-      [
-        docs.document,
-        docs.rg,
-        docs.pis,
-        docs.phone,
-        docs.birth_date,
-        index % 7 === 6 ? "pj" : "clt",
-        addressFor(index),
-        EMERGENCY[index % EMERGENCY.length],
-        `(15) 9${pad(7200 + index * 31, 4)}-${pad(2000 + index * 53, 4)}`,
-        companyId,
-        employee.id,
-      ],
-    );
+    const admission: Record<AdmissionField, string> = {
+      document: docs.document,
+      rg: docs.rg,
+      pis: docs.pis,
+      phone: docs.phone,
+      birth_date: docs.birth_date,
+      contract_type: index % 7 === 6 ? "pj" : "clt",
+      address_json: addressFor(index),
+      emergency_contact_name: EMERGENCY[index % EMERGENCY.length],
+      emergency_contact_phone: `(15) 9${pad(7200 + index * 31, 4)}-${pad(2000 + index * 53, 4)}`,
+    };
+    const fields = (Object.keys(admission) as AdmissionField[]).filter((field) => isBlank(employee[field]));
+    if (fields.length === 0) continue;
+    await db.execute(`UPDATE employees SET ${fields.map((field) => `${field}=?`).join(", ")} WHERE company_id=? AND id=?`, [
+      ...fields.map((field) => admission[field]),
+      companyId,
+      employee.id,
+    ]);
   }
 
   // ---- Admissão em andamento e desligamento ---------------------------------------------------------------------

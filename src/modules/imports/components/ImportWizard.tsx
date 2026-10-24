@@ -323,7 +323,7 @@ export function ImportWizard({ entities, initialEntity, lockEntity, onImported, 
           </fieldset>
 
           {missing.length > 0 && (
-            <p role="alert" className="text-sm text-status-danger">
+            <p role="alert" className="text-sm text-status-danger dark:text-red-400">
               Escolha a coluna de: {missing.map((field) => field.label).join(", ")}.
             </p>
           )}
@@ -404,7 +404,7 @@ function PreviewTable({ entity, mapping, rows, rowNumbers, errors, total }: Prev
         <h3 id="previa-titulo" className="font-semibold">Prévia</h3>
         <p className="text-xs text-muted-foreground">
           {Math.min(rows.length, total)} primeiras de {total.toLocaleString("pt-BR")} linhas ·{" "}
-          <span className={rowsWithErrors ? "font-medium text-status-danger" : undefined}>
+          <span className={rowsWithErrors ? "font-medium text-status-danger dark:text-red-400" : undefined}>
             {rowsWithErrors === 0 ? "nenhum erro nelas" : `${rowsWithErrors} com erro`}
           </span>
           . Referências (cliente, fornecedor...) são conferidas ao simular ou importar.
@@ -434,13 +434,13 @@ function PreviewTable({ entity, mapping, rows, rowNumbers, errors, total }: Prev
                     {fields.map((field) => {
                       const problem = rowErrors.find((error) => error.field === field.key);
                       return (
-                        <td key={field.key} title={problem?.message} className={cn("max-w-[14rem] truncate px-3 py-1.5", problem && "bg-status-danger/15 font-medium text-status-danger")} data-erro={problem ? "sim" : undefined}>
+                        <td key={field.key} title={problem?.message} className={cn("max-w-[14rem] truncate px-3 py-1.5", problem && "bg-status-danger/15 font-medium text-status-danger dark:text-red-400")} data-erro={problem ? "sim" : undefined}>
                           {row[mapping[field.key]!] || <span className="text-muted-foreground">—</span>}
                         </td>
                       );
                     })}
                     <td className="max-w-[24rem] whitespace-normal px-3 py-1.5 text-xs">
-                      {rowErrors.length === 0 ? <span className="text-status-success">OK</span> : rowErrors.map((error) => error.message).join(" · ")}
+                      {rowErrors.length === 0 ? <span className="text-status-success dark:text-green-400">OK</span> : rowErrors.map((error) => error.message).join(" · ")}
                     </td>
                   </tr>
                 );

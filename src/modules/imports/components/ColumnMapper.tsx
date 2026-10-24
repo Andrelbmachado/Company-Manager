@@ -51,7 +51,7 @@ export function ColumnMapper({ entity, headers, mapping, sample, onChange }: Col
                   <td className="px-3 py-2 align-top">
                     <label htmlFor={id} className="font-medium">
                       {field.label}
-                      {field.required && <span className="text-status-danger" aria-label="obrigatório"> *</span>}
+                      {field.required && <span className="text-status-danger dark:text-red-400" aria-label="obrigatório"> *</span>}
                     </label>
                     <p className="mt-0.5 text-xs text-muted-foreground">{fieldInstructions(field)}</p>
                   </td>
@@ -71,7 +71,7 @@ export function ColumnMapper({ entity, headers, mapping, sample, onChange }: Col
                         </option>
                       ))}
                     </select>
-                    {missing && <p className="mt-1 text-xs text-status-danger">Escolha a coluna deste campo obrigatório.</p>}
+                    {missing && <p className="mt-1 text-xs text-status-danger dark:text-red-400">Escolha a coluna deste campo obrigatório.</p>}
                   </td>
                   <td className="hidden max-w-[16rem] truncate px-3 py-2 align-top text-muted-foreground md:table-cell" title={header ? sample?.[header] : undefined}>
                     {header ? sample?.[header] || "(vazio)" : "—"}

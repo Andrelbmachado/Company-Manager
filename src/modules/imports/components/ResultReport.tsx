@@ -37,13 +37,13 @@ function headline(result: ResultSummary): { icon: typeof CheckCircle2; tone: str
   if (result.status === "falhou") {
     return {
       icon: XCircle,
-      tone: "text-status-danger",
+      tone: "text-status-danger dark:text-red-400",
       text: result.mode === "all-or-nothing" && result.rowsWithErrors > 0 ? "Nada foi gravado: há linhas com erro e a importação era tudo ou nada." : "Nada foi gravado. Veja os problemas abaixo.",
     };
   }
   const base = `${plural(result.inserted, "novo", "novos")} e ${plural(result.updated, "atualizado", "atualizados")}`;
   if (result.status === "com_erros") return { icon: AlertTriangle, tone: "text-status-orange", text: `${base}. ${plural(result.rowsWithErrors, "linha ficou", "linhas ficaram")} de fora por erro.` };
-  return { icon: CheckCircle2, tone: "text-status-success", text: `Importação concluída: ${base}.` };
+  return { icon: CheckCircle2, tone: "text-status-success dark:text-green-400", text: `Importação concluída: ${base}.` };
 }
 
 export function ResultReport({ entity, result, onDownloadErrors, storedErrorsNote }: ResultReportProps) {

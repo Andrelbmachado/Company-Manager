@@ -148,7 +148,7 @@ function ExportMenu({ entityKey, label, companyId, actorId }: { entityKey: strin
         </div>
       )}
       {error && (
-        <p role="alert" className="absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-status-danger/40 bg-card px-3 py-2 text-xs text-status-danger shadow">
+        <p role="alert" className="absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-status-danger/40 bg-card px-3 py-2 text-xs text-status-danger dark:text-red-400 shadow">
           {error}
         </p>
       )}

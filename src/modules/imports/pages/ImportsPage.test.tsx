@@ -66,6 +66,11 @@ async function until(condition: () => boolean | Promise<boolean>, what: string) 
 }
 
 const text = () => container.textContent ?? "";
+/** Vermelho/verde de status puro fica sem contraste no tema escuro: todo texto nessas cores traz a variante clara. */
+const withoutDarkVariant = () =>
+  [...container.querySelectorAll<HTMLElement>(".text-status-danger, .text-status-success")]
+    .filter((element) => !element.classList.contains(element.classList.contains("text-status-danger") ? "dark:text-red-400" : "dark:text-green-400"))
+    .map((element) => `${element.className}: ${element.textContent}`);
 const button = (label: string) => [...container.querySelectorAll("button")].find((item) => item.textContent?.trim().startsWith(label));
 
 async function click(element: Element | null | undefined) {
@@ -112,11 +117,13 @@ describe("ImportsPage", () => {
     expect(container.querySelector<HTMLSelectElement>("#coluna-customers-credit_limit")?.value).toBe("Limite de crédito");
     await until(() => container.querySelectorAll('[data-erro="sim"]').length === 2, "erros marcados na prévia");
     expect(text()).toContain("2 com erro");
+    expect(withoutDarkVariant()).toEqual([]);
 
     await click(button("Importar 3 linhas"));
     await until(() => text().includes("Problemas encontrados"), "resultado");
     expect(text()).toContain("1 novo e 0 atualizados");
     expect(text()).toContain("Com erros");
+    expect(withoutDarkVariant()).toEqual([]);
     const customers = await db.select<Row[]>("SELECT * FROM customers WHERE company_id=? AND deleted_at IS NULL", [companyId]);
     expect(customers.map((row) => row.name)).toEqual(["Padaria Pão Quente Ltda"]);
     const batches = await db.select<Row[]>("SELECT * FROM import_batches WHERE company_id=?", [companyId]);

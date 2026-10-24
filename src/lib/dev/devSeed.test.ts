@@ -316,6 +316,21 @@ describe("dados de exemplo de CRM, vendas, compras, estoque, RH, importação e 
     expect((await rows(db, "SELECT id FROM payables WHERE recurring_entry_id IS NOT NULL")).length).toBe(2);
   });
 
+  it("financeiro: a última competência de cada recorrência é a da conta ligada a ela, mesmo na virada do mês", async () => {
+    // 29/10: as licenças (vencimento em 5 dias) caem em novembro. Se a recorrência dissesse "outubro", gerar novembro
+    // de novo bateria no índice único (recurring_entry_id, competence) da conta que já existe.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 29, 10));
+    try {
+      const db = await seeded();
+      const linked = await rows(db, "SELECT p.id, p.competence, r.last_competence FROM payables p JOIN recurring_entries r ON r.id = p.recurring_entry_id ORDER BY p.id");
+      expect(linked.map((row) => row.competence).sort()).toEqual(["2026-10", "2026-11"]);
+      for (const row of linked) expect(row.last_competence, String(row.id)).toBe(row.competence);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("RH: todos com dados de admissão, uma admissão e um desligamento com checklist, banco de horas com decididos e pendentes", async () => {
     const db = await seeded();
     expect(await rows(db, "SELECT id FROM employees WHERE rg IS NULL OR pis IS NULL OR address_json IS NULL OR address_json = '{}' OR emergency_contact_name IS NULL")).toEqual([]);

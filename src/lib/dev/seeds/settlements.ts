@@ -75,29 +75,32 @@ export async function seed(companyId: string): Promise<void> {
   const costCenters = await exampleRows<{ id: string; name: string }>("cost_centers", companyId);
   const costCenter = (name: string) => costCenters.find((item) => item.name === name)?.id ?? costCenters[0]?.id ?? null;
   const customers = await exampleRows<{ id: string }>("customers", companyId);
+  const payables = await exampleRows<PayableRow>("payables", companyId);
+  const receivables = await exampleRows<ReceivableRow>("receivables", companyId);
 
   // ---- Recorrências -----------------------------------------------------------------------------------------------
+  // Contas antigas de aluguel e licenças passam a vir da recorrência (uma por competência). A última competência
+  // gerada (last_competence) é a da conta ligada: o vencimento pode cair no mês anterior ou no seguinte, e gerar de
+  // novo essa competência bateria no índice único (recurring_entry_id, competence).
   const competence = day(0).slice(0, 7);
+  const linked = ([["dev-settlements-recurring-1", "Aluguel"], ["dev-settlements-recurring-2", "Licenças de software"]] as const).flatMap(([recurringId, prefix]) => {
+    const match = payables.find((row) => !row.recurring_entry_id && (row.description ?? "").startsWith(prefix));
+    return match ? [{ recurringId, payableId: match.id, competence: (match.due_date ?? day(0)).slice(0, 7) }] : [];
+  });
+  const lastCompetence = (recurringId: string) => linked.find((link) => link.recurringId === recurringId)?.competence ?? competence;
   const recurring: SeedRow[] = [
-    { id: "dev-settlements-recurring-1", kind: "pagar", description: "Aluguel do escritório", amount: 6800, frequency: "mensal", day_of_month: 5, start_date: day(-400), category_id: category("4.1"), cost_center_id: costCenter("Administrativo"), bank_account_id: account, last_competence: competence },
-    { id: "dev-settlements-recurring-2", kind: "pagar", description: "Licenças de software - mensalidade", amount: 4850, frequency: "mensal", day_of_month: 10, start_date: day(-200), category_id: category("4.3"), cost_center_id: costCenter("TI"), bank_account_id: account, last_competence: competence },
+    { id: "dev-settlements-recurring-1", kind: "pagar", description: "Aluguel do escritório", amount: 6800, frequency: "mensal", day_of_month: 5, start_date: day(-400), category_id: category("4.1"), cost_center_id: costCenter("Administrativo"), bank_account_id: account, last_competence: lastCompetence("dev-settlements-recurring-1") },
+    { id: "dev-settlements-recurring-2", kind: "pagar", description: "Licenças de software - mensalidade", amount: 4850, frequency: "mensal", day_of_month: 10, start_date: day(-200), category_id: category("4.3"), cost_center_id: costCenter("TI"), bank_account_id: account, last_competence: lastCompetence("dev-settlements-recurring-2") },
     { id: "dev-settlements-recurring-3", kind: "pagar", description: "Seguro empresarial", amount: 3400, frequency: "anual", day_of_month: 20, start_date: day(-345), category_id: category("4"), cost_center_id: costCenter("Administrativo"), bank_account_id: account, last_competence: null, notes: "Renovação anual da apólice." },
     { id: "dev-settlements-recurring-4", kind: "receber", description: "Suporte mensal (contrato)", amount: 3000, frequency: "mensal", day_of_month: 15, start_date: day(-120), customer_id: customers[0]?.id ?? null, category_id: category("1.3"), bank_account_id: account, last_competence: competence },
   ];
   await insertRows("recurring_entries", companyId, recurring.map((row) => ({ active: 1, created_by: finance, ...row })));
-
-  const payables = await exampleRows<PayableRow>("payables", companyId);
-  const receivables = await exampleRows<ReceivableRow>("receivables", companyId);
-
-  // Contas antigas de aluguel e licenças passam a vir da recorrência (uma por competência).
-  for (const [recurringId, prefix] of [["dev-settlements-recurring-1", "Aluguel"], ["dev-settlements-recurring-2", "Licenças de software"]] as const) {
-    const match = payables.find((row) => !row.recurring_entry_id && (row.description ?? "").startsWith(prefix));
-    if (!match) continue;
+  for (const link of linked) {
     await db.execute("UPDATE payables SET recurring_entry_id=?, competence=? WHERE company_id=? AND id=? AND recurring_entry_id IS NULL", [
-      recurringId,
-      (match.due_date ?? day(0)).slice(0, 7),
+      link.recurringId,
+      link.competence,
       companyId,
-      match.id,
+      link.payableId,
     ]);
   }
 

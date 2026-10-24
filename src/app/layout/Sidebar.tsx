@@ -24,6 +24,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Sparkles,
+  ShoppingCart,
+  Tags,
+  Truck,
+  BarChart3,
+  FileUp,
 } from "lucide-react";
 
 interface NavItem {
@@ -41,14 +46,19 @@ const NAV_ITEMS: NavItem[] = [
   { module: "crm", label: "CRM", path: "/crm", icon: Users, group: "Comercial" },
   { module: "leads", label: "Prospecção", path: "/leads", icon: Megaphone, group: "Comercial" },
   { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
+  { module: "sales", label: "Vendas", path: "/sales", icon: ShoppingCart, group: "Comercial" },
+  { module: "catalog", label: "Catálogo", path: "/catalog", icon: Tags, group: "Comercial" },
   { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench, group: "Operações" },
   { module: "projects", label: "Project Manager", path: "/projects", icon: FolderKanban, group: "Operações" },
   { module: "products", label: "Desenv. de Produtos", path: "/products", icon: Boxes, group: "Produto" },
   { module: "inventory", label: "Estoque", path: "/inventory", icon: Package, group: "Logística" },
   { module: "custody", label: "Custódia de peça", path: "/custody", icon: Archive, group: "Logística" },
+  { module: "purchasing", label: "Compras", path: "/purchasing", icon: Truck, group: "Logística" },
   { module: "finance", label: "Financeiro", path: "/finance", icon: Wallet, group: "Gestão" },
   { module: "payroll", label: "Folha de pagamento", path: "/payroll", icon: HandCoins, group: "Gestão" },
   { module: "documents", label: "Documentos", path: "/documents", icon: FileText, group: "Gestão" },
+  { module: "reports", label: "Relatórios", path: "/reports", icon: BarChart3, group: "Gestão" },
+  { module: "imports", label: "Importar dados", path: "/imports", icon: FileUp, group: "Gestão" },
   { module: "audit", label: "Auditoria", path: "/audit", icon: ShieldCheck, group: "Gestão" },
 ];
 

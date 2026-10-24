@@ -29,6 +29,11 @@ const DocumentsPage = lazy(() => import("@/modules/documents/pages/DocumentsPage
 const SettingsPage = lazy(() => import("@/modules/settings/pages/SettingsPage"));
 const AuditPage = lazy(() => import("@/modules/settings/pages/AuditPage"));
 const AssistantPage = lazy(() => import("@/modules/assistant/pages/AssistantPage"));
+const CatalogPage = lazy(() => import("@/modules/catalog/pages/CatalogPage"));
+const SalesPage = lazy(() => import("@/modules/sales/pages/SalesPage"));
+const PurchasingPage = lazy(() => import("@/modules/purchasing/pages/PurchasingPage"));
+const ReportsPage = lazy(() => import("@/modules/reports/pages/ReportsPage"));
+const ImportsPage = lazy(() => import("@/modules/imports/pages/ImportsPage"));
 
 function Loader() {
   return (
@@ -82,6 +87,11 @@ export function AppRoutes() {
           <Route path="/settings/*" element={<RequireModule module="settings"><SettingsPage /></RequireModule>} />
           <Route path="/audit/*" element={<RequireModule module="audit"><AuditPage /></RequireModule>} />
           <Route path="/assistant/*" element={<RequireModule module="assistant"><AssistantPage /></RequireModule>} />
+          <Route path="/catalog/*" element={<RequireModule module="catalog"><CatalogPage /></RequireModule>} />
+          <Route path="/sales/*" element={<RequireModule module="sales"><SalesPage /></RequireModule>} />
+          <Route path="/purchasing/*" element={<RequireModule module="purchasing"><PurchasingPage /></RequireModule>} />
+          <Route path="/reports/*" element={<RequireModule module="reports"><ReportsPage /></RequireModule>} />
+          <Route path="/imports/*" element={<RequireModule module="imports"><ImportsPage /></RequireModule>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

@@ -1,40 +1,43 @@
 import type { Role, Scope } from "@/types";
 
-type Action =
-  | "view"
-  | "create"
-  | "edit"
-  | "delete"
-  | "approve"
-  | "export"
-  | "comment"
-  | "attach"
-  | "transfer"
-  | "request";
+/** Ações do RBAC. `receive` = dar entrada de mercadoria (recebimento de pedido de compra). */
+export const ACTIONS = ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request", "receive"] as const;
+export type Action = (typeof ACTIONS)[number];
 
-type Resource =
-  | "customers"
-  | "leads"
-  | "opportunities"
-  | "proposals"
-  | "tickets"
-  | "work_orders"
-  | "projects"
-  | "tasks"
-  | "product_development"
-  | "inventory"
-  | "custody"
-  | "finance"
-  | "payables"
-  | "receivables"
-  | "documents"
-  | "users"
-  | "settings"
-  | "audit_logs"
-  | "automations"
-  | "hr_self"
-  | "hr_admin"
-  | "payroll";
+export const RESOURCES = [
+  "customers",
+  "leads",
+  "opportunities",
+  "proposals",
+  "tickets",
+  "work_orders",
+  "projects",
+  "tasks",
+  "product_development",
+  "inventory",
+  "custody",
+  "finance",
+  "payables",
+  "receivables",
+  "documents",
+  "users",
+  "settings",
+  "audit_logs",
+  "automations",
+  "hr_self",
+  "hr_admin",
+  "payroll",
+  // CRM/ERP (migration 0008)
+  "products",
+  "sales_orders",
+  "invoices",
+  "purchase_orders",
+  "bank",
+  "reports",
+  "imports",
+  "crm_activities",
+] as const;
+export type Resource = (typeof RESOURCES)[number];
 
 interface PermissionMap {
   [role: string]: {
@@ -56,10 +59,10 @@ export const ROLE_LABELS: Record<Role, string> = {
   auditor: "Auditoria",
 };
 
-const PERMISSIONS: PermissionMap = {
+export const PERMISSIONS: PermissionMap = {
   // CEO: controle geral (vê todos os setores, inclusive CRM, auditoria e gestão de RH).
   ceo: {
-    "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
+    "*": [...ACTIONS],
   },
   // RH: gerencia pessoas (colaboradores, solicitações, comunicados). Não vê CRM, financeiro, estoque nem auditoria.
   rh: {
@@ -70,7 +73,7 @@ const PERMISSIONS: PermissionMap = {
     settings: ["view"],
   },
   admin: {
-    "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
+    "*": [...ACTIONS],
   },
   gerente: {
     leads: ["view", "create", "edit", "delete", "export"],
@@ -157,6 +160,77 @@ const PERMISSIONS: PermissionMap = {
   },
 };
 
+/**
+ * CRM/ERP (migration 0008), mesclado em PERMISSIONS por papel. CEO e admin já têm tudo pelo "*".
+ * `reports` libera o módulo de Relatórios; cada relatório ainda confere `view` no recurso de origem
+ * (ex.: DRE exige `finance`). `imports` libera a tela de importação; importar uma entidade também exige
+ * `create` no recurso dela (ex.: importar clientes exige `create` em `customers`).
+ */
+const ERP_PERMISSIONS: PermissionMap = {
+  gerente: {
+    products: ["view", "export"],
+    sales_orders: ["view", "approve", "export"],
+    invoices: ["view", "export"],
+    purchase_orders: ["view", "approve", "export"],
+    bank: ["view"],
+    reports: ["view", "export"],
+    imports: ["view", "create"],
+    crm_activities: ["view", "create", "edit", "comment"],
+  },
+  tecnico: {
+    products: ["view"],
+  },
+  estoquista: {
+    products: ["view", "create", "edit", "delete", "export"],
+    purchase_orders: ["view", "create", "edit", "receive", "request", "export"],
+    reports: ["view"],
+    imports: ["view", "create"],
+  },
+  financeiro: {
+    products: ["view"],
+    sales_orders: ["view", "export"],
+    invoices: ["view", "create", "edit", "delete", "approve", "export"],
+    purchase_orders: ["view", "export"],
+    bank: ["view", "create", "edit", "delete", "approve", "export"],
+    reports: ["view", "export"],
+    imports: ["view", "create"],
+  },
+  comercial: {
+    products: ["view"],
+    sales_orders: ["view", "create", "edit", "delete", "export"],
+    invoices: ["view"],
+    crm_activities: ["view", "create", "edit", "delete", "comment"],
+    reports: ["view"],
+    imports: ["view", "create"],
+  },
+  atendimento: {
+    products: ["view"],
+    sales_orders: ["view"],
+    crm_activities: ["view", "create", "edit", "comment"],
+  },
+  produtos: {
+    products: ["view", "create", "edit", "export"],
+    imports: ["view", "create"],
+  },
+  rh: {
+    imports: ["view", "create"],
+  },
+  auditor: {
+    products: ["view", "export"],
+    sales_orders: ["view", "export"],
+    invoices: ["view", "export"],
+    purchase_orders: ["view", "export"],
+    bank: ["view", "export"],
+    reports: ["view", "export"],
+    crm_activities: ["view", "export"],
+    imports: ["view"],
+  },
+};
+
+for (const [role, resources] of Object.entries(ERP_PERMISSIONS)) {
+  Object.assign((PERMISSIONS[role] ??= {}), resources);
+}
+
 export function can(
   role: Role,
   action: Action,
@@ -212,6 +286,11 @@ export function visibleModules(role: Role): string[] {
     documents: "documents",
     settings: "settings",
     audit: "audit_logs",
+    catalog: "products",
+    sales: "sales_orders",
+    purchasing: "purchase_orders",
+    reports: "reports",
+    imports: "imports",
   };
 
   const visible = [

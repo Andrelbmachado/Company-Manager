@@ -63,9 +63,6 @@ npm run tauri build -- --bundles dmg ${TAURI_ARGS[@]+"${TAURI_ARGS[@]}"}
 DMG="$(find "$CARGO_TARGET_DIR" -maxdepth 5 -path '*/release/bundle/dmg/*.dmg' -newer "$STAMP" -print -quit)"
 [ -n "$DMG" ] || { echo "O build não gerou nenhum DMG em $CARGO_TARGET_DIR/**/release/bundle/dmg" >&2; exit 1; }
 BUNDLE_DIR="$(dirname "$(dirname "$DMG")")"
-
-mkdir -p "$OUT_DIR"
-rm -f "$OUT_DIR/${APP_NAME}"_*.dmg
 FINAL="$OUT_DIR/$(basename "$DMG")"
 
 # Limpa o app dentro do DMG. Checkout em pasta oculta no iCloud Drive (ex.: worktree em .claude/) fica com o flag
@@ -82,9 +79,11 @@ xattr -dr com.apple.FinderInfo "$MNT/${APP_NAME}.app" 2>/dev/null || true
 rm -rf "$MNT/.fseventsd" "$MNT/.Trashes" "$MNT/.Spotlight-V100"
 hdiutil detach -quiet "$MNT"
 MNT=""
-hdiutil convert -quiet "$WORK/rw.dmg" -format UDZO -imagekey zlib-level=9 -o "$FINAL"
-rm -rf "$WORK"
-WORK=""
+# A imagem final fica na pasta temporária até passar na autoverificação: se algo falhar, o trap a apaga
+# e o DMG anterior de dist-installers/ continua lá (nunca sobra um DMG quebrado com cara de pronto).
+NEW="$WORK/final.dmg"
+hdiutil convert -quiet "$WORK/rw.dmg" -format UDZO -imagekey zlib-level=9 -o "$NEW"
+rm -f "$WORK/rw.dmg"
 
 # Uma cópia só (regra 1 do plano): sai o DMG do target e o .app que o bundler monta para gerá-lo.
 rm -f "$DMG"
@@ -92,9 +91,9 @@ rm -rf "$BUNDLE_DIR/macos/${APP_NAME}.app"
 detach_app_volumes
 
 # Autoverificação: imagem íntegra e app assinado (ad-hoc), sem atributos estranhos, dentro dela.
-hdiutil verify -quiet "$FINAL"
+hdiutil verify -quiet "$NEW"
 MNT="$(mktemp -d -t cm-dmg-mnt)"
-hdiutil attach -quiet -readonly -nobrowse -noautoopen -mountpoint "$MNT" "$FINAL"
+hdiutil attach -quiet -readonly -nobrowse -noautoopen -mountpoint "$MNT" "$NEW"
 APP="$MNT/${APP_NAME}.app"
 [ -d "$APP" ] || { echo "DMG sem ${APP_NAME}.app" >&2; exit 1; }
 [ -L "$MNT/Applications" ] || { echo "DMG sem o atalho para Aplicativos" >&2; exit 1; }
@@ -103,6 +102,13 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/
 MIN_OS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")"
 ARCHS="$(lipo -archs "$APP/Contents/MacOS/company-manager")"
 hdiutil detach -quiet "$MNT" && rmdir "$MNT" && MNT=""
+
+# Passou: só agora troca o DMG anterior (uma única cópia em dist-installers/).
+mkdir -p "$OUT_DIR"
+rm -f "$OUT_DIR/${APP_NAME}"_*.dmg
+mv "$NEW" "$FINAL"
+rm -rf "$WORK"
+WORK=""
 
 echo
 echo "DMG pronto: $FINAL"

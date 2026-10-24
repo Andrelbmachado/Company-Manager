@@ -77,4 +77,18 @@ describe("empacotamento DMG (macOS)", () => {
     expect(script).toMatch(/-format UDZO/);
     expect(script).toMatch(/codesign --verify --deep --strict/);
   });
+
+  it("só troca o DMG de dist-installers/ depois da autoverificação (falha não publica DMG quebrado nem apaga o anterior)", () => {
+    const script = read("scripts/build-dmg.sh");
+    // A imagem final nasce na pasta temporária (que o trap apaga se algo falhar), não em dist-installers/.
+    expect(script).toMatch(/-format UDZO -imagekey zlib-level=9 -o "\$NEW"/);
+    const verifyImage = script.indexOf('hdiutil verify -quiet "$NEW"');
+    const verifySignature = script.indexOf("codesign --verify --deep --strict");
+    const removePrevious = script.indexOf('rm -f "$OUT_DIR/${APP_NAME}"_*.dmg');
+    const publish = script.indexOf('mv "$NEW" "$FINAL"');
+    expect(verifyImage).toBeGreaterThan(-1);
+    expect(verifySignature).toBeGreaterThan(verifyImage);
+    expect(removePrevious).toBeGreaterThan(verifySignature);
+    expect(publish).toBeGreaterThan(removePrevious);
+  });
 });

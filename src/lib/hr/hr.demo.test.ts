@@ -75,5 +75,11 @@ describe("RH no banco demo", () => {
     expect(await fetchEmployee(db, C, "employee-demo-comercial")).toMatchObject({ pis: "120.12345.67-8", address_json: JSON.stringify({ cidade: "Sorocaba", uf: "SP" }) });
     const [intern] = (await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [C])).filter((employee) => employee.name === "Novo Estagiário");
     expect(intern).toMatchObject({ contract_type: "estagio", hire_date: "2026-11-01", status: "ativo" });
+
+    // Planilha que volta um desligado para Ativo: readmissão (o desligamento sai e não é efetivado de novo).
+    await startTermination(db, C, "employee-demo-comercial", { date: "2026-10-01", reason: "Pedido de demissão" }, RH, TODAY);
+    await upsertEmployees(db, C, [employeeImportSchema.parse({ name: "Camila Martins", email: "comercial@techflow.com", status: "Ativo" }) as EmployeeImportRow]);
+    expect(await applyDueTerminations(db, C, TODAY)).toBe(0);
+    expect(await fetchEmployee(db, C, "employee-demo-comercial")).toMatchObject({ status: "ativo", termination_date: null });
   });
 });

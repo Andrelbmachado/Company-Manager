@@ -11,6 +11,7 @@ import type { DatabaseLike } from "@/lib/db/demo";
 import type { FieldDef, ImportEntity } from "@/lib/importexport/registry";
 import type { Employee } from "@/types";
 import { CONTRACT_TYPES, EMPLOYEE_STATUSES, EMPTY_ADDRESS, parseAddress, type EmployeeAddress } from "./employees";
+import { clearTermination } from "./employment";
 
 const ADDRESS_KEYS = Object.keys(EMPTY_ADDRESS) as (keyof EmployeeAddress)[];
 
@@ -155,9 +156,13 @@ export async function upsertEmployees(db: DatabaseLike, companyId: string, rows:
           [...Object.values(values), ...(addressChanged ? [addressJson] : []), companyId, target.id],
         );
       }
+      // Desligado que a planilha volta a Ativo/Afastado é readmissão, como na ficha: sem limpar o desligamento,
+      // applyDueTerminations desligaria a pessoa de novo pela data antiga na próxima abertura das telas de RH.
+      const readmitted = target.status === "desligado" && !!values.status && values.status !== "desligado";
+      if (readmitted) await clearTermination(db, companyId, target.id);
       if (!touched.has(target.id)) updated += 1;
       touched.add(target.id);
-      Object.assign(target, values, addressChanged ? { address_json: addressJson } : {});
+      Object.assign(target, values, addressChanged ? { address_json: addressJson } : {}, readmitted ? { termination_date: null, termination_reason: null } : {});
       continue;
     }
     const id = uuidv4();

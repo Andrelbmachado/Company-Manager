@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import { EMPLOYEE_IMPORT_FIELDS, employeeImportEntity, employeeImportSchema, employeeNaturalKey, upsertEmployees, type EmployeeImportRow } from "./employeeImport";
-import { parseAddress } from "./employees";
-import type { Employee } from "@/types";
+import { emptyEmployeeInput, fetchEmployee, parseAddress, saveEmployee } from "./employees";
+import { applyDueTerminations, startTermination } from "./employment";
+import type { Employee, HrTask } from "@/types";
 
 const C = "test-company";
 let db: TestDb;
@@ -91,5 +92,23 @@ describe("gravação", () => {
     expect(await upsertEmployees(db, C, [parse({ name: "davi costa", position: "Suporte" })])).toEqual({ inserted: 0, updated: 1 });
     expect(await employees()).toHaveLength(1);
     expect((await employees())[0]).toMatchObject({ department: "TI", position: "Suporte" });
+  });
+
+  it("planilha que volta um desligado para Ativo é readmissão, como na ficha: o desligamento sai e não volta a desligar", async () => {
+    const today = "2026-10-24";
+    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, today);
+    await startTermination(db, C, id, { date: "2026-10-01", reason: "Pedido de demissão" }, "test-user-rh", today);
+    const exitTasks = () => db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND category='desligamento' AND deleted_at IS NULL", [C, id]);
+
+    // Linha sem a coluna Situação não mexe no desligamento.
+    await upsertEmployees(db, C, [parse({ name: "Ana Lima", email: "ana@x.com", phone: "(15) 99999-0000" })]);
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "desligado", termination_date: "2026-10-01" });
+
+    expect(await upsertEmployees(db, C, [parse({ name: "Ana Lima", email: "ana@x.com", status: "Ativo" })])).toEqual({ inserted: 0, updated: 1 });
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
+    expect(await exitTasks()).toHaveLength(0);
+    // Sem isso a próxima abertura das telas de RH desligaria a pessoa de novo pela data antiga.
+    expect(await applyDueTerminations(db, C, today)).toBe(0);
+    expect((await fetchEmployee(db, C, id))?.status).toBe("ativo");
   });
 });

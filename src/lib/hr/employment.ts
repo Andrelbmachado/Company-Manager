@@ -1,6 +1,7 @@
 // Ciclo do colaborador: admissão e desligamento com checklist (hr_tasks.category = admissao | desligamento, 0008).
 // O desligamento grava termination_date/termination_reason; o status vira "desligado" na data (na hora, se a data já
-// passou; desligamento agendado vira na primeira abertura das telas de RH depois da data: applyDueTerminations).
+// passou; desligamento agendado vira na primeira abertura da home ou das telas de RH, por quem edita o RH, depois da
+// data: applyDueTerminations).
 // Funções com `db` recebem o banco; SQL nos padrões do banco demo (contas e filtros no TypeScript).
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";

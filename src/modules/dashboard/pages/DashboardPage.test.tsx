@@ -43,14 +43,14 @@ function sessionFor(role: Role): Session {
   } as Session;
 }
 
-async function render(role: Role): Promise<void> {
+async function render(role: Role, client = new QueryClient({ defaultOptions: { queries: { retry: false } } })): Promise<void> {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
   const session = sessionFor(role);
   await act(async () => {
     root!.render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider client={client}>
         <SessionContext.Provider value={{ session, setSession: () => undefined }}>
           <MemoryRouter>
             <DashboardPage />
@@ -104,6 +104,37 @@ describe("DashboardPage (home por setor)", () => {
     expect(shown()).toEqual(expect.arrayContaining(["fin.overdueReceivables", "fin.cashflow7", "fin.dueNext7"]));
     for (const forbidden of ["crm.pipeline", "hr.pendingRequests", "payroll.monthly", "inv.belowMin"]) expect(shown()).not.toContain(forbidden);
     expect(widgetText("fin.overdueReceivables")).toContain("R$ 450,25");
+  });
+
+  it("CEO: desligamento agendado cuja data passou é efetivado ao abrir a home (ativos e folha sem a pessoa)", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    await db.execute("INSERT INTO employees (id, company_id, name, status, termination_date) VALUES (?,?,?,?,?)", ["e1", "test-company", "Ana", "ativo", null]);
+    await db.execute("INSERT INTO employees (id, company_id, name, status, termination_date, termination_reason) VALUES (?,?,?,?,?,?)", ["e2", "test-company", "Bruno", "ativo", "2020-01-10", "Pedido de demissão"]);
+    await db.execute("INSERT INTO employee_compensation (id, company_id, employee_id, base_salary) VALUES (?,?,?,?)", ["c1", "test-company", "e1", 3000]);
+    await db.execute("INSERT INTO employee_compensation (id, company_id, employee_id, base_salary) VALUES (?,?,?,?)", ["c2", "test-company", "e2", 5000]);
+    // Lista de colaboradores já em cache (Gestão de RH / Folha abertas antes): precisa recarregar depois.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["hr", "employees", "test-company"], []);
+    await render("ceo", client);
+    await settled();
+
+    // Ana e o cadastro do próprio CEO (Meu RH); Bruno saiu em 2020 e não entra na folha.
+    expect(widgetText("payroll.monthly")).toContain("R$ 3.000,00");
+    expect(widgetText("payroll.monthly")).toContain("2 colaboradores ativos");
+    const [bruno] = await db.select<{ status: string }[]>("SELECT status FROM employees WHERE id=?", ["e2"]);
+    expect(bruno.status).toBe("desligado");
+    expect(client.getQueryState(["hr", "employees", "test-company"])?.isInvalidated).toBe(true);
+  });
+
+  it("papel que não edita o RH não efetiva desligamento ao abrir a home", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    await db.execute("INSERT INTO employees (id, company_id, name, status, termination_date) VALUES (?,?,?,?,?)", ["e2", "test-company", "Bruno", "ativo", "2020-01-10"]);
+    await render("comercial");
+    await settled();
+    const [bruno] = await db.select<{ status: string }[]>("SELECT status FROM employees WHERE id=?", ["e2"]);
+    expect(bruno.status).toBe("ativo");
   });
 
   it("RH: solicitações e ciclo do colaborador, sem folha", async () => {

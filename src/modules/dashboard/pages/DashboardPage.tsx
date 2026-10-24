@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
-import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import { ROLE_LABELS, can } from "@/lib/permissions/rbac";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ensureMyEmployee } from "@/lib/hr/queries";
+import { applyDueTerminations } from "@/lib/hr/employment";
 import { todayIso } from "@/lib/utils";
 import { ROLE_HOME_INTRO, isHrWidget, isPersonalWidget, roleHome, type HomeWidget } from "@/lib/dashboard/roleHomes";
 import { loadHomeMetrics, type HomeContext } from "@/lib/dashboard/metrics";
@@ -18,6 +19,7 @@ import type { Role } from "@/types";
  */
 export default function DashboardPage() {
   const session = useRequiredSession();
+  const qc = useQueryClient();
   const role = session.membership.role as Role;
   const companyId = session.company.id;
   const userId = session.user.id;
@@ -37,7 +39,14 @@ export default function DashboardPage() {
     queryFn: async () => {
       // Primeiro acesso de qualquer papel: cria (ou liga pelo e-mail) o cadastro de colaborador do Meu RH.
       await ensureMyEmployee(session).catch(() => undefined);
-      return loadHomeMetrics(await getDb(), context(), hrData);
+      const db = await getDb();
+      const ctx = context();
+      // Desligamento agendado cuja data chegou vira "desligado" (como nas telas de RH, só quem edita o RH efetiva):
+      // sem isso ativos e folha da home contariam a pessoa até alguém abrir a Gestão de RH.
+      const changed = can(role, "edit", "hr_admin") ? await applyDueTerminations(db, companyId, ctx.today).catch(() => 0) : 0;
+      // Telas de RH e da Folha já em cache passam a ver a pessoa desligada (esta consulta fica de fora: já lê o novo).
+      if (changed > 0) void qc.invalidateQueries({ queryKey: ["hr"], predicate: (query) => query.queryKey[1] !== "dashboard" });
+      return loadHomeMetrics(db, ctx, hrData);
     },
     refetchInterval: 60_000,
     staleTime: 15_000,

@@ -87,6 +87,21 @@ describe("arquivos no banco demo", () => {
     expect(all.every((doc) => doc.deleted_at)).toBe(true);
   });
 
+  it("excluir só uma versão religa a corrente sem mexer nos outros documentos (UPDATE com WHERE estrito)", async () => {
+    const v1 = await saveFile(C, file("1", "Plano.txt"), { userId: U, folder: "Compartilhados" });
+    const v2 = await saveFile(C, file("2", "Plano.txt"), { userId: U, folder: "Compartilhados" });
+    const v3 = await saveFile(C, file("3", "Plano.txt"), { userId: U, folder: "Compartilhados" });
+    const before = await listFolderDocuments(C);
+    await deleteFile(v2, { userId: U, onlyThisVersion: true });
+    expect((await listVersions(v3)).map((doc) => doc.version)).toEqual([3, 1]);
+    const after = await listFolderDocuments(C);
+    expect(after.map((doc) => doc.id).sort()).toEqual(before.map((doc) => doc.id).sort());
+    const db = state.db as { select<T>(sql: string, binds?: unknown[]): Promise<T> };
+    const seeded = await db.select<DocumentRow[]>("SELECT * FROM documents WHERE company_id=? AND id=?", [C, "doc-1"]);
+    expect(seeded[0].parent_version_id ?? null).toBeNull();
+    expect(after.find((doc) => doc.id === v3.id)?.parent_version_id).toBe(v1.id);
+  });
+
   it("sem IndexedDB (navegador antigo, janela privada), o armazenamento do navegador cai para a memória e avisa", async () => {
     const backend = demoFileBackend();
     expect(backend.persistent).toBe(false);

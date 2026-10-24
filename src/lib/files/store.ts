@@ -336,6 +336,10 @@ async function logActivity(doc: DocumentRow, actorId: string, type: string, titl
  */
 export async function saveFile(companyId: string, file: File, meta: SaveFileMeta): Promise<DocumentRow> {
   if (!isValidCompanyId(companyId)) throw new FileStoreError("invalid", "Empresa inválida para guardar arquivos.");
+  // A nova versão herda título, pasta/registro e corrente do documento: nunca de um documento de outra empresa.
+  if (meta.versionOf && meta.versionOf.company_id !== companyId) {
+    throw new FileStoreError("invalid", "Não é possível enviar nova versão de um documento de outra empresa.");
+  }
   const originalName = String(file.name ?? "");
   const shown = sanitizeFileName(originalName);
   const limit = meta.maxBytes ?? (await getMaxFileBytes(companyId));

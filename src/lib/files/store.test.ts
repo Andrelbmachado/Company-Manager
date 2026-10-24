@@ -16,6 +16,7 @@ import type { DocumentRow } from "@/types";
 import {
   DEFAULT_MAX_FILE_BYTES,
   FileStoreError,
+  HARD_MAX_FILE_BYTES,
   currentVersions,
   deleteFile,
   documentFolder,
@@ -190,6 +191,32 @@ describe("saveFile", () => {
     expect(disk.listFiles()).toHaveLength(0);
   });
 
+  it("o limite configurado tem teto de 500 MB; registro inválido para anexo é recusado", async () => {
+    await testDb().execute("INSERT INTO settings (id, company_id, key, value_json) VALUES (?,?,?,?)", ["s-1", C, "documents.max_file_mb", '{"mb": 9999}']);
+    expect(await getMaxFileBytes(C)).toBe(HARD_MAX_FILE_BYTES);
+    await expectStoreError(saveFile(C, file("x", "x.txt"), { userId: U, entityType: "../cliente", entityId: "c-1" }), "invalid", /registro inválido/i);
+    await expectStoreError(saveFile(C, file("x", "x.txt"), { userId: U, entityType: "customer", entityId: "  " }), "invalid", /registro inválido/i);
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it("isolamento por empresa: nada de dedupe, lista, versão ou leitura entre empresas", async () => {
+    await insertTestCompany(testDb(), { companyId: "outra-empresa", roles: [] });
+    const mine = await saveFile(C, file("mesmo conteúdo", "Contrato.txt"), { userId: U, folder: "Comercial" });
+    const theirs = await saveFile("outra-empresa", file("mesmo conteúdo", "Contrato.txt"), { userId: U, folder: "Comercial" });
+    expect(theirs.version).toBe(1);
+    expect(theirs.storage_key).not.toBe(mine.storage_key);
+    expect(disk.listFiles()).toHaveLength(2);
+    expect((await listFolderDocuments(C)).map((doc) => doc.id)).toEqual([mine.id]);
+
+    // Nova versão "de" um documento de outra empresa: recusada, sem copiar título/pasta nem ligar as correntes.
+    await expectStoreError(saveFile(C, file("v2", "x.txt"), { userId: U, versionOf: theirs }), "invalid", /outra empresa/i);
+    expect((await listVersions(theirs)).map((doc) => doc.id)).toEqual([theirs.id]);
+    expect(await rows()).toHaveLength(1);
+
+    // storage_key de outra empresa num documento desta: a leitura é recusada.
+    await expectStoreError(openFile({ ...mine, storage_key: theirs.storage_key }), "invalid", /inválid/);
+  });
+
   it("normaliza a pasta (sem .., sem barras extras)", async () => {
     const doc = await saveFile(C, file("x", "x.txt"), { userId: U, folder: "/../Comercial//./Contratos/../" });
     expect(doc.folder).toBe("Comercial/Contratos");
@@ -268,6 +295,17 @@ describe("deleteFile, renomear e restaurar", () => {
     expect(disk.listFiles()).toHaveLength(0);
   });
 
+  it("excluir só a versão atual devolve a anterior como atual (e mantém os bytes dela)", async () => {
+    const v1 = await saveFile(C, file("1", "Plano.txt"), { userId: U });
+    const v2 = await saveFile(C, file("2", "Plano.txt"), { userId: U });
+    await deleteFile(v2, { userId: U, onlyThisVersion: true });
+    expect((await listFolderDocuments(C)).map((doc) => doc.id)).toEqual([v1.id]);
+    expect((await listVersions(v1)).map((doc) => doc.version)).toEqual([1]);
+    expect(disk.listFiles()).toEqual([v1.storage_key]);
+    const v3 = await saveFile(C, file("3", "Plano.txt"), { userId: U });
+    expect(v3).toMatchObject({ version: 2, parent_version_id: v1.id });
+  });
+
   it("renomear muda todas as versões; nome já usado na pasta é recusado", async () => {
     const v1 = await saveFile(C, file("1", "Rascunho.txt"), { userId: U, folder: "Comercial" });
     const v2 = await saveFile(C, file("2", "Rascunho.txt"), { userId: U, folder: "Comercial" });
@@ -288,6 +326,14 @@ describe("deleteFile, renomear e restaurar", () => {
     expect(v3).toMatchObject({ version: 3, sha256: v1.sha256, storage_key: v1.storage_key, title: "Doc.txt" });
     expect(disk.listFiles()).toHaveLength(2);
     expect(new TextDecoder().decode(await (await openFile(v3)).arrayBuffer())).toBe("um");
+  });
+
+  it("restaurar versão cujo arquivo sumiu do armazenamento avisa e não cria versão", async () => {
+    const v1 = await saveFile(C, file("um", "Doc.txt"), { userId: U });
+    await saveFile(C, file("dois", "Doc.txt"), { userId: U });
+    await disk.remove(v1.storage_key!);
+    await expectStoreError(restoreVersion(v1, U), "missing", /não foi encontrado/);
+    expect(await rows()).toHaveLength(2);
   });
 });
 

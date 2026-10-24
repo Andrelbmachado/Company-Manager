@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useRequiredSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
+import { SUBPAGES, canOpenSubpage, isDetailPage, sectionOf } from "../subpages";
 import { Command } from "cmdk";
 import {
   LayoutDashboard,
@@ -57,6 +58,18 @@ const COMMANDS = [
   { module: "assistant", label: "Assistente IA", path: "/assistant", icon: Sparkles },
 ];
 
+const MODULE_ICONS = new Map(COMMANDS.map((cmd) => [cmd.module, cmd.icon]));
+
+/** Subpáginas de lista do registro (src/app/subpages.ts) que o papel abre: "Módulo › Página", com o ícone do módulo. */
+function subpageCommands(role: Role) {
+  return SUBPAGES.filter((page) => !isDetailPage(page) && canOpenSubpage(role, page)).map((page) => ({
+    module: page.module,
+    label: `${sectionOf(page.module)?.title ?? page.module} › ${page.label}`,
+    path: page.path,
+    icon: MODULE_ICONS.get(page.module) ?? Search,
+  }));
+}
+
 interface CommandMenuProps {
   open: boolean;
   onOpen: () => void;
@@ -69,7 +82,9 @@ export function CommandMenu({ open, onOpen, onClose }: CommandMenuProps) {
   const [search, setSearch] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const allowed = new Set(visibleModules(session.membership.role as Role));
+  const role = session.membership.role as Role;
+  const allowed = new Set(visibleModules(role));
+  const commands = [...COMMANDS.filter((cmd) => allowed.has(cmd.module)), ...subpageCommands(role)];
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -111,7 +126,7 @@ export function CommandMenu({ open, onOpen, onClose }: CommandMenuProps) {
               Nenhum resultado encontrado.
             </Command.Empty>
             <Command.Group heading="Navegar">
-              {COMMANDS.filter((cmd) => allowed.has(cmd.module)).map((cmd) => {
+              {commands.map((cmd) => {
                 const Icon = cmd.icon;
                 return (
                   <Command.Item

@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { CommandMenu } from "./CommandMenu";
+import { ModuleNav } from "./ModuleNav";
 import { Bell, ChevronDown, HeadphonesIcon, LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
 import { useProspectingBootstrap } from "@/hooks/useProspectingBootstrap";
@@ -169,6 +170,7 @@ export function AppShell() {
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">
           <div className="p-6">
+            <ModuleNav />
             <Outlet />
           </div>
         </main>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
+import { activeNavPath } from "../subpages";
 import type { Role } from "@/types";
 import {
   LayoutDashboard,
@@ -77,6 +78,8 @@ export function Sidebar() {
   const allowed = new Set(visibleModules(session.membership.role as Role));
 
   const visible = NAV_ITEMS.filter((item) => allowed.has(item.module));
+  // Item ativo: o caminho mais longo que contém a URL (/hr/banco-de-horas acende Meu RH; /hr/manage/..., Gestão de RH).
+  const activePath = activeNavPath(visible.map((item) => item.path), location.pathname);
   const assistantVisible = allowed.has("assistant");
 
   const groups: Record<string, NavItem[]> = {};
@@ -159,8 +162,7 @@ export function Sidebar() {
             </p>
             {items.map((item) => {
               const Icon = item.icon;
-              const exact = item.path === "/" || item.path === "/hr";
-              const active = exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+              const active = item.path === activePath;
               return (
                 <NavLink
                   key={item.path}

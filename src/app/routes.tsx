@@ -1,9 +1,10 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
+import { SUBPAGES, canOpenSubpage, subpageRoutePath, type Subpage } from "./subpages";
 import { useSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
-import type { ReactNode } from "react";
+import type { ComponentType, LazyExoticComponent, ReactNode } from "react";
 
 // Pages – lazy loaded
 import { lazy, Suspense } from "react";
@@ -35,6 +36,20 @@ const PurchasingPage = lazy(() => import("@/modules/purchasing/pages/PurchasingP
 const ReportsPage = lazy(() => import("@/modules/reports/pages/ReportsPage"));
 const ImportsPage = lazy(() => import("@/modules/imports/pages/ImportsPage"));
 
+// Subpáginas (src/app/subpages.ts): uma rota por item do registro, com a página carregada sob demanda.
+// ChangePasswordPage fica fora: o App.tsx a importa direto (senão o Vite avisa que o import dinâmico não separa o chunk).
+const SUBPAGE_LOADERS = import.meta.glob<{ default: ComponentType }>([
+  "/src/modules/{crm,catalog,sales,purchasing,inventory,finance,hr,imports,reports,settings}/pages/*Page.tsx",
+  "!/src/modules/settings/pages/ChangePasswordPage.tsx",
+]);
+const SUBPAGE_COMPONENTS = new Map<string, LazyExoticComponent<ComponentType>>(
+  SUBPAGES.map((page) => {
+    const loader = SUBPAGE_LOADERS[`/src/modules/${page.page}`];
+    if (!loader) throw new Error(`Página da subpágina ${page.path} não encontrada: src/modules/${page.page}`);
+    return [page.path, lazy(loader)];
+  }),
+);
+
 function Loader() {
   return (
     <div className="flex h-full items-center justify-center">
@@ -49,6 +64,13 @@ function RequireModule({ module, children }: { module: string; children: ReactNo
   return visibleModules(session.membership.role as Role).includes(module)
     ? children
     : <Navigate to="/" replace />;
+}
+
+/** Subpágina: precisa ver o módulo e ter cada permissão do registro; senão volta ao início. */
+function RequireSubpage({ page, children }: { page: Subpage; children: ReactNode }) {
+  const { session } = useSession();
+  if (!session) return <Navigate to="/" replace />;
+  return canOpenSubpage(session.membership.role as Role, page) ? children : <Navigate to="/" replace />;
 }
 
 export function AppRoutes() {
@@ -72,7 +94,7 @@ export function AppRoutes() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/crm/*" element={<RequireModule module="crm"><CrmPage /></RequireModule>} />
           <Route path="/hr" element={<RequireModule module="hr"><MyHrPage /></RequireModule>} />
-          <Route path="/hr/manage" element={<RequireModule module="hr_manage"><HrManagePage /></RequireModule>} />
+          <Route path="/hr/manage/*" element={<RequireModule module="hr_manage"><HrManagePage /></RequireModule>} />
           <Route path="/leads/*" element={<RequireModule module="leads"><LeadsPage /></RequireModule>} />
           <Route path="/opportunities/*" element={<RequireModule module="opportunities"><OpportunitiesPage /></RequireModule>} />
           <Route path="/support/*" element={<RequireModule module="support"><SupportPage /></RequireModule>} />
@@ -92,6 +114,10 @@ export function AppRoutes() {
           <Route path="/purchasing/*" element={<RequireModule module="purchasing"><PurchasingPage /></RequireModule>} />
           <Route path="/reports/*" element={<RequireModule module="reports"><ReportsPage /></RequireModule>} />
           <Route path="/imports/*" element={<RequireModule module="imports"><ImportsPage /></RequireModule>} />
+          {SUBPAGES.map((page) => {
+            const Page = SUBPAGE_COMPONENTS.get(page.path)!;
+            return <Route key={page.path} path={subpageRoutePath(page)} element={<RequireSubpage page={page}><Page /></RequireSubpage>} />;
+          })}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

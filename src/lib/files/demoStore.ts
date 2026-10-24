@@ -36,6 +36,9 @@ async function withStore<T>(factory: IDBFactory, mode: IDBTransactionMode, run: 
   const db = await openDatabase(factory);
   const transaction = db.transaction(STORE, mode);
   const result = promisify(run(transaction.objectStore(STORE)));
+  // Pedido que falha também derruba a transação: o erro sai pelo await abaixo, e esta promessa não pode ficar
+  // rejeitada sem tratamento (o navegador mostraria "Uncaught (in promise)" a cada falha).
+  result.catch(() => undefined);
   await new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error("Falha no IndexedDB."));

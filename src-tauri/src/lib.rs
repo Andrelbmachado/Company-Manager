@@ -1,5 +1,7 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod auth;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Olá, {}! Company Manager iniciado.", name)
@@ -68,6 +70,12 @@ pub fn run() {
             sql: include_str!("../migrations/0009_documents_files.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "auth_hash",
+            sql: include_str!("../migrations/0010_auth_hash.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -79,7 +87,12 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![greet, restart_app])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            restart_app,
+            auth::hash_password,
+            auth::verify_password
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -23,6 +23,9 @@ export interface User {
   status: "active" | "suspended";
   locale: string;
   last_login_at?: string | null;
+  /** 1 = precisa trocar a senha antes de usar o app (migration 0010). Ausente no banco demo antigo = 0. */
+  must_change_password?: number;
+  password_changed_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

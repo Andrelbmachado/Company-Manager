@@ -76,6 +76,7 @@ export const PERMISSIONS: PermissionMap = {
     "*": [...ACTIONS],
   },
   gerente: {
+    customers: ["view", "create", "edit", "comment", "attach", "export"],
     leads: ["view", "create", "edit", "delete", "export"],
     opportunities: ["view", "create", "edit", "delete", "approve"],
     proposals: ["view", "create", "edit", "approve"],
@@ -130,7 +131,9 @@ export const PERMISSIONS: PermissionMap = {
     documents: ["view", "create", "edit", "attach"],
     settings: ["view"],
   },
+  // Atendimento consulta a ficha do cliente para atender; quem cadastra e edita cliente é o Comercial.
   atendimento: {
+    customers: ["view"],
     tickets: ["view", "create", "edit", "comment"],
     work_orders: ["view", "create"],
     documents: ["view", "create", "edit", "attach"],
@@ -157,6 +160,7 @@ export const PERMISSIONS: PermissionMap = {
     documents: ["view", "export"],
     users: ["view"],
     settings: ["view"],
+    audit_logs: ["view", "export"],
   },
 };
 
@@ -240,20 +244,11 @@ export function can(
   const rolePerms = PERMISSIONS[role];
   if (!rolePerms) return false;
 
-  // CEO enxerga tudo (as exceções de setor abaixo não se aplicam a ele).
-  if (role === "ceo") return true;
-
-  // "Meu RH": todo colaborador, de qualquer setor, vê e abre solicitações do próprio RH.
+  // "Meu RH": todo colaborador, de qualquer setor, vê e abre solicitações do próprio RH (a única regra comum a todos).
   if (resource === "hr_self") return action === "view" || action === "create" || action === "comment";
 
-  if (resource === "customers" && role !== "comercial") return false;
-  if (resource === "audit_logs" && role !== "tecnico") return false;
-
-  // Admin wildcard
-  if (rolePerms["*"]) return true;
-
-  const allowed = rolePerms[resource] ?? [];
-  return allowed.includes(action);
+  // Sem exceções por papel: o acesso está todo na tabela PERMISSIONS ("*" = as mesmas ações em todos os recursos).
+  return (rolePerms["*"] ?? rolePerms[resource] ?? []).includes(action);
 }
 
 export function hasFullTicketAccess(role: Role): boolean {

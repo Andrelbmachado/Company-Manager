@@ -117,6 +117,8 @@ const STATUS_TONE: Record<string, Tone> = {
   despesa: "danger",
   produto: "info",
   servico: "violet",
+  // Contas
+  troca_senha: "warning",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -204,6 +206,7 @@ const STATUS_LABELS: Record<string, string> = {
   despesa: "Despesa",
   produto: "Produto",
   servico: "Serviço",
+  troca_senha: "Troca de senha pendente",
 };
 
 interface StatusBadgeProps {

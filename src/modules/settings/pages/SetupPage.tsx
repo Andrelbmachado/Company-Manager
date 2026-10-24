@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDb } from "@/lib/db/client";
-import { hashPassword } from "@/lib/auth/login";
-import { Building2, Loader2, CheckCircle2 } from "lucide-react";
+import { createUserAccount, emailInUse, isValidEmail, normalizeEmail, type CreatedAccount } from "@/lib/auth/accounts";
+import { PASSWORD_MIN_LENGTH, passwordProblem } from "@/lib/auth/password";
+import { ALL_ROLES, isValidDomain, normalizeDomain, ROLE_ACCOUNT_DOMAIN, roleAccountEmail, seedRoleAccounts } from "@/lib/auth/seedRoleAccounts";
+import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import { Building2, CheckCircle2, Copy, Loader2, TriangleAlert } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 type Step = "company" | "admin" | "done";
+
+const input = "flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring";
+const SECTOR_ROLES = ALL_ROLES.filter((role) => role !== "ceo");
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -20,48 +26,62 @@ export default function SetupPage() {
   const [adminPassword, setAdminPassword] = useState("");
   const [adminPassword2, setAdminPassword2] = useState("");
 
+  const [withSectors, setWithSectors] = useState(false);
+  const [sectorDomain, setSectorDomain] = useState(ROLE_ACCOUNT_DOMAIN);
+  const [sectorPassword, setSectorPassword] = useState("");
+  const [sectorAccounts, setSectorAccounts] = useState<CreatedAccount[]>([]);
+  const [sectorError, setSectorError] = useState("");
+  const [copied, setCopied] = useState(false);
+
   async function handleCompany(e: React.FormEvent) {
     e.preventDefault();
     if (!companyName.trim()) return;
     setStep("admin");
   }
 
+  /** Tudo o que dá para conferir antes de gravar: assim um erro não deixa empresa sem CEO. */
+  async function validate(): Promise<string | null> {
+    if (!adminName.trim()) return "Informe o nome do CEO.";
+    if (!isValidEmail(normalizeEmail(adminEmail))) return "E-mail inválido.";
+    if (adminPassword !== adminPassword2) return "As senhas não conferem.";
+    const problem = passwordProblem(adminPassword);
+    if (problem) return problem;
+    if (withSectors) {
+      if (!isValidDomain(normalizeDomain(sectorDomain))) return "Domínio dos e-mails dos setores inválido (exemplo: empresa.com.br).";
+      const sectorProblem = passwordProblem(sectorPassword);
+      if (sectorProblem) return `Senha inicial dos setores: ${sectorProblem.charAt(0).toLowerCase()}${sectorProblem.slice(1)}`;
+      if (sectorPassword === adminPassword) return "A senha inicial dos setores precisa ser diferente da senha do CEO.";
+      if (SECTOR_ROLES.some((role) => roleAccountEmail(role, sectorDomain) === normalizeEmail(adminEmail))) return "O e-mail do CEO coincide com o de uma conta de setor. Use outro e-mail ou outro domínio.";
+    }
+    const db = await getDb();
+    if ((await db.select<{ id: string }[]>("SELECT id FROM companies WHERE deleted_at IS NULL LIMIT 1")).length) return "Esta empresa já está cadastrada. Volte e entre com a sua conta.";
+    if (await emailInUse(adminEmail)) return "Já existe uma conta com este e-mail.";
+    return null;
+  }
+
   async function handleAdmin(e: React.FormEvent) {
     e.preventDefault();
-    if (adminPassword !== adminPassword2) {
-      setError("As senhas não conferem.");
-      return;
-    }
-    if (adminPassword.length < 6) {
-      setError("Senha deve ter ao menos 6 caracteres.");
-      return;
-    }
     setError("");
     setLoading(true);
     try {
+      const problem = await validate();
+      if (problem) {
+        setError(problem);
+        return;
+      }
       const db = await getDb();
       const companyId = uuidv4();
-      const userId = uuidv4();
-      const membershipId = uuidv4();
-      const hash = await hashPassword(adminPassword);
-      const email = adminEmail.trim().toLowerCase();
-      if ((await db.select<unknown[]>("SELECT * FROM users WHERE lower(email) = ? AND deleted_at IS NULL LIMIT 1", [email])).length) {
-        throw new Error("Já existe uma conta com este e-mail.");
+      await db.execute("INSERT INTO companies (id, name, document) VALUES (?, ?, ?)", [companyId, companyName.trim(), companyDoc.trim() || null]);
+      // A conta criada aqui é o CEO: só o CEO concede o papel de CEO depois.
+      await createUserAccount({ companyId, name: adminName, email: adminEmail, password: adminPassword, role: "ceo" });
+
+      if (withSectors) {
+        try {
+          setSectorAccounts(await seedRoleAccounts(companyId, sectorPassword, { domain: sectorDomain, roles: SECTOR_ROLES }));
+        } catch (err) {
+          setSectorError(err instanceof Error ? err.message : String(err));
+        }
       }
-
-      await db.execute(
-        "INSERT INTO companies (id, name, document) VALUES (?, ?, ?)",
-        [companyId, companyName.trim(), companyDoc || null]
-      );
-      await db.execute(
-        "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-        [userId, adminName.trim(), email, hash]
-      );
-      await db.execute(
-        "INSERT INTO memberships (id, company_id, user_id, role, scope) VALUES (?, ?, ?, 'ceo', 'empresa')",
-        [membershipId, companyId, userId]
-      );
-
       setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao configurar empresa");
@@ -70,15 +90,51 @@ export default function SetupPage() {
     }
   }
 
+  async function copyList() {
+    const text = sectorAccounts.map((account) => `${ROLE_LABELS[account.role]}: ${account.email}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
   if (step === "done") {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="text-center space-y-4">
+        <div className="w-full max-w-md space-y-5 text-center">
           <CheckCircle2 size={48} className="mx-auto text-emerald-500" />
-          <h2 className="text-xl font-bold">Empresa configurada!</h2>
-          <p className="text-sm text-muted-foreground">
-            Acesse com o e-mail e senha criados.
-          </p>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold">Empresa configurada!</h2>
+            <p className="text-sm text-muted-foreground">Entre com o e-mail e a senha do CEO.</p>
+          </div>
+
+          {sectorAccounts.length > 0 && (
+            <div className="space-y-3 rounded-xl border bg-card p-4 text-left">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold">Contas dos setores ({sectorAccounts.length})</h3>
+                <button type="button" onClick={copyList} className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted"><Copy size={13} /> {copied ? "Copiado" : "Copiar lista"}</button>
+              </div>
+              <ul className="divide-y rounded-lg border text-sm">
+                {sectorAccounts.map((account) => (
+                  <li key={account.userId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                    <span className="font-medium">{ROLE_LABELS[account.role]}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{account.email}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">Todas entram com a senha inicial que você definiu e escolhem uma senha nova no primeiro acesso. Para criar mais contas ou trocar o papel de alguém: Configurações, Usuários e acessos.</p>
+            </div>
+          )}
+
+          {sectorError && (
+            <p role="alert" className="flex items-start gap-2 rounded-md border border-status-warning bg-background px-3 py-2 text-left text-sm">
+              <TriangleAlert size={16} className="mt-0.5 shrink-0 text-status-warning" />
+              <span>As contas dos setores não foram criadas ({sectorError}). Crie-as depois em Configurações, Usuários e acessos.</span>
+            </p>
+          )}
+
           <button
             onClick={() => navigate("/")}
             className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -121,26 +177,12 @@ export default function SetupPage() {
         {step === "company" && (
           <form onSubmit={handleCompany} className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Nome da empresa *</label>
-              <input
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                required
-                autoFocus
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Minha Empresa Ltda"
-              />
+              <label htmlFor="setup-company" className="text-sm font-medium">Nome da empresa *</label>
+              <input id="setup-company" type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required autoFocus className={input} placeholder="Minha Empresa Ltda" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">CNPJ (opcional)</label>
-              <input
-                type="text"
-                value={companyDoc}
-                onChange={(e) => setCompanyDoc(e.target.value)}
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="00.000.000/0001-00"
-              />
+              <label htmlFor="setup-document" className="text-sm font-medium">CNPJ (opcional)</label>
+              <input id="setup-document" type="text" value={companyDoc} onChange={(e) => setCompanyDoc(e.target.value)} className={input} placeholder="00.000.000/0001-00" />
             </div>
             <button
               type="submit"
@@ -152,55 +194,50 @@ export default function SetupPage() {
         )}
 
         {step === "admin" && (
-          <form onSubmit={handleAdmin} className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
+          <form onSubmit={handleAdmin} className="rounded-xl border bg-card p-6 shadow-sm space-y-4" noValidate>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Nome completo *</label>
-              <input
-                type="text"
-                value={adminName}
-                onChange={(e) => setAdminName(e.target.value)}
-                required
-                autoFocus
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="João Silva"
-              />
+              <label htmlFor="setup-name" className="text-sm font-medium">Nome completo *</label>
+              <input id="setup-name" type="text" value={adminName} onChange={(e) => setAdminName(e.target.value)} required autoFocus className={input} placeholder="João Silva" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">E-mail *</label>
-              <input
-                type="email"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                required
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="ceo@empresa.com"
-              />
+              <label htmlFor="setup-email" className="text-sm font-medium">E-mail *</label>
+              <input id="setup-email" type="email" autoComplete="username" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required className={input} placeholder="ceo@empresa.com" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Senha *</label>
-              <input
-                type="password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                required
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="••••••••"
-              />
+              <label htmlFor="setup-password" className="text-sm font-medium">Senha * <span className="font-normal text-muted-foreground">(mínimo {PASSWORD_MIN_LENGTH} caracteres)</span></label>
+              <input id="setup-password" type="password" autoComplete="new-password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} required className={input} placeholder="••••••••" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Confirmar senha *</label>
-              <input
-                type="password"
-                value={adminPassword2}
-                onChange={(e) => setAdminPassword2(e.target.value)}
-                required
-                className="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm outline-none focus:ring-2 focus:ring-ring"
-                placeholder="••••••••"
-              />
+              <label htmlFor="setup-password2" className="text-sm font-medium">Confirmar senha *</label>
+              <input id="setup-password2" type="password" autoComplete="new-password" value={adminPassword2} onChange={(e) => setAdminPassword2(e.target.value)} required className={input} placeholder="••••••••" />
             </div>
 
+            <fieldset className="space-y-3 rounded-lg border p-3">
+              <label className="flex items-start gap-2.5 text-sm">
+                <input type="checkbox" checked={withSectors} onChange={(e) => { setError(""); setWithSectors(e.target.checked); }} className="mt-0.5 h-4 w-4 rounded border-input accent-primary" />
+                <span>
+                  <span className="font-medium">Criar também uma conta para cada setor</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {SECTOR_ROLES.map((role) => ROLE_LABELS[role]).join(", ")}. E-mails como {roleAccountEmail("financeiro", sectorDomain || ROLE_ACCOUNT_DOMAIN)}, todos com a mesma senha inicial, que cada pessoa troca no primeiro acesso.
+                  </span>
+                </span>
+              </label>
+              {withSectors && (
+                <>
+                  <div className="space-y-1.5">
+                    <label htmlFor="setup-domain" className="text-sm font-medium">Domínio dos e-mails</label>
+                    <input id="setup-domain" type="text" value={sectorDomain} onChange={(e) => setSectorDomain(e.target.value)} className={input} placeholder={ROLE_ACCOUNT_DOMAIN} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="setup-sector-password" className="text-sm font-medium">Senha inicial dos setores</label>
+                    <input id="setup-sector-password" type="password" autoComplete="off" value={sectorPassword} onChange={(e) => setSectorPassword(e.target.value)} className={input} placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres, diferente da do CEO`} />
+                  </div>
+                </>
+              )}
+            </fieldset>
+
             {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
               </p>
             )}
@@ -215,11 +252,11 @@ export default function SetupPage() {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !adminName || !adminEmail || !adminPassword || !adminPassword2 || (withSectors && !sectorPassword)}
                 className="flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {loading && <Loader2 size={14} className="animate-spin" />}
-                Criar conta
+                {withSectors ? "Criar contas" : "Criar conta"}
               </button>
             </div>
           </form>

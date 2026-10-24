@@ -172,4 +172,22 @@ describe("ImportHistoryPage", () => {
     expect(dialog).toContain("→ Preço de venda");
     expect(dialog).toContain("Baixar relatório de erros (CSV)");
   });
+
+  it("só mostra importações de cadastros que o papel pode ver (os erros trazem CPF, valores, nomes)", async () => {
+    await renderPage(<ImportHistoryPage />, "comercial", "/imports/historico", async (db, companyId) => {
+      const batch = (id: string, entity: string, filename: string, message: string) =>
+        db.execute(
+          "INSERT INTO import_batches (id, company_id, entity, filename, format, mode, status, rows_total, rows_ok, rows_err, inserted, updated, errors_json, mapping_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          [id, companyId, entity, filename, "csv", "skip-errors", "com_erros", 2, 1, 1, 1, 0, JSON.stringify([{ row: 2, field: "document", message }]), "{}"],
+        );
+      await batch("b-1", "customers", "clientes.csv", "CPF/CNPJ inválido");
+      await batch("b-2", "employees", "folha-colaboradores.csv", 'CPF inválido: "529.982.247-25"');
+      await batch("b-3", "payables", "contas-a-pagar.csv", "Valor inválido");
+      await batch("b-4", "removido", "antigo.csv", "Valor inválido");
+    });
+    await until(() => text().includes("clientes.csv"), "lista do histórico");
+    expect(text()).not.toContain("folha-colaboradores.csv");
+    expect(text()).not.toContain("contas-a-pagar.csv");
+    expect(text()).not.toContain("antigo.csv");
+  });
 });

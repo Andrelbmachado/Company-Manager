@@ -10,7 +10,7 @@ import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
-import { entityLabel } from "@/lib/importexport/access";
+import { canSeeImportBatch, entityLabel } from "@/lib/importexport/access";
 import { errorsToCsv, type ImportRowError } from "@/lib/importexport/errors";
 import { getEntity } from "@/lib/importexport/registry";
 import { MAX_STORED_ERRORS } from "@/lib/importexport/runImport";
@@ -42,10 +42,10 @@ export default function ImportHistoryPage() {
   const [selected, setSelected] = useState<ImportBatch | null>(null);
 
   const { data: batches = [], isLoading } = useQuery({
-    queryKey: ["import-batches", session.company.id],
+    queryKey: ["import-batches", session.company.id, role, session.user.id],
     queryFn: async () => {
       const rows = await (await getDb()).select<ImportBatch[]>("SELECT * FROM import_batches WHERE company_id=? AND deleted_at IS NULL", [session.company.id]);
-      return [...rows].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      return rows.filter((batch) => canSeeImportBatch(role, batch, session.user.id)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     },
   });
 

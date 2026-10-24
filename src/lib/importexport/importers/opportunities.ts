@@ -55,6 +55,9 @@ export const entity = defineTableEntity<OpportunityImportRow>({
   keys: [{ name: "título no cliente", fromRow: (row, refs) => `${refs.customer ?? ""}|${row.title}`, fromDb: (row) => `${row.customer_id ?? ""}|${String(row.title ?? "")}` }],
   toColumns: (row, { refs, existing }) => {
     const status = statusOf(row.stage);
+    // Data de fechamento só quando esta importação fecha a oportunidade (nova, ou que muda para ganha/perdida):
+    // reimportar uma oportunidade já ganha não inventa a data de hoje (a planilha não traz essa data).
+    const closing = (status === "won" || status === "lost") && existing?.status !== status;
     return {
       title: row.title,
       customer_id: refs.customer,
@@ -66,7 +69,7 @@ export const entity = defineTableEntity<OpportunityImportRow>({
       source: row.source,
       lost_reason: row.lost_reason,
       notes: row.notes,
-      closed_at: status && status !== "open" ? (existing?.closed_at ?? sqliteNow()) : undefined,
+      closed_at: closing ? sqliteNow() : undefined,
     };
   },
   insertDefaults: (_row, { userId }) => ({ owner_id: userId }),

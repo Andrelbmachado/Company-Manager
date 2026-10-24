@@ -323,6 +323,25 @@ describe("chaves de identificação", () => {
   });
 });
 
+describe("oportunidades", () => {
+  it("data de fechamento só quando a importação fecha a oportunidade; reimportar a ganha não inventa data", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    const won = uuidv4();
+    const open = uuidv4();
+    const old = "2026-01-05 10:00:00";
+    await insert(db, "opportunities", { id: won, company_id: companyId, title: "Wi-Fi", stage: "ganho", status: "won", probability: 100, updated_at: old });
+    await insert(db, "opportunities", { id: open, company_id: companyId, title: "Rede", stage: "proposta", status: "open", probability: 60, updated_at: old });
+    const result = await run("opportunities", { title: "Título", stage: "Etapa" }, [
+      { Título: "Wi-Fi", Etapa: "Ganho" },
+      { Título: "Rede", Etapa: "Perdido" },
+    ], db, companyId, userId);
+    expect(result).toMatchObject({ errors: [], inserted: 0, updated: 2 });
+    const rows = new Map((await db.select<Row[]>("SELECT * FROM opportunities WHERE company_id=?", [companyId])).map((row) => [row.id, row]));
+    expect(rows.get(won)).toMatchObject({ status: "won", closed_at: null, updated_at: old });
+    expect(rows.get(open)).toMatchObject({ status: "lost", probability: 0, closed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/) });
+  });
+});
+
 describe("casamento dentro da planilha", () => {
   it("dois clientes novos com o mesmo nome e CNPJs diferentes viram dois cadastros", async () => {
     const { db, companyId, userId } = await sqliteCompany();

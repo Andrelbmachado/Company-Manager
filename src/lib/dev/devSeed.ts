@@ -1,33 +1,25 @@
 // TEMPORÁRIO (login rápido de desenvolvimento): dados de exemplo para todas as áreas, exceto leads.
 // Idempotente: ids fixos + INSERT OR IGNORE + flag em `settings`. Para remover: apague a pasta src/lib/dev e o uso em LoginPage.
+// Os seeds de área (src/lib/dev/seeds/<area>.ts) rodam depois, sempre, cada um com a sua flag.
 import { getDb } from "@/lib/db/client";
 import type { Role } from "@/types";
+import { day, devUserId, insertRows as insert, ts, type SeedRow as Row } from "./seedUtils";
+import { runAreaSeeds } from "./seeds";
+
+export { devUserId } from "./seedUtils";
 
 const FLAG = "seed.dev_data.v1";
 
-const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
-const ts = (offset: number, hour = 9) => `${day(offset)}T${String(hour).padStart(2, "0")}:00:00.000Z`;
-export const devUserId = (role: Role) => `dev-user-${role}`;
-
-type Row = Record<string, string | number | null>;
-
-async function insert(table: string, companyId: string | null, rows: Row[]): Promise<void> {
-  const db = await getDb();
-  for (const row of rows) {
-    const data = companyId ? { company_id: companyId, ...row } : row;
-    const cols = Object.keys(data);
-    await db.execute(
-      `INSERT OR IGNORE INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
-      cols.map((col) => data[col]),
-    );
-  }
-}
-
+/** Seed principal (uma vez por empresa) + seeds de área (mesmo com a flag principal já gravada). */
 export async function seedDevData(companyId: string): Promise<void> {
   const db = await getDb();
   const done = await db.select<{ key: string }[]>("SELECT * FROM settings WHERE company_id=?", [companyId]);
-  if (done.some((row) => row.key === FLAG)) return;
+  if (!done.some((row) => row.key === FLAG)) await seedCoreData(companyId);
+  await runAreaSeeds(companyId);
+}
 
+async function seedCoreData(companyId: string): Promise<void> {
+  const db = await getDb();
   const comercial = devUserId("comercial");
   const tecnico = devUserId("tecnico");
   const atendimento = devUserId("atendimento");

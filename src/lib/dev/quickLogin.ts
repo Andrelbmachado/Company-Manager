@@ -4,6 +4,7 @@ import { getDb, isTauriRuntime } from "@/lib/db/client";
 import { DEMO_ACCOUNTS } from "@/lib/db/demo";
 import { hashPassword, login } from "@/lib/auth/login";
 import { devUserId, seedDevData } from "./devSeed";
+import { runAreaSeeds } from "./seeds";
 import type { Role, Session } from "@/types";
 
 export const DEV_QUICK_LOGIN = true;
@@ -25,12 +26,15 @@ export const DEV_AREAS: { role: Role; label: string; name: string }[] = [
 
 export const devEmail = (role: Role) => `dev.${role}@company.local`;
 
-/** Garante empresa, uma conta por área e os dados de exemplo (desktop); no navegador usa as contas demo. */
+/** Garante empresa, uma conta por área e os dados de exemplo (desktop); no navegador usa as contas demo e roda os seeds de área. */
 export async function devQuickLogin(role: Role): Promise<Session> {
   if (!isTauriRuntime()) {
     const account = DEMO_ACCOUNTS.find((item) => item.role === role);
     if (!account) throw new Error("Área sem conta demo.");
-    return login(account.email, account.password);
+    const session = await login(account.email, account.password);
+    // Dados de exemplo das áreas novas (catálogo, financeiro...) também no banco demo; falha não impede o login.
+    await runAreaSeeds(session.company.id);
+    return session;
   }
 
   const db = await getDb();

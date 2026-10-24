@@ -33,6 +33,18 @@ export function formatWhen(iso: string | null | undefined): string {
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/**
+ * Dia local ('YYYY-MM-DD') de um instante: ISO com fuso (nowIso) ou datetime('now') do SQLite, que é UTC sem fuso.
+ * Data pura passa direto. Evita o `.slice(0, 10)`, que dá o dia UTC (21h de 31/10 em Brasília já seria novembro).
+ */
+export function localDay(value: string | null | undefined): string {
+  if (!value) return "";
+  if (value.length <= 10) return value;
+  const date = new Date(/(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 /** 'YYYY-MM-DD' daqui a `days` dias (dia local). */
 export function daysFromToday(days: number, now = new Date()): string {
   const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);

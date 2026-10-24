@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { fold, OPEN_STAGES, OPPORTUNITY_STAGES, pipelineSummary, STAGE_LABELS, type Stage } from "@/lib/crm/queries";
 import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import type { Opportunity } from "@/types";
-import { daysFromToday, initialsOf } from "../components/format";
+import { daysFromToday, initialsOf, localDay } from "../components/format";
 import { errorText } from "../components/Modal";
 import { OpportunityDrawer, useMoveStage } from "../components/OpportunityDrawer";
 import { OpportunityFormDialog } from "../components/OpportunityFormDialog";
@@ -53,12 +53,13 @@ export default function PipelineBoardPage() {
   }, [opportunities, customers, search, owner, userId]);
   const summary = useMemo(() => pipelineSummary(visible), [visible]);
   const monthStart = `${today.slice(0, 8)}01`;
-  const wonThisMonth = visible.filter((opp) => opp.status === "won" && (opp.closed_at ?? "").slice(0, 10) >= monthStart);
+  // closed_at/updated_at são instantes UTC: comparar pelo dia local, não pelo prefixo da string.
+  const wonThisMonth = visible.filter((opp) => opp.status === "won" && localDay(opp.closed_at) >= monthStart);
 
   const columns = OPPORTUNITY_STAGES.map((stage) => {
     const all = visible.filter((opp) => opp.stage === stage);
     const closed = stage === "ganho" || stage === "perdido";
-    const shown = closed ? all.filter((opp) => (opp.closed_at ?? opp.updated_at ?? "").slice(0, 10) >= closedSince) : all;
+    const shown = closed ? all.filter((opp) => localDay(opp.closed_at ?? opp.updated_at) >= closedSince) : all;
     const sorted = [...shown].sort((a, b) =>
       closed ? String(b.closed_at ?? "").localeCompare(String(a.closed_at ?? "")) : String(a.expected_close_date ?? "9999").localeCompare(String(b.expected_close_date ?? "9999")),
     );

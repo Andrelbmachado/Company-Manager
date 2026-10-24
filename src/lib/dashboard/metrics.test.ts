@@ -289,6 +289,27 @@ describe("operações, TI e auditoria", () => {
     expect(ceo.value).toBe(5);
   });
 
+  it("últimas ações: eventos do Meu RH e de contas (telas que todos abrem) só para quem vê Gestão de RH e Usuários", async () => {
+    // Meu RH e Configurações abrem para todos, mas os eventos delas são de outras pessoas (férias, horas, senhas).
+    await put("activities", { id: "hr1", company_id: C, entity_type: "hr_request", entity_id: "r1", action: "hr_request.created", title: "Férias solicitada por Caio", module: "hr", created_at: at(-1) });
+    await put("activities", { id: "hr2", company_id: C, entity_type: "hr_time_entry", entity_id: "h1", action: "hr_time_entry.created", title: "Banco de horas informado por Caio: +2h00", module: "hr", created_at: at(-2) });
+    await put("activities", { id: "st1", company_id: C, entity_type: "user", entity_id: "test-user-comercial", action: "user.password_reset", title: "Senha redefinida: Caio", module: "settings", created_at: at(-3) });
+    await put("activities", { id: "tk1", company_id: C, entity_type: "ticket", entity_id: "t1", action: "ticket.created", title: "Chamado aberto", module: "support", created_at: at(-4) });
+    const ids = async (role: Role) => (await metric("audit.recent", role)).items?.map((item) => item.id);
+    expect(await ids("tecnico")).toEqual(["activity:tk1"]);
+    expect(await ids("auditor")).toEqual(["activity:st1", "activity:tk1"]);
+    expect(await ids("ceo")).toEqual(["activity:hr1", "activity:hr2", "activity:st1", "activity:tk1"]);
+  });
+
+  it("últimas ações em pt-BR: tipo do registro e ação da trilha traduzidos (código cru só se for desconhecido)", async () => {
+    await put("audit_logs", { id: "al1", company_id: C, entity_type: "payable", action: "payable.approved", created_at: at(-1) });
+    await put("audit_logs", { id: "al2", company_id: C, entity_type: "algo_novo", action: "algo_novo.reprocessed", created_at: at(-2) });
+    await put("activities", { id: "ac1", company_id: C, entity_type: "invoice", entity_id: "i1", action: "invoice.issued", title: "Fatura emitida", module: "finance", created_at: at(-3) });
+    const items = (await metric("audit.recent", "auditor")).items ?? [];
+    expect(items.map((item) => item.title)).toEqual(["Aprovação", "algo_novo.reprocessed", "Fatura emitida"]);
+    expect(items.map((item) => item.detail?.split(" · ")[0])).toEqual(["Conta a pagar", "algo novo", "Fatura"]);
+  });
+
   it("projetos ativos e tarefas abertas (atrasadas no aviso)", async () => {
     await put("projects", { id: "pj1", company_id: C, name: "Site", status: "andamento" });
     await put("projects", { id: "pj2", company_id: C, name: "Pausado", status: "pausado" });

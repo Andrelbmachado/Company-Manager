@@ -4,7 +4,7 @@
 // Leituras são compartilhadas entre os loaders de uma carga (uma consulta por tabela) e um loader que falha não
 // derruba os outros (o card mostra o erro).
 import type { DatabaseLike } from "@/lib/db/demo";
-import { hasFullTicketAccess, visibleModules } from "@/lib/permissions/rbac";
+import { can, hasFullTicketAccess, visibleModules, type Resource } from "@/lib/permissions/rbac";
 import { roundMoney, sumMoney } from "@/lib/money";
 import { formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import { REQUEST_TYPE_LABEL, isOnVacation, vacationBalance } from "@/lib/hr/rules";
@@ -205,6 +205,72 @@ type Loader = (reader: HomeReader, ctx: HomeContext) => Promise<HomeMetric>;
 
 /** Quem vê as pendências da equipe inteira; os demais veem as próprias (follow-ups). */
 const SEES_TEAM: ReadonlySet<Role> = new Set<Role>(["ceo", "admin", "gerente"]);
+
+/**
+ * Módulos que todo papel abre (Meu RH, Configurações), mas cujos eventos são de outras pessoas (férias, horas,
+ * contas e senhas): o evento só aparece para quem gerencia o assunto.
+ */
+const ACTIVITY_MODULE_RESOURCE: Readonly<Record<string, Resource>> = { hr: "hr_admin", settings: "users" };
+
+/** Evento só de módulo que o papel vê (o auditor não vê folha nem gestão de RH); sem módulo, só CEO e admin. */
+function seesActivity(role: Role, modules: ReadonlySet<string>, module: string | null | undefined): boolean {
+  if (!module) return role === "ceo" || role === "admin";
+  const resource = ACTIVITY_MODULE_RESOURCE[module];
+  return resource ? can(role, "view", resource) : modules.has(module);
+}
+
+/** Tipo de registro da trilha e dos eventos em pt-BR; desconhecido vira o código com espaços. */
+const ENTITY_LABEL: Readonly<Record<string, string>> = {
+  bank_transaction: "Lançamento bancário",
+  custody: "Custódia",
+  customer: "Cliente",
+  document: "Documento",
+  employee: "Colaborador",
+  hr_request: "Solicitação de RH",
+  hr_task: "Pendência de RH",
+  hr_time_entry: "Banco de horas",
+  inventory_count: "Inventário",
+  inventory_item: "Item de estoque",
+  invoice: "Fatura",
+  lead: "Lead",
+  opportunity: "Oportunidade",
+  payable: "Conta a pagar",
+  product: "Produto",
+  project: "Projeto",
+  proposal: "Proposta",
+  purchase_order: "Pedido de compra",
+  receivable: "Conta a receber",
+  sales_order: "Pedido de venda",
+  settings: "Configurações",
+  task: "Tarefa",
+  ticket: "Chamado",
+  user: "Usuário",
+  work_order: "Ordem de serviço",
+};
+
+/** Ação da trilha de auditoria ("payable.approved") em pt-BR pelo verbo; verbo desconhecido fica como gravado. */
+const AUDIT_VERB_LABEL: Readonly<Record<string, string>> = {
+  approved: "Aprovação",
+  cancelled: "Cancelamento",
+  closed: "Encerramento",
+  created: "Criação",
+  decided: "Decisão",
+  deleted: "Exclusão",
+  downloaded: "Download",
+  exported: "Exportação",
+  imported: "Importação",
+  login: "Entrada no sistema",
+  logout: "Saída do sistema",
+  password_changed: "Troca de senha",
+  password_reset: "Redefinição de senha",
+  rejected: "Recusa",
+  role_changed: "Troca de papel",
+  updated: "Alteração",
+  uploaded: "Envio de arquivo",
+};
+
+const entityLabel = (type: string | null | undefined) => (type ? ENTITY_LABEL[type] ?? type.replace(/_/g, " ") : "Registro");
+const actionLabel = (action: string) => AUDIT_VERB_LABEL[action.slice(action.indexOf(".") + 1)] ?? action;
 
 const OPEN_TICKET = (ticket: Ticket) => ticket.status !== "resolvido" && ticket.status !== "fechado";
 const OPEN_WORK_ORDER = (order: WorkOrder) => order.status !== "concluida" && order.status !== "cancelada";
@@ -436,17 +502,15 @@ export const METRIC_LOADERS: Readonly<Record<string, Loader>> = {
   },
   "audit.recent": async (reader, ctx) => {
     const modules = new Set(visibleModules(ctx.role));
-    const everything = ctx.role === "ceo" || ctx.role === "admin";
     const [logs, activities] = await Promise.all([
       reader.recent<{ id: string; entity_type: string; action: string; created_at: string }>("audit_logs", 20),
       reader.recent<Activity>("activities", 60),
     ]);
     const events = [
-      ...logs.map((log) => ({ id: `audit:${log.id}`, title: log.action, detail: log.entity_type, at: log.created_at, source: "Auditoria" })),
-      // Evento só de módulo que o papel vê (o auditor não vê folha nem gestão de RH); sem módulo, só CEO e admin.
+      ...logs.map((log) => ({ id: `audit:${log.id}`, title: actionLabel(log.action), detail: entityLabel(log.entity_type), at: log.created_at, source: "Auditoria" })),
       ...activities
-        .filter((activity) => (activity.module ? modules.has(activity.module) : everything))
-        .map((activity) => ({ id: `activity:${activity.id}`, title: activity.title?.trim() || activity.action, detail: activity.entity_type, at: activity.created_at, source: "Evento" })),
+        .filter((activity) => seesActivity(ctx.role, modules, activity.module))
+        .map((activity) => ({ id: `activity:${activity.id}`, title: activity.title?.trim() || actionLabel(activity.action), detail: entityLabel(activity.entity_type), at: activity.created_at, source: "Evento" })),
     ].sort((a, b) => sortKey(b.at) - sortKey(a.at));
     const today = events.filter((event) => localDay(event.at) === ctx.today).length;
     return {

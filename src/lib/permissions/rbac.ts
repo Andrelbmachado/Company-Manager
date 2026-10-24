@@ -56,7 +56,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   auditor: "Auditoria",
 };
 
-const PERMISSIONS: PermissionMap = {
+export const PERMISSIONS: PermissionMap = {
   // CEO: controle geral (vê todos os setores, inclusive CRM, auditoria e gestão de RH).
   ceo: {
     "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
@@ -73,6 +73,7 @@ const PERMISSIONS: PermissionMap = {
     "*": ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"],
   },
   gerente: {
+    customers: ["view", "create", "edit", "export", "comment", "attach"],
     leads: ["view", "create", "edit", "delete", "export"],
     opportunities: ["view", "create", "edit", "delete", "approve"],
     proposals: ["view", "create", "edit", "approve"],
@@ -128,6 +129,8 @@ const PERMISSIONS: PermissionMap = {
     settings: ["view"],
   },
   atendimento: {
+    // Atendimento consulta o cliente do chamado e atualiza contato; quem cadastra cliente é o Comercial.
+    customers: ["view", "edit", "comment"],
     tickets: ["view", "create", "edit", "comment"],
     work_orders: ["view", "create"],
     documents: ["view", "create", "edit", "attach"],
@@ -154,6 +157,7 @@ const PERMISSIONS: PermissionMap = {
     documents: ["view", "export"],
     users: ["view"],
     settings: ["view"],
+    audit_logs: ["view", "export"],
   },
 };
 
@@ -166,19 +170,11 @@ export function can(
   const rolePerms = PERMISSIONS[role];
   if (!rolePerms) return false;
 
-  // CEO enxerga tudo (as exceções de setor abaixo não se aplicam a ele).
-  if (role === "ceo") return true;
-
   // "Meu RH": todo colaborador, de qualquer setor, vê e abre solicitações do próprio RH.
   if (resource === "hr_self") return action === "view" || action === "create" || action === "comment";
 
-  if (resource === "customers" && role !== "comercial") return false;
-  if (resource === "audit_logs" && role !== "tecnico") return false;
-
-  // Admin wildcard
-  if (rolePerms["*"]) return true;
-
-  const allowed = rolePerms[resource] ?? [];
+  // Todo o resto vem da tabela PERMISSIONS, sem exceção por papel aqui ("*" = CEO e Administração veem tudo).
+  const allowed = rolePerms["*"] ?? rolePerms[resource] ?? [];
   return allowed.includes(action);
 }
 

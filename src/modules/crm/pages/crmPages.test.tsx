@@ -111,11 +111,20 @@ const one = async <T,>(sql: string, binds: unknown[]) => (await testDb().select<
 describe("telas do CRM", () => {
   it("ficha do cliente: abas e contato novo vira o principal", async () => {
     await testDb().execute("INSERT INTO customers (id, company_id, name, segment, owner_id) VALUES (?,?,?,?,?)", ["cust-1", companyId, "Clínica Vida", "Saúde", USER]);
+    await testDb().execute("INSERT INTO invoices (id, company_id, number, customer_id, total, status) VALUES (?,?,?,?,?,?)", ["inv-1", companyId, 1, "cust-1", 900, "emitida"]);
+    await testDb().execute("INSERT INTO receivables (id, company_id, customer_id, amount, due_date, status) VALUES (?,?,?,?,?,?)", ["rec-1", companyId, "cust-1", 900, "2020-01-10", "aberta"]);
     await renderAt("/crm/clientes/cust-1", "/crm/clientes/:id", <CustomerDetailPage />);
     await until(() => container.querySelector("h1")?.textContent === "Clínica Vida", "ficha carregada");
     const tabs = [...container.querySelectorAll("[role=tab]")].map((tab) => tab.textContent);
     // Comercial vê faturas (invoices: view), então também a aba Financeiro.
     expect(tabs).toEqual(["Resumo", "Contatos", "Oportunidades", "Propostas", "Atividades", "Documentos", "Financeiro"]);
+
+    // ...mas sem receivables/finance não vê recebido, em aberto nem vencido (vêm das contas a receber).
+    await click([...container.querySelectorAll("[role=tab]")].find((tab) => tab.textContent === "Financeiro"));
+    await until(() => text().includes("Faturado"), "aba financeiro");
+    expect(text()).toContain("R$ 900,00");
+    expect(text()).not.toMatch(/Recebido|Em aberto|Vencido/);
+    expect(text()).toContain("Recebimentos e valores vencidos aparecem para quem tem acesso ao financeiro.");
 
     await click([...container.querySelectorAll("[role=tab]")].find((tab) => tab.textContent === "Contatos"));
     await until(() => text().includes("Nenhum contato"), "aba de contatos");

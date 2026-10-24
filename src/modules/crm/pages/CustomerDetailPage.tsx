@@ -394,7 +394,10 @@ function ProposalsTab({ customerId }: { customerId: string }) {
 }
 
 function FinanceTab({ customerId, creditLimit, paymentTerms }: { customerId: string; creditLimit: number | null; paymentTerms: string | null }) {
-  const { companyId } = useCrmSession();
+  const { companyId, can } = useCrmSession();
+  // Recebido, em aberto e vencido saem das contas a receber: quem só vê faturas (ex.: Comercial) fica com o faturado.
+  const seesInvoices = can("view", "invoices");
+  const seesReceivables = can("view", "receivables") || can("view", "finance");
   const today = todayIso();
   const { data, isLoading, error } = useQuery({
     queryKey: ["customer-finance", companyId, customerId, today],
@@ -402,19 +405,30 @@ function FinanceTab({ customerId, creditLimit, paymentTerms }: { customerId: str
   });
   if (isLoading) return <div className="h-24 animate-pulse rounded-lg bg-muted/30" />;
   if (error || !data) return <p role="alert" className="text-sm text-destructive">{errorText(error) ?? "Não foi possível carregar o financeiro."}</p>;
-  const available = creditLimit != null ? creditLimit - data.open : null;
+  const available = seesReceivables && creditLimit != null ? creditLimit - data.open : null;
   return (
     <section className="space-y-4" aria-label="Financeiro">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Faturado" value={formatCurrency(data.invoiced)} kind="text" hint="faturas emitidas (sem as canceladas)" />
-        <StatCard title="Recebido" value={formatCurrency(data.received)} kind="text" />
-        <StatCard title="Em aberto" value={formatCurrency(data.open)} kind="text" hint={paymentTerms ? `Condição: ${paymentTerms}` : undefined} />
-        <StatCard title="Vencido" value={<span className={cn(data.overdue > 0 && "text-destructive")}>{formatCurrency(data.overdue)}</span>} kind="text" hint={data.overdue > 0 ? "parcelas com vencimento antes de hoje" : "nada vencido"} />
+        {seesInvoices && <StatCard title="Faturado" value={formatCurrency(data.invoiced)} kind="text" hint="faturas emitidas (sem as canceladas)" />}
+        {seesReceivables && (
+          <>
+            <StatCard title="Recebido" value={formatCurrency(data.received)} kind="text" />
+            <StatCard title="Em aberto" value={formatCurrency(data.open)} kind="text" hint={paymentTerms ? `Condição: ${paymentTerms}` : undefined} />
+            <StatCard title="Vencido" value={<span className={cn(data.overdue > 0 && "text-destructive")}>{formatCurrency(data.overdue)}</span>} kind="text" hint={data.overdue > 0 ? "parcelas com vencimento antes de hoje" : "nada vencido"} />
+          </>
+        )}
       </div>
       {available != null && (
         <p className={cn("text-sm", available < 0 ? "font-semibold text-destructive" : "text-muted-foreground")}>
           Limite de crédito {formatCurrency(creditLimit ?? 0)} · disponível {formatCurrency(available)}
           {available < 0 ? " (acima do limite)" : ""}
+        </p>
+      )}
+      {!seesReceivables && (
+        <p className="text-sm text-muted-foreground">
+          {creditLimit != null ? `Limite de crédito ${formatCurrency(creditLimit)}. ` : ""}
+          {paymentTerms ? `Condição de pagamento: ${paymentTerms}. ` : ""}
+          Recebimentos e valores vencidos aparecem para quem tem acesso ao financeiro.
         </p>
       )}
     </section>

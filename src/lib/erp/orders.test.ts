@@ -99,6 +99,15 @@ describe("pedido de venda", () => {
     await expect(updateSalesOrder(db, id, { companyId: fx.companyId, customerId: fx.otherCustomerId, items: [{ productId: fx.products.mouse, qty: 1 }] })).rejects.toThrow(/não pode ser editado/i);
   });
 
+  it("editar sem informar o vendedor mantém o vendedor do pedido", async () => {
+    const { db, fx } = await setup();
+    const id = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.otherCustomerId, userId: fx.userId, sellerId: fx.userId, items: [{ productId: fx.products.visita, qty: 1 }] });
+    await updateSalesOrder(db, id, { companyId: fx.companyId, customerId: fx.otherCustomerId, userId: fx.userId, items: [{ productId: fx.products.visita, qty: 2 }] });
+    expect(await one<SalesOrder>("sales_orders", id)).toMatchObject({ seller_id: fx.userId, total: 500 });
+    await updateSalesOrder(db, id, { companyId: fx.companyId, customerId: fx.otherCustomerId, sellerId: null, items: [{ productId: fx.products.visita, qty: 2 }] });
+    expect((await one<SalesOrder>("sales_orders", id)).seller_id).toBeNull();
+  });
+
   it("só exclui (soft delete) rascunho", async () => {
     const { db, fx } = await setup();
     const draft = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.otherCustomerId, items: [{ productId: fx.products.visita, qty: 1 }] });

@@ -183,7 +183,8 @@ export async function updateSalesOrder(db: DatabaseLike, orderId: string, input:
     customer_id: prepared.customer.id,
     contact_id: input.contactId ?? order.contact_id ?? null,
     price_list_id: prepared.priceListId,
-    seller_id: input.sellerId ?? null,
+    // A tela de edição não escolhe vendedor: sem `sellerId`, mantém o do pedido; `null` limpa.
+    seller_id: input.sellerId === undefined ? order.seller_id ?? null : input.sellerId,
     location_id: input.locationId ?? null,
     order_date: prepared.orderDate,
     delivery_date: input.deliveryDate ?? null,
@@ -196,7 +197,8 @@ export async function updateSalesOrder(db: DatabaseLike, orderId: string, input:
   };
   const previous = Object.fromEntries(Object.keys(patch).map((key) => [key, (order as unknown as Record<string, unknown>)[key] ?? null]));
   await undoing(async (undo) => {
-    await updateRow(db, "sales_orders", companyId, orderId, patch);
+    // Só grava se o pedido segue no mesmo status e sem fatura (faturar no meio da edição não pode trocar os itens).
+    await claimStatus(db, "sales_orders", companyId, orderId, order.status, patch, "O pedido mudou enquanto você editava; recarregue a página.", ["invoiced_at"]);
     undo(() => updateRow(db, "sales_orders", companyId, orderId, previous));
     for (const item of oldItems) {
       await updateRow(db, "sales_order_items", companyId, item.id, { deleted_at: now, updated_at: now });

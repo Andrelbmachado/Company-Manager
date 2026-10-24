@@ -87,6 +87,18 @@ describe("pedido de compra", () => {
     expect((await one<PurchaseOrder>("purchase_orders", draft)).deleted_at).toBeTruthy();
   });
 
+  it("editar sem informar categoria e centro de custo mantém os do pedido", async () => {
+    const { db, fx } = await setup();
+    await db.execute("INSERT INTO finance_categories (id, company_id, code, name, kind, dre_group, position, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ["fx-cat-4-1", fx.companyId, "4.1", "Despesas administrativas", "despesa", "despesa", 3, 1]);
+    await db.execute("INSERT INTO cost_centers (id, company_id, name) VALUES (?, ?, ?)", ["fx-cc-1", fx.companyId, "Loja"]);
+    const base = { companyId: fx.companyId, supplierId: fx.supplierId };
+    const draft = await createPurchaseOrder(db, { ...base, categoryId: "fx-cat-4-1", costCenterId: "fx-cc-1", items: [{ inventoryItemId: fx.items.mouse, qty: 5, unitPrice: 40 }] });
+    await updatePurchaseOrder(db, draft, { ...base, items: [{ inventoryItemId: fx.items.mouse, qty: 6, unitPrice: 40 }] });
+    expect(await one<PurchaseOrder>("purchase_orders", draft)).toMatchObject({ category_id: "fx-cat-4-1", cost_center_id: "fx-cc-1", total: 240 });
+    await updatePurchaseOrder(db, draft, { ...base, categoryId: null, costCenterId: null, items: [{ inventoryItemId: fx.items.mouse, qty: 6, unitPrice: 40 }] });
+    expect(await one<PurchaseOrder>("purchase_orders", draft)).toMatchObject({ category_id: fx.categories.custo, cost_center_id: null });
+  });
+
   it("não recebe pedido em rascunho nem cancelado", async () => {
     const { db, fx } = await setup();
     const draft = await createPurchaseOrder(db, { companyId: fx.companyId, supplierId: fx.supplierId, items: [{ inventoryItemId: fx.items.mouse, qty: 5, unitPrice: 40 }] });

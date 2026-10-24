@@ -204,8 +204,9 @@ export async function updatePurchaseOrder(db: DatabaseLike, orderId: string, inp
     payment_terms: cleanText(input.paymentTerms),
     installments: prepared.installments,
     ...prepared.totals,
-    category_id: prepared.categoryId,
-    cost_center_id: input.costCenterId ?? null,
+    // A tela de edição não mostra categoria nem centro de custo: sem o campo, mantém o do pedido; `null` volta ao padrão / limpa.
+    category_id: input.categoryId === undefined && order.category_id ? order.category_id : prepared.categoryId,
+    cost_center_id: input.costCenterId === undefined ? order.cost_center_id ?? null : input.costCenterId,
     notes: cleanText(input.notes),
     updated_at: now,
   };

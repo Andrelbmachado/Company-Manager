@@ -36,17 +36,22 @@ function csvNumber(value: number, kind: ColumnKind): string {
   return value.toFixed(decimals(kind)).replace(".", ",");
 }
 
-/** Texto que começa com =, +, -, @ vira fórmula no Excel: prefixa com apóstrofo (proteção contra injeção de fórmula). */
+/**
+ * Texto que começa com =, +, -, @ (mesmo depois de espaços, que a planilha pode descartar), tab ou CR vira fórmula no
+ * Excel/LibreOffice: prefixa com apóstrofo (proteção contra injeção de fórmula).
+ */
 function neutralizeFormula(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /^(?:[\t\r]|\s*[=+\-@])/.test(value) ? `'${value}` : value;
 }
 
-function csvCell(value: CellValue, column: ReportColumn): string {
+/** `indent`: recuo da linha de detalhe, aplicado depois de neutralizar (o recuo não pode esconder a fórmula). */
+function csvCell(value: CellValue, column: ReportColumn, indent = false): string {
   if (value === null || value === undefined || value === "") return "";
   let output: string;
   if (typeof value === "number" && isNumeric(column.kind)) output = csvNumber(value, column.kind);
   else if (column.kind === "date" && typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) output = dayLabel(value);
   else output = neutralizeFormula(String(value));
+  if (indent) output = `    ${output}`;
   return /[";\r\n]/.test(output) ? `"${output.replace(/"/g, '""')}"` : output;
 }
 
@@ -59,7 +64,7 @@ function rowsWithTotals(table: ReportTable): { row: ReportRow; strong: boolean; 
 export function toCsv(table: ReportTable): string {
   const lines = [table.columns.map((column) => csvCell(column.label, { ...column, kind: "text" })).join(";")];
   for (const { row, indent } of rowsWithTotals(table)) {
-    lines.push(table.columns.map((column, index) => csvCell(indent && index === 0 && row[column.key] ? `    ${row[column.key]}` : row[column.key], column)).join(";"));
+    lines.push(table.columns.map((column, index) => csvCell(row[column.key], column, indent && index === 0)).join(";"));
   }
   return `﻿${lines.join("\r\n")}\r\n`;
 }

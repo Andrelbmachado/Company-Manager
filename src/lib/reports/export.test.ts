@@ -37,6 +37,32 @@ describe("exportação dos relatórios", () => {
     );
   });
 
+  it("CSV: fórmula em linha recuada (categoria da DRE) ou com espaço na frente também é neutralizada", () => {
+    const table: ReportTable = {
+      title: "DRE",
+      columns: [
+        { key: "label", label: "Linha", kind: "text" },
+        { key: "total", label: "Total (R$)", kind: "money" },
+      ],
+      rows: [
+        { label: "Receita bruta", total: 150 },
+        { label: "=1+1", total: 100 },
+        { label: " @SUM(A1)", total: 50 },
+        { label: "\t=1+1", total: 0 },
+        { label: "Despesas", total: -20 },
+        { label: "-2+3", total: -20 },
+      ],
+      styles: ["strong", "indent", "indent", "indent", "strong", "indent"],
+      fileName: "dre",
+    };
+    expect(toCsv(table)).toBe(
+      "﻿" +
+        ["Linha;Total (R$)", "Receita bruta;150,00", "    '=1+1;100,00", "    ' @SUM(A1);50,00", "    '\t=1+1;0,00", "Despesas;-20,00", "    '-2+3;-20,00"].join("\r\n") +
+        "\r\n",
+    );
+    expect(toCsv({ ...table, styles: undefined }).split("\r\n")[3]).toBe("' @SUM(A1);50,00");
+  });
+
   it("planilha XLSX: cabeçalho em negrito, números como número, data como data, total em negrito", async () => {
     const sheet = xlsxSheet(TABLE);
     expect(sheet[0][0]).toMatchObject({ value: "Vendas por cliente", fontWeight: "bold" });

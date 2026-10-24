@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { can, canAny, PERMISSIONS, ROLE_LABELS, visibleModules } from "./rbac";
+import { ACTIONS, can, canAny, PERMISSIONS, RESOURCES as RBAC_RESOURCES, ROLE_LABELS, visibleModules, type Action, type Resource } from "./rbac";
 import type { Role } from "@/types";
 
-type Action = Parameters<typeof can>[1];
-type Resource = Parameters<typeof can>[2];
-
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
-const ACTIONS: Action[] = ["view", "create", "edit", "delete", "approve", "export", "comment", "attach", "transfer", "request"];
 
 /**
  * Quem VÊ cada recurso. É a especificação de acesso do app: mudar uma linha aqui é mudar quem enxerga um módulo,
@@ -35,10 +31,20 @@ const VIEW_MATRIX: Record<string, Role[]> = {
   hr_self: ROLES,
   hr_admin: ["ceo", "admin", "rh"],
   payroll: ["ceo", "admin"],
+  // CRM/ERP (0008): comercial vende, estoque cuida do catálogo e recebe compras, financeiro fatura e concilia,
+  // gerência vê o geral e auditoria vê tudo (menos a folha).
+  products: ["ceo", "admin", "gerente", "tecnico", "estoquista", "financeiro", "comercial", "atendimento", "produtos", "auditor"],
+  sales_orders: ["ceo", "admin", "gerente", "financeiro", "comercial", "atendimento", "auditor"],
+  invoices: ["ceo", "admin", "gerente", "financeiro", "comercial", "auditor"],
+  purchase_orders: ["ceo", "admin", "gerente", "estoquista", "financeiro", "auditor"],
+  bank: ["ceo", "admin", "gerente", "financeiro", "auditor"],
+  reports: ["ceo", "admin", "gerente", "estoquista", "financeiro", "comercial", "auditor"],
+  imports: ["ceo", "admin", "gerente", "estoquista", "financeiro", "rh", "comercial", "produtos", "auditor"],
+  crm_activities: ["ceo", "admin", "gerente", "comercial", "atendimento", "auditor"],
 };
 
-/** Todos os recursos citados em PERMISSIONS ou na matriz (recursos novos entram sozinhos no teste de espelho). */
-const RESOURCES = [...new Set([...Object.keys(VIEW_MATRIX), ...Object.values(PERMISSIONS).flatMap((perms) => Object.keys(perms))])]
+/** Todos os recursos do RBAC, da matriz ou citados em PERMISSIONS (recursos novos entram sozinhos no teste de espelho). */
+const RESOURCES = [...new Set([...RBAC_RESOURCES, ...Object.keys(VIEW_MATRIX), ...Object.values(PERMISSIONS).flatMap((perms) => Object.keys(perms))])]
   .filter((resource) => resource !== "*") as Resource[];
 
 /** O que a tabela PERMISSIONS diz, sem passar por can(). "Meu RH" é a única regra comum a todos os papéis. */
@@ -49,6 +55,20 @@ function fromTable(role: Role, action: Action, resource: Resource): boolean {
 }
 
 describe("can()", () => {
+  it("a matriz tem uma linha para cada recurso do RBAC (recurso novo precisa decidir quem vê)", () => {
+    expect(Object.keys(VIEW_MATRIX).sort()).toEqual([...RBAC_RESOURCES].sort());
+  });
+
+  it("PERMISSIONS só cita papéis, recursos e ações que existem (erro de digitação não vira acesso calado)", () => {
+    expect(Object.keys(PERMISSIONS).sort()).toEqual([...ROLES].sort());
+    for (const [role, perms] of Object.entries(PERMISSIONS)) {
+      for (const [resource, actions] of Object.entries(perms)) {
+        expect(resource === "*" || (RBAC_RESOURCES as readonly string[]).includes(resource), `${role} → ${resource}`).toBe(true);
+        for (const action of actions) expect(ACTIONS, `${role} → ${resource} → ${action}`).toContain(action);
+      }
+    }
+  });
+
   it("cada papel vê exatamente os recursos da matriz", () => {
     for (const [resource, roles] of Object.entries(VIEW_MATRIX)) {
       for (const role of ROLES) {

@@ -64,6 +64,21 @@ describe("ciclo de vida e consultas", () => {
     expect(await fetchActivities(db, companyId, { customerId: "cust-1" })).toEqual([]);
   });
 
+  it("tarefa pendente editada para nota fica feita, como a nota criada (e não fica nas pendências)", async () => {
+    const { db, companyId, seller } = await setup();
+    const id = await createActivity(db, companyId, seller, { entity_type: "customer", entity_id: "cust-1", kind: "tarefa", subject: "Ligou pedindo catálogo", due_at: "2026-10-20T12:00:00.000Z" });
+    await updateActivity(db, companyId, id, { kind: "nota", due_at: null });
+    const [row] = await db.select<Row[]>("SELECT * FROM crm_activities WHERE id=?", [id]);
+    expect(row).toMatchObject({ kind: "nota", due_at: null });
+    expect(row.done_at).toBeTruthy();
+    expect(await db.select<Row[]>("SELECT id FROM crm_activities WHERE company_id=? AND done_at IS NULL AND deleted_at IS NULL", [companyId])).toEqual([]);
+
+    // Nota que já estava feita mantém a data em que foi feita.
+    await updateActivity(db, companyId, id, { kind: "nota", body: "Mandar o PDF" });
+    const [again] = await db.select<Row[]>("SELECT * FROM crm_activities WHERE id=?", [id]);
+    expect(again.done_at).toBe(row.done_at);
+  });
+
   it("linha do tempo do cliente traz as atividades das oportunidades dele, mais recentes primeiro", async () => {
     const { db, companyId, seller } = await setup();
     await createActivity(db, companyId, seller, { entity_type: "customer", entity_id: "cust-1", kind: "nota", body: "Primeira" });

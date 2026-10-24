@@ -95,8 +95,18 @@ const PATCH_FIELDS = ["kind", "subject", "body", "due_at", "user_id", "contact_i
 export async function updateActivity(db: DatabaseLike, companyId: string, id: string, patch: ActivityPatch): Promise<void> {
   const fields = PATCH_FIELDS.filter((field) => field in patch);
   if (fields.length === 0) return;
-  const values = fields.map((field) => (field === "kind" ? patch.kind : clean(patch[field])));
-  await db.execute(`UPDATE crm_activities SET ${fields.map((field) => `${field}=?`).join(", ")}, updated_at=? WHERE company_id=? AND id=?`, [...values, nowIso(), companyId, id]);
+  const values: unknown[] = fields.map((field) => (field === "kind" ? patch.kind : clean(patch[field])));
+  const columns: string[] = [...fields];
+  const now = nowIso();
+  // Nota é registro, não pendência (createActivity a cria feita): virar nota marca como feita, sem mexer em data já gravada.
+  if (patch.kind === "nota") {
+    const rows = await db.select<CrmActivity[]>("SELECT * FROM crm_activities WHERE company_id=? AND id=?", [companyId, id]);
+    if (rows.find((row) => row.id === id)?.done_at == null) {
+      columns.push("done_at");
+      values.push(now);
+    }
+  }
+  await db.execute(`UPDATE crm_activities SET ${columns.map((field) => `${field}=?`).join(", ")}, updated_at=? WHERE company_id=? AND id=?`, [...values, now, companyId, id]);
 }
 
 export async function completeActivity(db: DatabaseLike, companyId: string, id: string, outcome?: string | null): Promise<void> {

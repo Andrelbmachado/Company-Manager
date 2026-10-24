@@ -345,7 +345,7 @@ export async function saveFile(companyId: string, file: File, meta: SaveFileMeta
   const limit = meta.maxBytes ?? (await getMaxFileBytes(companyId));
   const checkSize = (size: number) => {
     if (size === 0) throw new FileStoreError("empty", `O arquivo "${shown}" está vazio (0 bytes).`);
-    if (size > limit) throw new FileStoreError("too_large", `O arquivo "${shown}" tem ${formatBytes(size)}; o limite é ${formatBytes(limit)}.`);
+    if (size > limit) throw new FileStoreError("too_large", `O arquivo "${shown}" tem ${formatBytes(size, { roundUp: true })}; o limite é ${formatBytes(limit)}.`);
   };
   checkSize(file.size);
   let bytes: Uint8Array;

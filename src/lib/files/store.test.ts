@@ -179,6 +179,14 @@ describe("saveFile", () => {
     expect(disk.listFiles()).toHaveLength(0);
   });
 
+  it("arquivo um pouco acima do limite: a mensagem mostra um tamanho maior que o limite, não igual", async () => {
+    await expectStoreError(
+      saveFile(C, new File([new Uint8Array(52_459_520)], "quase.zip"), { userId: U }), // 50,03 MB
+      "too_large",
+      /"quase\.zip" tem 50,1 MB; o limite é 50 MB\./,
+    );
+  });
+
   it("o limite vem de settings (documents.max_file_mb) quando a empresa configurou", async () => {
     expect(await getMaxFileBytes(C)).toBe(DEFAULT_MAX_FILE_BYTES);
     await testDb().execute("INSERT INTO settings (id, company_id, key, value_json) VALUES (?,?,?,?)", ["s-1", C, "documents.max_file_mb", "2"]);

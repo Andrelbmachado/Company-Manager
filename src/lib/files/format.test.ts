@@ -58,6 +58,20 @@ describe("formatos", () => {
     expect(formatBytes(-5)).toBe("0 bytes");
   });
 
+  it("formatBytes troca de unidade depois de arredondar (nunca \"1.024,0 KB\")", () => {
+    expect(formatBytes(1024 * 1024 - 1)).toBe("1 MB");
+    expect(formatBytes(1024 ** 3 - 1)).toBe("1 GB");
+    expect(formatBytes(1024 * 1024 - 60_000)).toBe("965,4 KB");
+  });
+
+  it("formatBytes com roundUp arredonda para cima: arquivo acima do limite nunca aparece igual a ele", () => {
+    expect(formatBytes(50 * 1024 * 1024 + 1, { roundUp: true })).toBe("50,1 MB");
+    expect(formatBytes(52_459_520, { roundUp: true })).toBe("50,1 MB"); // 50,03 MB
+    expect(formatBytes(50 * 1024 * 1024, { roundUp: true })).toBe("50 MB");
+    expect(formatBytes(1536, { roundUp: true })).toBe("1,5 KB");
+    expect(formatBytes(1023, { roundUp: true })).toBe("1023 bytes");
+  });
+
   it("guessMime: usa o informado se bem formado, senão a extensão", () => {
     expect(guessMime("a.pdf", "application/pdf")).toBe("application/pdf");
     expect(guessMime("a.csv", "text/csv; charset=utf-8")).toBe("text/csv");

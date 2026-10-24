@@ -56,21 +56,27 @@ export function guessMime(name: string, given?: string | null): string {
   return MIME_BY_EXTENSION[fileExtension(name)] ?? "application/octet-stream";
 }
 
-/** "512 bytes", "12,4 KB", "50 MB" (pt-BR; número inteiro sem casas). Valor inválido ou negativo vira "0 bytes". */
-export function formatBytes(bytes: number | null | undefined): string {
+/**
+ * "512 bytes", "12,4 KB", "50 MB" (pt-BR, uma casa; número inteiro sem casas). Valor inválido ou negativo vira "0 bytes".
+ * `roundUp`: arredonda a casa para cima, para quem compara com um limite (50,03 MB vira "50,1 MB", nunca "50 MB").
+ */
+export function formatBytes(bytes: number | null | undefined, options: { roundUp?: boolean } = {}): string {
   const value = Number(bytes ?? 0);
   if (!Number.isFinite(value) || value < 1024) {
     const whole = Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
     return `${whole} ${whole === 1 ? "byte" : "bytes"}`;
   }
   const units = ["KB", "MB", "GB"];
-  let amount = value;
-  let unit = -1;
-  while (amount >= 1024 && unit < units.length - 1) {
+  const round = (amount: number) => (options.roundUp ? Math.ceil(amount * 10) : Math.round(amount * 10)) / 10;
+  let amount = value / 1024;
+  let unit = 0;
+  // Troca de unidade pelo valor já arredondado: 1.048.575 bytes é "1 MB", não "1.024,0 KB".
+  while (round(amount) >= 1024 && unit < units.length - 1) {
     amount /= 1024;
     unit += 1;
   }
-  const text = Number.isInteger(amount) ? String(amount) : amount.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const shown = round(amount);
+  const text = Number.isInteger(shown) ? String(shown) : shown.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `${text} ${units[unit]}`;
 }
 

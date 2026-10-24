@@ -40,4 +40,4 @@ Abaixo há uma visão geral da arquitetura de diretórios principal baseada em R
 
 ## Comandos
 
-`npm install`, `npm run dev` (navegador, banco demo), `npm run tauri dev` (desktop, SQLite), `npm run typecheck`, `npm run build`, `npm run sync:project-manager`. Detalhes, convenções e cuidados: [AGENTS.md](AGENTS.md).
+`npm install`, `npm run dev` (navegador, banco demo), `npm run tauri dev` (desktop, SQLite), `npm run typecheck`, `npm test`, `npm run build`, `npm run dmg` (instalador macOS em `dist-installers/`), `npm run install:app` (instala no próprio Mac), `npm run sync:project-manager`. Detalhes, convenções e cuidados: [AGENTS.md](AGENTS.md).

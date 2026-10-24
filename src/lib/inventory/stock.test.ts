@@ -171,6 +171,43 @@ describe("transferStock", () => {
     expect(await balanceOf(db, "item-1", "loc-b")).toBe(10);
   });
 
+  it("se uma linha falhar no meio da gravação, desfaz as anteriores: nada é transferido", async () => {
+    let movementInserts = 0;
+    const failing: DatabaseLike = {
+      select: (sql, binds) => db.select(sql, binds),
+      execute: async (sql, binds) => {
+        if (/INSERT INTO stock_movements/i.test(sql) && ++movementInserts === 2) throw new Error("disco cheio");
+        return db.execute(sql, binds);
+      },
+    };
+    await expect(
+      transferStock(failing, { companyId: C, fromLocationId: "loc-a", toLocationId: "loc-b", lines: [{ itemId: "item-1", quantity: 4 }, { itemId: "item-3", quantity: 2 }] }),
+    ).rejects.toThrow(/disco cheio/);
+    expect(await balanceOf(db, "item-1", "loc-a")).toBe(10);
+    expect((await balanceOf(db, "item-1", "loc-b")) ?? 0).toBe(0);
+    expect(await balanceOf(db, "item-3", "loc-a")).toBe(4);
+    expect(await balanceOf(db, "item-3", "loc-b")).toBe(3);
+    expect(await countRows(db, "stock_movements")).toBe(0);
+  });
+
+  it("se outra gravação criar o saldo do destino no meio do caminho, recusa (conflito) e devolve a origem", async () => {
+    let raced = false;
+    const racing: DatabaseLike = {
+      select: (sql, binds) => db.select(sql, binds),
+      execute: async (sql, binds) => {
+        if (!raced && /INSERT INTO stock_balances/i.test(sql)) {
+          raced = true;
+          await db.execute("INSERT INTO stock_balances (id, company_id, item_id, location_id, quantity) VALUES ('bal-1b', ?, 'item-1', 'loc-b', 1)", [C]);
+        }
+        return db.execute(sql, binds);
+      },
+    };
+    await expectStockError(transferStock(racing, { companyId: C, fromLocationId: "loc-a", toLocationId: "loc-b", lines: [{ itemId: "item-1", quantity: 4 }] }), "conflito");
+    expect(await balanceOf(db, "item-1", "loc-a")).toBe(10);
+    expect(await balanceOf(db, "item-1", "loc-b")).toBe(1);
+    expect(await countRows(db, "stock_movements")).toBe(0);
+  });
+
   it("recusa transferência sem linhas, para o mesmo local ou com quantidade inválida", async () => {
     await expectStockError(transferStock(db, { companyId: C, fromLocationId: "loc-a", toLocationId: "loc-b", lines: [] }), "sem_itens");
     await expectStockError(transferStock(db, { companyId: C, fromLocationId: "loc-a", toLocationId: "loc-a", lines: [{ itemId: "item-1", quantity: 1 }] }), "mesmo_local");

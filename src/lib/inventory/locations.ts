@@ -61,11 +61,16 @@ async function openCountsAt(db: DatabaseLike, companyId: string, locationId: str
   );
 }
 
-/** Arquiva (soft delete) um local vazio: com saldo ou com contagem aberta, recusa. */
+/**
+ * Arquiva (soft delete) um local vazio: com saldo de item ativo ou com contagem aberta, recusa. Saldo de item excluído
+ * não conta (como no resumo dos locais): ele não aparece em lugar nenhum e não pode mais ser movimentado.
+ */
 export async function archiveStockLocation(db: DatabaseLike, input: { companyId: string; locationId: string }): Promise<void> {
   const location = await activeLocation(db, input.companyId, input.locationId);
   const balances = await db.select<StockBalance[]>("SELECT * FROM stock_balances WHERE company_id=? AND location_id=?", [input.companyId, location.id]);
-  const stocked = balances.filter((row) => roundQty(Number(row.quantity ?? 0)) !== 0);
+  const items = await db.select<InventoryItem[]>("SELECT * FROM inventory_items WHERE company_id=? AND deleted_at IS NULL", [input.companyId]);
+  const active = new Set(items.map((item) => item.id));
+  const stocked = balances.filter((row) => active.has(row.item_id) && roundQty(Number(row.quantity ?? 0)) !== 0);
   if (stocked.length > 0) {
     const total = roundQty(stocked.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0));
     throw new StockError(

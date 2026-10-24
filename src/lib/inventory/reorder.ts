@@ -49,6 +49,7 @@ export interface ReorderSuggestion {
   name: string;
   sku: string | null;
   unit: string;
+  /** Preço unitário que vai no pedido de compra: o custo do item em centavos (ver purchaseUnitPrice). */
   cost: number;
   supplier_id: string | null;
   supplier_name: string | null;
@@ -59,8 +60,13 @@ export interface ReorderSuggestion {
   /** Ainda por receber em pedidos de compra abertos. */
   on_order: number;
   suggested_qty: number;
-  /** suggested_qty × custo do item. */
+  /** suggested_qty × cost: o mesmo total que o pedido gerado vai ter. */
   estimated_cost: number;
+}
+
+/** Preço unitário da compra: custo do item arredondado a centavos (o custo pode ter mais casas). */
+function purchaseUnitPrice(item: Pick<InventoryItem, "cost">): number {
+  return roundMoney(Number(item.cost ?? 0) || 0);
 }
 
 async function activeSuppliers(db: DatabaseLike, companyId: string): Promise<Map<string, Supplier>> {
@@ -95,7 +101,7 @@ export async function reorderSuggestions(db: DatabaseLike, companyId: string): P
     const suggested = suggestReorderQty({ onHand: hand, onOrder: ordered, minStock: item.min_stock, maxStock });
     if (suggested <= 0) continue;
     const supplier = item.supplier_id ? suppliers.get(item.supplier_id) : undefined;
-    const cost = Number(item.cost ?? 0) || 0;
+    const cost = purchaseUnitPrice(item);
     suggestions.push({
       item_id: item.id,
       name: item.name,
@@ -171,7 +177,7 @@ export async function createReorderPurchaseOrders(db: DatabaseLike, input: Reord
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
       .map((item) => {
         const qty = quantities.get(item.id)!;
-        const unitPrice = roundMoney(Number(item.cost ?? 0) || 0);
+        const unitPrice = purchaseUnitPrice(item);
         return { item, qty, unit_price: unitPrice, total: lineTotal(qty, unitPrice) };
       });
     const totals = orderTotals(lines.map((line) => ({ qty: line.qty, unit_price: line.unit_price })));

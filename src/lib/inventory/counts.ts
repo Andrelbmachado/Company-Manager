@@ -143,8 +143,18 @@ export async function finishInventoryCount(
   const rows = await countItemRows(db, companyId, count.id);
   if (rows.length === 0) throw new StockError("sem_itens", "A contagem não tem itens. Adicione itens ou cancele a contagem.");
 
-  const items = new Map<string, InventoryItem>();
-  for (const row of rows) items.set(row.item_id, await activeItem(db, companyId, row.item_id));
+  const all = await db.select<InventoryItem[]>("SELECT * FROM inventory_items WHERE company_id=?", [companyId]);
+  const items = new Map(all.map((item) => [item.id, item]));
+  // Item excluído do estoque depois de entrar na contagem não pode mais ser movimentado: diga qual é.
+  const gone = rows.filter((row) => !row.adjustment_movement_id && (!items.get(row.item_id) || items.get(row.item_id)!.deleted_at));
+  if (gone.length > 0) {
+    const names = gone.map((row) => `"${items.get(row.item_id)?.name ?? "Item removido"}"`).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const many = gone.length > 1;
+    throw new StockError(
+      "item_invalido",
+      `${many ? "Os itens" : "O item"} ${names.join(", ")} ${many ? "foram excluídos" : "foi excluído"} do estoque. Retire${many ? "-os" : "-o"} da contagem antes de concluir.`,
+    );
+  }
   const missing = rows.filter((row) => row.counted_qty == null);
   if (missing.length > 0) {
     const names = missing.map((row) => items.get(row.item_id)?.name ?? row.item_id).sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -201,7 +211,10 @@ export interface InventoryCountSummary extends InventoryCount {
   location_name: string | null;
   item_count: number;
   counted_count: number;
-  /** Itens contados com quantidade diferente do saldo esperado. */
+  /**
+   * Itens contados com quantidade diferente do saldo do sistema: na aberta, o saldo de agora (a mesma conta da folha e
+   * da conclusão); na concluída, o saldo usado no ajuste (`expected_qty`).
+   */
   divergent_count: number;
 }
 
@@ -210,23 +223,28 @@ async function locationNames(db: DatabaseLike, companyId: string): Promise<Map<s
   return new Map(rows.map((row) => [row.id, row.name]));
 }
 
-function isDivergent(row: InventoryCountItem): boolean {
-  return row.counted_qty != null && roundQty(Number(row.counted_qty)) !== roundQty(Number(row.expected_qty));
+function isDivergent(row: InventoryCountItem, systemQty: number): boolean {
+  return row.counted_qty != null && roundQty(Number(row.counted_qty)) !== roundQty(systemQty);
 }
 
 /** Contagens da empresa, da mais nova para a mais antiga. */
 export async function listInventoryCounts(db: DatabaseLike, companyId: string): Promise<InventoryCountSummary[]> {
   const counts = await db.select<InventoryCount[]>("SELECT * FROM inventory_counts WHERE company_id=? AND deleted_at IS NULL ORDER BY number DESC", [companyId]);
   const items = await db.select<InventoryCountItem[]>("SELECT * FROM inventory_count_items WHERE company_id=? AND deleted_at IS NULL", [companyId]);
+  const balances = await db.select<StockBalance[]>("SELECT * FROM stock_balances WHERE company_id=?", [companyId]);
   const names = await locationNames(db, companyId);
+  const balanceAt = new Map<string, number>();
+  for (const row of balances) balanceAt.set(`${row.item_id}|${row.location_id}`, roundQty((balanceAt.get(`${row.item_id}|${row.location_id}`) ?? 0) + Number(row.quantity ?? 0)));
   return counts.map((count) => {
     const mine = items.filter((row) => row.count_id === count.id);
+    const systemQty = (row: InventoryCountItem) =>
+      count.status === "aberta" && count.location_id ? balanceAt.get(`${row.item_id}|${count.location_id}`) ?? 0 : Number(row.expected_qty);
     return {
       ...count,
       location_name: count.location_id ? names.get(count.location_id) ?? null : null,
       item_count: mine.length,
       counted_count: mine.filter((row) => row.counted_qty != null).length,
-      divergent_count: mine.filter(isDivergent).length,
+      divergent_count: mine.filter((row) => isDivergent(row, systemQty(row))).length,
     };
   });
 }

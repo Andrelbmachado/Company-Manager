@@ -61,6 +61,19 @@ describe("archiveStockLocation", () => {
     expect(row.deleted_at).toBeTruthy();
     await expectStockError(archiveStockLocation(db, { companyId: C, locationId: "loc-b" }), "local_invalido");
   });
+
+  it("saldo de item excluído não prende o local: a lista já mostra o local vazio e o item não pode mais ser movimentado", async () => {
+    // A Loja só tem Mouse USB (3), que é excluído com saldo (a tela de itens deixa, com aviso).
+    await db.execute("UPDATE inventory_items SET deleted_at=datetime('now') WHERE id='item-3'");
+    expect((await listLocationSummaries(db, C)).find((row) => row.id === "loc-b")).toMatchObject({ item_count: 0, total_qty: 0 });
+    await expectStockError(recordStockMovement(db, { companyId: C, itemId: "item-3", type: "saida", quantity: 3, fromLocationId: "loc-b" }), "item_invalido");
+
+    await archiveStockLocation(db, { companyId: C, locationId: "loc-b" });
+    const [row] = await db.select<Row[]>("SELECT * FROM stock_locations WHERE id='loc-b'");
+    expect(row.deleted_at).toBeTruthy();
+    // Item ativo com saldo continua impedindo.
+    await expectStockError(archiveStockLocation(db, { companyId: C, locationId: "loc-a" }), "local_com_saldo");
+  });
 });
 
 describe("listLocationSummaries", () => {

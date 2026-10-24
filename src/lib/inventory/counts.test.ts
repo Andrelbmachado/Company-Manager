@@ -157,6 +157,24 @@ describe("finishInventoryCount", () => {
     expect(after[0]).toMatchObject({ item_id: "item-1", expected_qty: 8, counted_qty: 8 });
   });
 
+  it("item excluído do estoque durante a contagem: a conclusão diz qual é, não ajusta nada e conclui depois de retirá-lo", async () => {
+    const { id } = await openInventoryCount(db, { companyId: C, locationId: "loc-a", userId: user });
+    for (const row of await countItems(id)) await setCountedQuantity(db, { companyId: C, countItemId: String(row.id), countedQty: 1 });
+    await db.execute("UPDATE inventory_items SET deleted_at=datetime('now') WHERE id='item-3'");
+
+    const error = await finishInventoryCount(db, { companyId: C, countId: id, userId: user }).then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StockError);
+    expect((error as StockError).code).toBe("item_invalido");
+    expect((error as StockError).message).toContain("Mouse USB");
+    expect(await countRows(db, "stock_movements")).toBe(0);
+
+    const mouse = (await countItems(id)).find((row) => row.item_id === "item-3")!;
+    await removeCountItem(db, { companyId: C, countItemId: String(mouse.id) });
+    const result = await finishInventoryCount(db, { companyId: C, countId: id, userId: user });
+    expect(result.movementIds).toHaveLength(1);
+    expect(await balanceOf(db, "item-1", "loc-a")).toBe(1);
+  });
+
   it("contagem vazia ou cancelada não conclui; cancelar só a aberta", async () => {
     await db.execute("INSERT INTO stock_locations (id, company_id, name) VALUES ('loc-c', ?, 'Vazio')", [C]);
     const empty = await openInventoryCount(db, { companyId: C, locationId: "loc-c", userId: user });
@@ -194,5 +212,18 @@ describe("leitura para as telas", () => {
       ["Mouse USB", "ITEM-3", "un", 4, null, 4],
     ]);
     expect(await loadInventoryCount(db, C, "nao-existe")).toBeNull();
+  });
+
+  it("na lista, a diferença da contagem aberta é contra o saldo de agora (a mesma conta da folha e da conclusão)", async () => {
+    const { id } = await openInventoryCount(db, { companyId: C, locationId: "loc-a", userId: user });
+    const cabo = (await countItems(id)).find((row) => row.item_id === "item-1")!;
+    await setCountedQuantity(db, { companyId: C, countItemId: String(cabo.id), countedQty: 8 });
+    expect((await listInventoryCounts(db, C))[0].divergent_count).toBe(1);
+
+    // Saem 2 caixas durante a contagem: o sistema passa a ter 8, igual ao contado, e a conclusão não ajusta nada.
+    await recordStockMovement(db, { companyId: C, itemId: "item-1", type: "saida", quantity: 2, fromLocationId: "loc-a" });
+    expect((await listInventoryCounts(db, C))[0].divergent_count).toBe(0);
+    const line = (await loadInventoryCount(db, C, id))!.items.find((row) => row.item_id === "item-1")!;
+    expect(Number(line.counted_qty) - line.current_qty).toBe(0);
   });
 });

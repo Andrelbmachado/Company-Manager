@@ -26,7 +26,8 @@ export type StockErrorCode =
   | "contagem_invalida"
   | "contagem_fechada"
   | "contagem_incompleta"
-  | "item_repetido";
+  | "item_repetido"
+  | "valor_invalido";
 
 /** Erro de regra de estoque, com mensagem pronta para a tela (pt-BR). */
 export class StockError extends Error {

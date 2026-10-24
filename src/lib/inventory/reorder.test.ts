@@ -92,6 +92,19 @@ describe("createReorderPurchaseOrders", () => {
     expect(after.map((row) => [row.item_id, row.on_order, row.suggested_qty])).toEqual([["item-2", 2, 4]]);
   });
 
+  it("custo com mais de 2 casas: a sugestão usa o mesmo preço em centavos do pedido, e a estimativa bate com o total gerado", async () => {
+    await db.execute("UPDATE inventory_items SET cost=10.555 WHERE id='item-3'");
+    const mouse = (await reorderSuggestions(db, C)).find((row) => row.item_id === "item-3")!;
+    expect(mouse.suggested_qty).toBe(13);
+    expect(mouse.cost).toBe(10.56);
+    expect(mouse.estimated_cost).toBe(137.28);
+
+    const [order] = await createReorderPurchaseOrders(db, { companyId: C, userId: user, lines: [{ itemId: "item-3", qty: mouse.suggested_qty }] });
+    expect(order.total).toBe(mouse.estimated_cost);
+    const [line] = await db.select<Row[]>("SELECT * FROM purchase_order_items WHERE order_id=?", [order.id]);
+    expect(line).toMatchObject({ unit_price: 10.56, total: 137.28 });
+  });
+
   it("recusa lista vazia, quantidade inválida e item inexistente sem gravar pedido", async () => {
     const attempts = [
       createReorderPurchaseOrders(db, { companyId: C, userId: user, lines: [] }),

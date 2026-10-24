@@ -1,6 +1,31 @@
+// Banco demo do navegador: localStorage + SQL emulado por padrões de texto. Só para visualização; o app desktop usa SQLite.
+// Tabelas, colunas e DEFAULT vêm das próprias migrations (demoSchema.ts), então tabela ou coluna nova já existe aqui.
+// Padrões entendidos (SQL fora deles é erro com "demo" na mensagem, nunca dado errado):
+// - SELECT * | SELECT col, col | SELECT count(*) AS x  FROM tabela  [WHERE ...] [ORDER BY col [ASC|DESC], ...] [LIMIT n]
+// - INSERT [OR IGNORE | OR REPLACE] INTO tabela (cols) VALUES (...)  (uma linha; sem ON CONFLICT nem RETURNING)
+// - UPDATE tabela SET col=valor, ... [WHERE ...]   e   DELETE FROM tabela [WHERE ...]
+// - WHERE: col=? | col='texto' | col=número | col IS NULL | col IS NOT NULL, ligados por AND.
+// - valores: ?, 'texto', número, NULL, datetime('now'), date('now').
+// JOIN, soma, agrupamento, IN, LIKE, <, OR e expressões (quantity + ?) não existem aqui: faça no TypeScript.
+// As 17 tabelas do demo original (LENIENT_TABLES) mantêm o comportamento antigo das telas legadas (consultas fixas
+// com JOIN/COUNT tratadas abaixo e, se o WHERE não for entendido, filtro por empresa); as demais são estritas.
+import { nowIso, parseMigrations, splitTopLevel, todayUtc, type DemoSchema } from "./demoSchema";
+
 const STORAGE_KEY = "cm_demo_database_v4";
 const COMPANY_ID = "demo-company";
 const ADMIN_ID = "demo-admin";
+
+/** Chave do banco demo no localStorage. */
+export const DEMO_STORAGE_KEY = STORAGE_KEY;
+/** Empresa fictícia do banco demo (TechFlow). */
+export const DEMO_COMPANY_ID = COMPANY_ID;
+
+const MIGRATION_SOURCES = import.meta.glob<string>("/src-tauri/migrations/*.sql", { query: "?raw", import: "default", eager: true });
+const SCHEMA: DemoSchema = parseMigrations(
+  Object.keys(MIGRATION_SOURCES)
+    .sort()
+    .map((file) => MIGRATION_SOURCES[file])
+);
 
 type Row = Record<string, unknown>;
 
@@ -26,41 +51,29 @@ export const DEMO_ACCOUNTS = [
   { id: "demo-auditor", role: "auditor", area: "Auditoria", position: "Funcionario", name: "Beatriz Souza", email: "auditoria@techflow.com", password: "demo123" },
 ] as const;
 
-interface DemoTables {
-  companies: Row[];
-  users: Row[];
-  memberships: Row[];
-  customers: Row[];
-  opportunities: Row[];
-  tickets: Row[];
-  work_orders: Row[];
-  projects: Row[];
-  inventory_items: Row[];
-  suppliers: Row[];
-  stock_balances: Row[];
-  custodies: Row[];
-  payables: Row[];
-  receivables: Row[];
-  documents: Row[];
-  activities: Row[];
-  audit_logs: Row[];
-  // Tabelas da migration 0003 (+ tasks). Nascem vazias; o seed vem de lib/prospecting/seed.ts.
-  leads: Row[];
-  service_packages: Row[];
-  package_prices: Row[];
-  revenue_scenarios: Row[];
-  revenue_forecasts: Row[];
-  settings: Row[];
-  tasks: Row[];
-  project_stages: Row[];
-  employees: Row[];
-  hr_requests: Row[];
-  hr_announcements: Row[];
-  hr_tasks: Row[];
-  employee_compensation: Row[];
-}
+/** Tabela → linhas. Toda tabela das migrations existe (vazia quando o seed não a preenche). */
+type DemoTables = Record<string, Row[]>;
 
-const EXTRA_TABLES = ["leads", "service_packages", "package_prices", "revenue_scenarios", "revenue_forecasts", "settings", "tasks", "project_stages", "employees", "hr_requests", "hr_announcements", "hr_tasks", "employee_compensation"] as const;
+/** Tabelas do demo original: as telas legadas dependem do comportamento antigo (ver o topo do arquivo). */
+const LENIENT_TABLES = new Set([
+  "companies",
+  "users",
+  "memberships",
+  "customers",
+  "opportunities",
+  "tickets",
+  "work_orders",
+  "projects",
+  "inventory_items",
+  "suppliers",
+  "stock_balances",
+  "custodies",
+  "payables",
+  "receivables",
+  "documents",
+  "activities",
+  "audit_logs",
+]);
 
 export interface DatabaseLike {
   select<T>(query: string, bindValues?: unknown[]): Promise<T>;
@@ -73,6 +86,18 @@ function iso(daysFromToday = 0, hour = 9): string {
   date.setHours(hour, 0, 0, 0);
   return date.toISOString();
 }
+
+/** Local de estoque dos saldos do seed (stock_balances.location_id). */
+const DEMO_STOCK_LOCATION: Row = {
+  id: "demo-stock-location",
+  company_id: COMPANY_ID,
+  name: "Depósito principal",
+  type: "deposito",
+  address: null,
+  created_at: iso(-365),
+  updated_at: iso(-365),
+  deleted_at: null,
+};
 
 function createSeed(): DemoTables {
   return {
@@ -141,6 +166,7 @@ function createSeed(): DemoTables {
       supplier("supplier-2", "InfraSafe Equipamentos", "22.680.114/0001-07", "comercial@infrasafe.com.br", "(11) 4102-7721", "Pagamento em 21 dias", 4),
       supplier("supplier-3", "ByteCenter Tecnologia", "08.214.665/0001-42", "pedidos@bytecenter.com.br", "(19) 3321-1190", "Pagamento em 35 dias", 4),
     ],
+    stock_locations: [{ ...DEMO_STOCK_LOCATION }],
     stock_balances: [
       balance("balance-1", "item-1", 7),
       balance("balance-2", "item-2", 2),
@@ -379,34 +405,36 @@ function ticketActivity(id: string, entityId: string, action: string, title: str
   return { id, company_id: COMPANY_ID, entity_type: "ticket", entity_id: entityId, action, title, actor_id: actorId, created_at: iso(days, hour) };
 }
 
+/** Espaços colapsados e caixa baixa fora das aspas: 'VIP' continua 'VIP'. */
 function normalize(query: string): string {
-  return query.replace(/\s+/g, " ").trim().toLowerCase();
+  return query
+    .replace(/'(?:[^']|'')*'|[^']+/g, (part) => (part.startsWith("'") ? part : part.replace(/\s+/g, " ").toLowerCase()))
+    .trim()
+    .replace(/\s*;$/, "");
 }
 
-/** Instante real (iso(0) fixa 09:00 local, bom para seed visual, ruim para comparar updated_at). */
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-/** "?" consome o próximo bind; datetime('now') vira agora; null/números/strings literais são convertidos. */
+/** "?" consome o próximo bind; 'texto', número, NULL, datetime('now') e date('now') viram valor. O resto é erro. */
 function literalOrBind(token: string, nextBind: () => unknown): unknown {
   if (token === "?") return nextBind() ?? null;
-  if (token.startsWith("datetime(")) return nowIso();
+  const literal = token.match(/^'((?:[^']|'')*)'$/s);
+  if (literal) return literal[1].replace(/''/g, "'");
   if (token === "null") return null;
   if (/^-?\d+(\.\d+)?$/.test(token)) return Number(token);
-  return token.replace(/^'|'$/g, "");
+  if (token === "datetime('now')" || token === "current_timestamp") return nowIso();
+  if (token === "date('now')") return todayUtc();
+  throw new Error(`Expressão demo não suportada: ${token}`);
 }
 
-/** Converte "a=? and b is null and c is not null" em predicado, consumindo binds na ordem. */
+/** Converte "a=? and b='x' and c is null" em predicado, consumindo binds na ordem. */
 function parseWhere(clause: string, nextBind: () => unknown): (row: Row) => boolean {
-  const checks = clause.split(/ and /).map<(row: Row) => boolean>((part) => {
+  const checks = splitTopLevel(clause, " and ").map<(row: Row) => boolean>((part) => {
     const isNull = part.match(/^(\w+) is null$/);
     if (isNull) return (row) => row[isNull[1]] == null;
     const notNull = part.match(/^(\w+) is not null$/);
     if (notNull) return (row) => row[notNull[1]] != null;
-    const equals = part.match(/^(\w+) ?= ?\?$/);
+    const equals = part.match(/^(\w+) ?= ?(\?|'(?:[^']|'')*'|-?\d+(?:\.\d+)?)$/s);
     if (equals) {
-      const value = nextBind();
+      const value = literalOrBind(equals[2], nextBind);
       return (row) => row[equals[1]] === value;
     }
     throw new Error(`Condição demo não suportada: ${part}`);
@@ -414,18 +442,31 @@ function parseWhere(clause: string, nextBind: () => unknown): (row: Row) => bool
   return (row) => checks.every((check) => check(row));
 }
 
-function orderByColumn(rows: Row[], sql: string): Row[] {
-  const match = sql.match(/order by ([a-z_]+)( asc| desc)?/);
-  if (!match) return rows;
-  const [, column, direction] = match;
-  const factor = direction?.trim() === "desc" ? -1 : 1;
-  return [...rows].sort((a, b) => {
-    const left = a[column];
-    const right = b[column];
-    if (left == null || right == null) return left == null && right == null ? 0 : left == null ? 1 : -1;
-    if (typeof left === "number" && typeof right === "number") return (left - right) * factor;
-    return String(left).localeCompare(String(right), "pt-BR") * factor;
+function compareValues(left: unknown, right: unknown): number {
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  return String(left).localeCompare(String(right), "pt-BR");
+}
+
+/** "col [asc|desc], col2 ..." → ordenação; nulos sempre por último. */
+function parseOrderBy(spec: string): (a: Row, b: Row) => number {
+  const keys = splitTopLevel(spec).map((part) => {
+    const match = part.match(/^(\w+)(?: (asc|desc))?$/);
+    if (!match) throw new Error(`Ordenação demo não suportada: ${part}`);
+    return { column: match[1], factor: match[2] === "desc" ? -1 : 1 };
   });
+  return (a, b) => {
+    for (const { column, factor } of keys) {
+      const left = a[column];
+      const right = b[column];
+      if (left == null || right == null) {
+        if (left == null && right == null) continue;
+        return left == null ? 1 : -1;
+      }
+      const order = compareValues(left, right) * factor;
+      if (order !== 0) return order;
+    }
+    return 0;
+  };
 }
 
 function matchesCompany(row: Row, companyId: unknown): boolean {
@@ -436,6 +477,74 @@ function createdAtDesc(a: Row, b: Row): number {
   return String(b.created_at).localeCompare(String(a.created_at));
 }
 
+/** Valores de colunas novas em linhas antigas, iguais aos UPDATE de backfill das migrations (0008). */
+const BACKFILL: Record<string, (row: Row) => unknown> = {
+  "receivables.description": (row) => row.ref_id ?? null,
+  "payables.paid_amount": (row) => (row.status === "paga" ? Number(row.amount ?? 0) : 0),
+  "receivables.received_amount": (row) => (row.status === "recebida" ? Number(row.amount ?? 0) : 0),
+};
+
+/** INSERT das telas legadas (colunas exatas, todos os valores "?"): mantêm os padrões que o demo antigo gravava. */
+const LEGACY_INSERTS: Record<string, { columns: string[]; defaults?: () => Row }[]> = {
+  customers: [{ columns: ["id", "company_id", "type", "name", "email", "phone", "document"], defaults: () => ({ address_json: "{}", status: "active" }) }],
+  tickets: [
+    {
+      columns: ["id", "company_id", "subject", "description", "priority", "opened_by", "requester_area"],
+      defaults: () => ({ channel: "portal", status: "aberto", agent_id: null, work_order_id: null }),
+    },
+  ],
+  work_orders: [
+    { columns: ["id", "company_id", "number", "technician_id", "status", "priority", "labor_cost", "materials_cost"], defaults: () => ({ opened_at: nowIso(), checklist_json: "[]" }) },
+    {
+      columns: ["id", "company_id", "number", "customer_id", "ticket_id", "technician_id", "priority"],
+      defaults: () => ({ status: "aberta", opened_at: nowIso(), checklist_json: "[]", labor_cost: 0, materials_cost: 0 }),
+    },
+  ],
+  custodies: [{ columns: ["id", "company_id", "item_id", "holder_id", "quantity", "status", "due_back_at"], defaults: () => ({ checked_out_at: nowIso() }) }],
+  companies: [{ columns: ["id", "name", "document"], defaults: () => ({ settings_json: "{}" }) }],
+  users: [{ columns: ["id", "name", "email", "password_hash"], defaults: () => ({ status: "active", locale: "pt-BR" }) }],
+  memberships: [{ columns: ["id", "company_id", "user_id"], defaults: () => ({ role: "admin", scope: "empresa" }) }],
+};
+
+function sameColumns(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((column, index) => column === right[index]);
+}
+
+/** Linha completa: toda coluna do schema, com o valor dado ou o DEFAULT da migration. */
+function withDefaults(table: string, given: Row): Row {
+  const columns = SCHEMA.get(table);
+  if (!columns) return { created_at: nowIso(), updated_at: nowIso(), deleted_at: null, ...given };
+  const row: Row = {};
+  for (const [column, value] of columns) row[column] = column in given ? given[column] : value();
+  return row;
+}
+
+function assertColumns(table: string, columns: readonly string[]): void {
+  const known = SCHEMA.get(table);
+  if (!known) return;
+  const unknown = columns.filter((column) => !known.has(column));
+  if (unknown.length > 0) throw new Error(`Coluna demo desconhecida em ${table}: ${unknown.join(", ")}`);
+}
+
+/** Tabelas que faltam (banco salvo antes de uma migration) e colunas que faltam em linhas antigas. */
+function ensureTables(tables: DemoTables): void {
+  for (const table of SCHEMA.keys()) tables[table] ??= [];
+}
+
+function ensureColumns(tables: DemoTables): void {
+  for (const [table, columns] of SCHEMA) {
+    for (const row of tables[table]) {
+      for (const [column, value] of columns) {
+        if (column in row) continue;
+        const backfill = BACKFILL[`${table}.${column}`];
+        row[column] = backfill ? backfill(row) : value();
+      }
+    }
+  }
+}
+
+const SELECT_PATTERN = /^select (.+?) from (\w+)(?: where (.+?))?(?: order by (.+?))?(?: limit (\d+))?$/s;
+
 class DemoDatabase implements DatabaseLike {
   private tables: DemoTables;
 
@@ -445,337 +554,236 @@ class DemoDatabase implements DatabaseLike {
 
   async select<T>(query: string, bindValues: unknown[] = []): Promise<T> {
     const sql = normalize(query);
-    const companyId = bindValues[0];
-
-    if (sql.includes("select id from companies")) {
-      return this.tables.companies.filter((row) => !row.deleted_at).slice(0, 1) as T;
-    }
-    if (sql.includes("from users where lower(email)") || sql.includes("from users where email")) {
-      const wanted = String(bindValues[0]).toLowerCase();
-      return this.tables.users.filter((row) => String(row.email).toLowerCase() === wanted && !row.deleted_at).slice(0, 1).map((row) => ({ ...row })) as T;
-    }
-    if (sql.includes("from memberships where user_id")) {
-      return this.tables.memberships.filter((row) => row.user_id === bindValues[0] && !row.deleted_at).slice(0, 1).map((row) => ({ ...row })) as T;
-    }
-    if (sql.includes("from companies where id")) {
-      return this.tables.companies.filter((row) => row.id === bindValues[0] && !row.deleted_at).slice(0, 1).map((row) => ({ ...row })) as T;
-    }
-    if (sql.includes("count(*) as n from customers")) return [{ n: this.active("customers", companyId).length }] as T;
-    if (sql.includes("count(*) as n from opportunities")) {
-      const rows = this.active("opportunities", companyId).filter((row) => row.status === "open");
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from tickets")) {
-      const rows = this.active("tickets", companyId)
-        .filter((row) => !sql.includes("opened_by=?") || row.opened_by === bindValues[1])
-        .filter((row) => !["resolvido", "fechado"].includes(String(row.status)));
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from work_orders") && sql.includes("status not in")) {
-      const rows = this.active("work_orders", companyId).filter((row) => !["concluida", "cancelada"].includes(String(row.status)));
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from work_orders")) return [{ n: this.active("work_orders", companyId).length }] as T;
-    if (sql.includes("count(*) as n from inventory_items")) {
-      const rows = this.inventoryWithBalance(companyId).filter((row) => Number(row.quantity) < Number(row.min_stock));
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from payables")) {
-      const rows = this.active("payables", companyId).filter((row) => ["aberta", "aprovada"].includes(String(row.status)));
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from receivables")) {
-      const rows = this.active("receivables", companyId).filter((row) => row.status === "aberta");
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from projects")) {
-      const rows = this.active("projects", companyId).filter((row) => ["planejado", "andamento"].includes(String(row.status)));
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("count(*) as n from custodies")) {
-      const rows = this.active("custodies", companyId).filter((row) => row.status === "em_custodia");
-      return [{ n: rows.length }] as T;
-    }
-    if (sql.includes("from tickets t left join users")) {
-      return this.ticketsWithDetails(companyId)
-        .filter((row) => !sql.includes("t.opened_by=?") || row.opened_by === bindValues[1]) as T;
-    }
-    if (sql.includes("from inventory_items i left join stock_balances")) return this.inventoryWithBalance(companyId) as T;
-    if (sql.includes("from custodies c left join inventory_items")) return this.custodiesWithDetails(companyId) as T;
-    if (sql.includes("from custodies c left join users")) return this.custodiesWithDetails(companyId) as T;
-    if (sql.includes("from activities a left join users")) {
-      return this.active("activities", companyId)
-        .filter((row) => row.entity_type === "ticket" && row.entity_id === bindValues[1])
-        .map<Row>((row) => ({
-          ...row,
-          actor_name: this.tables.users.find((user) => user.id === row.actor_id)?.name,
-        }))
-        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))) as T;
-    }
-
-    const table = (Object.keys(this.tables) as (keyof DemoTables)[]).find((name) => sql.includes(`from ${name}`));
-    if (!table) throw new Error(`Consulta demo nao suportada: ${query}`);
-
-    // WHERE completo (col=?, col is null, ...) quando o interpretador entende; senão, o filtro antigo por empresa.
-    let rows: Row[] | null = null;
-    const whereClause = sql.match(/ where (.+?)(?: order by| limit|$)/)?.[1];
-    if (whereClause && table !== "audit_logs") {
-      try {
-        let bindIndex = 0;
-        rows = this.tables[table].filter(parseWhere(whereClause, () => bindValues[bindIndex++]));
-      } catch (error) {
-        // Tabelas novas não têm o filtro antigo por empresa como rede de segurança: WHERE que o demo não entende é erro,
-        // como seria no UPDATE. Devolver linhas a mais em silêncio esconderia a divergência entre demo e SQLite.
-        if (EXTRA_TABLES.includes(table as (typeof EXTRA_TABLES)[number])) throw error;
-        rows = null;
-      }
-    }
-    rows ??= table === "audit_logs"
-      ? this.tables[table].filter((row) => row.company_id === companyId)
-      : this.active(table, companyId);
-
-    if (sql.includes("order by name")) rows = [...rows].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    if (sql.includes("order by created_at desc")) rows = [...rows].sort(createdAtDesc);
-    if (sql.includes("order by due_date asc")) rows = [...rows].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
-    if (sql.includes("order by checked_out_at desc")) rows = [...rows].sort((a, b) => String(b.checked_out_at).localeCompare(String(a.checked_out_at)));
-    if (EXTRA_TABLES.includes(table as (typeof EXTRA_TABLES)[number])) rows = orderByColumn(rows, sql);
-    if (sql.includes("limit 200")) rows = rows.slice(0, 200);
     // Cópias: quem consulta não pode enxergar (nem mutar) as linhas vivas do banco.
+    const legacy = this.legacySelect(sql, bindValues);
+    if (legacy) return legacy.map((row) => ({ ...row })) as T;
+
+    const table = sql.match(/\bfrom (\w+)/)?.[1];
+    if (!table || !(table in this.tables)) throw new Error(`Consulta demo nao suportada: ${query}`);
+    const rows = LENIENT_TABLES.has(table) ? this.lenientSelect(table, sql, bindValues) : this.strictSelect(table, sql, query, bindValues);
     return rows.map((row) => ({ ...row })) as T;
   }
 
-  async execute(query: string, bindValues: unknown[] = []): Promise<unknown> {
+  async execute(query: string, bindValues: unknown[] = []): Promise<{ rowsAffected: number }> {
     const sql = normalize(query);
-
-    // UPDATE que define updated_at explicitamente (importação de bundle) usa o caminho genérico.
-    if (/^update \w+ set .*updated_at ?= ?\?/.test(sql)) {
-      const generic = this.executeGeneric(sql, bindValues);
-      if (generic) return generic;
-    }
-
-    if (sql.startsWith("update users set last_login_at")) {
-      this.update("users", bindValues[0], { last_login_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into customers")) {
-      this.insert("customers", bindValues, ["id", "company_id", "type", "name", "email", "phone", "document"], { address_json: "{}", status: "active" });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update customers set")) {
-      this.update("customers", bindValues[5], { type: bindValues[0], name: bindValues[1], email: bindValues[2], phone: bindValues[3], document: bindValues[4], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into opportunities")) {
-      this.insert("opportunities", bindValues, ["id", "company_id", "title", "value", "stage", "probability", "expected_close_date", "status"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update opportunities set")) {
-      this.update("opportunities", bindValues[6], { title: bindValues[0], value: bindValues[1], stage: bindValues[2], probability: bindValues[3], expected_close_date: bindValues[4], status: bindValues[5], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into projects")) {
-      this.insert("projects", bindValues, ["id", "company_id", "name", "status", "budget", "start_date", "end_date", "owner_id"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update projects set")) {
-      this.update("projects", bindValues[5], { name: bindValues[0], status: bindValues[1], budget: bindValues[2], start_date: bindValues[3], end_date: bindValues[4], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into tickets")) {
-      this.insert("tickets", bindValues, ["id", "company_id", "subject", "description", "priority", "opened_by", "requester_area"], { channel: "portal", status: "aberto", agent_id: null, work_order_id: null });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into work_orders")) {
-      if (sql.includes("status, priority, labor_cost")) {
-        this.insert("work_orders", bindValues, ["id", "company_id", "number", "technician_id", "status", "priority", "labor_cost", "materials_cost"], { opened_at: iso(0), checklist_json: "[]" });
-      } else {
-        this.insert("work_orders", bindValues, ["id", "company_id", "number", "customer_id", "ticket_id", "technician_id", "priority"], { status: "aberta", opened_at: iso(0), checklist_json: "[]", labor_cost: 0, materials_cost: 0 });
-      }
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update work_orders set")) {
-      this.update("work_orders", bindValues[5], { number: bindValues[0], status: bindValues[1], priority: bindValues[2], labor_cost: bindValues[3], materials_cost: bindValues[4], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update tickets set work_order_id")) {
-      this.update("tickets", bindValues[1], { work_order_id: bindValues[0], status: "resolvido", updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update tickets set status='aberto'")) {
-      this.update("tickets", bindValues[0], { status: "aberto", updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update tickets set subject")) {
-      this.update("tickets", bindValues[4], { subject: bindValues[0], description: bindValues[1], priority: bindValues[2], status: bindValues[3], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into inventory_items")) {
-      this.insert("inventory_items", bindValues, ["id", "company_id", "name", "sku", "category", "supplier_id", "unit", "min_stock", "cost"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update inventory_items set deleted_at")) {
-      this.update("inventory_items", bindValues[0], { deleted_at: iso(0), updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update inventory_items set")) {
-      this.update("inventory_items", bindValues[7], { name: bindValues[0], sku: bindValues[1], category: bindValues[2], supplier_id: bindValues[3], unit: bindValues[4], min_stock: bindValues[5], cost: bindValues[6], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into custodies")) {
-      this.insert("custodies", bindValues, ["id", "company_id", "item_id", "holder_id", "quantity", "status", "due_back_at"], { checked_out_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update custodies set deleted_at")) {
-      this.update("custodies", bindValues[0], { deleted_at: iso(0), updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update custodies set")) {
-      this.update("custodies", bindValues[4], { item_id: bindValues[0], quantity: bindValues[1], status: bindValues[2], due_back_at: bindValues[3], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into payables")) {
-      this.insert("payables", bindValues, ["id", "company_id", "description", "amount", "due_date", "status"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update payables set")) {
-      this.update("payables", bindValues[4], { description: bindValues[0], amount: bindValues[1], due_date: bindValues[2], status: bindValues[3], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into receivables")) {
-      this.insert("receivables", bindValues, ["id", "company_id", "ref_type", "ref_id", "amount", "due_date", "status"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update receivables set")) {
-      this.update("receivables", bindValues[4], { ref_id: bindValues[0], amount: bindValues[1], due_date: bindValues[2], status: bindValues[3], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into documents")) {
-      this.insert("documents", bindValues, ["id", "company_id", "title", "type", "file_path", "version", "uploaded_by"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("update documents set")) {
-      this.update("documents", bindValues[3], { title: bindValues[0], type: bindValues[1], file_path: bindValues[2], updated_at: iso(0) });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into activities")) {
-      this.insert("activities", bindValues, ["id", "company_id", "entity_type", "entity_id", "action", "title", "description", "actor_id", "old_value_json", "new_value_json", "metadata_json", "module"]);
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into companies")) {
-      this.insert("companies", bindValues, ["id", "name", "document"], { settings_json: "{}" });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into users")) {
-      this.insert("users", bindValues, ["id", "name", "email", "password_hash"], { status: "active", locale: "pt-BR" });
-      return { rowsAffected: 1 };
-    }
-    if (sql.startsWith("insert into memberships")) {
-      this.insert("memberships", bindValues, ["id", "company_id", "user_id"], { role: "admin", scope: "empresa" });
-      return { rowsAffected: 1 };
-    }
-    const generic = this.executeGeneric(sql, bindValues);
-    if (generic) return generic;
+    if (/ on conflict\b| returning\b/.test(sql)) throw new Error(`Comando demo não suportado (ON CONFLICT/RETURNING): ${query}`);
+    if (sql.startsWith("insert")) return this.insertRow(sql, query, bindValues);
+    if (sql.startsWith("update")) return this.updateRows(sql, query, bindValues);
+    if (sql.startsWith("delete")) return this.deleteRows(sql, query, bindValues);
     throw new Error(`Comando demo nao suportado: ${query}`);
   }
 
-  /** Fallback genérico: INSERT [OR IGNORE|OR REPLACE] INTO t (cols) VALUES (...) e UPDATE t SET a=?, ... WHERE id=? em qualquer tabela demo. */
-  private executeGeneric(sql: string, bindValues: unknown[]): { rowsAffected: number } | null {
-    const insert = sql.match(/^insert(?: or (ignore|replace))? into (\w+) ?\(([^)]*)\) ?values ?\((.*)\)$/);
-    if (insert && insert[2] in this.tables) {
-      const table = insert[2] as keyof DemoTables;
-      const columns = insert[3].split(",").map((column) => column.trim());
-      let bindIndex = 0;
-      const row: Row = {};
-      insert[4].split(",").forEach((token, index) => {
-        row[columns[index]] = literalOrBind(token.trim(), () => bindValues[bindIndex++]);
-      });
-      const rows = this.tables[table];
-      const existing = rows.findIndex((candidate) => candidate.id === row.id);
-      if (existing >= 0 && insert[1] === "ignore") return { rowsAffected: 0 };
-      const stamped = { created_at: nowIso(), updated_at: nowIso(), deleted_at: null, ...row };
-      if (existing >= 0) rows[existing] = stamped;
-      else rows.push(stamped);
-      this.save();
-      return { rowsAffected: 1 };
+  /** Consultas fixas das telas legadas (JOIN e COUNT com IN/NOT IN), respondidas à mão. */
+  private legacySelect(sql: string, bindValues: unknown[]): Row[] | null {
+    const companyId = bindValues[0];
+    if (sql.includes("select id from companies")) return this.tables.companies.filter((row) => !row.deleted_at).slice(0, 1);
+    if (sql.includes("from users where lower(email)") || sql.includes("from users where email")) {
+      const wanted = String(bindValues[0]).toLowerCase();
+      return this.tables.users.filter((row) => String(row.email).toLowerCase() === wanted && !row.deleted_at).slice(0, 1);
+    }
+    if (sql.includes("from memberships where user_id")) return this.tables.memberships.filter((row) => row.user_id === bindValues[0] && !row.deleted_at).slice(0, 1);
+    if (sql.includes("from companies where id")) return this.tables.companies.filter((row) => row.id === bindValues[0] && !row.deleted_at).slice(0, 1);
+
+    const count = (rows: Row[]) => [{ n: rows.length }];
+    if (sql === "select count(*) as n from customers where company_id=? and deleted_at is null") return count(this.active("customers", companyId));
+    if (sql.startsWith("select count(*) as n from opportunities") && sql.includes("status='open'")) {
+      return count(this.active("opportunities", companyId).filter((row) => row.status === "open"));
+    }
+    if (sql.startsWith("select count(*) as n from tickets") && sql.includes("status not in ('resolvido','fechado')")) {
+      return count(
+        this.active("tickets", companyId)
+          .filter((row) => !sql.includes("opened_by=?") || row.opened_by === bindValues[1])
+          .filter((row) => !["resolvido", "fechado"].includes(String(row.status)))
+      );
+    }
+    if (sql.startsWith("select count(*) as n from work_orders") && sql.includes("status not in ('concluida','cancelada')")) {
+      return count(this.active("work_orders", companyId).filter((row) => !["concluida", "cancelada"].includes(String(row.status))));
+    }
+    if (sql === "select count(*) as n from work_orders where company_id=?") return count(this.tables.work_orders.filter((row) => row.company_id === companyId));
+    if (sql.startsWith("select count(*) as n from inventory_items i join")) {
+      return count(this.inventoryWithBalance(companyId).filter((row) => Number(row.quantity) < Number(row.min_stock)));
+    }
+    if (sql.startsWith("select count(*) as n from payables") && sql.includes("status in ('aberta','aprovada')")) {
+      return count(this.active("payables", companyId).filter((row) => ["aberta", "aprovada"].includes(String(row.status))));
+    }
+    if (sql.startsWith("select count(*) as n from receivables") && sql.includes("status='aberta'")) {
+      return count(this.active("receivables", companyId).filter((row) => row.status === "aberta"));
+    }
+    if (sql.startsWith("select count(*) as n from projects") && sql.includes("status in ('planejado','andamento')")) {
+      return count(this.active("projects", companyId).filter((row) => ["planejado", "andamento"].includes(String(row.status))));
+    }
+    if (sql.startsWith("select count(*) as n from custodies") && sql.includes("status='em_custodia'")) {
+      return count(this.active("custodies", companyId).filter((row) => row.status === "em_custodia"));
     }
 
-    const update = sql.match(/^update (\w+) set (.*?) where (.+)$/);
-    if (update && update[1] in this.tables) {
-      const patch: Row = {};
-      let bindIndex = 0;
-      const nextBind = () => bindValues[bindIndex++];
-      for (const assignment of update[2].split(/, ?/)) {
-        const [column, expression] = assignment.split(/ ?= ?/);
-        patch[column.trim()] = literalOrBind(expression.trim(), nextBind);
-      }
-      const matched = this.tables[update[1] as keyof DemoTables].filter(parseWhere(update[3], nextBind));
-      matched.forEach((row) => Object.assign(row, patch));
-      this.save();
-      return { rowsAffected: matched.length };
+    if (sql.includes("from tickets t left join users")) {
+      return this.ticketsWithDetails(companyId).filter((row) => !sql.includes("t.opened_by=?") || row.opened_by === bindValues[1]);
     }
-
-    // DELETE físico: só para dados de catálogo substituídos pelo seed (o fluxo normal usa soft delete).
-    const remove = sql.match(/^delete from (\w+) where (.+)$/);
-    if (remove && remove[1] in this.tables) {
-      let bindIndex = 0;
-      const rows = this.tables[remove[1] as keyof DemoTables];
-      const doomed = new Set(rows.filter(parseWhere(remove[2], () => bindValues[bindIndex++])));
-      this.tables[remove[1] as keyof DemoTables] = rows.filter((row) => !doomed.has(row)) as Row[];
-      this.save();
-      return { rowsAffected: doomed.size };
+    if (sql.includes("from inventory_items i left join stock_balances")) return this.inventoryWithBalance(companyId);
+    if (sql.includes("from custodies c left join inventory_items")) return this.custodiesWithDetails(companyId);
+    if (sql.includes("from custodies c left join users")) return this.custodiesWithDetails(companyId);
+    if (sql.includes("from activities a left join users")) {
+      return this.active("activities", companyId)
+        .filter((row) => row.entity_type === "ticket" && row.entity_id === bindValues[1])
+        .map<Row>((row) => ({ ...row, actor_name: this.tables.users.find((user) => user.id === row.actor_id)?.name }))
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
     }
     return null;
   }
 
+  /** Tabelas do demo original: WHERE que o demo não entende cai no filtro antigo por empresa (telas legadas). */
+  private lenientSelect(table: string, sql: string, bindValues: unknown[]): Row[] {
+    const companyId = bindValues[0];
+    let rows: Row[] | null = null;
+    const whereClause = sql.match(/ where (.+?)(?: order by| limit|$)/s)?.[1];
+    if (whereClause && table !== "audit_logs") {
+      try {
+        let bindIndex = 0;
+        rows = this.tables[table].filter(parseWhere(whereClause, () => bindValues[bindIndex++]));
+      } catch {
+        rows = null;
+      }
+    }
+    rows ??= table === "audit_logs" ? this.tables[table].filter((row) => row.company_id === companyId) : this.active(table, companyId);
+
+    const orderBy = sql.match(/ order by (.+?)(?: limit \d+)?$/)?.[1];
+    if (orderBy) {
+      try {
+        rows = [...rows].sort(parseOrderBy(orderBy));
+      } catch {
+        // ordenação com alias/expressão: mantém a ordem gravada, como o demo antigo
+      }
+    }
+    const limit = sql.match(/ limit (\d+)$/)?.[1];
+    if (limit) rows = rows.slice(0, Number(limit));
+    const countAlias = sql.match(/^select count\(\*\) as (\w+) from /)?.[1];
+    return countAlias ? [{ [countAlias]: rows.length }] : rows;
+  }
+
+  /** Tabelas novas: só os padrões do topo do arquivo; qualquer outra coisa é erro. */
+  private strictSelect(table: string, sql: string, query: string, bindValues: unknown[]): Row[] {
+    const match = sql.match(SELECT_PATTERN);
+    if (!match || match[2] !== table) throw new Error(`Consulta demo nao suportada (sem JOIN, alias ou expressão): ${query}`);
+    const [, projection, , whereClause, orderBy, limit] = match;
+    let bindIndex = 0;
+    let rows = whereClause ? this.tables[table].filter(parseWhere(whereClause, () => bindValues[bindIndex++])) : [...this.tables[table]];
+    if (orderBy) rows = [...rows].sort(parseOrderBy(orderBy));
+    if (limit) rows = rows.slice(0, Number(limit));
+
+    const countAlias = projection.match(/^count\(\*\) as (\w+)$/)?.[1];
+    if (countAlias) return [{ [countAlias]: rows.length }];
+    if (projection === "*") return rows;
+    const columns = splitTopLevel(projection);
+    if (!columns.every((column) => /^\w+$/.test(column))) throw new Error(`Consulta demo nao suportada (só *, colunas ou count(*)): ${query}`);
+    assertColumns(table, columns);
+    return rows.map((row) => Object.fromEntries(columns.map((column) => [column, row[column] ?? null])));
+  }
+
+  private insertRow(sql: string, query: string, bindValues: unknown[]): { rowsAffected: number } {
+    const match = sql.match(/^insert(?: or (ignore|replace))? into (\w+) ?\(([^)]*)\) ?values ?\((.*)\)$/s);
+    if (!match) throw new Error(`Comando demo nao suportado: ${query}`);
+    const [, conflict, table, columnList, valueList] = match;
+    if (!(table in this.tables)) throw new Error(`Tabela demo desconhecida: ${table}`);
+    const columns = columnList.split(",").map((column) => column.trim());
+    const values = splitTopLevel(valueList);
+    if (values.length !== columns.length) throw new Error(`Comando demo nao suportado (uma linha por INSERT): ${query}`);
+    assertColumns(table, columns);
+
+    let bindIndex = 0;
+    const given: Row = {};
+    columns.forEach((column, index) => {
+      given[column] = literalOrBind(values[index], () => bindValues[bindIndex++]);
+    });
+    const legacy = !conflict && values.every((value) => value === "?") ? LEGACY_INSERTS[table]?.find((spec) => sameColumns(spec.columns, columns)) : undefined;
+    const row = withDefaults(table, { ...legacy?.defaults?.(), ...given });
+
+    const rows = this.tables[table];
+    const existing = row.id == null ? -1 : rows.findIndex((candidate) => candidate.id === row.id);
+    if (existing >= 0) {
+      if (conflict === "ignore") return { rowsAffected: 0 };
+      if (conflict !== "replace") throw new Error(`Comando demo recusado: já existe ${table} com id ${String(row.id)} (UNIQUE)`);
+      rows[existing] = row;
+    } else {
+      rows.push(row);
+    }
+    this.save();
+    return { rowsAffected: 1 };
+  }
+
+  private updateRows(sql: string, query: string, bindValues: unknown[]): { rowsAffected: number } {
+    const match = sql.match(/^update (\w+) set (.+?)(?: where (.+))?$/s);
+    if (!match) throw new Error(`Comando demo nao suportado: ${query}`);
+    const [, table, assignments, whereClause] = match;
+    if (!(table in this.tables)) throw new Error(`Tabela demo desconhecida: ${table}`);
+    let bindIndex = 0;
+    const nextBind = () => bindValues[bindIndex++];
+    const patch: Row = {};
+    for (const assignment of splitTopLevel(assignments)) {
+      const parts = assignment.match(/^(\w+) ?= ?(.+)$/s);
+      if (!parts) throw new Error(`Expressão demo não suportada: ${assignment}`);
+      patch[parts[1]] = literalOrBind(parts[2].trim(), nextBind);
+    }
+    assertColumns(table, Object.keys(patch));
+    const matched = whereClause ? this.tables[table].filter(parseWhere(whereClause, nextBind)) : this.tables[table];
+    matched.forEach((row) => Object.assign(row, patch));
+    this.save();
+    return { rowsAffected: matched.length };
+  }
+
+  /** DELETE físico: só para dados de catálogo substituídos pelo seed (o fluxo normal usa soft delete). */
+  private deleteRows(sql: string, query: string, bindValues: unknown[]): { rowsAffected: number } {
+    const match = sql.match(/^delete from (\w+)(?: where (.+))?$/s);
+    if (!match) throw new Error(`Comando demo nao suportado: ${query}`);
+    const [, table, whereClause] = match;
+    if (!(table in this.tables)) throw new Error(`Tabela demo desconhecida: ${table}`);
+    let bindIndex = 0;
+    const rows = this.tables[table];
+    const doomed = new Set(whereClause ? rows.filter(parseWhere(whereClause, () => bindValues[bindIndex++])) : rows);
+    this.tables[table] = rows.filter((row) => !doomed.has(row));
+    this.save();
+    return { rowsAffected: doomed.size };
+  }
+
   private load(): DemoTables {
+    let tables: DemoTables;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return createSeed();
-      const tables = JSON.parse(saved) as DemoTables;
-      for (const name of EXTRA_TABLES) tables[name] ??= [];
-      // Contas demo novas (CEO, RH) em bancos salvos antes delas.
-      for (const account of DEMO_ACCOUNTS) {
-        if (!tables.users.some((user) => user.id === account.id)) {
-          tables.users.push(demoUserRow(account));
-          tables.memberships.push(demoMembershipRow(account));
-        }
-      }
-      if (tables.employees.length === 0) Object.assign(tables, hrSeed());
-      if (tables.employee_compensation.length === 0) tables.employee_compensation = payrollSeed();
-      if (!tables.documents.some((doc) => doc.id === "doc-15")) {
-        tables.documents.push(
-          documentRow("doc-15", "Politica de ferias.pdf", "PDF", 1, -20, "/Recursos Humanos/Politicas/Politica de ferias.pdf"),
-          documentRow("doc-16", "Ficha de cadastro de colaborador.docx", "DOCX", 2, -45, "/Recursos Humanos/Modelos/Ficha de cadastro de colaborador.docx"),
-        );
-      }
-      return tables;
+      tables = saved ? (JSON.parse(saved) as DemoTables) : createSeed();
+      ensureTables(tables);
+      if (saved) upgradeSaved(tables);
     } catch {
-      return createSeed();
+      tables = createSeed();
+      ensureTables(tables);
     }
+    ensureColumns(tables);
+    return tables;
   }
 
   private save(): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.tables));
   }
 
-  private active(table: keyof DemoTables, companyId: unknown): Row[] {
+  private active(table: string, companyId: unknown): Row[] {
     return this.tables[table].filter((row) => matchesCompany(row, companyId));
   }
 
   private inventoryWithBalance(companyId: unknown): Row[] {
     return this.active("inventory_items", companyId)
-      .map<Row>((item) => ({
-        ...item,
-        supplier_name: this.tables.suppliers.find((supplierRow) => supplierRow.id === item.supplier_id)?.name,
-        supplier_document: this.tables.suppliers.find((supplierRow) => supplierRow.id === item.supplier_id)?.document,
-        supplier_email: this.tables.suppliers.find((supplierRow) => supplierRow.id === item.supplier_id)?.email,
-        supplier_phone: this.tables.suppliers.find((supplierRow) => supplierRow.id === item.supplier_id)?.phone,
-        supplier_terms: this.tables.suppliers.find((supplierRow) => supplierRow.id === item.supplier_id)?.terms,
-        supplier_rating: this.tables.suppliers.find((supplierRow) => supplierRow.id === item.supplier_id)?.rating,
-        quantity: this.tables.stock_balances
-          .filter((balanceRow) => balanceRow.company_id === companyId && balanceRow.item_id === item.id)
-          .reduce((sum, balanceRow) => sum + Number(balanceRow.quantity), 0),
-      }))
+      .map<Row>((item) => {
+        const supplierRow = this.tables.suppliers.find((candidate) => candidate.id === item.supplier_id);
+        return {
+          ...item,
+          supplier_name: supplierRow?.name,
+          supplier_document: supplierRow?.document,
+          supplier_email: supplierRow?.email,
+          supplier_phone: supplierRow?.phone,
+          supplier_terms: supplierRow?.terms,
+          supplier_rating: supplierRow?.rating,
+          quantity: this.tables.stock_balances
+            .filter((balanceRow) => balanceRow.company_id === companyId && balanceRow.item_id === item.id)
+            .reduce((sum, balanceRow) => sum + Number(balanceRow.quantity), 0),
+        };
+      })
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
 
@@ -798,26 +806,37 @@ class DemoDatabase implements DatabaseLike {
       }))
       .sort((a, b) => String(b.checked_out_at).localeCompare(String(a.checked_out_at)));
   }
+}
 
-  private insert(table: keyof DemoTables, values: unknown[], columns: string[], defaults: Row = {}): void {
-    const row = columns.reduce<Row>((result, column, index) => {
-      result[column] = values[index] ?? null;
-      return result;
-    }, { ...defaults });
-    this.tables[table].push({ ...row, created_at: iso(0), updated_at: iso(0), deleted_at: null });
-    this.save();
+/** Dados de demonstração que bancos salvos antes deles ganham ao abrir. */
+function upgradeSaved(tables: DemoTables): void {
+  // Contas demo novas (CEO, RH) em bancos salvos antes delas.
+  for (const account of DEMO_ACCOUNTS) {
+    if (!tables.users.some((user) => user.id === account.id)) {
+      tables.users.push(demoUserRow(account));
+      tables.memberships.push(demoMembershipRow(account));
+    }
   }
-
-  private update(table: keyof DemoTables, id: unknown, patch: Row): void {
-    const row = this.tables[table].find((candidate) => candidate.id === id);
-    if (row) Object.assign(row, patch);
-    this.save();
+  if (tables.employees.length === 0) Object.assign(tables, hrSeed());
+  if (tables.employee_compensation.length === 0) tables.employee_compensation = payrollSeed();
+  if (!tables.documents.some((doc) => doc.id === "doc-15")) {
+    tables.documents.push(
+      documentRow("doc-15", "Politica de ferias.pdf", "PDF", 1, -20, "/Recursos Humanos/Politicas/Politica de ferias.pdf"),
+      documentRow("doc-16", "Ficha de cadastro de colaborador.docx", "DOCX", 2, -45, "/Recursos Humanos/Modelos/Ficha de cadastro de colaborador.docx"),
+    );
   }
+  if (!tables.stock_locations.some((row) => row.id === DEMO_STOCK_LOCATION.id)) tables.stock_locations.push({ ...DEMO_STOCK_LOCATION });
 }
 
 let database: DemoDatabase | null = null;
 
+/** Banco demo compartilhado pelo app no navegador. */
 export function getDemoDb(): DatabaseLike {
   if (!database) database = new DemoDatabase();
   return database;
+}
+
+/** Instância nova que relê o localStorage (testes e ferramentas; o app usa getDemoDb). */
+export function createDemoDb(): DatabaseLike & { execute(query: string, bindValues?: unknown[]): Promise<{ rowsAffected: number }> } {
+  return new DemoDatabase();
 }

@@ -348,7 +348,7 @@ function CountSheet({ countId }: { countId: string }) {
                         <span className="tabular-nums">{line.counted_qty == null ? "—" : formatQty(Number(line.counted_qty), line.unit)}</span>
                       )}
                     </td>
-                    <td className={`px-4 py-3 text-right font-medium tabular-nums ${diff == null || diff === 0 ? "text-muted-foreground" : diff < 0 ? "text-status-danger" : "text-emerald-700 dark:text-emerald-400"}`}>
+                    <td className={`px-4 py-3 text-right font-medium tabular-nums ${diff == null || diff === 0 ? "text-muted-foreground" : diff < 0 ? "text-status-danger dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"}`}>
                       {diff == null ? "—" : signed(diff, line.unit)}
                     </td>
                     <td className="px-4 py-3">

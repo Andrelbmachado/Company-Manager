@@ -110,7 +110,7 @@ export default function InventoryCountsPage() {
                   <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDateTime(count.started_at)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{count.finished_at ? formatDateTime(count.finished_at) : "—"}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{count.counted_count}/{count.item_count}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums ${count.divergent_count > 0 ? "font-medium text-status-danger" : "text-muted-foreground"}`}>{count.divergent_count}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums ${count.divergent_count > 0 ? "font-medium text-status-danger dark:text-red-400" : "text-muted-foreground"}`}>{count.divergent_count}</td>
                 </tr>
               ))}
             </tbody>

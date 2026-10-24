@@ -186,7 +186,7 @@ export default function StockMovementsPage() {
                       {row.sku && <p className="text-xs text-muted-foreground">{row.sku}</p>}
                       {row.note && <p className="mt-1 max-w-xs text-xs text-muted-foreground">{row.note}</p>}
                     </td>
-                    <td className={`whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums ${leaves ? "text-status-danger" : ""}`}>
+                    <td className={`whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums ${leaves ? "text-status-danger dark:text-red-400" : ""}`}>
                       {row.type === "transferencia" ? "" : leaves ? "−" : "+"}
                       {formatQty(row.quantity, row.item_unit)}
                     </td>

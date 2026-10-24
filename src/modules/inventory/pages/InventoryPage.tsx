@@ -386,7 +386,7 @@ export default function InventoryPage() {
                     <td className="px-4 py-3 text-muted-foreground">{item.sku ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{item.category ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{item.supplier?.name ?? "—"}</td>
-                    <td className={`px-4 py-3 text-right font-medium tabular-nums ${reorder ? "text-status-danger" : ""}`}>{formatQty(quantityOf(item), item.unit)}</td>
+                    <td className={`px-4 py-3 text-right font-medium tabular-nums ${reorder ? "text-status-danger dark:text-red-400" : ""}`}>{formatQty(quantityOf(item), item.unit)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatQty(item.min_stock, item.unit)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{item.max_stock == null ? "—" : formatQty(item.max_stock, item.unit)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatCurrency(item.cost)}</td>
@@ -565,7 +565,7 @@ function Metric({ label, value, alert }: { label: string; value: string; alert?:
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-sm font-semibold ${alert ? "text-status-danger" : ""}`}>{value}</p>
+      <p className={`mt-1 text-sm font-semibold ${alert ? "text-status-danger dark:text-red-400" : ""}`}>{value}</p>
     </div>
   );
 }

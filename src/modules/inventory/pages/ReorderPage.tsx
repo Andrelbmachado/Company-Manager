@@ -208,7 +208,7 @@ export default function ReorderPage() {
                             <p className="font-medium">{row.name}</p>
                             {row.sku && <p className="text-xs text-muted-foreground">{row.sku}</p>}
                           </td>
-                          <td className="px-4 py-2 text-right tabular-nums text-status-danger">{formatQty(row.on_hand, row.unit)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-status-danger dark:text-red-400">{formatQty(row.on_hand, row.unit)}</td>
                           <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{row.on_order > 0 ? formatQty(row.on_order, row.unit) : "—"}</td>
                           <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{formatQty(row.min_stock)}</td>
                           <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{row.max_stock == null ? "—" : formatQty(row.max_stock)}</td>
@@ -291,7 +291,7 @@ export default function ReorderPage() {
                     <p className="font-medium">{item.name}</p>
                     {item.sku && <p className="text-xs text-muted-foreground">{item.sku}</p>}
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-status-danger">{formatQty(item.total, item.unit)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-status-danger dark:text-red-400">{formatQty(item.total, item.unit)}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{formatQty(item.min_stock ?? 0)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{formatQty(item.on_order, item.unit)}</td>
                 </tr>

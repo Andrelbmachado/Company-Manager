@@ -152,7 +152,7 @@ export default function HrManagePage() {
         <StatCard title="Colaboradores ativos" value={active.length} hint={`${employees.length - active.length} desligado(s) no cadastro`} />
         <StatCard title="Solicitações pendentes" value={pending.length} hint={pending.length ? "Aguardando decisão do RH" : "Nada aguardando"} />
         <StatCard title="De férias hoje" value={onVacation} hint="Férias aprovadas cobrindo a data de hoje" />
-        <StatCard title="Pendências em atraso" value={lateTasks} hint="Itens pedidos aos colaboradores, com prazo vencido" />
+        <StatCard title="Pendências em atraso" value={lateTasks} hint="Pedidas aos colaboradores e de checklists, com prazo vencido" />
       </div>
 
       {error && !dialog && (

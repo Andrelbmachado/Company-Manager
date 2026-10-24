@@ -613,7 +613,10 @@ export const METRIC_LOADERS: Readonly<Record<string, Loader>> = {
   },
   "hr.lateTasks": async (reader, ctx) => {
     const late = (await reader.rows<HrTask>("hr_tasks")).filter((task) => task.status === "pendente" && isPast(task.due_date, ctx));
-    return { value: late.length, format: "count", tone: late.length ? "danger" : "success", hint: late.length ? "Cobrar os colaboradores" : "Nada em atraso" };
+    // Pendência geral é pedida ao colaborador; item de checklist (admissão/desligamento) é tarefa do próprio RH.
+    const checklist = late.filter(isCycleTask).length;
+    const hint = `${count(late.length - checklist, "pendência de colaborador", "pendências de colaboradores")} · ${count(checklist, "item de checklist", "itens de checklist")}`;
+    return { value: late.length, format: "count", tone: late.length ? "danger" : "success", hint: late.length ? hint : "Nada em atraso" };
   },
   "payroll.monthly": async (reader) => {
     const [employees, compensation] = await Promise.all([reader.rows<Employee>("employees"), reader.rows<EmployeeCompensation>("employee_compensation")]);

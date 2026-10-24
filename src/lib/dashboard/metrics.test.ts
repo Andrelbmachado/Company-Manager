@@ -376,7 +376,10 @@ describe("RH", () => {
     expect(active.value).toBe(3);
     expect(active.hint).toContain("1 de férias hoje");
 
-    expect((await metric("hr.lateTasks", "rh")).value).toBe(2);
+    // Exame admissional (checklist do RH) e Atualizar endereço (pedido ao colaborador): o aviso separa os dois.
+    const late = await metric("hr.lateTasks", "rh");
+    expect(late.value).toBe(2);
+    expect(late.hint).toBe("1 pendência de colaborador · 1 item de checklist");
   });
 
   it("Meu RH: férias disponíveis, pendências e saldo do banco de horas do próprio colaborador", async () => {

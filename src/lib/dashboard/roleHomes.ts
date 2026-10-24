@@ -112,7 +112,7 @@ const LIST: HomeWidget[] = [
   widget("hr.timeBankPending", "kpi", "Horas a aprovar", "Lançamentos de banco de horas pendentes.", "hr_manage", "/hr/manage/banco-de-horas", [view("hr_admin")], "clock"),
   widget("hr.cycle", "kpi", "Admissões e desligamentos", "Colaboradores com checklist de entrada ou saída em aberto.", "hr_manage", "/hr/manage/admissoes", [view("hr_admin")], "userPlus"),
   widget("hr.activeEmployees", "kpi", "Colaboradores ativos", "Cadastro de colaboradores não desligados.", "hr_manage", "/hr/manage", [view("hr_admin")], "users"),
-  widget("hr.lateTasks", "kpi", "Pendências de RH em atraso", "Itens pedidos aos colaboradores com prazo vencido.", "hr_manage", "/hr/manage", [view("hr_admin")], "alert"),
+  widget("hr.lateTasks", "kpi", "Pendências de RH em atraso", "Pendências pedidas aos colaboradores e itens de checklist de admissão ou desligamento com prazo vencido.", "hr_manage", "/hr/manage", [view("hr_admin")], "alert"),
   widget("payroll.monthly", "kpi", "Folha mensal", "Soma dos salários base de quem não está desligado.", "payroll", "/payroll", [view("payroll")], "coins"),
 
   // ── Atalhos ───────────────────────────────────────────────────────────────────────────────────────────────────

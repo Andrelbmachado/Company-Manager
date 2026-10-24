@@ -10,6 +10,7 @@ import {
   fetchCustomers,
   fetchOpportunities,
   fetchPriceLists,
+  parseMoneyInput,
   pipelineSummary,
   saveContact,
   saveCustomer,
@@ -32,6 +33,27 @@ async function setup() {
   const { companyId, userIds } = await insertTestCompany(db, { roles: ["ceo", "comercial"] });
   return { db, companyId, seller: userIds.comercial! };
 }
+
+describe("parseMoneyInput", () => {
+  it("lê os formatos de valor em reais", () => {
+    expect(parseMoneyInput("1.234,56")).toBe(1234.56);
+    expect(parseMoneyInput("1234,56")).toBe(1234.56);
+    expect(parseMoneyInput("R$ 1.234.567,8")).toBe(1234567.8);
+    expect(parseMoneyInput("1234.56")).toBe(1234.56);
+    expect(parseMoneyInput("1.500")).toBe(1500);
+    expect(parseMoneyInput("-10,5")).toBe(-10.5);
+    expect(parseMoneyInput(" ")).toBeNull();
+    expect(parseMoneyInput(12.345)).toBe(12.35);
+  });
+
+  it("recusa separadores trocados em vez de ler um valor mil vezes menor", () => {
+    // "1,234.56" (formato americano) virava 1,23; "1.23,45" virava 123,45.
+    expect(() => parseMoneyInput("1,234.56")).toThrow(/Valor inválido/);
+    expect(() => parseMoneyInput("1.23,45")).toThrow(/Valor inválido/);
+    expect(() => parseMoneyInput("12,34,56")).toThrow(/Valor inválido/);
+    expect(() => parseMoneyInput("abc")).toThrow(/Valor inválido/);
+  });
+});
 
 describe("clientes", () => {
   it("cria e edita com e-mail em minúsculas, campos vazios como NULL e limite de crédito em centavos", async () => {

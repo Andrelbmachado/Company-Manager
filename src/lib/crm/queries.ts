@@ -72,8 +72,11 @@ export function parseMoneyInput(value: unknown): number | null {
   if (!text) return null;
   const negative = text.startsWith("-");
   text = text.replace(/^[-+]/, "");
-  if (text.includes(",")) text = text.replace(/\./g, "").replace(",", ".");
-  else if (/^\d{1,3}(\.\d{3})+$/.test(text)) text = text.replace(/\./g, "");
+  if (text.includes(",")) {
+    // Com vírgula, ponto só como milhar antes dela: "1,234.56" (americano) ou "1.23,45" seriam lidos errado em silêncio.
+    if (!/^(\d{1,3}(\.\d{3})+|\d*),\d*$/.test(text)) throw new Error(`Valor inválido: ${String(value)}`);
+    text = text.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(text)) text = text.replace(/\./g, "");
   if (!/^\d+(\.\d+)?$/.test(text)) throw new Error(`Valor inválido: ${String(value)}`);
   return roundMoney(Number(text) * (negative ? -1 : 1));
 }

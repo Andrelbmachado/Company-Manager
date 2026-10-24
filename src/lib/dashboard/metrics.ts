@@ -7,6 +7,7 @@ import type { DatabaseLike } from "@/lib/db/demo";
 import { can, hasFullTicketAccess, visibleModules, type Resource } from "@/lib/permissions/rbac";
 import { roundMoney, sumMoney } from "@/lib/money";
 import { formatCurrency, formatDay, todayIso } from "@/lib/utils";
+import { isCycleTask } from "@/lib/hr/employment";
 import { REQUEST_TYPE_LABEL, isOnVacation, vacationBalance } from "@/lib/hr/rules";
 import { formatMinutes, timeBankSummary } from "@/lib/hr/timebank";
 import { monthlyPayroll } from "@/lib/payroll/queries";
@@ -287,7 +288,8 @@ export const METRIC_LOADERS: Readonly<Record<string, Loader>> = {
   "hr.myTodos": async (reader, ctx) => {
     const me = await myEmployee(reader, ctx);
     if (!me) return { value: 0, format: "count", hint: NO_EMPLOYEE_HINT };
-    const open = (await reader.rows<HrTask>("hr_tasks")).filter((task) => task.employee_id === me.id && task.status === "pendente");
+    // Checklist de admissão/desligamento é do RH (Gestão de RH), não pendência da própria pessoa.
+    const open = (await reader.rows<HrTask>("hr_tasks")).filter((task) => task.employee_id === me.id && task.status === "pendente" && !isCycleTask(task));
     const late = open.filter((task) => isPast(task.due_date, ctx)).length;
     return { value: open.length, format: "count", tone: late ? "warning" : "neutral", hint: late ? `${count(late, "com prazo vencido", "com prazo vencido")}` : open.length ? "Nada vencido" : "Nada pendente" };
   },

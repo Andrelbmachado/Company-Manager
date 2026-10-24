@@ -364,6 +364,9 @@ describe("RH", () => {
   });
 
   it("Meu RH: férias disponíveis, pendências e saldo do banco de horas do próprio colaborador", async () => {
+    // Checklist de admissão/desligamento é tarefa do RH, não pendência do colaborador.
+    await put("hr_tasks", { id: "k5", company_id: C, employee_id: "e-com", title: "Recolher notebook", status: "pendente", category: "desligamento", due_date: day(-1) });
+    await put("hr_tasks", { id: "k6", company_id: C, employee_id: "e-com", title: "Assinar contrato", status: "pendente", category: "admissao", due_date: day(1) });
     const vacation = await metric("hr.vacation", "comercial");
     expect(vacation).toMatchObject({ value: 15, format: "days" });
     const todos = await metric("hr.myTodos", "comercial");

@@ -18,6 +18,7 @@ import MyTimeBankPage from "./MyTimeBankPage";
 import EmployeeDetailPage from "./EmployeeDetailPage";
 import EmploymentCyclePage from "./EmploymentCyclePage";
 import HrManagePage from "./HrManagePage";
+import MyHrPage from "./MyHrPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
 
@@ -160,6 +161,23 @@ describe("Meu banco de horas (qualquer colaborador)", () => {
 
     await click(container.querySelector<HTMLElement>("button[aria-label^='Retirar']")!);
     await waitFor(() => has("Nenhum lançamento ainda"), "retirado");
+  });
+});
+
+describe("Meu RH (qualquer colaborador)", () => {
+  it("checklist de admissão/desligamento é do RH: não aparece nem conta nas pendências da própria pessoa", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    const me = await newEmployee("Teste tecnico", { email: "tecnico@teste.local", hire_date: "2020-01-01" });
+    // Desligamento agendado: a pessoa não descobre pelo Meu RH nem marca itens do checklist do RH.
+    await startTermination(db, C, me, { date: "2099-01-01", reason: "Outro" }, "test-user-rh", todayIso());
+    await db.execute("INSERT INTO hr_tasks (id, company_id, employee_id, title, status, category) VALUES (?,?,?,?,?,?)", ["g1", C, me, "Enviar comprovante de endereço", "pendente", "geral"]);
+
+    await render("tecnico", "/hr", "/hr", <MyHrPage />);
+    await waitFor(() => has("Enviar comprovante de endereço"), "pendência geral");
+    expect(has("Formalizar o desligamento")).toBe(false);
+    const card = Array.from(container.querySelectorAll("p")).find((element) => element.textContent === "Pendências abertas")?.parentElement;
+    expect(card?.querySelectorAll("p")[1]?.textContent).toBe("1");
   });
 });
 

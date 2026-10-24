@@ -44,6 +44,11 @@ export const TERMINATION_REASONS = [
 
 export const CYCLE_LABEL: Record<CycleKind, string> = { admissao: "Admissão", desligamento: "Desligamento" };
 
+/** Item do checklist de admissão/desligamento: tarefa do RH sobre a pessoa, não pendência dela no Meu RH. */
+export function isCycleTask(task: Pick<HrTask, "category">): boolean {
+  return task.category === "admissao" || task.category === "desligamento";
+}
+
 const DAY_MS = 86_400_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

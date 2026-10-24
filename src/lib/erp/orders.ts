@@ -469,16 +469,24 @@ export async function cancelInvoice(db: DatabaseLike, invoiceId: string, options
   for (const row of receivables) settlements += (await activeRowsBy<{ id: string }>(db, "finance_settlements", companyId, "receivable_id", row.id)).length;
   if (settled || settlements > 0) fail("Há parcelas recebidas nesta fatura: estorne as baixas no Financeiro antes de cancelar.");
 
+  const order = invoice.sales_order_id ? await activeRow<SalesOrder>(db, "sales_orders", companyId, invoice.sales_order_id) : null;
+  const orderItems = order ? await loadSalesOrderItems(db, companyId, order.id) : [];
   const now = nowIso();
-  await claimStatus(db, "invoices", companyId, invoiceId, invoice.status, { status: "cancelada", cancelled_at: now, cancel_reason: reason, updated_at: now }, "A fatura mudou enquanto você cancelava; recarregue a página.");
-  for (const row of receivables) await updateRow(db, "receivables", companyId, row.id, { status: "cancelada", updated_at: now });
-  if (!invoice.sales_order_id) return;
-  const order = await activeRow<SalesOrder>(db, "sales_orders", companyId, invoice.sales_order_id);
-  if (!order) return;
-  await updateRow(db, "sales_orders", companyId, order.id, { status: order.status === "faturado" ? "confirmado" : order.status, invoiced_at: null, updated_at: now });
-  for (const item of await loadSalesOrderItems(db, companyId, order.id)) {
-    await updateRow(db, "sales_order_items", companyId, item.id, { invoiced_qty: 0, updated_at: now });
-  }
+  await undoing(async (undo) => {
+    await claimStatus(db, "invoices", companyId, invoiceId, invoice.status, { status: "cancelada", cancelled_at: now, cancel_reason: reason, updated_at: now }, "A fatura mudou enquanto você cancelava; recarregue a página.");
+    undo(() => updateRow(db, "invoices", companyId, invoiceId, { status: invoice.status, cancelled_at: invoice.cancelled_at ?? null, cancel_reason: invoice.cancel_reason ?? null }));
+    for (const row of receivables) {
+      await updateRow(db, "receivables", companyId, row.id, { status: "cancelada", updated_at: now });
+      undo(() => updateRow(db, "receivables", companyId, row.id, { status: row.status }));
+    }
+    if (!order) return;
+    await updateRow(db, "sales_orders", companyId, order.id, { status: order.status === "faturado" ? "confirmado" : order.status, invoiced_at: null, updated_at: now });
+    undo(() => updateRow(db, "sales_orders", companyId, order.id, { status: order.status, invoiced_at: order.invoiced_at ?? null }));
+    for (const item of orderItems) {
+      await updateRow(db, "sales_order_items", companyId, item.id, { invoiced_qty: 0, updated_at: now });
+      undo(() => updateRow(db, "sales_order_items", companyId, item.id, { invoiced_qty: item.invoiced_qty ?? 0 }));
+    }
+  });
 }
 
 export interface DeliverOptions extends ActionOptions {

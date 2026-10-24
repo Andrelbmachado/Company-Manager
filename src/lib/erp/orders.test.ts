@@ -237,6 +237,20 @@ describe("faturamento", () => {
     await expect(cancelInvoice(db, second.invoiceId, { companyId: fx.companyId, reason: "x" })).rejects.toThrow(/recebid/i);
   });
 
+  it("se uma gravação falhar no meio do cancelamento da fatura, o que já foi gravado é desfeito", async () => {
+    const { db, fx } = await setup();
+    const orderId = await confirmedThousand(fx);
+    const { invoiceId } = await invoiceSalesOrder(db, orderId, { companyId: fx.companyId, installments: 2 });
+    const failing = {
+      select: <T>(sql: string, binds?: unknown[]) => db.select<T>(sql, binds),
+      execute: (sql: string, binds?: unknown[]) => (/^UPDATE sales_orders /.test(sql.trim()) ? Promise.reject(new Error("disco cheio")) : db.execute(sql, binds)),
+    };
+    await expect(cancelInvoice(failing, invoiceId, { companyId: fx.companyId, reason: "Valor errado" })).rejects.toThrow(/disco cheio/);
+    expect(await one<Invoice>("invoices", invoiceId)).toMatchObject({ status: "emitida", cancelled_at: null, cancel_reason: null });
+    expect((await all<Receivable>("SELECT * FROM receivables WHERE invoice_id=?", [invoiceId])).map((row) => row.status)).toEqual(["aberta", "aberta"]);
+    expect((await one<SalesOrder>("sales_orders", orderId)).status).toBe("faturado");
+  });
+
   it("status da fatura pelas parcelas: emitida, paga em parte, vencida e paga", () => {
     const invoice = { status: "emitida", total: 1000 } as Invoice;
     const r = (amount: number, received: number, due: string, status = "aberta") => ({ amount, received_amount: received, due_date: due, status, deleted_at: null }) as Receivable;

@@ -1,6 +1,7 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod auth;
+mod backup;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -97,7 +98,10 @@ pub fn run() {
             greet,
             restart_app,
             auth::hash_password,
-            auth::verify_password
+            auth::verify_password,
+            backup::backup_db,
+            backup::restore_db,
+            backup::list_backups
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

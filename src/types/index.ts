@@ -1237,3 +1237,27 @@ export interface HrTimeEntry {
   updated_at: string;
   deleted_at?: string | null;
 }
+
+// ── Backup (comandos Tauri em src-tauri/src/backup.rs) ─────────────
+
+/** Arquivo de backup (.cmbackup: banco + pasta files/), devolvido por backup_db e list_backups. */
+export interface BackupInfo {
+  path: string;
+  file_name: string;
+  size_bytes: number;
+  /** ISO-8601 (UTC). */
+  created_at: string;
+  /** Maior versão de migration do banco copiado. */
+  schema_version: number | null;
+  /** Feito pela rotina diária (mantém os 14 mais recentes). */
+  automatic: boolean;
+}
+
+/** Resultado de restore_db; depois dele o app reinicia (invoke("restart_app")). */
+export interface RestoreInfo {
+  restored_from: string;
+  /** Backup do estado anterior, feito antes de restaurar. */
+  safety_backup: BackupInfo | null;
+  schema_version: number | null;
+  restart_required: boolean;
+}

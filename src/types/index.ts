@@ -82,6 +82,32 @@ export interface Customer {
   segment?: string | null;
   owner_id?: string | null;
   status: "active" | "inactive";
+  // Cadastro completo (migration 0008)
+  trade_name?: string | null;
+  state_registration?: string | null;
+  website?: string | null;
+  source?: string | null;
+  notes?: string | null;
+  payment_terms?: string | null;
+  credit_limit?: number | null;
+  price_list_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface Contact {
+  id: string;
+  company_id: string;
+  customer_id?: string | null;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  role?: string | null;
+  // 0008
+  is_primary: number;
+  whatsapp?: string | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -218,6 +244,337 @@ export interface Opportunity {
   owner_id?: string | null;
   lost_reason?: string | null;
   status: "open" | "won" | "lost";
+  // 0008: oportunidade nascida de um lead
+  lead_id?: string | null;
+  contact_id?: string | null;
+  source?: string | null;
+  notes?: string | null;
+  closed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type ProposalStatus = "rascunho" | "enviada" | "aceita" | "recusada" | "expirada";
+
+/** Proposta comercial. `value` continua sendo o total; os itens ficam em proposal_items (0008). */
+export interface Proposal {
+  id: string;
+  company_id: string;
+  opportunity_id?: string | null;
+  value: number;
+  items_json: string;
+  version: number;
+  status: ProposalStatus;
+  document_id?: string | null;
+  number?: number | null;
+  title?: string | null;
+  customer_id?: string | null;
+  contact_id?: string | null;
+  valid_until?: string | null;
+  subtotal: number;
+  discount: number;
+  payment_terms?: string | null;
+  notes?: string | null;
+  sent_at?: string | null;
+  decided_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface ProposalItem extends LineItemBase {
+  proposal_id: string;
+}
+
+export type CrmActivityKind = "ligacao" | "email" | "reuniao" | "nota" | "tarefa";
+export type CrmEntityType = "customer" | "contact" | "lead" | "opportunity" | "proposal";
+
+/** Atividade de CRM. Pendente = done_at NULL; atrasada = pendente com due_at no passado. */
+export interface CrmActivity {
+  id: string;
+  company_id: string;
+  entity_type: CrmEntityType;
+  entity_id: string;
+  customer_id?: string | null;
+  contact_id?: string | null;
+  kind: CrmActivityKind;
+  subject?: string | null;
+  body?: string | null;
+  due_at?: string | null;
+  done_at?: string | null;
+  outcome?: string | null;
+  user_id?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type BadgeTone = "info" | "success" | "warning" | "orange" | "danger" | "violet" | "neutral";
+
+export interface Tag {
+  id: string;
+  company_id: string;
+  name: string;
+  color: BadgeTone;
+  /** A que a tag se aplica (customer, lead, ...); null = qualquer. */
+  entity_type?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface EntityTag {
+  id: string;
+  company_id: string;
+  tag_id: string;
+  entity_type: string;
+  entity_id: string;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Filtro salvo de uma lista. user_id null = compartilhado com a empresa. */
+export interface SavedView {
+  id: string;
+  company_id: string;
+  user_id?: string | null;
+  entity_type: string;
+  name: string;
+  filters_json: string;
+  is_default: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+// ── Catálogo / Vendas / Compras (0008) ────────────────────────────
+// Dinheiro em REAL com 2 casas (arredonde com src/lib/money.ts). Descontos são valores em R$; tax_rate é percentual.
+// Totais: total = subtotal - discount + shipping + tax_total; item: total = qty * unit_price - discount.
+
+export type ProductKind = "produto" | "servico";
+
+export interface Product {
+  id: string;
+  company_id: string;
+  sku?: string | null;
+  name: string;
+  description?: string | null;
+  kind: ProductKind;
+  category?: string | null;
+  unit: string;
+  price: number;
+  cost: number;
+  tax_rate: number;
+  barcode?: string | null;
+  ncm?: string | null;
+  service_code?: string | null;
+  /** Liga o produto ao item de estoque (entrada/saída de mercadoria). */
+  inventory_item_id?: string | null;
+  revenue_category_id?: string | null;
+  active: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface PriceList {
+  id: string;
+  company_id: string;
+  name: string;
+  description?: string | null;
+  is_default: number;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  active: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface PriceListItem {
+  id: string;
+  company_id: string;
+  price_list_id: string;
+  product_id: string;
+  price: number;
+  min_qty: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Campos comuns de item de pedido, fatura, compra e proposta. */
+export interface LineItemBase {
+  id: string;
+  company_id: string;
+  product_id?: string | null;
+  description: string;
+  unit: string;
+  qty: number;
+  unit_price: number;
+  discount: number;
+  tax_rate: number;
+  total: number;
+  position: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Totais de pedido, fatura e compra. */
+export interface DocumentTotals {
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  tax_total: number;
+  total: number;
+}
+
+export type SalesOrderStatus = "rascunho" | "confirmado" | "faturado" | "entregue" | "cancelado";
+
+export interface SalesOrder extends DocumentTotals {
+  id: string;
+  company_id: string;
+  number: number;
+  customer_id?: string | null;
+  contact_id?: string | null;
+  opportunity_id?: string | null;
+  proposal_id?: string | null;
+  price_list_id?: string | null;
+  seller_id?: string | null;
+  location_id?: string | null;
+  status: SalesOrderStatus;
+  order_date: string;
+  delivery_date?: string | null;
+  payment_terms?: string | null;
+  installments: number;
+  notes?: string | null;
+  internal_notes?: string | null;
+  confirmed_at?: string | null;
+  invoiced_at?: string | null;
+  delivered_at?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface SalesOrderItem extends LineItemBase {
+  order_id: string;
+  delivered_qty: number;
+  invoiced_qty: number;
+}
+
+export type InvoiceStatus = "rascunho" | "emitida" | "paga_parcial" | "paga" | "vencida" | "cancelada";
+
+/** Fatura. As parcelas são contas a receber (receivables.invoice_id + installment_number/installment_count). */
+export interface Invoice extends DocumentTotals {
+  id: string;
+  company_id: string;
+  number: number;
+  sales_order_id?: string | null;
+  customer_id?: string | null;
+  status: InvoiceStatus;
+  issue_date: string;
+  due_date?: string | null;
+  installments: number;
+  payment_terms?: string | null;
+  payment_method?: string | null;
+  paid_amount: number;
+  category_id?: string | null;
+  bank_account_id?: string | null;
+  fiscal_number?: string | null;
+  fiscal_series?: string | null;
+  fiscal_key?: string | null;
+  notes?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface InvoiceItem extends LineItemBase {
+  invoice_id: string;
+  sales_order_item_id?: string | null;
+}
+
+export type PurchaseOrderStatus = "rascunho" | "aprovado" | "enviado" | "recebido_parcial" | "recebido" | "cancelado";
+
+export interface PurchaseOrder extends DocumentTotals {
+  id: string;
+  company_id: string;
+  number: number;
+  supplier_id?: string | null;
+  status: PurchaseOrderStatus;
+  order_date: string;
+  /** Previsão de entrega. */
+  expected_date?: string | null;
+  location_id?: string | null;
+  payment_terms?: string | null;
+  installments: number;
+  category_id?: string | null;
+  cost_center_id?: string | null;
+  notes?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  sent_at?: string | null;
+  received_at?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface PurchaseOrderItem extends LineItemBase {
+  order_id: string;
+  inventory_item_id?: string | null;
+  received_qty: number;
+}
+
+export type GoodsReceiptStatus = "conferido" | "estornado";
+
+/** Recebimento (entrada de mercadoria). */
+export interface GoodsReceipt {
+  id: string;
+  company_id: string;
+  number: number;
+  purchase_order_id?: string | null;
+  supplier_id?: string | null;
+  location_id?: string | null;
+  status: GoodsReceiptStatus;
+  received_at: string;
+  received_by?: string | null;
+  supplier_invoice_number?: string | null;
+  total: number;
+  notes?: string | null;
+  reversed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface GoodsReceiptItem {
+  id: string;
+  company_id: string;
+  receipt_id: string;
+  purchase_order_item_id?: string | null;
+  inventory_item_id?: string | null;
+  product_id?: string | null;
+  qty: number;
+  unit_cost: number;
+  location_id?: string | null;
+  stock_movement_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -358,6 +715,92 @@ export interface StockBalance {
   updated_at: string;
 }
 
+export interface StockLocation {
+  id: string;
+  company_id: string;
+  name: string;
+  type?: string | null;
+  address?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type StockMovementType = "entrada" | "saida" | "transferencia" | "ajuste";
+
+export interface StockMovement {
+  id: string;
+  company_id: string;
+  item_id: string;
+  type: StockMovementType;
+  quantity: number;
+  from_location_id?: string | null;
+  to_location_id?: string | null;
+  ref_type?: string | null;
+  ref_id?: string | null;
+  user_id?: string | null;
+  note?: string | null;
+  evidence_path?: string | null;
+  /** Custo unitário da movimentação (0008). */
+  unit_cost?: number | null;
+  created_at: string;
+}
+
+export type InventoryCountStatus = "aberta" | "concluida" | "cancelada";
+
+/** Inventário (contagem). O ajuste da diferença vira stock_movements (adjustment_movement_id). */
+export interface InventoryCount {
+  id: string;
+  company_id: string;
+  number: number;
+  location_id?: string | null;
+  status: InventoryCountStatus;
+  started_at: string;
+  finished_at?: string | null;
+  counted_by?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface InventoryCountItem {
+  id: string;
+  company_id: string;
+  count_id: string;
+  item_id: string;
+  location_id?: string | null;
+  expected_qty: number;
+  counted_qty?: number | null;
+  adjustment_movement_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface Supplier {
+  id: string;
+  company_id: string;
+  name: string;
+  document?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  terms?: string | null;
+  rating?: number | null;
+  // 0008
+  trade_name?: string | null;
+  contact_name?: string | null;
+  address_json: string;
+  state_registration?: string | null;
+  website?: string | null;
+  notes?: string | null;
+  category?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
 export type CustodyStatus = "em_custodia" | "devolvido" | "consumido" | "perdido";
 
 export interface Custody {
@@ -378,9 +821,43 @@ export interface Custody {
 
 // ── Finance ───────────────────────────────────────────────────────
 
-export type FinancialStatus = "aberta" | "aprovada" | "paga" | "recebida" | "vencida" | "cancelada";
+/** paga_parcial / recebida_parcial = baixa parcial (paid_amount / received_amount menor que amount). */
+export type FinancialStatus =
+  | "aberta"
+  | "aprovada"
+  | "paga_parcial"
+  | "paga"
+  | "recebida_parcial"
+  | "recebida"
+  | "vencida"
+  | "cancelada";
 
-export interface Payable {
+export interface CostCenter {
+  id: string;
+  company_id: string;
+  name: string;
+  department_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Colunas da 0008 comuns a contas a pagar e a receber. */
+interface FinancialEntryExtras {
+  category_id?: string | null;
+  bank_account_id?: string | null;
+  installment_number?: number | null;
+  installment_count?: number | null;
+  payment_method?: string | null;
+  document_number?: string | null;
+  issue_date?: string | null;
+  /** Competência 'YYYY-MM' (regime de competência na DRE). */
+  competence?: string | null;
+  notes?: string | null;
+  recurring_entry_id?: string | null;
+}
+
+export interface Payable extends FinancialEntryExtras {
   id: string;
   company_id: string;
   description: string;
@@ -391,21 +868,208 @@ export interface Payable {
   cost_center_id?: string | null;
   approver_id?: string | null;
   paid_at?: string | null;
+  paid_amount: number;
+  ref_type?: string | null;
+  ref_id?: string | null;
+  purchase_order_id?: string | null;
+  goods_receipt_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
 }
 
-export interface Receivable {
+export interface Receivable extends FinancialEntryExtras {
   id: string;
   company_id: string;
   customer_id?: string | null;
   ref_type?: string | null;
   ref_id?: string | null;
+  /** Descrição própria (0008). Antes a tela gravava a descrição em ref_id; a migração copiou. */
+  description?: string | null;
   amount: number;
   due_date?: string | null;
   status: FinancialStatus;
   received_at?: string | null;
+  received_amount: number;
+  cost_center_id?: string | null;
+  invoice_id?: string | null;
+  sales_order_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type FinanceCategoryKind = "receita" | "despesa";
+export type DreGroup = "receita" | "deducao" | "custo" | "despesa" | "financeiro" | "outros";
+
+/** Plano de contas (hierárquico por parent_id). */
+export interface FinanceCategory {
+  id: string;
+  company_id: string;
+  parent_id?: string | null;
+  code?: string | null;
+  name: string;
+  kind: FinanceCategoryKind;
+  dre_group?: DreGroup | null;
+  position: number;
+  active: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type BankAccountKind = "corrente" | "poupanca" | "caixa" | "cartao" | "investimento";
+
+export interface BankAccount {
+  id: string;
+  company_id: string;
+  name: string;
+  kind: BankAccountKind;
+  bank_code?: string | null;
+  bank_name?: string | null;
+  agency?: string | null;
+  account_number?: string | null;
+  pix_key?: string | null;
+  opening_balance: number;
+  opening_date?: string | null;
+  is_default: number;
+  active: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type BankTransactionSource = "ofx" | "csv" | "manual";
+export type BankTransactionStatus = "pendente" | "conciliada" | "ignorada";
+
+/** Lançamento do extrato. amount positivo = entrada (crédito), negativo = saída (débito). */
+export interface BankTransaction {
+  id: string;
+  company_id: string;
+  bank_account_id: string;
+  posted_at: string;
+  amount: number;
+  description?: string | null;
+  memo?: string | null;
+  /** Id do lançamento no OFX (único por conta). */
+  fitid?: string | null;
+  balance_after?: number | null;
+  source: BankTransactionSource;
+  status: BankTransactionStatus;
+  payable_id?: string | null;
+  receivable_id?: string | null;
+  category_id?: string | null;
+  import_batch_id?: string | null;
+  reconciled_at?: string | null;
+  reconciled_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Baixa (total ou parcial) de uma conta: exatamente um de payable_id / receivable_id. */
+export interface FinanceSettlement {
+  id: string;
+  company_id: string;
+  payable_id?: string | null;
+  receivable_id?: string | null;
+  amount: number;
+  paid_at: string;
+  bank_account_id?: string | null;
+  bank_transaction_id?: string | null;
+  payment_method?: string | null;
+  interest: number;
+  fine: number;
+  discount: number;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type RecurringKind = "pagar" | "receber";
+export type RecurringFrequency = "semanal" | "mensal" | "bimestral" | "trimestral" | "semestral" | "anual";
+
+export interface RecurringEntry {
+  id: string;
+  company_id: string;
+  kind: RecurringKind;
+  description: string;
+  amount: number;
+  frequency: RecurringFrequency;
+  day_of_month?: number | null;
+  start_date: string;
+  end_date?: string | null;
+  /** Competência do último lançamento gerado ('YYYY-MM'; semanal: 'YYYY-MM-DD'). */
+  last_competence?: string | null;
+  supplier_id?: string | null;
+  customer_id?: string | null;
+  category_id?: string | null;
+  cost_center_id?: string | null;
+  bank_account_id?: string | null;
+  active: number;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type ImportMode = "all-or-nothing" | "skip-errors";
+export type ImportBatchStatus = "concluida" | "com_erros" | "falhou" | "simulacao";
+
+export interface ImportBatch {
+  id: string;
+  company_id: string;
+  entity: string;
+  filename?: string | null;
+  sheet_name?: string | null;
+  format?: string | null;
+  mode: ImportMode;
+  dry_run: number;
+  status: ImportBatchStatus;
+  rows_total: number;
+  rows_ok: number;
+  rows_err: number;
+  inserted: number;
+  updated: number;
+  /** JSON: [{ row, field, message }]. */
+  errors_json: string;
+  /** JSON: { coluna do arquivo: campo }. */
+  mapping_json: string;
+  created_by?: string | null;
+  created_at: string;
+  finished_at?: string | null;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+// ── Documentos ────────────────────────────────────────────────────
+
+/** Documento. Os bytes ficam fora do banco (desktop: $APPDATA/files; navegador: IndexedDB); aqui só metadados (0009). */
+export interface DocumentRow {
+  id: string;
+  company_id: string;
+  title: string;
+  type?: string | null;
+  /** Caminho lógico mostrado na tela (pasta + nome). */
+  file_path: string;
+  version: number;
+  department_id?: string | null;
+  tags_json: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  uploaded_by?: string | null;
+  storage_key?: string | null;
+  original_name?: string | null;
+  mime?: string | null;
+  size_bytes?: number | null;
+  sha256?: string | null;
+  parent_version_id?: string | null;
+  folder?: string | null;
+  description?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -446,6 +1110,8 @@ export type EmployeeStatus = "ativo" | "em_ferias" | "afastado" | "desligado";
 export type HrRequestType = "ferias" | "folga" | "atestado" | "outro";
 export type HrRequestStatus = "pendente" | "aprovada" | "recusada";
 export type HrAnnouncementCategory = "comunicado" | "politica" | "beneficio";
+export type ContractType = "clt" | "pj" | "estagio" | "temporario";
+export type HrTaskCategory = "geral" | "admissao" | "desligamento";
 
 /** Cadastro do colaborador. Sem salário: remuneração não faz parte do RH deste sistema. */
 export interface Employee {
@@ -459,6 +1125,17 @@ export interface Employee {
   hire_date?: string | null;
   vacation_days_entitled: number;
   status: EmployeeStatus;
+  // Admissão/desligamento e banco de horas (0008)
+  document?: string | null;
+  phone?: string | null;
+  birth_date?: string | null;
+  contract_type?: ContractType | null;
+  /** Jornada diária em minutos (banco de horas). */
+  daily_minutes: number;
+  manager_employee_id?: string | null;
+  termination_date?: string | null;
+  termination_reason?: string | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -505,6 +1182,8 @@ export interface HrTask {
   description?: string | null;
   due_date?: string | null;
   status: "pendente" | "concluida";
+  /** Checklist do ciclo do colaborador (0008). */
+  category: HrTaskCategory;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -520,6 +1199,23 @@ export interface EmployeeCompensation {
   effective_from?: string | null;
   notes?: string | null;
   updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Banco de horas. minutes positivo = crédito (hora extra), negativo = débito. */
+export interface HrTimeEntry {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  entry_date: string;
+  minutes: number;
+  reason?: string | null;
+  status: HrRequestStatus;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

@@ -23,6 +23,9 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 # Hash de senha (comandos hash_password/verify_password). "std" liga o OsRng para gerar o sal.
 argon2 = { version = "0.5", features = ["std"] }
+# Backup e restauração (src/backup.rs): API de backup do SQLite (mesma libsqlite3-sys do tauri-plugin-sql) e o .cmbackup (zip).
+rusqlite = { version = "0.32", features = ["backup", "bundled"] }
+zip = { version = "2.6", default-features = false, features = ["deflate"] }
 
 [profile.release]
 panic = "abort"

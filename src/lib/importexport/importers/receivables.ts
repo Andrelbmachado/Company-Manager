@@ -1,9 +1,9 @@
-// Contas a receber: identifica pelo nº do documento do cliente; sem documento, por descrição + vencimento + valor.
+// Contas a receber: identifica pelo nº do documento do cliente (e a parcela); sem documento, por descrição + vencimento + valor.
 import { z } from "zod";
 import { roundMoney } from "@/lib/money";
 import { categoryRef, costCenterRef, customerField, customerRef } from "../refs";
 import type { FieldDef } from "../registry";
-import { isoDate, isoMonth, money, oneOf, optionalText, requiredText } from "../schema";
+import { integer, isoDate, isoMonth, money, oneOf, optionalText, requiredText } from "../schema";
 import { codeKey, defineTableEntity, type KeySpec } from "../tableEntity";
 import type { Row } from "../write";
 
@@ -18,16 +18,48 @@ const STATUS = [
 /** Descrição como a tela Financeiro mostra: a coluna nova; contas antigas guardavam o texto em ref_id. */
 const descriptionOf = (row: Row) => row.description ?? row.ref_id ?? "Recebimento manual";
 
-/** Chaves das contas: documento do cliente/fornecedor; senão descrição + vencimento + valor. */
-export function financeKeys<T extends { document_number?: string; description: string; due_date?: string; amount: number }>(
+/** Parcela e total de parcelas: números separados (o Excel transforma "1/3" em data ao abrir o CSV). */
+export const INSTALLMENT_FIELDS: FieldDef[] = [
+  { key: "installment_number", label: "Parcela", kind: "int", aliases: ["nº da parcela", "número da parcela", "numero da parcela", "parcela nº"], example: "1", hint: "Parcelas repetem o nº do documento: a parcela diz qual é" },
+  { key: "installment_count", label: "Total de parcelas", kind: "int", aliases: ["parcelas", "nº de parcelas", "quantidade de parcelas", "qtd de parcelas"], example: "3" },
+];
+
+export const installmentSchema = {
+  installment_number: integer(1, 999).optional(),
+  installment_count: integer(1, 999).optional(),
+};
+
+/** Parcela maior que o total de parcelas. */
+export function installmentIssue(row: { installment_number?: number; installment_count?: number }, context: z.RefinementCtx): void {
+  if (row.installment_number !== undefined && row.installment_count !== undefined && row.installment_number > row.installment_count) {
+    context.addIssue({ code: "custom", path: ["installment_number"], message: "A parcela é maior que o total de parcelas" });
+  }
+}
+
+/**
+ * Chaves das contas: documento do cliente/fornecedor com a parcela; documento sozinho (várias parcelas podem ter o
+ * mesmo: desempata por descrição + vencimento + valor, senão pede a parcela); senão descrição + vencimento + valor.
+ */
+export function financeKeys<T extends { document_number?: string; installment_number?: number; description: string; due_date?: string; amount: number }>(
   refField: string,
   refColumn: string,
 ): KeySpec<T>[] {
   const money = (value: unknown) => (typeof value === "number" ? roundMoney(value).toFixed(2) : String(value ?? ""));
+  const installment = (value: unknown) => (value === null || value === undefined || value === "" ? null : Number(value));
   return [
+    {
+      name: "nº do documento e parcela",
+      compare: codeKey,
+      fromRow: (row, refs) => (row.document_number && row.installment_number ? `${refs[refField] ?? ""}|${row.document_number}|${row.installment_number}` : null),
+      fromDb: (row) => {
+        const number = installment(row.installment_number);
+        return row.document_number && number ? `${String(row[refColumn] ?? "")}|${String(row.document_number)}|${number}` : null;
+      },
+    },
     {
       name: "nº do documento",
       compare: codeKey,
+      shared: (count) => `Há ${count} contas com o mesmo nº do documento (parcelas): informe a Parcela para dizer qual atualizar`,
       fromRow: (row, refs) => (row.document_number ? `${refs[refField] ?? ""}|${row.document_number}` : null),
       fromDb: (row) => (row.document_number ? `${String(row[refColumn] ?? "")}|${String(row.document_number)}` : null),
     },
@@ -57,6 +89,7 @@ const fields: FieldDef[] = [
   { key: "category", label: "Categoria", kind: "text", aliases: ["plano de contas", "categoria de receita", "conta contábil"], example: "Serviços", hint: "Código ou nome de uma categoria de receita" },
   { key: "cost_center", label: "Centro de custo", kind: "text", aliases: ["centro de custos", "cc"], example: "Comercial" },
   { key: "document_number", label: "Nº do documento", kind: "text", aliases: ["documento", "nota fiscal", "nf", "fatura", "boleto"], example: "FAT-0042" },
+  ...INSTALLMENT_FIELDS,
   { key: "issue_date", label: "Emissão", kind: "date", aliases: ["data de emissão"], example: "01/11/2026" },
   { key: "competence", label: "Competência", kind: "month", aliases: ["mês de competência", "referência"], example: "11/2026" },
   { key: "payment_method", label: "Forma de pagamento", kind: "text", aliases: ["forma", "meio de pagamento", "recebimento"], example: "PIX" },
@@ -75,6 +108,7 @@ const schema = z
     category: optionalText(200),
     cost_center: optionalText(200),
     document_number: optionalText(60),
+    ...installmentSchema,
     issue_date: isoDate().optional(),
     competence: isoMonth().optional(),
     payment_method: optionalText(60),
@@ -84,6 +118,7 @@ const schema = z
     notes: optionalText(4000),
   })
   .superRefine((row, context) => {
+    installmentIssue(row, context);
     if (row.received_amount !== undefined && roundMoney(row.received_amount) > roundMoney(row.amount)) {
       context.addIssue({ code: "custom", path: ["received_amount"], message: "O valor recebido é maior que o valor da conta" });
     }
@@ -111,6 +146,8 @@ export const entity = defineTableEntity<ReceivableImportRow>({
       category_id: refs.category,
       cost_center_id: refs.cost_center,
       document_number: row.document_number,
+      installment_number: row.installment_number,
+      installment_count: row.installment_count,
       issue_date: row.issue_date,
       competence: row.competence ?? row.due_date?.slice(0, 7),
       payment_method: row.payment_method,

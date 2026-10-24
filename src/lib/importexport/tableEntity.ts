@@ -45,6 +45,12 @@ export interface KeySpec<T> {
    * E-mail usa emailKey e código (SKU, nº do documento) usa codeKey: neles a pontuação distingue cadastros.
    */
   compare?: (value: unknown) => string;
+  /**
+   * Chave que vários cadastros podem ter de verdade (parcelas repetem o nº do documento). Se mais de um cadastro casa,
+   * as chaves mais fracas desempatam; se nem assim sobra um só, a linha vira erro com esta mensagem (em vez de
+   * atualizar o mais antigo). Linhas da planilha com a mesma chave compartilhada não são "repetidas" por isso.
+   */
+  shared?: (count: number) => string;
 }
 
 export interface ColumnContext {
@@ -224,17 +230,28 @@ export async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, c
       return;
     }
     const values = spec.keys.map((key) => compareOf(key)(key.fromRow(row, resolved.refs)));
+    /** As chaves das posições from..to-1 batem com as do cadastro (chave vazia de um dos lados não conta). */
+    const agrees = (candidate: Row, from: number, to: number) =>
+      spec.keys.slice(from, to).every((key, offset) => {
+        const mine = values[from + offset];
+        const theirs = compareOf(key)(key.fromDb(candidate));
+        return !mine || !theirs || mine === theirs;
+      });
     let existing: Row | null = null;
     for (let tier = 0; tier < spec.keys.length && !existing; tier++) {
       if (!values[tier]) continue;
-      existing =
-        (index[tier].get(values[tier]) ?? []).find((candidate) =>
-          spec.keys.slice(0, tier).every((key, stronger) => {
-            const mine = values[stronger];
-            const theirs = compareOf(key)(key.fromDb(candidate));
-            return !mine || !theirs || mine === theirs;
-          }),
-        ) ?? null;
+      const candidates = (index[tier].get(values[tier]) ?? []).filter((candidate) => agrees(candidate, 0, tier));
+      const shared = spec.keys[tier].shared;
+      if (!shared || candidates.length <= 1) {
+        existing = candidates[0] ?? null;
+        continue;
+      }
+      const narrowed = candidates.filter((candidate) => agrees(candidate, tier + 1, spec.keys.length));
+      if (narrowed.length !== 1) {
+        issues.push({ index: rowIndex, field: "", message: shared(candidates.length) });
+        return;
+      }
+      existing = narrowed[0];
     }
     let pendingOf: number | undefined;
     if (existing) {
@@ -247,7 +264,7 @@ export async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, c
     } else {
       // Mesma regra do banco: chave fraca igual não junta duas linhas cuja chave mais forte é diferente.
       const tier = values.findIndex((value, position) => {
-        const other = value ? pendingKeys[position].get(value) : undefined;
+        const other = value && !spec.keys[position].shared ? pendingKeys[position].get(value) : undefined;
         if (other === undefined) return false;
         const theirs = pendingValues.get(other) ?? [];
         return values.slice(0, position).every((mine, stronger) => !mine || !theirs[stronger] || mine === theirs[stronger]);
@@ -318,6 +335,7 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
     naturalKey(row: T): string {
       const refs = rawRefs(row, spec.refs);
       for (const key of spec.keys) {
+        if (key.shared) continue;
         const value = compareOf(key)(key.fromRow(row, refs));
         if (value) return `${key.name}:${value}`;
       }

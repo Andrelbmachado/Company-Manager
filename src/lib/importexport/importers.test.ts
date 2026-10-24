@@ -260,6 +260,75 @@ describe("contas a pagar e a receber", () => {
     expect(result).toMatchObject({ errors: [], inserted: 0, updated: 1 });
     expect(await count(db, "receivables", companyId)).toBe(1);
   });
+
+  /** Fatura em 3 parcelas, todas com o mesmo nº do documento (como o faturamento gera). */
+  async function threeInstallments(db: DatabaseLike, companyId: string) {
+    const [customer] = await db.select<Row[]>("SELECT id FROM customers WHERE company_id=?", [companyId]);
+    for (const number of [1, 2, 3]) {
+      await insert(db, "receivables", {
+        id: `fat-${number}`,
+        company_id: companyId,
+        customer_id: customer.id,
+        description: `FAT-00001 - Padaria (${number}/3)`,
+        amount: 400,
+        due_date: `2026-1${number - 1}-10`,
+        document_number: "FAT-00001",
+        installment_number: number,
+        installment_count: 3,
+      });
+    }
+  }
+  const installments = (db: DatabaseLike, companyId: string) =>
+    db.select<Row[]>("SELECT id, description, amount, due_date, installment_number, installment_count FROM receivables WHERE company_id=? ORDER BY id", [companyId]);
+
+  it("parcelas com o mesmo nº do documento: a exportação volta pela importação, cada parcela na sua conta", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await seedReferences(db, companyId);
+    await threeInstallments(db, companyId);
+    const before = await installments(db, companyId);
+    for (const format of ["csv", "xlsx"] as ExportFormat[]) {
+      const exported = await exportRows("receivables", format, { db, companyId });
+      const result = await importFile(registry.receivables, exported, `receber.${format}`, db, companyId, userId);
+      expect(result, format).toMatchObject({ errors: [], inserted: 0, updated: 3 });
+    }
+    expect(await installments(db, companyId)).toEqual(before);
+  });
+
+  it("sem a parcela, nº do documento de várias contas não atualiza a conta errada; com a parcela, atualiza a certa", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await seedReferences(db, companyId);
+    await threeInstallments(db, companyId);
+    const before = await installments(db, companyId);
+    const mapping = { description: "Descrição", amount: "Valor", document_number: "Documento", customer: "Cliente" };
+    const line = { Descrição: "Parcela renegociada", Valor: "450", Documento: "FAT-00001", Cliente: "11.222.333/0001-81" };
+    const guess = await run("receivables", mapping, [line], db, companyId, userId, "skip-errors");
+    expect(guess.errors).toEqual([expect.objectContaining({ row: 2, message: expect.stringMatching(/3 contas com o mesmo nº do documento.*Parcela/) })]);
+    expect(await installments(db, companyId)).toEqual(before);
+
+    const right = await run("receivables", { ...mapping, installment_number: "Parcela" }, [{ ...line, Parcela: "2" }], db, companyId, userId);
+    expect(right).toMatchObject({ errors: [], inserted: 0, updated: 1 });
+    const after = await installments(db, companyId);
+    expect(after[1]).toMatchObject({ id: "fat-2", description: "Parcela renegociada", amount: 450, installment_number: 2 });
+    expect([after[0], after[2]]).toEqual([before[0], before[2]]);
+  });
+
+  it("parcelas novas com o mesmo nº do documento entram como contas separadas", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await seedReferences(db, companyId);
+    const mapping = { description: "Descrição", amount: "Valor", due_date: "Vencimento", document_number: "Documento", supplier: "Fornecedor", installment_number: "Parcela", installment_count: "Parcelas" };
+    const line = { Descrição: "Compra de papel", Valor: "250", Documento: "NF 004521", Fornecedor: "11.444.777/0001-61", Parcelas: "2" };
+    const result = await run("payables", mapping, [
+      { ...line, Vencimento: "10/11/2026", Parcela: "1" },
+      { ...line, Vencimento: "10/12/2026", Parcela: "2" },
+    ], db, companyId, userId);
+    expect(result).toMatchObject({ errors: [], inserted: 2 });
+    expect(await db.select<Row[]>("SELECT installment_number, installment_count, due_date FROM payables WHERE company_id=? ORDER BY due_date", [companyId])).toEqual([
+      { installment_number: 1, installment_count: 2, due_date: "2026-11-10" },
+      { installment_number: 2, installment_count: 2, due_date: "2026-12-10" },
+    ]);
+    const invalid = await run("payables", mapping, [{ ...line, Vencimento: "10/01/2027", Parcela: "3" }], db, companyId, userId, "skip-errors");
+    expect(invalid.errors).toEqual([expect.objectContaining({ field: "installment_number", message: expect.stringMatching(/maior que o total de parcelas/) })]);
+  });
 });
 
 describe("chaves de identificação", () => {

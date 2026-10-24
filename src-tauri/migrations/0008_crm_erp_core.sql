@@ -11,6 +11,9 @@
 -- nextSequenceNumber (src/lib/db/sequence.ts).
 -- Sem CHECK de domínio: os valores aceitos estão em src/types/index.ts (mudar um CHECK exigiria recriar a tabela).
 -- ALTER TABLE ADD COLUMN: com chaves estrangeiras ligadas, coluna com REFERENCES só pode ter DEFAULT NULL.
+-- Datas de documento (order_date, issue_date, due_date, posted_at, paid_at...) são 'YYYY-MM-DD' no dia LOCAL: o app grava
+-- todayIso() (src/lib/utils.ts). O DEFAULT date('now','localtime') é só a rede de segurança; date('now') é UTC e,
+-- no Brasil, vira o dia seguinte depois das 21h.
 
 -- ----------------------------------------------------------------
 -- FINANCEIRO: plano de contas e contas bancárias
@@ -97,7 +100,8 @@ CREATE TABLE IF NOT EXISTS products (
   deleted_at          TEXT
 );
 -- SKU é a chave natural da importação: único por empresa entre os não excluídos, sem diferenciar maiúsculas.
-CREATE UNIQUE INDEX IF NOT EXISTS ux_products_sku ON products(company_id, sku COLLATE NOCASE) WHERE sku IS NOT NULL AND deleted_at IS NULL;
+-- SKU vazio ('') não é SKU (o app grava NULL; o índice também ignora '' para não barrar o segundo produto sem código).
+CREATE UNIQUE INDEX IF NOT EXISTS ux_products_sku ON products(company_id, sku COLLATE NOCASE) WHERE sku IS NOT NULL AND sku <> '' AND deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_products_company ON products(company_id, kind, active);
 CREATE INDEX IF NOT EXISTS idx_products_item ON products(inventory_item_id);
 
@@ -158,7 +162,7 @@ CREATE TABLE IF NOT EXISTS sales_orders (
   seller_id       TEXT REFERENCES users(id),
   location_id     TEXT REFERENCES stock_locations(id),
   status          TEXT NOT NULL DEFAULT 'rascunho',
-  order_date      TEXT NOT NULL DEFAULT (date('now')),
+  order_date      TEXT NOT NULL DEFAULT (date('now','localtime')),
   delivery_date   TEXT,
   payment_terms   TEXT,
   installments    INTEGER NOT NULL DEFAULT 1,
@@ -214,7 +218,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   sales_order_id  TEXT REFERENCES sales_orders(id),
   customer_id     TEXT REFERENCES customers(id),
   status          TEXT NOT NULL DEFAULT 'emitida',
-  issue_date      TEXT NOT NULL DEFAULT (date('now')),
+  issue_date      TEXT NOT NULL DEFAULT (date('now','localtime')),
   due_date        TEXT,
   installments    INTEGER NOT NULL DEFAULT 1,
   payment_terms   TEXT,
@@ -273,7 +277,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
   number          INTEGER NOT NULL,
   supplier_id     TEXT REFERENCES suppliers(id),
   status          TEXT NOT NULL DEFAULT 'rascunho',
-  order_date      TEXT NOT NULL DEFAULT (date('now')),
+  order_date      TEXT NOT NULL DEFAULT (date('now','localtime')),
   expected_date   TEXT,
   location_id     TEXT REFERENCES stock_locations(id),
   payment_terms   TEXT,

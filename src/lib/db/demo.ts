@@ -5,11 +5,11 @@
 // - INSERT [OR IGNORE | OR REPLACE] INTO tabela (cols) VALUES (...)  (uma linha; sem ON CONFLICT nem RETURNING)
 // - UPDATE tabela SET col=valor, ... [WHERE ...]   e   DELETE FROM tabela [WHERE ...]
 // - WHERE: col=? | col='texto' | col=número | col IS NULL | col IS NOT NULL, ligados por AND.
-// - valores: ?, 'texto', número, NULL, datetime('now'), date('now').
+// - valores: ?, 'texto', número, NULL, datetime('now'), date('now') (dia UTC), date('now','localtime') (dia local).
 // JOIN, soma, agrupamento, IN, LIKE, <, OR e expressões (quantity + ?) não existem aqui: faça no TypeScript.
 // As 17 tabelas do demo original (LENIENT_TABLES) mantêm o comportamento antigo das telas legadas (consultas fixas
 // com JOIN/COUNT tratadas abaixo e, se o WHERE não for entendido, filtro por empresa); as demais são estritas.
-import { nowIso, parseMigrations, splitTopLevel, todayUtc, type DemoSchema } from "./demoSchema";
+import { LOCAL_DATE_EXPRESSION, nowIso, parseMigrations, splitTopLevel, todayLocal, todayUtc, type DemoSchema } from "./demoSchema";
 
 const STORAGE_KEY = "cm_demo_database_v4";
 const COMPANY_ID = "demo-company";
@@ -413,7 +413,7 @@ function normalize(query: string): string {
     .replace(/\s*;$/, "");
 }
 
-/** "?" consome o próximo bind; 'texto', número, NULL, datetime('now') e date('now') viram valor. O resto é erro. */
+/** "?" consome o próximo bind; 'texto', número, NULL, datetime('now'), date('now') e date('now','localtime') viram valor. O resto é erro. */
 function literalOrBind(token: string, nextBind: () => unknown): unknown {
   if (token === "?") return nextBind() ?? null;
   const literal = token.match(/^'((?:[^']|'')*)'$/s);
@@ -422,6 +422,7 @@ function literalOrBind(token: string, nextBind: () => unknown): unknown {
   if (/^-?\d+(\.\d+)?$/.test(token)) return Number(token);
   if (token === "datetime('now')" || token === "current_timestamp") return nowIso();
   if (token === "date('now')") return todayUtc();
+  if (LOCAL_DATE_EXPRESSION.test(token)) return todayLocal();
   throw new Error(`Expressão demo não suportada: ${token}`);
 }
 

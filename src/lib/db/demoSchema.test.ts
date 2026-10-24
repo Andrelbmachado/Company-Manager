@@ -1,5 +1,5 @@
 // O schema que o banco demo lê das migrations tem de bater com o do SQLite real (mesmas tabelas, colunas e DEFAULT).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestDb, listMigrations, type TestDb } from "@/test/sqlite";
 import { parseDefault, parseMigrations, splitTopLevel } from "./demoSchema";
 
@@ -42,6 +42,19 @@ describe("schema do banco demo", () => {
     expect(parseDefault("480")()).toBe(480);
     expect(parseDefault("'it''s'")()).toBe("it's");
     expect(parseDefault("NULL")()).toBeNull();
+  });
+
+  it("date('now','localtime') é o dia local (como todayIso), não o dia UTC", () => {
+    // 23h30 no horário local: em Brasília já é o dia seguinte em UTC.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 24, 23, 30));
+    try {
+      expect(parseDefault("(date('now','localtime'))")()).toBe("2026-10-24");
+      expect(parseDefault("date('now', 'localtime')")()).toBe("2026-10-24");
+      expect(parseDefault("(DATE('now','localtime'))")()).toBe("2026-10-24");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("divide por vírgula fora de parênteses e de aspas", () => {

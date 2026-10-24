@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Banco demo do navegador (localStorage): tabelas e defaults vêm das migrations; SQL fora dos padrões é erro, não dado errado.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoDb, DEMO_COMPANY_ID, DEMO_STORAGE_KEY } from "./demo";
 
 const C = DEMO_COMPANY_ID;
@@ -30,6 +30,27 @@ describe("banco demo", () => {
     expect(String(order.order_date)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(order.created_at).toBeTruthy();
     expect(Object.keys(order)).toEqual(expect.arrayContaining(["notes", "cancel_reason", "seller_id"]));
+  });
+
+  it("data de pedido, fatura e compra sem valor é o dia local (date('now','localtime')), nunca NULL nem o dia UTC", async () => {
+    // 23h30 no horário local: em Brasília já é o dia seguinte em UTC.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 24, 23, 30));
+    try {
+      const db = createDemoDb();
+      await db.execute("INSERT INTO sales_orders (id, company_id, number) VALUES (?, ?, ?)", ["so-local", C, 1]);
+      await db.execute("INSERT INTO invoices (id, company_id, number) VALUES (?, ?, ?)", ["inv-local", C, 1]);
+      await db.execute("INSERT INTO purchase_orders (id, company_id, number, expected_date) VALUES (?, ?, ?, date('now', 'localtime'))", ["po-local", C, 1]);
+      await db.execute("UPDATE sales_orders SET delivery_date=date('now','localtime') WHERE company_id=? AND id=?", [C, "so-local"]);
+      const [order] = await db.select<Row[]>("SELECT * FROM sales_orders WHERE company_id=? AND id=?", [C, "so-local"]);
+      const [invoice] = await db.select<Row[]>("SELECT * FROM invoices WHERE company_id=? AND id=?", [C, "inv-local"]);
+      const [purchase] = await db.select<Row[]>("SELECT * FROM purchase_orders WHERE company_id=? AND id=?", [C, "po-local"]);
+      expect(order).toMatchObject({ order_date: "2026-10-24", delivery_date: "2026-10-24" });
+      expect(invoice.issue_date).toBe("2026-10-24");
+      expect(purchase).toMatchObject({ order_date: "2026-10-24", expected_date: "2026-10-24" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("tabelas antigas aceitam as colunas novas (ex.: contas a pagar com categoria e baixa parcial)", async () => {

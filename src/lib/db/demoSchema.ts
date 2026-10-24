@@ -1,6 +1,7 @@
 // Schema do banco demo do navegador lido das próprias migrations (src-tauri/migrations/*.sql): tabelas, colunas
 // e DEFAULT. Assim o demo nunca fica para trás do SQLite: tabela ou coluna nova numa migration já existe no demo.
 // Puro (sem localStorage nem import.meta) para poder ser comparado com o SQLite real nos testes.
+import { todayIso } from "@/lib/utils";
 
 /** Valor do DEFAULT de uma coluna, calculado na hora (datetime('now') = agora). */
 export type DefaultValue = () => unknown;
@@ -18,6 +19,14 @@ export function nowIso(): string {
 export function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** Data de hoje no fuso do computador ('YYYY-MM-DD'), como o date('now','localtime') do SQLite e o todayIso() do app. */
+export function todayLocal(): string {
+  return todayIso();
+}
+
+/** date('now','localtime'), com ou sem espaço depois da vírgula (texto já em minúsculas). */
+export const LOCAL_DATE_EXPRESSION = /^date\('now', ?'localtime'\)$/;
 
 function stripComments(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'|--[^\n]*/g, (match) => (match.startsWith("--") ? "" : match));
@@ -59,6 +68,7 @@ export function parseDefault(expression: string): DefaultValue {
   if (lower === "null") return NULL_DEFAULT;
   if (lower === "datetime('now')" || lower === "current_timestamp") return nowIso;
   if (lower === "date('now')" || lower === "current_date") return todayUtc;
+  if (LOCAL_DATE_EXPRESSION.test(lower)) return todayLocal;
   if (lower === "true") return () => 1;
   if (lower === "false") return () => 0;
   if (/^-?\d+(\.\d+)?$/.test(text)) {

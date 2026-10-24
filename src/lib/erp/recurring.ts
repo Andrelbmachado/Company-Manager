@@ -78,6 +78,24 @@ export function competencesDue(entry: Schedule, today: string, maxPeriods = 36):
   return isIsoDay(today) ? occurrences(entry, today, today.slice(0, 7), maxPeriods) : [];
 }
 
+/**
+ * last_competence ao retomar uma recorrência pausada: pausar é não gerar, então as competências da pausa (antes do
+ * mês de `today`) são puladas e o mês de hoje sai normalmente. Sem histórico (já começa no mês de hoje) ou com a
+ * última gerada neste mês (pausou e retomou no mesmo mês), fica como está.
+ */
+export function resumeCompetence(entry: Pick<RecurringEntry, "frequency" | "last_competence">, today: string): string | null {
+  const last = entry.last_competence ?? null;
+  if (!last || !isIsoDay(today)) return last;
+  const month = today.slice(0, 7);
+  if (entry.frequency === "semanal") {
+    const before = addDays(`${month}-01`, -1);
+    const lastDay = last.length === 7 ? `${last}-${String(daysInMonth(last)).padStart(2, "0")}` : last;
+    return lastDay < before ? before : last;
+  }
+  const before = addMonths(month, -1);
+  return last.slice(0, 7) < before ? before : last;
+}
+
 /** Próximo lançamento que a recorrência vai gerar (para a tela); null se já terminou. */
 export function nextOccurrence(entry: Schedule, today: string): Occurrence | null {
   if (!isIsoDay(today)) return null;

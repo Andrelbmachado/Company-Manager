@@ -64,6 +64,19 @@ describe("financeiro no banco demo", () => {
     expect(payables.map((row) => row.competence).sort()).toEqual(["2026-09", "2026-10"]);
   });
 
+  it("competência repetida na mesma recorrência é recusada e retomar depois da pausa não gera os meses parados", async () => {
+    const db = createDemoDb();
+    await addRecurring(db, C, { id: "rec", amount: 500, day_of_month: 5, start_date: "2026-01-01", last_competence: "2026-08" });
+    expect(await runRecurring(db, C, "2026-10-24")).toMatchObject({ created: 2 });
+    const [september] = await db.select<Row[]>("SELECT * FROM payables WHERE company_id=? AND competence=?", [C, "2026-09"]);
+    await expect(updateEntry(db, C, "payable", String(september.id), { description: "Aluguel", amount: 500, competence: "2026-10" })).rejects.toThrow(/já tem um lançamento/);
+    await setRecurringActive(db, C, "rec", false, "2026-10-24");
+    await setRecurringActive(db, C, "rec", true, "2027-01-10");
+    expect(await runRecurring(db, C, "2027-01-10")).toMatchObject({ created: 1 });
+    const payables = await db.select<Row[]>("SELECT * FROM payables WHERE company_id=?", [C]);
+    expect(payables.map((row) => row.competence).sort()).toEqual(["2026-09", "2026-10", "2027-01"]);
+  });
+
   it("fluxo de caixa e DRE", async () => {
     const db = createDemoDb();
     await addBankAccount(db, C, { id: "bank", opening_balance: 1000 });

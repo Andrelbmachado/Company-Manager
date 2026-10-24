@@ -187,4 +187,36 @@ describe("recorrências", () => {
     expect((await row("recurring_entries", id)).deleted_at).toBeTruthy();
     expect(await rows("payables")).toEqual([]);
   });
+
+  const competences = async () => (await db.select<Row[]>("SELECT * FROM payables WHERE company_id = ? ORDER BY competence", [companyId])).map((item) => item.competence);
+
+  it("retomar uma recorrência pausada não gera os meses da pausa (só do mês de hoje em diante)", async () => {
+    await addRecurring(db, companyId, { id: "rec", amount: 100, day_of_month: 5, start_date: "2026-01-01", last_competence: "2026-06", active: 0 });
+    await setRecurringActive(db, companyId, "rec", true, "2026-10-24");
+    expect(await row("recurring_entries", "rec")).toMatchObject({ active: 1, last_competence: "2026-09" });
+    expect(await runRecurring(db, companyId, "2026-10-24")).toMatchObject({ created: 1 });
+    expect(await competences()).toEqual(["2026-10"]);
+  });
+
+  it("pausar e retomar no mesmo mês não gera de novo nem pula o mês; sem histórico, nada muda", async () => {
+    await addRecurring(db, companyId, { id: "rec", amount: 100, day_of_month: 5, start_date: "2026-01-01" });
+    await runRecurring(db, companyId, "2026-10-24");
+    await setRecurringActive(db, companyId, "rec", false, "2026-10-24");
+    await setRecurringActive(db, companyId, "rec", true, "2026-10-25");
+    expect(await row("recurring_entries", "rec")).toMatchObject({ active: 1, last_competence: "2026-10" });
+    expect(await runRecurring(db, companyId, "2026-10-25")).toMatchObject({ created: 0 });
+
+    await addRecurring(db, companyId, { id: "nova", amount: 10, start_date: "2026-01-01", active: 0 });
+    await setRecurringActive(db, companyId, "nova", true, "2026-10-24");
+    expect(await row("recurring_entries", "nova")).toMatchObject({ active: 1, last_competence: null });
+  });
+
+  it("retomar pelo formulário (Ativa = Sim) também pula a pausa; semanal recomeça no mês de hoje", async () => {
+    await addRecurring(db, companyId, { id: "sem", amount: 70, frequency: "semanal", start_date: "2026-07-03", last_competence: "2026-08-28", active: 0 });
+    await saveRecurring(db, companyId, { kind: "pagar", description: "Diarista", amount: 70, frequency: "semanal", startDate: "2026-07-03", active: true }, USER, "sem", "2026-10-24");
+    expect(await row("recurring_entries", "sem")).toMatchObject({ active: 1, last_competence: "2026-09-30" });
+    await runRecurring(db, companyId, "2026-10-24");
+    expect(await competences()).toEqual(["2026-10-02", "2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30"]);
+    await expect(setRecurringActive(db, companyId, "nao-existe", true)).rejects.toThrow(/não encontrada/);
+  });
 });

@@ -3,7 +3,7 @@
 // Excluir é sempre soft delete e só vale para o que não está em uso (o resto se desativa, para não sumir dinheiro).
 import { v4 as uuidv4 } from "uuid";
 import { fromCents, roundMoney, splitInstallments, toCents } from "@/lib/money";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayIso } from "@/lib/utils";
 import type { BankAccountKind, CostCenter, DreGroup, FinanceCategory, FinanceCategoryKind, FinancialStatus, RecurringEntry, RecurringFrequency, RecurringKind } from "@/types";
 import {
   ENTRY_TABLE,
@@ -22,6 +22,7 @@ import {
   type FinanceDb,
 } from "./financeCommon";
 import { DRE_GROUPS } from "./dre";
+import { resumeCompetence } from "./recurring";
 
 const blank = (value: string | null | undefined): string | null => {
   const text = (value ?? "").trim();
@@ -365,7 +366,7 @@ export interface RecurringInput {
   active?: boolean;
 }
 
-export async function saveRecurring(db: FinanceDb, companyId: string, input: RecurringInput, userId: string | null, id?: string): Promise<string> {
+export async function saveRecurring(db: FinanceDb, companyId: string, input: RecurringInput, userId: string | null, id?: string, today = todayIso()): Promise<string> {
   if (input.kind !== "pagar" && input.kind !== "receber") throw new Error("Tipo inválido: pagar ou receber.");
   const description = blank(input.description);
   if (!description) throw new Error("Informe a descrição.");
@@ -394,11 +395,13 @@ export async function saveRecurring(db: FinanceDb, companyId: string, input: Rec
     blank(input.notes),
   ];
   if (id) {
-    const current = (await db.select<RecurringEntry[]>("SELECT * FROM recurring_entries WHERE company_id=? AND id=?", [companyId, id]))[0];
-    if (!current || current.deleted_at) throw new Error("Recorrência não encontrada.");
+    const current = await getRecurring(db, companyId, id);
+    // Reativar pelo formulário é retomar: também pula a pausa.
+    const resuming = input.active !== false && !isTrue(current.active);
+    const lastCompetence = resuming ? resumeCompetence({ frequency: input.frequency, last_competence: current.last_competence }, today) : (current.last_competence ?? null);
     await db.execute(
-      "UPDATE recurring_entries SET kind=?, description=?, amount=?, frequency=?, day_of_month=?, start_date=?, end_date=?, supplier_id=?, customer_id=?, category_id=?, cost_center_id=?, bank_account_id=?, active=?, notes=?, updated_at=datetime('now') WHERE company_id=? AND id=?",
-      [...values, companyId, id],
+      "UPDATE recurring_entries SET kind=?, description=?, amount=?, frequency=?, day_of_month=?, start_date=?, end_date=?, supplier_id=?, customer_id=?, category_id=?, cost_center_id=?, bank_account_id=?, active=?, notes=?, last_competence=?, updated_at=datetime('now') WHERE company_id=? AND id=?",
+      [...values, lastCompetence, companyId, id],
     );
     return id;
   }
@@ -410,8 +413,17 @@ export async function saveRecurring(db: FinanceDb, companyId: string, input: Rec
   return recurringId;
 }
 
-export async function setRecurringActive(db: FinanceDb, companyId: string, id: string, active: boolean): Promise<void> {
-  await db.execute("UPDATE recurring_entries SET active=?, updated_at=datetime('now') WHERE company_id=? AND id=?", [active ? 1 : 0, companyId, id]);
+async function getRecurring(db: FinanceDb, companyId: string, id: string): Promise<RecurringEntry> {
+  const current = (await db.select<RecurringEntry[]>("SELECT * FROM recurring_entries WHERE company_id=? AND id=?", [companyId, id]))[0];
+  if (!current || current.deleted_at) throw new Error("Recorrência não encontrada.");
+  return current;
+}
+
+/** Pausa ou retoma. Retomar pula as competências da pausa (resumeCompetence): só gera do mês de `today` em diante. */
+export async function setRecurringActive(db: FinanceDb, companyId: string, id: string, active: boolean, today = todayIso()): Promise<void> {
+  const current = await getRecurring(db, companyId, id);
+  const lastCompetence = active && !isTrue(current.active) ? resumeCompetence(current, today) : (current.last_competence ?? null);
+  await db.execute("UPDATE recurring_entries SET active=?, last_competence=?, updated_at=datetime('now') WHERE company_id=? AND id=?", [active ? 1 : 0, lastCompetence, companyId, id]);
 }
 
 /** Exclui (soft delete) a recorrência; os lançamentos já gerados continuam. */

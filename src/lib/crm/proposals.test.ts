@@ -81,6 +81,16 @@ describe("saveProposal", () => {
     await setProposalStatus(db, companyId, id, "send", userId);
     await expect(saveProposal(db, companyId, userId, { items: [{ description: "A", qty: 1, unit_price: 20 }] }, id)).rejects.toThrow(/rascunho/i);
   });
+
+  it("recusa desconto maior que o valor do item ou que o subtotal (o total não fica zerado em silêncio)", async () => {
+    const { db, companyId, userId } = await setup();
+    await expect(saveProposal(db, companyId, userId, { items: [{ description: "A", qty: 2, unit_price: 10, discount: 20.01 }] })).rejects.toThrow(/Item 1: o desconto não pode ser maior que o valor do item/);
+    await expect(saveProposal(db, companyId, userId, { discount: "30,01", items: [{ description: "A", qty: 3, unit_price: 10, tax_rate: 10 }] })).rejects.toThrow(/desconto geral não pode ser maior que o subtotal/);
+    expect(await db.select("SELECT count(*) AS n FROM proposals", [])).toEqual([{ n: 0 }]);
+    // No limite vale: item 2 × 10 com desconto 20 = 0; desconto geral igual ao subtotal deixa só os impostos.
+    const id = await saveProposal(db, companyId, userId, { discount: 30, items: [{ description: "A", qty: 2, unit_price: 10, discount: 20 }, { description: "B", qty: 3, unit_price: 10, tax_rate: 10 }] });
+    expect(await one(db, "SELECT subtotal, discount, value FROM proposals WHERE id=?", [id])).toEqual({ subtotal: 30, discount: 30, value: 3 });
+  });
 });
 
 describe("setProposalStatus", () => {

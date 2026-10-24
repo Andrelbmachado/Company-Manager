@@ -4,7 +4,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { nextSequenceNumber } from "@/lib/db/sequence";
-import { lineTotal, orderTotals, roundMoney } from "@/lib/money";
+import { lineTotal, orderTotals, roundMoney, toCents } from "@/lib/money";
 import type { Opportunity, Proposal, ProposalItem, ProposalStatus } from "@/types";
 import { logActivity } from "./activities";
 import { clean, nowIso, parseMoneyInput, STAGE_PROBABILITY } from "./queries";
@@ -65,6 +65,8 @@ function normalizeItems(items: ProposalItemInput[]): NormalizedItem[] {
     if (unitPrice < 0) throw new Error(`${line}: o preço não pode ser negativo.`);
     const discount = parseMoneyInput(item.discount ?? 0) ?? 0;
     if (discount < 0) throw new Error(`${line}: o desconto não pode ser negativo.`);
+    // lineTotal zera o item quando o desconto passa do valor; aqui isso é erro de digitação, não item de graça.
+    if (toCents(discount) > toCents(qty * unitPrice)) throw new Error(`${line}: o desconto não pode ser maior que o valor do item.`);
     const taxRate = toNumber(item.tax_rate);
     if (!Number.isFinite(taxRate) || taxRate < 0) throw new Error(`${line}: imposto inválido.`);
     return {
@@ -112,6 +114,8 @@ export async function saveProposal(db: DatabaseLike, companyId: string, userId: 
   const items = normalizeItems(input.items);
   const totals = orderTotals(items, { discount: parseMoneyInput(input.discount ?? 0) ?? 0 });
   if (totals.discount < 0) throw new Error("O desconto não pode ser negativo.");
+  // Sem isso o total ficaria travado em zero e o PDF mostraria impostos errados (total − subtotal + desconto).
+  if (toCents(totals.discount) > toCents(totals.subtotal)) throw new Error("O desconto geral não pode ser maior que o subtotal.");
   const opportunityId = clean(input.opportunity_id);
   const opp = await opportunityOf(db, companyId, opportunityId);
   const customerId = clean(input.customer_id) ?? opp?.customer_id ?? null;

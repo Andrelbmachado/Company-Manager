@@ -75,4 +75,24 @@ describe("ReconciliationPage", () => {
     await click(findButton(row, "Confirmar"));
     await until(async () => (await db.select<Row[]>("SELECT * FROM payables WHERE id = ?", ["p1"]))[0].status === "aberta", "conciliação desfeita");
   });
+
+  it("conta da URL que não é da empresa (ou não existe) não libera importar nem lançar", async () => {
+    const db = testDb();
+    const { companyId } = await insertTestCompany(db, { companyId: "empresa-url", roles: ["financeiro"] });
+    await insertTestCompany(db, { companyId: "outra-empresa", roles: [] });
+    await addBankAccount(db, companyId, { id: "minha", name: "Minha conta", is_default: 1 });
+    await addBankAccount(db, "outra-empresa", { id: "alheia", name: "Conta alheia" });
+
+    page = await renderPage(<ReconciliationPage />, { companyId, path: "/finance/conciliacao?conta=alheia" });
+    const view = page;
+    await until(() => view.text().includes("Minha conta"), "contas da empresa carregadas");
+    expect(view.text()).toContain("Escolha a conta bancária");
+    expect(view.button("Importar extrato")?.disabled).toBe(true);
+    expect(view.button("Lançamento manual")?.disabled).toBe(true);
+
+    const input = view.container.querySelector<HTMLInputElement>("input[type=file]")!;
+    await upload(input, new File([OFX], "extrato.ofx", { type: "application/x-ofx" }));
+    await until(() => view.text().includes("Escolha a conta bancária do extrato."), "importação recusada");
+    expect(await db.select<Row[]>("SELECT * FROM bank_transactions WHERE bank_account_id = ?", ["alheia"])).toEqual([]);
+  });
 });

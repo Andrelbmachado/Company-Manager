@@ -90,8 +90,10 @@ export default function ReconciliationPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const accountId = chosenAccount ?? params.get("conta") ?? lookups.defaultBankAccountId ?? "";
-  const account = lookups.bankAccounts.find((item) => item.id === accountId) ?? null;
+  // Só vale conta da empresa: id do link que não está na lista (outra empresa, excluída) não libera nada.
+  const requestedAccount = chosenAccount ?? params.get("conta") ?? lookups.defaultBankAccountId ?? "";
+  const account = lookups.bankAccounts.find((item) => item.id === requestedAccount) ?? null;
+  const accountId = account?.id ?? "";
 
   const { data: transactions = [] } = useQuery({
     queryKey: ["finance", companyId, "bank-transactions", accountId],
@@ -130,7 +132,7 @@ export default function ReconciliationPage() {
       if (!accountId) throw new Error("Escolha a conta bancária do extrato.");
       const parsed = parseStatementFile(decodeStatementBytes(await readBytes(file)));
       if (parsed.transactions.length === 0) throw new Error("Nenhum lançamento encontrado no arquivo.");
-      const result = await reconcile(await getDb(), accountId, parsed.transactions, { userId: session.user.id, source: parsed.source });
+      const result = await reconcile(await getDb(), accountId, parsed.transactions, { companyId, userId: session.user.id, source: parsed.source });
       return { fileName: file.name, result, balance: parsed.balance, balanceDate: parsed.balanceDate };
     },
     onSuccess: async (imported) => {
@@ -194,8 +196,10 @@ export default function ReconciliationPage() {
       <ErrorNote message={importFile.error ? errorMessage(importFile.error) : null} />
       <ErrorNote message={undo.error ? errorMessage(undo.error) : null} />
 
-      {!account ? (
+      {lookups.bankAccounts.length === 0 ? (
         <EmptyState icon={ListChecks} title="Nenhuma conta bancária" description="Cadastre uma conta em Contas bancárias para importar o extrato." />
+      ) : !account ? (
+        <EmptyState icon={ListChecks} title="Escolha a conta bancária" description="Selecione acima a conta do extrato para conciliar." />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">

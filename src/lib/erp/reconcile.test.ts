@@ -83,6 +83,14 @@ describe("reconcile (importar extrato)", () => {
   it("conta bancária inexistente é erro", async () => {
     await expect(reconcile(db, "nao-existe", STATEMENT)).rejects.toThrow(/Conta bancária não encontrada/);
   });
+
+  it("com a empresa da sessão, recusa importar na conta de outra empresa", async () => {
+    await insertTestCompany(db, { companyId: "outra", roles: [] });
+    await addBankAccount(db, "outra", { id: "OUTRA" });
+    await expect(reconcile(db, "OUTRA", STATEMENT, { companyId, userId: USER })).rejects.toThrow(/Conta bancária não encontrada/);
+    expect(await db.select<Row[]>("SELECT * FROM bank_transactions WHERE bank_account_id = ?", ["OUTRA"])).toEqual([]);
+    expect(await reconcile(db, "A", STATEMENT, { companyId, autoMatch: false })).toMatchObject({ companyId, imported: 3 });
+  });
 });
 
 describe("matchTransaction, categorizar, ignorar e desfazer", () => {

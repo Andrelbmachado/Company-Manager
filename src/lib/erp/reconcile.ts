@@ -17,6 +17,8 @@ export type { BankTx } from "./statement";
 export { decodeStatementBytes, parseOfx, parseOfxStatement, parseStatementCsv, parseStatementFile } from "./statement";
 
 export interface ReconcileOptions {
+  /** Empresa da sessão: conta de outra empresa é recusada como inexistente. As telas sempre passam. */
+  companyId?: string;
   userId?: string | null;
   source?: BankTransactionSource;
   /** Casar sozinho os lançamentos com um único candidato exato. Padrão: sim. */
@@ -60,6 +62,7 @@ const directionOf = (amount: number): EntryKind => (amount < 0 ? "payable" : "re
 /** Importa os lançamentos do extrato na conta e, por padrão, concilia os que têm um único candidato exato. */
 export async function reconcile(db: FinanceDb, accountId: string, txs: readonly BankTx[], options: ReconcileOptions = {}): Promise<ReconcileResult> {
   const account = await getAccount(db, accountId);
+  if (options.companyId && account.company_id !== options.companyId) throw new Error("Conta bancária não encontrada.");
   const companyId = account.company_id;
   // Inclui excluídos: lançamento apagado não volta ao reimportar.
   const existing = await db.select<BankTransaction[]>("SELECT * FROM bank_transactions WHERE company_id=? AND bank_account_id=?", [companyId, accountId]);

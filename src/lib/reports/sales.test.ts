@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
+import { formatCell } from "./export";
 import { buildSalesReport, defaultGranularity, loadSalesData, salesTable, type SalesData } from "./sales";
 
 const C = "test-company";
@@ -92,5 +93,23 @@ describe("relatório de vendas", () => {
     expect(table.totals).toEqual({ label: "Total", orders: 3, total: 1540.5, share: 100 });
     expect(table.fileName).toBe("relatorio-vendas-por-cliente-2026-10-01-a-2026-10-31");
     expect(salesTable(report, "produto").columns.map((column) => column.key)).toEqual(["label", "orders", "quantity", "total", "share"]);
+  });
+
+  it("série diária sai com a data completa na tabela e na exportação (dia/mês repete de um ano para outro)", () => {
+    const daily = salesTable(buildSalesReport(data, { from: "2026-10-01", to: "2026-10-31" }), "periodo");
+    expect(daily.columns[0]).toEqual({ key: "label", label: "Dia", kind: "date" });
+    expect(daily.rows[1]).toEqual({ label: "2026-10-02", orders: 1, total: 1000, averageTicket: 1000 });
+    expect(formatCell(daily.rows[1].label, "date")).toBe("02/10/2026");
+    expect(daily.totals?.label).toBe("Total");
+
+    const longDaily = salesTable(buildSalesReport(data, { from: "2025-10-01", to: "2026-10-31", granularity: "dia" }), "periodo");
+    const labels = longDaily.rows.map((row) => formatCell(row.label, "date"));
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(labels).toContain("02/10/2025");
+    expect(labels).toContain("02/10/2026");
+
+    const monthly = salesTable(buildSalesReport(data, { from: "2026-09-01", to: "2026-10-31", granularity: "mes" }), "periodo");
+    expect(monthly.columns[0]).toEqual({ key: "label", label: "Mês", kind: "text" });
+    expect(monthly.rows.map((row) => row.label)).toEqual(["set/2026", "out/2026"]);
   });
 });

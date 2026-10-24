@@ -186,10 +186,12 @@ export function salesTable(report: SalesReport, view: SalesView): ReportTable {
     fileName: `relatorio-vendas-por-${view}-${report.from}-a-${report.to}`,
   };
   if (view === "periodo") {
+    // Por dia, a tabela leva a data completa (o "dd/mm" do gráfico repete de um ano para outro e vira data errada no Excel).
+    const daily = report.granularity === "dia";
     return {
       ...base,
-      columns: [{ key: "label", label: report.granularity === "dia" ? "Dia" : "Mês", kind: "text" }, ORDERS, TOTAL, { key: "averageTicket", label: "Ticket médio (R$)", kind: "money" }],
-      rows: report.byPeriod.map((row) => ({ label: row.label, orders: row.orders, total: row.total, averageTicket: row.orders ? roundMoney(row.total / row.orders) : 0 })),
+      columns: [daily ? { key: "label", label: "Dia", kind: "date" } : { key: "label", label: "Mês", kind: "text" }, ORDERS, TOTAL, { key: "averageTicket", label: "Ticket médio (R$)", kind: "money" }],
+      rows: report.byPeriod.map((row) => ({ label: daily ? row.key : row.label, orders: row.orders, total: row.total, averageTicket: row.orders ? roundMoney(row.total / row.orders) : 0 })),
       totals: { label: "Total", orders: report.orders, total: report.total, averageTicket: report.averageTicket },
     };
   }

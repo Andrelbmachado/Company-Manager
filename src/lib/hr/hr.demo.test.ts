@@ -5,6 +5,7 @@ import { createDemoDb, DEMO_COMPANY_ID } from "@/lib/db/demo";
 import { emptyEmployeeInput, fetchEmployee, saveEmployee } from "./employees";
 import { applyDueTerminations, cancelTermination, cycleCases, setTaskDone, startAdmission, startTermination } from "./employment";
 import { addTimeEntry, decideTimeEntry, fetchEmployeeTimeEntries, fetchTimeEntries, withdrawTimeEntry } from "./timebank";
+import { employeeImportSchema, upsertEmployees, type EmployeeImportRow } from "./employeeImport";
 import type { Employee, HrTask } from "@/types";
 
 const C = DEMO_COMPANY_ID;
@@ -54,5 +55,17 @@ describe("RH no banco demo", () => {
     const entries = await fetchEmployeeTimeEntries(db, C, employeeId);
     expect(entries.map((entry) => [entry.minutes, entry.status])).toEqual([[-60, "aprovada"], [90, "aprovada"]]);
     expect((await fetchTimeEntries(db, C)).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("importação de colaboradores: atualiza pelo e-mail e cria os novos", async () => {
+    const db = createDemoDb();
+    const rows = [
+      { name: "Camila Martins", email: "comercial@techflow.com", pis: "120.12345.67-8", cidade: "Sorocaba", uf: "sp" },
+      { name: "Novo Estagiário", contract_type: "Estágio", hire_date: "01/11/2026" },
+    ].map((raw) => employeeImportSchema.parse(raw) as EmployeeImportRow);
+    expect(await upsertEmployees(db, C, rows)).toEqual({ inserted: 1, updated: 1 });
+    expect(await fetchEmployee(db, C, "employee-demo-comercial")).toMatchObject({ pis: "120.12345.67-8", address_json: JSON.stringify({ cidade: "Sorocaba", uf: "SP" }) });
+    const [intern] = (await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [C])).filter((employee) => employee.name === "Novo Estagiário");
+    expect(intern).toMatchObject({ contract_type: "estagio", hire_date: "2026-11-01", status: "ativo" });
   });
 });

@@ -135,13 +135,17 @@ export async function startTermination(db: DatabaseLike, companyId: string, empl
   return { taskIds, effective };
 }
 
-/** Desfaz um desligamento agendado (ainda não efetivado): limpa data e motivo e retira o checklist pendente. */
+/**
+ * Desfaz um desligamento agendado (ainda não efetivado): limpa data e motivo e retira o checklist de saída inteiro
+ * (o processo deixa de valer; um desligamento futuro começa um checklist limpo). Pendências gerais ficam.
+ */
 export async function cancelTermination(db: DatabaseLike, companyId: string, employeeId: string): Promise<void> {
   const employee = await loadEmployee(db, companyId, employeeId);
   if (employee.status === "desligado") throw new Error("O desligamento já foi efetivado; para voltar, faça uma nova admissão.");
   if (!employee.termination_date) throw new Error("Não há desligamento agendado.");
   await db.execute("UPDATE employees SET termination_date=NULL, termination_reason=NULL, updated_at=datetime('now') WHERE company_id=? AND id=?", [companyId, employeeId]);
-  for (const task of await openTasks(db, companyId, employeeId, "desligamento")) {
+  const tasks = await db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND deleted_at IS NULL", [companyId, employeeId]);
+  for (const task of tasks.filter((item) => item.category === "desligamento")) {
     await db.execute("UPDATE hr_tasks SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND id=?", [companyId, task.id]);
   }
 }

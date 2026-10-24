@@ -134,16 +134,22 @@ describe("admissão e desligamento", () => {
     expect(await applyDueTerminations(db, C, "2026-11-16")).toBe(0);
   });
 
-  it("cancelar desligamento agendado limpa a data e retira só o checklist pendente de saída", async () => {
+  it("cancelar desligamento agendado limpa a data e retira o checklist de saída (pendências gerais ficam)", async () => {
     const { id } = await saveEmployee(db, C, input(), null, TODAY);
     await db.execute("INSERT INTO hr_tasks (id, company_id, employee_id, title, status, category) VALUES (?,?,?,?,?,?)", ["geral-1", C, id, "Atualizar endereço", "pendente", "geral"]);
     const { taskIds } = await startTermination(db, C, id, { date: "2026-12-01", reason: "Outro" }, RH, TODAY);
     await setTaskDone(db, C, taskIds[0], true);
     await cancelTermination(db, C, id);
     expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
+    // O processo de saída inteiro deixa de valer (até o item já feito): nada de "desligamento concluído" de quem ficou.
     const left = await tasksOf(id);
-    expect(left.map((task) => task.id).sort()).toEqual([taskIds[0], "geral-1"].sort());
+    expect(left.map((task) => task.id)).toEqual(["geral-1"]);
     await expect(cancelTermination(db, C, id)).rejects.toThrow(/Não há desligamento/);
+    // Um desligamento novo depois começa um checklist limpo.
+    const again = await startTermination(db, C, id, { date: "2026-12-10", reason: "Outro" }, RH, TODAY);
+    const all = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [C]);
+    const [exit] = cycleCases(all, await tasksOf(id), TODAY);
+    expect(exit).toMatchObject({ kind: "desligamento", done: 0, total: again.taskIds.length });
   });
 
   it("checklist: marcar e desmarcar; cycleCases agrupa, conta e ordena (em andamento primeiro)", async () => {

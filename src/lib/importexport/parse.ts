@@ -85,7 +85,9 @@ function buildSheet(name: string, records: string[][], maxRows: number): ParsedS
   const isEmpty = (record: string[]) => record.every((cell) => !cell.trim());
   const headerIndex = records.findIndex((record) => !isEmpty(record));
   if (headerIndex < 0) return null;
-  const width = Math.max(...records.slice(headerIndex).map((record) => record.length));
+  // Laço, não Math.max(...): espalhar centenas de milhares de linhas estoura a pilha antes do aviso de limite.
+  let width = 0;
+  for (let index = headerIndex; index < records.length; index++) width = Math.max(width, records[index].length);
   const headerCells = Array.from({ length: width }, (_, index) => records[headerIndex][index] ?? "");
   const headers = uniqueHeaders(headerCells);
   const rows: Record<string, string>[] = [];

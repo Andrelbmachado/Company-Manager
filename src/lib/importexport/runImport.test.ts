@@ -177,6 +177,16 @@ describe("runImport (clientes, SQLite real)", () => {
     expect(preview.valid[0].value).toMatchObject({ name: "Ok", email: "a@b.com" });
     expect(preview.errors.map((error) => error.field).sort()).toEqual(["email", "name"]);
   });
+
+  it("planilha grande com tudo errado devolve o relatório, sem estourar a pilha", async () => {
+    const { db, companyId, userId } = await setup();
+    const broken = Array.from({ length: 40_000 }, () => ({ "Razão social": "", "CNPJ/CPF": "123", "E-mail": "x", Telefone: "abc", Limite: "abc" }));
+    const result = await runImport("customers", MAPPING, broken, { db, companyId, userId, mode: "skip-errors", dryRun: true });
+    expect(result).toMatchObject({ ok: 0, total: 40_000, rowsWithErrors: 40_000 });
+    expect(result.errors.length).toBeGreaterThanOrEqual(160_000);
+    const [batch] = await batches(db);
+    expect(JSON.parse(String(batch.errors_json))).toHaveLength(1000);
+  });
 });
 
 describe("suggestMapping", () => {

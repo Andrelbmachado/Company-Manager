@@ -180,7 +180,8 @@ export async function runImport<T>(
     errors.push({ row: 0, field: "", message: "A planilha não tem linhas para importar." });
   } else {
     const validation = await validateRows(entity, mapping, rows, options.rowNumbers, (done) => options.onProgress?.({ phase: "validando", done, total }));
-    errors.push(...validation.errors);
+    // Sem push(...lista): com centenas de milhares de erros, espalhar os argumentos estoura a pilha.
+    for (const error of validation.errors) errors.push(error);
     let valid = validation.valid;
 
     if (entity.check && valid.length) {

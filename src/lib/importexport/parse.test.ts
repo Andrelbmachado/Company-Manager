@@ -132,4 +132,10 @@ describe("parseFile: limites", () => {
     expect(error.message).toMatch(/20/);
     await expect(parseFile(csvFile(content), { maxRows: 30 })).resolves.toBeTruthy();
   });
+
+  it("arquivo enorme (200 mil linhas) dá o aviso do limite, não erro de pilha", async () => {
+    const content = `a;b\n${Array.from({ length: 200_000 }, (_, index) => `${index};x`).join("\n")}`;
+    const error = await parseError(csvFile(content));
+    expect(error.message).toMatch(/100\.000 linhas/);
+  });
 });

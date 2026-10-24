@@ -54,7 +54,7 @@ export function FileAttachments({ entityType, entityId, canEdit = false, classNa
     staleTime: 5 * 60_000,
   });
 
-  const drop = useFileDrop((files) => uploads.upload(files, { entityType, entityId }), { disabled: !canEdit || uploads.busy });
+  const drop = useFileDrop((files) => uploads.upload(files, { entityType, entityId }), { disabled: !canEdit || uploads.busy || Boolean(preview) });
 
   const remove = useMutation({
     mutationFn: (doc: DocumentRow) => deleteFile(doc, { userId: session.user.id }),

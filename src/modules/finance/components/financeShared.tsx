@@ -174,7 +174,7 @@ export const errorMessage = (error: unknown) => (error instanceof Error ? error.
  * Botão de ação irreversível em dois passos (sem window.confirm): o primeiro clique troca o botão por
  * "Confirmar …" e "Voltar".
  */
-export function ConfirmButton({ label, confirmLabel, onConfirm, icon, disabled, busy, tone = "danger" }: {
+export function ConfirmButton({ label, confirmLabel, onConfirm, icon, disabled, busy, tone = "danger", ariaLabel }: {
   label: string;
   confirmLabel: string;
   onConfirm: () => void;
@@ -182,12 +182,15 @@ export function ConfirmButton({ label, confirmLabel, onConfirm, icon, disabled, 
   disabled?: boolean;
   busy?: boolean;
   tone?: "danger" | "neutral";
+  /** Nome acessível do primeiro botão quando ele só tem ícone. */
+  ariaLabel?: string;
 }) {
   const [armed, setArmed] = useState(false);
   if (!armed) {
     return (
-      <button type="button" disabled={disabled || busy} onClick={() => setArmed(true)} className={tone === "danger" ? dangerButton : secondaryButton}>
-        {icon} {label}
+      <button type="button" disabled={disabled || busy} onClick={() => setArmed(true)} aria-label={ariaLabel} title={ariaLabel} className={cn(tone === "danger" ? dangerButton : secondaryButton, !label && "px-2")}>
+        {icon}
+        {label && ` ${label}`}
       </button>
     );
   }

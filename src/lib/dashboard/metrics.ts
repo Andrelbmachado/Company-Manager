@@ -213,11 +213,49 @@ const SEES_TEAM: ReadonlySet<Role> = new Set<Role>(["ceo", "admin", "gerente"]);
  */
 const ACTIVITY_MODULE_RESOURCE: Readonly<Record<string, Resource>> = { hr: "hr_admin", settings: "users" };
 
-/** Evento só de módulo que o papel vê (o auditor não vê folha nem gestão de RH); sem módulo, só CEO e admin. */
-function seesActivity(role: Role, modules: ReadonlySet<string>, module: string | null | undefined): boolean {
-  if (!module) return role === "ceo" || role === "admin";
-  const resource = ACTIVITY_MODULE_RESOURCE[module];
-  return resource ? can(role, "view", resource) : modules.has(module);
+/**
+ * Tipo de registro → recurso que libera vê-lo. Evento de um módulo que o papel abre pode ser sobre registro de
+ * outra área (anexo de colaborador, de conta a pagar ou de cliente fica no módulo Documentos): só aparece para
+ * quem vê o registro. Tipo fora daqui (documento de pasta, tarefa, produto) segue só a regra do módulo.
+ */
+const ENTITY_RESOURCE: Readonly<Record<string, Resource>> = {
+  bank_transaction: "bank",
+  contact: "customers",
+  crm_activity: "crm_activities",
+  custody: "custody",
+  customer: "customers",
+  employee: "hr_admin",
+  employee_compensation: "payroll",
+  hr_request: "hr_admin",
+  hr_task: "hr_admin",
+  hr_time_entry: "hr_admin",
+  inventory_count: "inventory",
+  inventory_item: "inventory",
+  invoice: "invoices",
+  lead: "leads",
+  opportunity: "opportunities",
+  payable: "payables",
+  project: "projects",
+  proposal: "proposals",
+  purchase_order: "purchase_orders",
+  receivable: "receivables",
+  sales_order: "sales_orders",
+  supplier: "suppliers",
+  ticket: "tickets",
+  user: "users",
+  work_order: "work_orders",
+};
+
+/**
+ * Evento só de módulo que o papel vê (o auditor não vê folha nem gestão de RH) e sobre registro que ele vê;
+ * sem módulo, só CEO e admin.
+ */
+function seesActivity(role: Role, modules: ReadonlySet<string>, activity: Pick<Activity, "module" | "entity_type">): boolean {
+  const entityResource = activity.entity_type ? ENTITY_RESOURCE[activity.entity_type] : undefined;
+  if (entityResource && !can(role, "view", entityResource)) return false;
+  if (!activity.module) return role === "ceo" || role === "admin";
+  const resource = ACTIVITY_MODULE_RESOURCE[activity.module];
+  return resource ? can(role, "view", resource) : modules.has(activity.module);
 }
 
 /** Tipo de registro da trilha e dos eventos em pt-BR; desconhecido vira o código com espaços. */
@@ -511,7 +549,7 @@ export const METRIC_LOADERS: Readonly<Record<string, Loader>> = {
     const events = [
       ...logs.map((log) => ({ id: `audit:${log.id}`, title: actionLabel(log.action), detail: entityLabel(log.entity_type), at: log.created_at, source: "Auditoria" })),
       ...activities
-        .filter((activity) => seesActivity(ctx.role, modules, activity.module))
+        .filter((activity) => seesActivity(ctx.role, modules, activity))
         .map((activity) => ({ id: `activity:${activity.id}`, title: activity.title?.trim() || actionLabel(activity.action), detail: entityLabel(activity.entity_type), at: activity.created_at, source: "Evento" })),
     ].sort((a, b) => sortKey(b.at) - sortKey(a.at));
     const today = events.filter((event) => localDay(event.at) === ctx.today).length;

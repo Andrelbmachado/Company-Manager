@@ -301,6 +301,22 @@ describe("operações, TI e auditoria", () => {
     expect(await ids("ceo")).toEqual(["activity:hr1", "activity:hr2", "activity:st1", "activity:tk1"]);
   });
 
+  it("últimas ações: evento de módulo que o papel abre, mas sobre registro de outra área, fica de fora (anexos em Documentos)", async () => {
+    // O envio de anexo grava o evento no módulo Documentos com o tipo do registro dono (colaborador, conta, cliente...).
+    const upload = (id: string, entity_type: string, title: string, hours: number) =>
+      put("activities", { id, company_id: C, entity_type, entity_id: `${id}-dono`, action: "document.uploaded", title, module: "documents", created_at: at(hours) });
+    await upload("hr", "employee", "Arquivo enviado: Atestado médico - Caio.pdf", -1);
+    await upload("pay", "payable", "Arquivo enviado: Boleto do aluguel.pdf", -2);
+    await upload("cli", "customer", "Arquivo enviado: Contrato Padaria Central.pdf", -3);
+    await upload("doc", "document", "Arquivo enviado: Manual da impressora.pdf", -4);
+    await upload("tk", "ticket", "Arquivo enviado: print do erro.png", -5);
+    const ids = async (role: Role) => (await metric("audit.recent", role)).items?.map((item) => item.id);
+    // TI não vê RH, financeiro nem CRM; Auditoria vê o financeiro, mas não o RH nem clientes.
+    expect(await ids("tecnico")).toEqual(["activity:doc", "activity:tk"]);
+    expect(await ids("auditor")).toEqual(["activity:pay", "activity:doc", "activity:tk"]);
+    expect(await ids("ceo")).toEqual(["activity:hr", "activity:pay", "activity:cli", "activity:doc", "activity:tk"]);
+  });
+
   it("últimas ações em pt-BR: tipo do registro e ação da trilha traduzidos (código cru só se for desconhecido)", async () => {
     await put("audit_logs", { id: "al1", company_id: C, entity_type: "payable", action: "payable.approved", created_at: at(-1) });
     await put("audit_logs", { id: "al2", company_id: C, entity_type: "algo_novo", action: "algo_novo.reprocessed", created_at: at(-2) });

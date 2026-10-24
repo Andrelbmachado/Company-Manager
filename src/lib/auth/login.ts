@@ -81,7 +81,8 @@ export function sessionAfterPasswordChange(session: Session): Session {
 export async function revalidateSession(session: Session): Promise<Session | null> {
   const db = await getDb();
   const [membership] = await db.select<Membership[]>("SELECT * FROM memberships WHERE id = ? AND deleted_at IS NULL LIMIT 1", [session.membership.id]);
-  if (!membership) return null;
+  // O vínculo tem de ser da própria conta e da empresa da sessão: uma sessão alterada à mão não herda o papel de outra pessoa.
+  if (!membership || membership.user_id !== session.user.id || membership.company_id !== session.company.id) return null;
   const [user] = await db.select<UserRow[]>("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1", [session.user.id]);
   if (!user || user.status === "suspended") return null;
   const mustChange = Number(user.must_change_password ?? 0);

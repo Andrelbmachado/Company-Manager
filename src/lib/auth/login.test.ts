@@ -5,6 +5,7 @@ import { verifyPassword } from "./hash";
 import { login, mustChangePassword, revalidateSession } from "./login";
 import { changePassword, resetUserPassword, setPasswordChangeRequired } from "./password";
 import { getSession } from "./session";
+import type { Membership } from "@/types";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
 
@@ -117,6 +118,26 @@ describe("revalidateSession", () => {
     await db.execute("UPDATE memberships SET role = 'auditor' WHERE user_id = ?", ["test-user-produtos"]);
     expect((await revalidateSession(session))?.membership.role).toBe("auditor");
     await db.execute("UPDATE users SET deleted_at = datetime('now') WHERE id = ?", ["test-user-produtos"]);
+    await expect(revalidateSession(session)).resolves.toBeNull();
+  });
+
+  it("vínculo removido, conta suspensa e vínculo de outra pessoa ou empresa encerram a sessão", async () => {
+    const db = testDb();
+    await insertTestCompany(db, { roles: ["ceo", "comercial"] });
+    await insertTestCompany(db, { companyId: "outra-empresa", roles: [] });
+    const session = await login("comercial@teste.local", "teste");
+
+    // sessionStorage alterado à mão: o vínculo (e o papel) do CEO na sessão do Comercial não pode valer.
+    const [ceoMembership] = await db.select<Membership[]>("SELECT * FROM memberships WHERE user_id = ?", ["test-user-ceo"]);
+    await expect(revalidateSession({ ...session, membership: ceoMembership })).resolves.toBeNull();
+    await expect(revalidateSession({ ...session, company: { ...session.company, id: "outra-empresa" } })).resolves.toBeNull();
+
+    await db.execute("UPDATE users SET status = 'suspended' WHERE id = ?", ["test-user-comercial"]);
+    await expect(revalidateSession(session)).resolves.toBeNull();
+    await db.execute("UPDATE users SET status = 'active' WHERE id = ?", ["test-user-comercial"]);
+    await expect(revalidateSession(session)).resolves.toBe(session);
+
+    await db.execute("UPDATE memberships SET deleted_at = datetime('now') WHERE user_id = ?", ["test-user-comercial"]);
     await expect(revalidateSession(session)).resolves.toBeNull();
   });
 });

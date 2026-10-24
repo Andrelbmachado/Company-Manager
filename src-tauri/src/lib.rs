@@ -5,6 +5,13 @@ fn greet(name: &str) -> String {
     format!("Olá, {}! Company Manager iniciado.", name)
 }
 
+/// Reinicia o app. Usado depois de restaurar um backup: o banco precisa ser reaberto do zero
+/// (no front-end: `invoke("restart_app")`, de `@tauri-apps/api/core`).
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 pub fn run() {
     let migrations = vec![
         Migration {
@@ -49,6 +56,18 @@ pub fn run() {
             sql: include_str!("../migrations/0007_payroll.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "crm_erp_core",
+            sql: include_str!("../migrations/0008_crm_erp_core.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "documents_files",
+            sql: include_str!("../migrations/0009_documents_files.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -60,7 +79,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, restart_app])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

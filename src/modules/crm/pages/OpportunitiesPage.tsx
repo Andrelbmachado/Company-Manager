@@ -1,68 +1,168 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { v4 as uuidv4 } from "uuid";
-import { getDb } from "@/lib/db/client";
-import { usePermission } from "@/hooks/usePermission";
-import { useRequiredSession } from "@/hooks/useSession";
-import { CrudDialog } from "@/components/shared/CrudDialog";
-import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
+import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Kanban, Plus, Target } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PageToolbar } from "@/components/shared/PageToolbar";
+import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, Target } from "lucide-react";
-import type { Opportunity } from "@/types";
+import { fold, isStage, OPPORTUNITY_STAGES, pipelineSummary, STAGE_LABELS } from "@/lib/crm/queries";
+import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
+import type { SavedView } from "@/types";
+import { OpportunityDrawer } from "../components/OpportunityDrawer";
+import { OpportunityFormDialog } from "../components/OpportunityFormDialog";
+import { SavedViewsBar } from "../components/SavedViewsBar";
+import { BTN_PRIMARY, BTN_SECONDARY, CARD, LINK, SELECT, TD, TH } from "../components/ui";
+import { useCompanyUsers, useCrmSession, useCustomerMap, useInvalidateCrm, useOpportunities } from "../components/useCrm";
 
-const STAGES = ["novo", "qualificacao", "proposta", "negociacao", "ganho", "perdido"] as const;
-const EMPTY = { title: "", value: "0", stage: "novo", probability: "20", expected_close_date: "" };
+interface OpportunityFilters {
+  search?: string;
+  stage?: string;
+  status?: string;
+  ownerId?: string;
+}
 
+const MANAGERS = new Set(["ceo", "admin", "gerente"]);
+
+function parseFilters(view: SavedView | null): OpportunityFilters {
+  if (!view) return {};
+  try {
+    const parsed = JSON.parse(view.filters_json || "{}") as Record<string, unknown>;
+    const pick = (key: string) => (typeof parsed[key] === "string" && parsed[key] ? (parsed[key] as string) : undefined);
+    // "owner" é a chave antiga dos filtros de exemplo; "ownerId" a atual.
+    return { search: pick("search"), stage: pick("stage"), status: pick("status"), ownerId: pick("ownerId") ?? pick("owner") };
+  } catch {
+    return {};
+  }
+}
+
+/** Lista de oportunidades (todas as etapas), com filtros salvos e importação/exportação. O quadro fica em /crm/funil. */
 export default function OpportunitiesPage() {
-  const session = useRequiredSession();
-  const qc = useQueryClient();
-  const canCreate = usePermission("create", "opportunities");
-  const canEdit = usePermission("edit", "opportunities");
-  const [selected, setSelected] = useState<Opportunity | null>(null);
-  const [form, setForm] = useState<Record<string, string>>(EMPTY);
-  const [dialog, setDialog] = useState<"create" | "edit" | null>(null);
+  const { userId, role, can } = useCrmSession();
+  const invalidate = useInvalidateCrm();
+  const [params, setParams] = useSearchParams();
+  const { data: opportunities = [], isLoading } = useOpportunities();
+  const { map: customers } = useCustomerMap();
+  const { data: users = [], names } = useCompanyUsers();
+  const [filters, setFilters] = useState<OpportunityFilters>({ status: "open" });
+  const [creating, setCreating] = useState(false);
+  const selected = params.get("oportunidade");
+  const today = todayIso();
+  const set = (patch: Partial<OpportunityFilters>) => setFilters((current) => ({ ...current, ...patch }));
 
-  const { data: opportunities = [], isLoading } = useQuery({
-    queryKey: ["opportunities", session.company.id],
-    queryFn: async () => (await getDb()).select<Opportunity[]>("SELECT * FROM opportunities WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC", [session.company.id]),
-  });
+  const filtered = useMemo(() => {
+    const term = fold(filters.search?.trim());
+    const owner = filters.ownerId === "me" ? userId : filters.ownerId;
+    return opportunities.filter((opp) => {
+      if (filters.status && opp.status !== filters.status) return false;
+      if (filters.stage && isStage(filters.stage) && opp.stage !== filters.stage) return false;
+      if (owner === "none" ? !!opp.owner_id : owner && opp.owner_id !== owner) return false;
+      if (!term) return true;
+      const customer = opp.customer_id ? customers.get(opp.customer_id)?.name : null;
+      return [opp.title, customer, opp.source, opp.notes].some((field) => fold(field).includes(term));
+    });
+  }, [opportunities, customers, filters, userId]);
+  const summary = useMemo(() => pipelineSummary(filtered), [filtered]);
+  const totalValue = filtered.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0);
+  const weighted = OPPORTUNITY_STAGES.reduce((sum, stage) => sum + summary.byStage[stage].weighted, 0);
+  const hasFilters = Object.values(filters).some(Boolean);
+  const open = (id: string | null) =>
+    setParams((current) => {
+      const copy = new URLSearchParams(current);
+      if (id) copy.set("oportunidade", id);
+      else copy.delete("oportunidade");
+      return copy;
+    });
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const db = await getDb();
-      const status = form.stage === "ganho" ? "won" : form.stage === "perdido" ? "lost" : "open";
-      if (dialog === "edit" && selected) {
-        await db.execute("UPDATE opportunities SET title=?, value=?, stage=?, probability=?, expected_close_date=?, status=?, updated_at=datetime('now') WHERE id=?", [form.title, Number(form.value), form.stage, Number(form.probability), form.expected_close_date || null, status, selected.id]);
-      } else {
-        await db.execute("INSERT INTO opportunities (id, company_id, title, value, stage, probability, expected_close_date, status) VALUES (?,?,?,?,?,?,?,?)", [uuidv4(), session.company.id, form.title, Number(form.value), form.stage, Number(form.probability), form.expected_close_date || null, status]);
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["opportunities", session.company.id] });
-      setSelected((item) => dialog === "edit" && item ? { ...item, ...form, value: Number(form.value), probability: Number(form.probability), stage: form.stage as Opportunity["stage"] } : item);
-      setDialog(null);
-      setForm(EMPTY);
-    },
-  });
-
-  const byStage = Object.fromEntries(STAGES.map((stage) => [stage, opportunities.filter((item) => item.stage === stage)]));
   return (
     <div className="space-y-6">
-      <PageHeader title="Oportunidades" description="Funil de vendas" actions={canCreate ? <button onClick={() => { setForm(EMPTY); setDialog("create"); }} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus size={14} /> Nova oportunidade</button> : undefined} />
-      {isLoading ? <div className="h-48 animate-pulse rounded-xl bg-muted/30" /> : opportunities.length === 0 ? <EmptyState icon={Target} title="Nenhuma oportunidade" /> : (
-        <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-3 lg:grid-cols-6">
-          {STAGES.map((stage) => <div key={stage} className="space-y-2 rounded-xl border bg-card p-3">
-            <div className="flex items-center justify-between"><StatusBadge status={stage} /><span className="text-xs text-muted-foreground">{byStage[stage].length}</span></div>
-            <p className="text-xs font-medium text-muted-foreground">{formatCurrency(byStage[stage].reduce((sum, item) => sum + item.value, 0))}</p>
-            {byStage[stage].map((item) => <button key={item.id} onClick={() => setSelected(item)} className="w-full rounded-lg border bg-background p-2 text-left text-xs hover:bg-muted/40"><p className="truncate font-medium">{item.title}</p><p className="mt-1 text-muted-foreground">{formatCurrency(item.value)}</p></button>)}
-          </div>)}
+      <PageHeader
+        title="Oportunidades"
+        description="Todas as oportunidades, abertas e fechadas"
+        actions={
+          <>
+            <Link to="/crm/funil" className={BTN_SECONDARY}><Kanban size={14} /> Funil</Link>
+            <ImportExportButtons entity="opportunities" onImported={() => invalidate("opportunities")} />
+            {can("create", "opportunities") && <button type="button" onClick={() => setCreating(true)} className={BTN_PRIMARY}><Plus size={14} /> Nova oportunidade</button>}
+          </>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard title="Oportunidades" value={filtered.length} hint="com os filtros atuais" />
+        <StatCard title="Valor total" value={formatCurrency(totalValue)} kind="text" />
+        <StatCard title="Valor ponderado" value={formatCurrency(weighted)} kind="text" hint="valor × probabilidade" />
+      </div>
+
+      <PageToolbar search={filters.search ?? ""} onSearchChange={(search) => set({ search })} searchPlaceholder="Buscar por título, cliente, origem...">
+        <select value={filters.status ?? ""} onChange={(event) => set({ status: event.target.value || undefined })} aria-label="Filtrar por situação" className={SELECT}>
+          <option value="">Abertas e fechadas</option>
+          <option value="open">Abertas</option>
+          <option value="won">Ganhas</option>
+          <option value="lost">Perdidas</option>
+        </select>
+        <select value={filters.stage ?? ""} onChange={(event) => set({ stage: event.target.value || undefined })} aria-label="Filtrar por etapa" className={SELECT}>
+          <option value="">Todas as etapas</option>
+          {OPPORTUNITY_STAGES.map((stage) => <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}
+        </select>
+        <select value={filters.ownerId ?? ""} onChange={(event) => set({ ownerId: event.target.value || undefined })} aria-label="Filtrar por responsável" className={SELECT}>
+          <option value="">Todos os responsáveis</option>
+          <option value="me">Minhas</option>
+          <option value="none">Sem responsável</option>
+          {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+        </select>
+      </PageToolbar>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SavedViewsBar entityType="opportunity" current={filters} hasFilters={hasFilters} canShare={MANAGERS.has(role)} onApply={(view) => setFilters(parseFilters(view))} />
+        {hasFilters && <button type="button" onClick={() => setFilters({})} className="text-sm text-muted-foreground hover:text-foreground">Limpar filtros</button>}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-lg bg-muted/30" />)}</div>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={Target} title={opportunities.length ? "Nenhuma oportunidade com esses filtros" : "Nenhuma oportunidade"} description={opportunities.length ? "Ajuste os filtros." : "Crie uma oportunidade ou converta um lead da prospecção."} />
+      ) : (
+        <div className={cn(CARD, "overflow-x-auto")}>
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30">
+              <tr>
+                <th className={TH}>Oportunidade</th>
+                <th className={TH}>Cliente</th>
+                <th className={TH}>Etapa</th>
+                <th className={cn(TH, "text-right")}>Valor</th>
+                <th className={cn(TH, "text-right")}>Prob.</th>
+                <th className={TH}>Fechamento</th>
+                <th className={TH}>Responsável</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.map((opp) => {
+                const customer = opp.customer_id ? customers.get(opp.customer_id) : null;
+                const late = opp.status === "open" && opp.expected_close_date && opp.expected_close_date.slice(0, 10) < today;
+                return (
+                  <tr key={opp.id} onClick={() => open(opp.id)} className="cursor-pointer hover:bg-muted/20">
+                    <td className={TD}>
+                      <button type="button" className={LINK} onClick={(event) => { event.stopPropagation(); open(opp.id); }}>{opp.title}</button>
+                    </td>
+                    <td className={TD}>{customer ? <Link to={`/crm/clientes/${customer.id}`} onClick={(event) => event.stopPropagation()} className={LINK}>{customer.name}</Link> : <span className="text-muted-foreground">—</span>}</td>
+                    <td className={TD}><StatusBadge status={opp.stage} /></td>
+                    <td className={cn(TD, "text-right tabular-nums")}>{formatCurrency(Number(opp.value ?? 0))}</td>
+                    <td className={cn(TD, "text-right tabular-nums")}>{opp.probability}%</td>
+                    <td className={cn(TD, "whitespace-nowrap", late ? "font-semibold text-destructive" : "text-muted-foreground")}>
+                      {opp.status === "open" ? formatDay(opp.expected_close_date) : formatDay(opp.closed_at)}
+                    </td>
+                    <td className={cn(TD, "text-muted-foreground")}>{opp.owner_id ? names.get(opp.owner_id) ?? "—" : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-      {selected && <DetailDrawer title={selected.title} subtitle="Oportunidade" onClose={() => setSelected(null)} onEdit={canEdit ? () => { setForm({ title: selected.title, value: String(selected.value), stage: selected.stage, probability: String(selected.probability), expected_close_date: selected.expected_close_date?.slice(0, 10) ?? "" }); setDialog("edit"); } : undefined}><DetailGrid><DetailItem label="Etapa" value={<StatusBadge status={selected.stage} />} /><DetailItem label="Valor" value={formatCurrency(selected.value)} /><DetailItem label="Probabilidade" value={`${selected.probability}%`} /><DetailItem label="Fechamento previsto" value={formatDate(selected.expected_close_date)} /></DetailGrid></DetailDrawer>}
-      {dialog && <CrudDialog title={dialog === "edit" ? "Editar oportunidade" : "Nova oportunidade"} fields={[{ key: "title", label: "Titulo", required: true }, { key: "value", label: "Valor", type: "number" }, { key: "stage", label: "Etapa", type: "select", options: STAGES.map((stage) => ({ value: stage, label: stage })) }, { key: "probability", label: "Probabilidade (%)", type: "number" }, { key: "expected_close_date", label: "Fechamento previsto", type: "date" }]} values={form} onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} onClose={() => setDialog(null)} onSubmit={() => saveMutation.mutate()} busy={saveMutation.isPending} />}
+
+      {selected && <OpportunityDrawer opportunityId={selected} onClose={() => open(null)} />}
+      {creating && <OpportunityFormDialog onClose={() => setCreating(false)} onSaved={(id) => open(id)} />}
     </div>
   );
 }

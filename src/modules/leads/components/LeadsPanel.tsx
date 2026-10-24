@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, Megaphone } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MessageCircle, Megaphone, Target } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
@@ -11,6 +12,8 @@ import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/utils";
 import { referralStatusFor } from "@/lib/prospecting/referral";
+import { convertLeadToOpportunity } from "@/lib/crm/convert";
+import { fetchOpportunities } from "@/lib/crm/queries";
 import { ReferralBox } from "./ReferralBox";
 import {
   LEAD_STATUSES,
@@ -25,6 +28,9 @@ import {
 import type { Lead, LeadStatus, ServicePackage } from "@/types";
 
 const selectClass = "h-9 rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring";
+
+/** Status fora do funil de prospecção (convertido pelo CRM, legados) ainda aparecem no seletor com o nome certo. */
+const OTHER_STATUS_LABELS: Record<string, string> = { convertido: "Convertido", qualificado: "Qualificado", descartado: "Descartado" };
 
 /** "fechado" é cinza para tickets no StatusBadge; para leads é ganho, então vai em verde. */
 export function LeadStatusBadge({ status }: { status: string }) {
@@ -41,6 +47,15 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
   const session = useRequiredSession();
   const qc = useQueryClient();
   const canEdit = usePermission("edit", "leads");
+  const canCreateOpportunity = usePermission("create", "opportunities");
+  const navigate = useNavigate();
+  // Mesma consulta (e chave) da lista de oportunidades do CRM: diz se o lead já virou oportunidade.
+  const { data: opportunities = [] } = useQuery({
+    queryKey: ["opportunities", session.company.id],
+    queryFn: async () => fetchOpportunities(await getDb(), session.company.id),
+    enabled: canEdit && canCreateOpportunity,
+  });
+  const opportunityOf = (lead: Lead) => opportunities.find((opp) => opp.lead_id === lead.id) ?? null;
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
@@ -88,6 +103,31 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
     },
   });
 
+  // Lead → oportunidade (etapa Qualificação) no funil do CRM; converter de novo abre a mesma oportunidade.
+  const convertMutation = useMutation({
+    mutationFn: async (lead: Lead) => {
+      const db = await getDb();
+      const { opportunityId } = await convertLeadToOpportunity(db, lead.id, session.user.id);
+      await emit({
+        type: "lead.converted",
+        companyId: session.company.id,
+        actorId: session.user.id,
+        entityType: "lead",
+        entityId: lead.id,
+        title: `Lead ${lead.name} convertido em oportunidade`,
+        module: "leads",
+        newValue: { opportunityId },
+      });
+      return opportunityId;
+    },
+    onSuccess: (opportunityId) => {
+      qc.invalidateQueries({ queryKey: ["leads", session.company.id] });
+      qc.invalidateQueries({ queryKey: ["opportunities", session.company.id] });
+      qc.invalidateQueries({ queryKey: ["crm-activities", session.company.id] });
+      navigate(`/crm/funil?oportunidade=${encodeURIComponent(opportunityId)}`);
+    },
+  });
+
   // Função (não componente) para o <select> não remontar a cada render.
   function statusControl(lead: Lead) {
     if (!canEdit) return <LeadStatusBadge status={lead.status} />;
@@ -100,7 +140,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         className={selectClass}
       >
         {LEAD_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        {!LEAD_STATUSES.some((option) => option.value === lead.status) && <option value={lead.status}>{lead.status}</option>}
+        {!LEAD_STATUSES.some((option) => option.value === lead.status) && <option value={lead.status}>{OTHER_STATUS_LABELS[lead.status] ?? lead.status}</option>}
       </select>
     );
   }
@@ -208,6 +248,29 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
               <DetailItem label="Mensalidade (estimativa)" value={formatMoney(selected.estimated_monthly)} />
             </DetailGrid>
             <DetailItem label="Observações" value={selected.notes} />
+            {canEdit && canCreateOpportunity && (
+              <div className="space-y-1.5 rounded-lg border p-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const existing = opportunityOf(selected);
+                    if (existing) navigate(`/crm/funil?oportunidade=${encodeURIComponent(existing.id)}`);
+                    else convertMutation.mutate(selected);
+                  }}
+                  disabled={convertMutation.isPending}
+                  className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <Target size={14} />
+                  {opportunityOf(selected) ? "Abrir oportunidade no funil" : "Converter em oportunidade"}
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  {opportunityOf(selected)
+                    ? "Este lead já está no funil de vendas do CRM."
+                    : "Cria a oportunidade no funil de vendas (etapa Qualificação) com o potencial estimado. O cliente é cadastrado quando o negócio for ganho."}
+                </p>
+                {convertMutation.error && <p role="alert" className="text-sm text-destructive">{convertMutation.error instanceof Error ? convertMutation.error.message : String(convertMutation.error)}</p>}
+              </div>
+            )}
             <ReferralBox
               key={selected.id}
               lead={selected}

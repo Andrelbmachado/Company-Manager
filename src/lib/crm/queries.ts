@@ -118,6 +118,19 @@ export async function fetchProducts(db: DatabaseLike, companyId: string): Promis
   return rows.filter((row) => Number(row.active) !== 0);
 }
 
+export interface PriceListRow {
+  id: string;
+  name: string;
+  is_default: number;
+  active: number;
+}
+
+/** Tabelas de preço ativas (o cliente pode ter uma; os itens da proposta usam o preço dela). */
+export async function fetchPriceLists(db: DatabaseLike, companyId: string): Promise<PriceListRow[]> {
+  const rows = await db.select<(PriceListRow & { deleted_at?: string | null })[]>("SELECT * FROM price_lists WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [companyId]);
+  return sortByName(rows.filter((row) => !row.deleted_at && Number(row.active) !== 0));
+}
+
 export interface PriceListItemRow {
   product_id: string;
   price: number;
@@ -342,6 +355,12 @@ export async function saveOpportunity(db: DatabaseLike, companyId: string, userI
     [newId, companyId, ...values, "open"],
   );
   return newId;
+}
+
+/** Exclui a oportunidade (soft delete). Propostas, atividades e pedidos ligados ficam como estão. */
+export async function deleteOpportunity(db: DatabaseLike, companyId: string, id: string): Promise<void> {
+  const now = nowIso();
+  await db.execute("UPDATE opportunities SET deleted_at=?, updated_at=? WHERE company_id=? AND id=?", [now, now, companyId, id]);
 }
 
 export interface StageTotals {

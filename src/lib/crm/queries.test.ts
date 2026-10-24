@@ -4,10 +4,12 @@ import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import {
   customerFinance,
   deleteContact,
+  deleteOpportunity,
   fetchCompanyUsers,
   fetchContacts,
   fetchCustomers,
   fetchOpportunities,
+  fetchPriceLists,
   pipelineSummary,
   saveContact,
   saveCustomer,
@@ -84,6 +86,25 @@ describe("oportunidades e funil", () => {
     expect(summary.byStage.ganho).toEqual({ count: 1, total: 5000, weighted: 5000 });
     expect(summary.open).toEqual({ count: 3, total: 3333.33, weighted: 1133.33 });
     expect(summary.winRate).toBe(0.5);
+  });
+});
+
+describe("exclusão de oportunidade e tabelas de preço", () => {
+  it("excluir a oportunidade é soft delete e some da lista", async () => {
+    const { db, companyId, seller } = await setup();
+    const id = await saveOpportunity(db, companyId, seller, { title: "Site novo", value: "1.500" });
+    await deleteOpportunity(db, companyId, id);
+    expect(await fetchOpportunities(db, companyId)).toEqual([]);
+    const [row] = await db.select<Row[]>("SELECT * FROM opportunities WHERE id=?", [id]);
+    expect(row.deleted_at).toBeTruthy();
+  });
+
+  it("lista só as tabelas de preço ativas, por nome", async () => {
+    const { db, companyId } = await setup();
+    await db.execute("INSERT INTO price_lists (id, company_id, name, active) VALUES (?,?,?,?)", ["pl-b", companyId, "Varejo", 1]);
+    await db.execute("INSERT INTO price_lists (id, company_id, name, active) VALUES (?,?,?,?)", ["pl-a", companyId, "Atacado", 1]);
+    await db.execute("INSERT INTO price_lists (id, company_id, name, active) VALUES (?,?,?,?)", ["pl-c", companyId, "Antiga", 0]);
+    expect((await fetchPriceLists(db, companyId)).map((list) => list.id)).toEqual(["pl-a", "pl-b"]);
   });
 });
 

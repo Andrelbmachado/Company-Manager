@@ -48,6 +48,13 @@ export class FileStoreError extends Error {
   }
 }
 
+/** Mensagem para a tela a partir de qualquer erro do armazenamento. */
+export function describeFileError(error: unknown): string {
+  if (error instanceof FileStoreError) return error.message;
+  const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return detail ? `Não foi possível concluir: ${detail}` : "Não foi possível concluir a operação com o arquivo.";
+}
+
 // ── Armazenamento ─────────────────────────────────────────────────
 
 let backendOverride: FileBackend | null = null;
@@ -64,8 +71,8 @@ export function getFileBackend(): FileBackend {
 // ── Nomes e pastas ────────────────────────────────────────────────
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/g;
-// Marcas de direção do texto disfarçam extensão ("fatura‮fdp.exe" aparece como "fatura exe.pdf").
-const BIDI_CHARS = /[‎‏‪-‮⁦-⁩]/g;
+// Marcas de direção do texto disfarçam extensão ("fatura\u202Efdp.exe" aparece na tela como "faturaexe.pdf").
+const BIDI_CHARS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const FORBIDDEN_CHARS = /[<>:"|?*]/g;
 const RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 

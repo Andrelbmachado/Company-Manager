@@ -73,6 +73,7 @@ describe("sanitizeFileName", () => {
   it("troca caracteres proibidos, tira controle e pontos/espaços das pontas", () => {
     expect(sanitizeFileName('a<b>:c|d?"e*.pdf')).toBe("a_b__c_d__e_.pdf");
     expect(sanitizeFileName("nota\u0000\u001f fiscal.pdf")).toBe("nota fiscal.pdf");
+    expect(sanitizeFileName("fatura\u202Efdp.exe")).toBe("faturafdp.exe");
     expect(sanitizeFileName("  .env ")).toBe("env");
     expect(sanitizeFileName("relatório   final .pdf.")).toBe("relatório final .pdf");
   });

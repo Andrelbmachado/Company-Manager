@@ -92,3 +92,25 @@ export function previewMime(kind: PreviewKind, doc: { title?: string | null }): 
   if (kind === "image") return MIME_BY_EXTENSION[fileExtension(doc.title)] ?? "image/png";
   return "text/plain";
 }
+
+/**
+ * Data e hora no fuso local ("24/10/2026 14:03"). Aceita ISO com fuso e o `datetime('now')` do SQLite
+ * ("2026-10-24 17:03:00", que é UTC sem marca de fuso).
+ */
+export function formatTimestamp(value: string | null | undefined): string {
+  if (!value) return "—";
+  const iso = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value.replace(" ", "T")}Z`;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
+/** Texto de um arquivo: UTF-8 (com ou sem BOM); se não for UTF-8 válido, Windows-1252 (CSV antigo do Excel). */
+export function decodeText(bytes: Uint8Array): string {
+  try {
+    // O TextDecoder já descarta o BOM do começo.
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}

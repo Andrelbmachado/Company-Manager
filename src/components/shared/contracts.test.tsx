@@ -14,9 +14,21 @@ describe("componentes compartilhados provisórios", () => {
     expect(html).toContain('data-entity="customers"');
   });
 
-  it("FileAttachments mostra o estado vazio de anexos", () => {
-    const html = renderToStaticMarkup(<FileAttachments entityType="customer" entityId="c-1" canEdit />);
-    expect(html).toContain("Anexos em breve");
+  it("FileAttachments mantém o contrato (entityType, entityId, canEdit, className) dentro da sessão", async () => {
+    // Comportamento completo em FileAttachments.test.tsx; aqui só a forma que as telas já usam.
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+    const { SessionContext } = await import("@/hooks/useSession");
+    const session = { user: { id: "u-1" }, membership: { role: "comercial" }, company: { id: "empresa-1" } } as unknown as import("@/types").Session;
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={new QueryClient()}>
+        <SessionContext.Provider value={{ session, setSession: () => undefined }}>
+          <FileAttachments entityType="customer" entityId="c-1" canEdit className="mt-4" />
+        </SessionContext.Provider>
+      </QueryClientProvider>,
+    );
+    expect(html).toContain("Anexos");
+    expect(html).toContain("Enviar arquivos");
+    expect(html).toContain('data-entity-type="customer"');
     expect(html).toContain('data-entity-id="c-1"');
   });
 });

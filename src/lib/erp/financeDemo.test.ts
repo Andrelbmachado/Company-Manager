@@ -8,6 +8,7 @@ import { accountBalances, cashflow } from "./cashflow";
 import { dre } from "./dre";
 import { categorizeTransaction, ignoreTransaction, matchTransaction, reconcile, suggestMatches, undoTransaction, addManualTransaction } from "./reconcile";
 import { runRecurring } from "./recurring";
+import { createEntries, deleteBankAccount, deleteCategory, deleteCostCenter, deleteRecurring, saveBankAccount, saveCategory, saveCostCenter, saveRecurring, setRecurringActive, updateEntry } from "./financeSetup";
 import { approvePayable, cancelEntry, deleteEntry, listSettlements, reverseSettlement, settleEntry } from "./settlements";
 import { parseOfx } from "./statement";
 
@@ -73,6 +74,33 @@ describe("financeiro no banco demo", () => {
     const days = await cashflow(db, C, "2026-10-01", "2026-10-31", { today: "2026-10-10" });
     expect(days[30].balance).toBe(1300);
     expect(await dre(db, C, "2026-10")).toMatchObject({ receita: 500, despesas: 200, resultado: 300 });
+  });
+
+  it("cadastros: contas com parcelas, conta bancária padrão, plano de contas, centro de custo e recorrência", async () => {
+    const db = createDemoDb();
+    const ids = await createEntries(db, C, "payable", { description: "Compra", amount: 100, dueDate: "2026-10-31", installments: 3 });
+    expect(ids).toHaveLength(3);
+    await updateEntry(db, C, "payable", ids[0], { description: "Compra revisada", amount: 40 });
+    const [first] = await db.select<Row[]>("SELECT * FROM payables WHERE company_id=? AND id=?", [C, ids[0]]);
+    expect(first).toMatchObject({ description: "Compra revisada", amount: 40, due_date: "2026-10-31", installment_count: 3 });
+
+    const a = await saveBankAccount(db, C, { name: "A", kind: "corrente" });
+    const b = await saveBankAccount(db, C, { name: "B", kind: "caixa", isDefault: true });
+    const accounts = await db.select<Row[]>("SELECT * FROM bank_accounts WHERE company_id=? AND deleted_at IS NULL", [C]);
+    expect(accounts.find((item) => item.id === a)).toMatchObject({ is_default: 0 });
+    expect(accounts.find((item) => item.id === b)).toMatchObject({ is_default: 1 });
+    await deleteBankAccount(db, C, a);
+
+    const parent = await saveCategory(db, C, { name: "Despesas", kind: "despesa", code: "4" });
+    const child = await saveCategory(db, C, { name: "Aluguel", kind: "despesa", code: "4.1", parentId: parent });
+    await expect(deleteCategory(db, C, parent)).rejects.toThrow(/subcategorias/);
+    await deleteCategory(db, C, child);
+    const costCenter = await saveCostCenter(db, C, { name: "TI" });
+    await deleteCostCenter(db, C, costCenter);
+    const recurring = await saveRecurring(db, C, { kind: "receber", description: "Contrato", amount: 99, frequency: "mensal", startDate: "2026-01-01" }, "demo-financeiro");
+    await setRecurringActive(db, C, recurring, false);
+    await deleteRecurring(db, C, recurring);
+    expect(await db.select<Row[]>("SELECT * FROM recurring_entries WHERE company_id=? AND deleted_at IS NULL", [C])).toEqual([]);
   });
 
   it("conciliação: importar, casar, sugerir, categorizar, ignorar, desfazer e não duplicar", async () => {

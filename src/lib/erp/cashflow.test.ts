@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import { addBankAccount, addBankTransaction, addCategory, addPayable, addReceivable, addSettlement } from "@/test/financeFixtures";
-import { accountBalances, cashEvents, cashflow } from "./cashflow";
+import { accountBalances, cashEvents, cashflow, groupCashflow } from "./cashflow";
 
 let db: TestDb;
 let companyId: string;
@@ -121,5 +121,20 @@ describe("cashEvents e accountBalances", () => {
       ["B", 500],
     ]);
     expect((await accountBalances(db, companyId, "2026-10-04")).find((item) => item.accountId === "A")?.balance).toBe(570);
+  });
+});
+
+describe("groupCashflow", () => {
+  it("agrupa por semana (segunda a domingo) e por mês, com o saldo do fim do período", async () => {
+    const days = await cashflow(db, companyId, "2026-10-01", "2026-11-10", { today: TODAY });
+    const weeks = groupCashflow(days, "week");
+    // 01/10/2026 é quinta: a primeira semana começa na segunda 28/09, mas o período mostrado começa em 01/10.
+    expect(weeks[0]).toMatchObject({ key: "2026-09-28", from: "2026-10-01", to: "2026-10-04", in: 0, out: 150, balance: 950 });
+    expect(weeks[1]).toMatchObject({ key: "2026-10-05", from: "2026-10-05", to: "2026-10-11", in: 1050, out: 102, balance: 1898 });
+    const months = groupCashflow(days, "month");
+    expect(months.map((month) => [month.key, month.in, month.out, month.balance])).toEqual([
+      ["2026-10-01", 1800, 452, 2448],
+      ["2026-11-01", 0, 80, 2368],
+    ]);
   });
 });

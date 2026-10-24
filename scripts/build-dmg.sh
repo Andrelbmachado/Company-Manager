@@ -10,6 +10,8 @@ set -euo pipefail
 APP_NAME="Company Manager"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT/dist-installers"
+# Login rápido temporário (regra 2 do plano): se estiver ligado, o DMG entra em qualquer área sem senha.
+QUICK_LOGIN_FILE="src/lib/dev/quickLogin.ts"
 # Fora do iCloud Drive (o repositório fica em ~/Documents): build release em pasta sincronizada é lento e
 # arquivos "só na nuvem" quebram o link. Mesmo diretório do scripts/install-app.sh, para reaproveitar a compilação.
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/cm-target}"
@@ -116,3 +118,11 @@ echo "  versão $VERSION · macOS $MIN_OS+ · $ARCHS · $(du -h "$FINAL" | cut -
 echo "  Assinatura ad-hoc (sem Apple Developer ID): em outro Mac o Gatekeeper bloqueia na 1ª abertura."
 echo "  Liberar: Ajustes do Sistema > Privacidade e Segurança > \"Abrir Mesmo Assim\", ou"
 echo "  xattr -dr com.apple.quarantine \"/Applications/${APP_NAME}.app\""
+
+if [ -f "$QUICK_LOGIN_FILE" ] && grep -Eq '^export const DEV_QUICK_LOGIN[^=]*=[[:space:]]*true' "$QUICK_LOGIN_FILE"; then
+  echo >&2
+  echo "ATENÇÃO: o login rápido de desenvolvimento está ligado (DEV_QUICK_LOGIN = true em $QUICK_LOGIN_FILE)." >&2
+  echo "  Com este DMG qualquer pessoa entra em qualquer área sem senha, e o primeiro login rápido cria contas" >&2
+  echo "  dev.<papel>@company.local com senha fixa e grava dados de exemplo no banco. Não distribua fora da empresa;" >&2
+  echo "  para desligar, ponha DEV_QUICK_LOGIN = false e gere o DMG de novo." >&2
+fi

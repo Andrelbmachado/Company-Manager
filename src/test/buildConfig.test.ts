@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -90,5 +90,25 @@ describe("empacotamento DMG (macOS)", () => {
     expect(verifySignature).toBeGreaterThan(verifyImage);
     expect(removePrevious).toBeGreaterThan(verifySignature);
     expect(publish).toBeGreaterThan(removePrevious);
+  });
+
+  it("avisa quando o DMG sai com o login rápido de desenvolvimento ligado (qualquer área sem senha)", () => {
+    const script = read("scripts/build-dmg.sh");
+    expect(script).toMatch(/^QUICK_LOGIN_FILE="src\/lib\/dev\/quickLogin\.ts"$/m);
+    const pattern = /grep -Eq '([^']+)' "\$QUICK_LOGIN_FILE"/.exec(script)?.[1];
+    expect(pattern).toBeDefined();
+    // A regra 2 do plano permite apagar a pasta src/lib/dev; aí não há o que avisar.
+    const file = path.join(ROOT, "src/lib/dev/quickLogin.ts");
+    if (!existsSync(file)) return;
+    // O aviso depende de o grep do script achar a declaração: se o formato mudar, este teste quebra.
+    const declared = /^export const DEV_QUICK_LOGIN\b[^=]*=\s*(true|false)\s*;/m.exec(readFileSync(file, "utf8"))?.[1];
+    expect(declared).toBeDefined();
+    let detected = true;
+    try {
+      execFileSync("grep", ["-Eq", pattern as string, file]);
+    } catch {
+      detected = false;
+    }
+    expect(detected).toBe(declared === "true");
   });
 });

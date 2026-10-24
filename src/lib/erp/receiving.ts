@@ -494,8 +494,8 @@ function isPaid(payable: Pick<Payable, "paid_amount" | "status">): boolean {
 }
 
 /**
- * Estorna um recebimento: saída do estoque do que entrou (se ainda houver saldo no local), quantidade recebida de volta
- * nas linhas, pedido reaberto e contas a pagar canceladas. Recusa se alguma conta já foi paga.
+ * Estorna um recebimento: saída do estoque do que entrou (se ainda houver saldo no local), custo médio sem a entrada,
+ * quantidade recebida de volta nas linhas, pedido reaberto e contas a pagar canceladas. Recusa se alguma conta já foi paga.
  */
 export async function reverseGoodsReceipt(db: DatabaseLike, receiptId: string, options: ActionOptions = {}): Promise<void> {
   const receipt = await documentById<GoodsReceipt>(db, "goods_receipts", receiptId, options.companyId, "Recebimento");
@@ -520,6 +520,29 @@ export async function reverseGoodsReceipt(db: DatabaseLike, receiptId: string, o
   const label = formatSequence("goods_receipts", receipt.number);
   const now = nowIso();
 
+  // Custo médio: tira a entrada estornada da média do item (saldo total antes do estorno). Sem outro saldo além do que
+  // sai, a média fica como está (não há custo anterior para voltar).
+  const removed = new Map<string, { qty: number; value: number }>();
+  for (const item of stockLines) {
+    const current = removed.get(item.inventory_item_id!) ?? { qty: 0, value: 0 };
+    removed.set(item.inventory_item_id!, { qty: current.qty + Number(item.qty), value: current.value + Number(item.qty) * Number(item.unit_cost ?? 0) });
+  }
+  const balances = await companyBalances(db, companyId);
+  const stockItems = new Map((await activeRows<InventoryItem>(db, "inventory_items", companyId)).map((item) => [item.id, item]));
+  const products = await activeRows<Product>(db, "products", companyId);
+  const costUpdates: { itemId: string; cost: number; original: number }[] = [];
+  for (const [itemId, out] of removed) {
+    const stockItem = stockItems.get(itemId);
+    if (!stockItem) continue;
+    const original = Number(stockItem.cost ?? 0);
+    const onHand = balances.filter((row: StockBalance) => row.item_id === itemId).reduce((total, row) => total + Math.max(0, Number(row.quantity)), 0);
+    const left = roundQty(onHand - out.qty);
+    if (!(left > 0)) continue;
+    const cost = roundMoney((onHand * original - out.value) / left);
+    if (!(cost >= 0) || toCents(cost) === toCents(original)) continue;
+    costUpdates.push({ itemId, cost, original });
+  }
+
   await undoing(async (undo) => {
     await claimStatus(db, "goods_receipts", companyId, receiptId, "conferido", { status: "estornado", reversed_at: now, updated_at: now }, "O recebimento mudou enquanto você estornava; recarregue a página.");
     undo(() => updateRow(db, "goods_receipts", companyId, receiptId, { status: "conferido", reversed_at: null }));
@@ -536,6 +559,14 @@ export async function reverseGoodsReceipt(db: DatabaseLike, receiptId: string, o
         note: `Estorno do recebimento ${label}`,
       });
       undo(posted.undo);
+    }
+    for (const { itemId, cost, original } of costUpdates) {
+      await updateRow(db, "inventory_items", companyId, itemId, { cost, updated_at: now });
+      undo(() => updateRow(db, "inventory_items", companyId, itemId, { cost: original }));
+      for (const product of products.filter((row) => row.inventory_item_id === itemId)) {
+        await updateRow(db, "products", companyId, product.id, { cost, updated_at: now });
+        undo(() => updateRow(db, "products", companyId, product.id, { cost: product.cost }));
+      }
     }
     for (const line of lines) {
       if (!giveBack.has(line.id)) continue;

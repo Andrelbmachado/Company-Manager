@@ -173,6 +173,22 @@ describe("recebimento", () => {
     expect((await one<PurchaseOrder>("purchase_orders", id)).status).toBe("recebido");
   });
 
+  it("estorno tira a entrada do custo médio do item e do produto", async () => {
+    const { db, fx, manager } = await setup();
+    const id = await createPurchaseOrder(db, { companyId: fx.companyId, supplierId: fx.supplierId, items: [{ inventoryItemId: fx.items.switch, qty: 5, unitPrice: 2300 }] });
+    await approvePurchaseOrder(db, id, { companyId: fx.companyId, userId: manager });
+    const [line] = await lines(id);
+    const { receiptId } = await receivePurchaseOrder(db, id, [{ itemId: line.id, qty: 5, locationId: fx.emptyLocationId }], { companyId: fx.companyId });
+    expect((await one<InventoryItem>("inventory_items", fx.items.switch)).cost).toBe(2100);
+
+    await reverseGoodsReceipt(db, receiptId, { companyId: fx.companyId });
+    // (15 × 2.100 − 5 × 2.300) / 10 = 2.000: volta ao custo de antes do recebimento.
+    expect((await one<InventoryItem>("inventory_items", fx.items.switch)).cost).toBe(2000);
+    expect((await one<Product>("products", fx.products.switch)).cost).toBe(2000);
+    expect(await balance(fx.items.switch, fx.emptyLocationId)).toBe(0);
+    expect(await balance(fx.items.switch, fx.locationId)).toBe(10);
+  });
+
   it("o último recebimento fecha o pedido e as contas a pagar somam exatamente o total do pedido", async () => {
     const { db, fx, manager } = await setup();
     const orderId = await approvedOrder(fx, manager);

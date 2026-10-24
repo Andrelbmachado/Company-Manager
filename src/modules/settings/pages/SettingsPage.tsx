@@ -4,14 +4,19 @@ import { logout } from "@/lib/auth/login";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { usePermission } from "@/hooks/usePermission";
 import { UsersAccess } from "../components/UsersAccess";
+import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { ASSISTANT_PROVIDERS, getAssistantApiConfig, saveAssistantApiConfig } from "@/lib/assistant/config";
-import { LogOut, Building2, KeyRound, Save } from "lucide-react";
+import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import { LogOut, Building2, KeyRound, LockKeyhole, Save } from "lucide-react";
+import type { Role } from "@/types";
 
 export default function SettingsPage() {
   const session = useRequiredSession();
   const { setSession } = useSession();
   const [apiConfig, setApiConfig] = useState(() => getAssistantApiConfig(session.user.id));
   const [saved, setSaved] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
   const canManageUsers = usePermission("create", "users");
   const selectedProvider = ASSISTANT_PROVIDERS.find((provider) => provider.id === apiConfig.provider) ?? ASSISTANT_PROVIDERS[0];
 
@@ -46,9 +51,36 @@ export default function SettingsPage() {
           <div>
             <p className="font-semibold">{session.user.name}</p>
             <p className="text-xs text-muted-foreground">{session.user.email}</p>
-            <p className="text-xs text-muted-foreground capitalize">Papel: {session.membership.role}</p>
+            <p className="text-xs text-muted-foreground">Papel: {ROLE_LABELS[session.membership.role as Role] ?? session.membership.role}</p>
           </div>
         </div>
+      </div>
+
+      {/* Senha da própria conta */}
+      <div className="rounded-xl border bg-card p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <LockKeyhole size={18} className="text-primary-text" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Senha</h3>
+              <p className="text-xs text-muted-foreground">Troque a senha que você usa para entrar.</p>
+            </div>
+          </div>
+          {!passwordOpen && (
+            <button type="button" onClick={() => { setPasswordChanged(false); setPasswordOpen(true); }} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+              Alterar senha
+            </button>
+          )}
+        </div>
+        {passwordChanged && <p role="status" className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Senha alterada. Use a nova senha no próximo acesso.</p>}
+        {passwordOpen && (
+          <div className="max-w-sm space-y-3">
+            <ChangePasswordForm session={session} requireCurrent onDone={() => { setPasswordOpen(false); setPasswordChanged(true); }} />
+            <button type="button" onClick={() => setPasswordOpen(false)} className="text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+          </div>
+        )}
       </div>
 
       {canManageUsers && <UsersAccess />}
@@ -61,7 +93,7 @@ export default function SettingsPage() {
           </div>
           <div>
             <h3 className="text-sm font-semibold">Assistente IA</h3>
-            <p className="text-xs text-muted-foreground">Conexao pessoal usada somente pela sua conta.</p>
+            <p className="text-xs text-muted-foreground">Conexão pessoal usada somente pela sua conta.</p>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -125,12 +157,12 @@ export default function SettingsPage() {
             className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             <Save size={14} />
-            Salvar conexao
+            Salvar conexão
           </button>
           {saved && <span className="text-xs text-emerald-700 dark:text-emerald-400">Configuração salva para esta conta.</span>}
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          No prototipo web a configuracao fica armazenada localmente. Em producao, a chave deve ser protegida por um servico seguro.
+          No protótipo web a configuração fica armazenada localmente. Em produção, a chave deve ser protegida por um serviço seguro.
         </p>
       </div>
 

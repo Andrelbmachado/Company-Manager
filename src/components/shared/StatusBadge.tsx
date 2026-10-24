@@ -80,6 +80,8 @@ const STATUS_TONE: Record<string, Tone> = {
   em_ferias: "info",
   afastado: "warning",
   desligado: "neutral",
+  // Contas
+  troca_senha: "warning",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -136,6 +138,7 @@ const STATUS_LABELS: Record<string, string> = {
   em_ferias: "Em férias",
   afastado: "Afastado",
   desligado: "Desligado",
+  troca_senha: "Troca de senha pendente",
 };
 
 interface StatusBadgeProps {

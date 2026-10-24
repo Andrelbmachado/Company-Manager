@@ -293,7 +293,7 @@ export default function SuppliersPage() {
 
       {confirmDelete && selected && (
         <CrudDialog title="Excluir fornecedor?" fields={[]} values={{}} onChange={() => undefined} onClose={() => setConfirmDelete(false)} onSubmit={() => remove.mutate(selected)} busy={remove.isPending} submitLabel="Excluir">
-          <p className="text-sm text-muted-foreground">"{selected.name}" sai da lista de fornecedores. Pedidos antigos continuam com o nome. Não dá para excluir com pedido de compra em andamento.</p>
+          <p className="text-sm text-muted-foreground">"{selected.name}" sai da lista de fornecedores; nos pedidos e recebimentos antigos ele aparece como "Fornecedor removido". Não dá para excluir com pedido de compra em andamento.</p>
           <ErrorNote error={remove.error} className="mt-3" />
         </CrudDialog>
       )}

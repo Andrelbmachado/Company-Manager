@@ -1,6 +1,7 @@
 // Ponto de reposição e sugestão de compra (SQLite real).
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "@/test/sqlite";
+import type { DatabaseLike } from "@/lib/db/demo";
 import { createReorderPurchaseOrders, reorderSuggestions, suggestReorderQty } from "./reorder";
 import { StockError } from "./stock";
 import { seedStockFixture } from "./testFixtures";
@@ -103,6 +104,33 @@ describe("createReorderPurchaseOrders", () => {
     expect(order.total).toBe(mouse.estimated_cost);
     const [line] = await db.select<Row[]>("SELECT * FROM purchase_order_items WHERE order_id=?", [order.id]);
     expect(line).toMatchObject({ unit_price: 10.56, total: 137.28 });
+  });
+
+  it("falha no meio dos itens de um pedido: o pedido incompleto é excluído (soft delete), sem total que não bate com os itens", async () => {
+    // Switch 24p e Mouse USB do mesmo fornecedor: um pedido só, com dois itens; o segundo item falha ao gravar.
+    await db.execute("UPDATE inventory_items SET supplier_id='sup-1' WHERE id='item-3'");
+    let lineInserts = 0;
+    const failing: DatabaseLike = {
+      select: (sql, binds) => db.select(sql, binds),
+      execute: async (sql, binds) => {
+        if (/INSERT INTO purchase_order_items/i.test(sql) && ++lineInserts === 2) throw new Error("disco cheio");
+        return db.execute(sql, binds);
+      },
+    };
+    await expect(createReorderPurchaseOrders(failing, { companyId: C, userId: user, lines: [{ itemId: "item-2", qty: 2 }, { itemId: "item-3", qty: 13 }] })).rejects.toThrow(/disco cheio/);
+
+    const active = await db.select<Row[]>("SELECT * FROM purchase_orders WHERE deleted_at IS NULL");
+    expect(active).toEqual([]);
+    const activeLines = await db.select<Row[]>("SELECT * FROM purchase_order_items WHERE deleted_at IS NULL");
+    expect(activeLines).toEqual([]);
+    // Nada ficou "em pedido": a sugestão volta inteira para gerar de novo.
+    expect((await reorderSuggestions(db, C)).map((row) => [row.item_id, row.on_order])).toEqual([
+      ["item-3", 0],
+      ["item-2", 0],
+    ]);
+    // O número usado não volta (a numeração conta os excluídos).
+    const [retry] = await createReorderPurchaseOrders(db, { companyId: C, userId: user, lines: [{ itemId: "item-2", qty: 2 }] });
+    expect(retry.number).toBe(2);
   });
 
   it("recusa lista vazia, quantidade inválida e item inexistente sem gravar pedido", async () => {

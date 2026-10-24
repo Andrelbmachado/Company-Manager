@@ -121,6 +121,21 @@ export async function reorderSuggestions(db: DatabaseLike, companyId: string): P
   return suggestions.sort(bySupplierThenName);
 }
 
+/** Soft delete do pedido de compra e dos itens dele (desfaz um pedido gravado pela metade). */
+async function discardOrder(db: DatabaseLike, companyId: string, orderId: string): Promise<void> {
+  const steps = [
+    "UPDATE purchase_order_items SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND order_id=?",
+    "UPDATE purchase_orders SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND id=?",
+  ];
+  for (const sql of steps) {
+    try {
+      await db.execute(sql, [companyId, orderId]);
+    } catch (error) {
+      console.error("[estoque] falha ao excluir o pedido de compra incompleto", error);
+    }
+  }
+}
+
 export interface ReorderOrderInput {
   companyId: string;
   userId?: string | null;
@@ -203,12 +218,19 @@ export async function createReorderPurchaseOrders(db: DatabaseLike, input: Reord
         ],
       ),
     );
-    for (const [index, line] of lines.entries()) {
-      await db.execute(
-        `INSERT INTO purchase_order_items (id, company_id, order_id, product_id, inventory_item_id, description, unit, qty, unit_price, discount, tax_rate, total, received_qty, position)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?)`,
-        [uuidv4(), companyId, orderId, productOf.get(line.item.id) ?? null, line.item.id, line.item.name, line.item.unit || "un", line.qty, line.unit_price, line.total, index + 1],
-      );
+    try {
+      for (const [index, line] of lines.entries()) {
+        await db.execute(
+          `INSERT INTO purchase_order_items (id, company_id, order_id, product_id, inventory_item_id, description, unit, qty, unit_price, discount, tax_rate, total, received_qty, position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?)`,
+          [uuidv4(), companyId, orderId, productOf.get(line.item.id) ?? null, line.item.id, line.item.name, line.item.unit || "un", line.qty, line.unit_price, line.total, index + 1],
+        );
+      }
+    } catch (error) {
+      // Sem transação (ver stock.ts): um pedido sem todos os itens ficaria com um total que não bate com eles, e os itens
+      // gravados passariam a contar como "em pedido". Exclui o pedido incompleto (soft delete; o número não volta).
+      await discardOrder(db, companyId, orderId);
+      throw error;
     }
     created.push({ id: orderId, number, supplier_id: group.supplier?.id ?? null, supplier_name: group.supplier?.name ?? null, total: totals.total, item_count: lines.length });
   }

@@ -103,4 +103,22 @@ describe("estoque no banco demo", () => {
     expect(created.length).toBeGreaterThan(0);
     expect(await reorderSuggestions(db, C)).toEqual([]);
   });
+
+  it("pedido de compra gravado pela metade é excluído (o SQL da limpeza roda no demo)", async () => {
+    const db = createDemoDb();
+    const suggestions = await reorderSuggestions(db, C);
+    const supplierId = suggestions[0].supplier_id;
+    const sameSupplier = suggestions.filter((row) => row.supplier_id === supplierId);
+    expect(sameSupplier.length).toBeGreaterThan(1);
+    let lineInserts = 0;
+    const failing: DatabaseLike = {
+      select: (sql, binds) => db.select(sql, binds),
+      execute: async (sql, binds) => {
+        if (/INSERT INTO purchase_order_items/i.test(sql) && ++lineInserts === 2) throw new Error("disco cheio");
+        return db.execute(sql, binds);
+      },
+    };
+    await expect(createReorderPurchaseOrders(failing, { companyId: C, userId: USER, lines: sameSupplier.map((row) => ({ itemId: row.item_id, qty: row.suggested_qty })) })).rejects.toThrow(/disco cheio/);
+    expect((await reorderSuggestions(db, C)).map((row) => row.item_id)).toEqual(suggestions.map((row) => row.item_id));
+  });
 });

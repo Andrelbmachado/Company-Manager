@@ -232,7 +232,11 @@ export function settledCentsByEntry(settlements: readonly FinanceSettlement[]): 
   return totals;
 }
 
-/** Converte texto de valor digitado ("1.234,56", "1234.56", "R$ 10") em número; NaN se não for número. */
+/**
+ * Converte texto de valor digitado ("1.234,56", "1234.56", "R$ 10") em número; NaN se não for número.
+ * Um ponto só, seguido de exatamente três dígitos ("1.500", "10.000"), é milhar como se escreve no Brasil; os
+ * valores que o próprio app preenche (String(1234.5)) têm no máximo duas casas e continuam decimais.
+ */
 export function parseMoneyInput(value: string | number | null | undefined): number {
   if (typeof value === "number") return value;
   if (value == null) return Number.NaN;
@@ -246,7 +250,7 @@ export function parseMoneyInput(value: string | number | null | undefined): numb
     text = lastComma > lastDot ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
   } else if (lastComma >= 0) {
     text = text.replace(/\./g, "").replace(",", ".");
-  } else if ((text.match(/\./g) ?? []).length > 1) {
+  } else if ((text.match(/\./g) ?? []).length > 1 || /^[1-9]\d{0,2}\.\d{3}$/.test(text)) {
     text = text.replace(/\./g, "");
   }
   if (!/^\d+(\.\d+)?$/.test(text)) return Number.NaN;

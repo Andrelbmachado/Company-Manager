@@ -78,6 +78,16 @@ describe("parseOfx", () => {
     const broken = "<OFX><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>2026<TRNAMT>-1<FITID>a</STMTTRN><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261001<TRNAMT>abc<FITID>b</STMTTRN></OFX>";
     expect(parseOfx(broken)).toEqual([]);
   });
+
+  it("TRNAMT é decimal (ponto ou vírgula), sem milhar: 1.500 é um e meio", () => {
+    const amountOf = (value: string) => parseOfx(`<OFX><STMTTRN><TRNTYPE>OTHER<DTPOSTED>20261001<TRNAMT>${value}<FITID>a</STMTTRN></OFX>`)[0]?.amount;
+    expect(amountOf("-1.500")).toBe(-1.5);
+    expect(amountOf("2.000")).toBe(2);
+    expect(amountOf("+2,5")).toBe(2.5);
+    expect(amountOf("-.50")).toBe(-0.5);
+    expect(amountOf("1,500.00")).toBe(1500);
+    expect(parseOfxStatement("<OFX><LEDGERBAL><BALAMT>1.500<DTASOF>20261001</LEDGERBAL></OFX>").balance).toBe(1.5);
+  });
 });
 
 describe("decodeStatementBytes", () => {

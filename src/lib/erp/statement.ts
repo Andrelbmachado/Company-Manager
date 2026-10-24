@@ -58,9 +58,11 @@ function ofxDate(value: string | null): string | null {
   return isIsoDay(day) ? day : null;
 }
 
+/** TRNAMT/BALAMT: decimal com ponto (ou vírgula, em alguns bancos) e sem milhar; "1.500" é 1,5. */
 function ofxAmount(value: string | null): number | null {
   if (!value) return null;
-  const parsed = parseMoneyInput(value.replace(/^\+/, ""));
+  const text = value.trim().replace(/^\+/, "");
+  const parsed = /^-?\d*[.,]?\d+$/.test(text) ? Number(text.replace(",", ".")) : parseMoneyInput(text);
   return Number.isFinite(parsed) ? roundMoney(parsed) : null;
 }
 

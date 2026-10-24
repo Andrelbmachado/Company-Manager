@@ -56,7 +56,8 @@ export function WinDialog({ opportunity, proposalId, onClose, onWon }: WinDialog
       const outcome = await winOpportunity(db, opportunity.id, userId, {
         customerId,
         proposalId: chosenProposal || null,
-        createSalesOrder: canCreateOrder && createOrder,
+        // Igual à caixa da tela: com "Nenhuma" proposta, winOpportunity usaria a aceita mais recente e geraria o pedido.
+        createSalesOrder: canCreateOrder && createOrder && !!chosenProposal,
       });
       await audit("opportunity.won", "opportunity", opportunity.id, `Oportunidade ganha: ${opportunity.title}`, { newValue: outcome });
       return outcome;
@@ -83,7 +84,7 @@ export function WinDialog({ opportunity, proposalId, onClose, onWon }: WinDialog
               Pedido de venda criado em rascunho: <Link to={`/sales/pedidos/${result.salesOrderId}`} className={LINK} onClick={onClose}>abrir o pedido</Link>
             </p>
           ) : (
-            <p className="text-muted-foreground">Nenhum pedido de venda foi gerado{chosenProposal ? "." : " (sem proposta aceita)."}</p>
+            <p className="text-muted-foreground">Nenhum pedido de venda foi gerado{chosenProposal ? "." : " (nenhuma proposta escolhida)."}</p>
           )}
         </div>
       </Modal>

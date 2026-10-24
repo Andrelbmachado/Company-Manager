@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionContext } from "@/hooks/useSession";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
+import { saveProposal, setProposalStatus } from "@/lib/crm/proposals";
 import type { Lead, Session } from "@/types";
 import { LeadsPanel } from "@/modules/leads/components/LeadsPanel";
 import CustomerDetailPage from "./CustomerDetailPage";
@@ -91,6 +92,14 @@ async function type(input: Element | null | undefined, value: string) {
   });
 }
 
+async function choose(select: Element | null | undefined, value: string) {
+  if (!(select instanceof HTMLSelectElement)) throw new Error("lista não encontrada");
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, value);
+  await act(async () => {
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
 /** Evento de arrastar com um dataTransfer mínimo (o jsdom não tem DragEvent). */
 async function drag(type: "dragstart" | "dragover" | "drop" | "dragend", target: Element | null | undefined, data: Map<string, string>) {
   if (!target) throw new Error(`alvo do ${type} não encontrado`);
@@ -160,6 +169,31 @@ describe("telas do CRM", () => {
     const won = await one<Row>("SELECT * FROM opportunities WHERE id=?", ["opp-1"]);
     expect(won).toMatchObject({ stage: "ganho", status: "won", probability: 100 });
     expect(await one<Row>("SELECT * FROM customers WHERE id=?", [won.customer_id])).toMatchObject({ name: "Site novo", owner_id: USER });
+  });
+
+  it("funil: ganhar com \"Nenhuma\" proposta não gera pedido de venda pela proposta aceita", async () => {
+    await testDb().execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-1", companyId, "Clínica Vida"]);
+    await testDb().execute("INSERT INTO opportunities (id, company_id, customer_id, title, value, stage, probability, status, owner_id) VALUES (?,?,?,?,?,?,?,?,?)", ["opp-1", companyId, "cust-1", "Site novo", 3000, "negociacao", 75, "open", USER]);
+    const proposalId = await saveProposal(testDb(), companyId, USER, { opportunity_id: "opp-1", items: [{ description: "Site", qty: 1, unit_price: 3000 }] });
+    await setProposalStatus(testDb(), companyId, proposalId, "send", USER);
+    await setProposalStatus(testDb(), companyId, proposalId, "accept", USER);
+    await renderAt("/crm/funil", "/crm/funil", <PipelineBoardPage />);
+    await until(() => !!container.querySelector('[role=button][aria-label^="Site novo"]'), "cartão no funil");
+    const data = new Map<string, string>();
+    await drag("dragstart", container.querySelector('[role=button][aria-label^="Site novo"]'), data);
+    await drag("drop", container.querySelector('section[aria-label^="Ganho:"]'), data);
+    await until(() => (dialog("Ganhar oportunidade")?.querySelectorAll("select")[1]?.querySelectorAll("option").length ?? 0) > 1, "propostas no diálogo");
+    const proposalSelect = dialog("Ganhar oportunidade")!.querySelectorAll("select")[1];
+    expect((proposalSelect as HTMLSelectElement).value).toBe(proposalId);
+
+    // A caixa do pedido fica desmarcada com "Nenhuma"; o ganho tem de seguir o que a tela mostra.
+    await choose(proposalSelect, "");
+    expect((dialog("Ganhar oportunidade")!.querySelector("input[type=checkbox]") as HTMLInputElement).checked).toBe(false);
+    await click(button("Marcar como ganha"));
+    await until(() => !!dialog("Oportunidade ganha"), "confirmação do ganho");
+    expect(text()).toContain("Nenhum pedido de venda foi gerado (nenhuma proposta escolhida).");
+    expect(await one<Row>("SELECT * FROM opportunities WHERE id=?", ["opp-1"])).toMatchObject({ status: "won", customer_id: "cust-1" });
+    expect(await testDb().select("SELECT id FROM sales_orders WHERE company_id=?", [companyId])).toEqual([]);
   });
 
   it("proposta nova: item avulso, total na tela e gravação com número", async () => {

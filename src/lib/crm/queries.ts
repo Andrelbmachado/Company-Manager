@@ -459,7 +459,11 @@ export async function customerFinance(db: DatabaseLike, companyId: string, custo
     (row) => !row.deleted_at && !["cancelada", "cancelado"].includes(row.status),
   );
   const invoiced = sumMoney(invoices.filter((row) => !row.deleted_at && row.status !== "cancelada").map((row) => Number(row.total ?? 0)));
-  const received = sumMoney(receivables.map((row) => Number(row.received_amount ?? (row.status === "recebida" ? row.amount : 0))));
+  // received_amount é NOT NULL DEFAULT 0: conta marcada "recebida" sem baixa (tela antiga do Financeiro) vale o valor
+  // cheio, como já some do "em aberto"; assim recebido + em aberto fecha com o total das parcelas.
+  const received = sumMoney(
+    receivables.map((row) => (row.status === "recebida" ? Math.max(Number(row.amount ?? 0), Number(row.received_amount ?? 0)) : Number(row.received_amount ?? 0))),
+  );
   const outstanding = receivables
     .filter((row) => row.status !== "recebida")
     .map((row) => ({ due: row.due_date ?? null, cents: Math.max(0, toCents(Number(row.amount ?? 0)) - toCents(Number(row.received_amount ?? 0))) }));

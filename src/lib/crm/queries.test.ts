@@ -146,6 +146,15 @@ describe("resumo financeiro do cliente e usuários", () => {
     expect(summary).toEqual({ invoiced: 900, received: 400.1, open: 499.9, overdue: 199.9 });
   });
 
+  it("conta marcada como recebida sem baixa (received_amount 0) entra no recebido pelo valor cheio", async () => {
+    const { db, companyId } = await setup();
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-1", companyId, "Clínica"]);
+    // received_amount fica no DEFAULT 0, como na edição de status da tela antiga do Financeiro.
+    await db.execute("INSERT INTO receivables (id, company_id, customer_id, amount, due_date, status) VALUES (?,?,?,?,?,?)", ["r1", companyId, "cust-1", 80, "2026-10-01", "recebida"]);
+    await db.execute("INSERT INTO receivables (id, company_id, customer_id, amount, due_date, status) VALUES (?,?,?,?,?,?)", ["r2", companyId, "cust-1", 20, "2026-11-01", "aberta"]);
+    expect(await customerFinance(db, companyId, "cust-1", "2026-10-24")).toEqual({ invoiced: 0, received: 80, open: 20, overdue: 0 });
+  });
+
   it("lista as contas ativas da empresa com o papel", async () => {
     const { db, companyId, seller } = await setup();
     const users = await fetchCompanyUsers(db, companyId);

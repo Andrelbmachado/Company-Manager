@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ACTIONS, PERMISSIONS, RESOURCES, can, visibleModules, type Resource } from "@/lib/permissions/rbac";
 import { TEST_ROLES } from "@/test/sqlite";
 
-const NEW_RESOURCES: Resource[] = ["products", "sales_orders", "invoices", "purchase_orders", "bank", "reports", "imports", "crm_activities"];
+const NEW_RESOURCES: Resource[] = ["products", "sales_orders", "invoices", "purchase_orders", "bank", "reports", "imports", "crm_activities", "suppliers"];
 
 /** Módulo novo → recurso que libera o módulo, rota e página. */
 const NEW_MODULES: { module: string; resource: Resource; path: string; page: string }[] = [

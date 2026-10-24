@@ -36,6 +36,10 @@ export const RESOURCES = [
   "reports",
   "imports",
   "crm_activities",
+  // Cadastro de fornecedores (Compras; também usado por Estoque e Financeiro)
+  "suppliers",
+  // Backup e restauração do banco inteiro (inclusive a folha): só CEO e admin, pelo "*"
+  "backups",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -180,6 +184,7 @@ const ERP_PERMISSIONS: PermissionMap = {
     reports: ["view", "export"],
     imports: ["view", "create"],
     crm_activities: ["view", "create", "edit", "comment"],
+    suppliers: ["view", "export"],
   },
   tecnico: {
     products: ["view"],
@@ -189,6 +194,7 @@ const ERP_PERMISSIONS: PermissionMap = {
     purchase_orders: ["view", "create", "edit", "receive", "request", "export"],
     reports: ["view"],
     imports: ["view", "create"],
+    suppliers: ["view", "create", "edit", "delete", "export"],
   },
   financeiro: {
     products: ["view"],
@@ -198,6 +204,7 @@ const ERP_PERMISSIONS: PermissionMap = {
     bank: ["view", "create", "edit", "delete", "approve", "export"],
     reports: ["view", "export"],
     imports: ["view", "create"],
+    suppliers: ["view", "create", "edit", "export"],
   },
   comercial: {
     products: ["view"],
@@ -228,6 +235,7 @@ const ERP_PERMISSIONS: PermissionMap = {
     reports: ["view", "export"],
     crm_activities: ["view", "export"],
     imports: ["view"],
+    suppliers: ["view", "export"],
   },
 };
 

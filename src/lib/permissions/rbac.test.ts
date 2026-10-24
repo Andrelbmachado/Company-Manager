@@ -41,6 +41,10 @@ const VIEW_MATRIX: Record<string, Role[]> = {
   reports: ["ceo", "admin", "gerente", "estoquista", "financeiro", "comercial", "auditor"],
   imports: ["ceo", "admin", "gerente", "estoquista", "financeiro", "rh", "comercial", "produtos", "auditor"],
   crm_activities: ["ceo", "admin", "gerente", "comercial", "atendimento", "auditor"],
+  // Fornecedores: quem compra (estoque), quem paga (financeiro), gerência e auditoria.
+  suppliers: ["ceo", "admin", "gerente", "estoquista", "financeiro", "auditor"],
+  // Backup e restauração levam o banco inteiro (inclusive a folha): só CEO e Administração.
+  backups: ["ceo", "admin"],
 };
 
 /** Todos os recursos do RBAC, da matriz ou citados em PERMISSIONS (recursos novos entram sozinhos no teste de espelho). */
@@ -118,6 +122,24 @@ describe("can()", () => {
     expect(can("financeiro", "view", "payroll")).toBe(false);
     expect(can("rh", "view", "payroll")).toBe(false);
     expect(ROLES.filter((role) => can(role, "view", "payroll"))).toEqual(["ceo", "admin"]);
+  });
+
+  it("fornecedores: estoque e financeiro cadastram, gerência e auditoria só consultam e exportam", () => {
+    for (const role of ["estoquista", "financeiro"] as Role[]) {
+      for (const action of ["view", "create", "edit", "export"] as Action[]) expect(can(role, action, "suppliers"), `${role} ${action}`).toBe(true);
+    }
+    expect(can("estoquista", "delete", "suppliers")).toBe(true);
+    expect(can("financeiro", "delete", "suppliers")).toBe(false);
+    for (const role of ["gerente", "auditor"] as Role[]) {
+      expect(can(role, "view", "suppliers"), role).toBe(true);
+      expect(can(role, "export", "suppliers"), role).toBe(true);
+      expect(canAny(role, ["create", "edit", "delete"], "suppliers"), role).toBe(false);
+    }
+  });
+
+  it("backup e restauração só para CEO e Administração", () => {
+    expect(ROLES.filter((role) => can(role, "view", "backups"))).toEqual(["ceo", "admin"]);
+    expect(ROLES.filter((role) => can(role, "edit", "backups"))).toEqual(["ceo", "admin"]);
   });
 
   it("papel desconhecido não acessa nada", () => {

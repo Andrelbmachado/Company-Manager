@@ -57,13 +57,24 @@ function option<T extends string>(options: { value: T; label: string }[], what: 
   }, z.enum(options.map((item) => item.value) as [T, ...T[]], { errorMap: () => ({ message: `${what} inválido(a): use ${options.map((item) => item.label).join(", ")}` }) }).nullable());
 }
 
-/** Data já normalizada pelo motor de importação ('YYYY-MM-DD'); dd/mm/aaaa também é aceito aqui. */
+const DATE_ERROR = "Data inválida (use dd/mm/aaaa)";
+
+/** 'YYYY-MM-DD' que existe no calendário (recusa 2024-31-12 de uma data mm/dd invertida e 31/02). */
+function isCalendarDate(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/** Data já normalizada pelo motor de importação ('YYYY-MM-DD'); dd/mm/aaaa (ou d/m/aaaa) também é aceito aqui. */
 const date = z.preprocess((value) => {
   if (value === undefined || value === null || String(value).trim() === "") return null;
   const raw = String(value).trim();
-  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  return br ? `${br[3]}-${br[2]}-${br[1]}` : raw;
-}, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (use dd/mm/aaaa)").nullable());
+  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return br ? `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}` : raw;
+}, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, DATE_ERROR).refine(isCalendarDate, DATE_ERROR).nullable());
+
+const VACATION_DAYS_ERROR = "Dias de férias: use um número inteiro de 0 a 60";
 
 export const employeeImportSchema = z.object({
   name: z.preprocess((value) => (value == null ? "" : String(value).trim()), z.string().min(1, "Informe o nome")),
@@ -77,7 +88,7 @@ export const employeeImportSchema = z.object({
   position: text,
   hire_date: date,
   contract_type: option(CONTRACT_TYPES, "Contrato"),
-  vacation_days_entitled: z.preprocess((value) => (value === undefined || value === null || String(value).trim() === "" ? null : Number(String(value).replace(",", "."))), z.number().int("Dias de férias inteiros").min(0).max(60).nullable()),
+  vacation_days_entitled: z.preprocess((value) => (value === undefined || value === null || String(value).trim() === "" ? null : Number(String(value).replace(",", "."))), z.number({ invalid_type_error: VACATION_DAYS_ERROR }).int(VACATION_DAYS_ERROR).min(0, VACATION_DAYS_ERROR).max(60, VACATION_DAYS_ERROR).nullable()),
   status: option(EMPLOYEE_STATUSES, "Situação"),
   logradouro: text,
   numero: text,

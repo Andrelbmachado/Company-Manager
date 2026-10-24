@@ -30,6 +30,25 @@ describe("linha da planilha", () => {
     }
   });
 
+  it("data dd/mm/aaaa (ou d/m/aaaa) e aaaa-mm-dd; recusa data invertida ou inexistente em vez de gravar 2024-31-12", () => {
+    expect(parse({ name: "A", hire_date: "29/02/2024", birth_date: "1/3/1990" })).toMatchObject({ hire_date: "2024-02-29", birth_date: "1990-03-01" });
+    expect(parse({ name: "A", hire_date: "2024-03-01" }).hire_date).toBe("2024-03-01");
+    for (const hire_date of ["12/31/2024", "31/02/2025", "29/02/2025", "2024-13-01", "2024-02-30", "00/01/2024", "abc"]) {
+      const result = employeeImportSchema.safeParse({ name: "A", hire_date });
+      expect(result.success, hire_date).toBe(false);
+      expect(result.error?.issues[0].message, hire_date).toMatch(/^Data inválida/);
+    }
+  });
+
+  it("dias de férias: número inteiro de 0 a 60, com mensagem em pt-BR", () => {
+    expect(parse({ name: "A", vacation_days_entitled: "20" }).vacation_days_entitled).toBe(20);
+    for (const vacation_days_entitled of ["trinta", "30 dias", "12,5", "-1", "61"]) {
+      const result = employeeImportSchema.safeParse({ name: "A", vacation_days_entitled });
+      expect(result.success, vacation_days_entitled).toBe(false);
+      expect(result.error?.issues[0].message, vacation_days_entitled).toMatch(/^Dias de férias/);
+    }
+  });
+
   it("chave natural: e-mail, senão CPF, senão nome", () => {
     expect(employeeNaturalKey({ name: "A", email: "a@x.com", document: "123.456.789-09" })).toBe("email:a@x.com");
     expect(employeeNaturalKey({ name: "A", email: null, document: "123.456.789-09" })).toBe("cpf:12345678909");

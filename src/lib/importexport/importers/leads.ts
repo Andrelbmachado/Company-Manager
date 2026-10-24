@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { FieldDef } from "../registry";
 import { decimal, integer, oneOf, optionalText, requiredText } from "../schema";
-import { defineTableEntity } from "../tableEntity";
+import { defineTableEntity, emailKey } from "../tableEntity";
 
 const STATUS = [
   { value: "novo", label: "Novo" },
@@ -59,7 +59,7 @@ export const entity = defineTableEntity<LeadImportRow>({
   fields,
   schema,
   keys: [
-    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email },
+    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email, compare: emailKey },
     { name: "telefone", fromRow: (row) => row.phone, fromDb: (row) => row.phone },
     { name: "WhatsApp", fromRow: (row) => row.whatsapp, fromDb: (row) => row.whatsapp },
     { name: "nome", fromRow: (row) => row.name, fromDb: (row) => row.name },

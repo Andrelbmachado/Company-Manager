@@ -4,7 +4,7 @@ import { roundMoney } from "@/lib/money";
 import { categoryRef, costCenterRef, customerField, customerRef } from "../refs";
 import type { FieldDef } from "../registry";
 import { isoDate, isoMonth, money, oneOf, optionalText, requiredText } from "../schema";
-import { defineTableEntity, type KeySpec } from "../tableEntity";
+import { codeKey, defineTableEntity, type KeySpec } from "../tableEntity";
 import type { Row } from "../write";
 
 const STATUS = [
@@ -27,6 +27,7 @@ export function financeKeys<T extends { document_number?: string; description: s
   return [
     {
       name: "nº do documento",
+      compare: codeKey,
       fromRow: (row, refs) => (row.document_number ? `${refs[refField] ?? ""}|${row.document_number}` : null),
       fromDb: (row) => (row.document_number ? `${String(row[refColumn] ?? "")}|${String(row.document_number)}` : null),
     },

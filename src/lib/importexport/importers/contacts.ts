@@ -3,7 +3,7 @@ import { z } from "zod";
 import { customerField, customerRef } from "../refs";
 import type { FieldDef } from "../registry";
 import { bool, optionalText, requiredText } from "../schema";
-import { defineTableEntity } from "../tableEntity";
+import { defineTableEntity, emailKey } from "../tableEntity";
 
 const fields: FieldDef[] = [
   { key: "name", label: "Nome", kind: "text", required: true, aliases: ["nome do contato", "contato", "nome completo"], example: "Maria Oliveira" },
@@ -39,7 +39,7 @@ export const entity = defineTableEntity<ContactImportRow>({
   schema,
   refs: [customerRef()],
   keys: [
-    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email },
+    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email, compare: emailKey },
     { name: "nome no cliente", fromRow: (row, refs) => `${refs.customer ?? ""}|${row.name}`, fromDb: (row) => `${row.customer_id ?? ""}|${String(row.name ?? "")}` },
   ],
   toColumns: (row, { refs }) => ({

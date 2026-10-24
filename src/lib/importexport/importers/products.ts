@@ -3,7 +3,7 @@ import { z } from "zod";
 import { onlyDigits } from "../normalize";
 import type { FieldDef } from "../registry";
 import { bool, decimal, money, oneOf, optionalText, requiredText } from "../schema";
-import { defineTableEntity } from "../tableEntity";
+import { codeKey, defineTableEntity } from "../tableEntity";
 
 const fields: FieldDef[] = [
   { key: "sku", label: "Código (SKU)", kind: "text", aliases: ["sku", "código", "codigo", "cód", "referência", "ref"], example: "CAD-001" },
@@ -62,7 +62,7 @@ export const entity = defineTableEntity<ProductImportRow>({
   fields,
   schema,
   keys: [
-    { name: "SKU", fromRow: (row) => row.sku, fromDb: (row) => row.sku },
+    { name: "SKU", fromRow: (row) => row.sku, fromDb: (row) => row.sku, compare: codeKey },
     { name: "nome", fromRow: (row) => row.name, fromDb: (row) => row.name },
   ],
   toColumns: (row) => ({

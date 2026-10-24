@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { documentKey } from "../normalize";
 import { money, oneOf, optionalText, requiredText } from "../schema";
-import { ADDRESS_FIELDS, addressColumn, addressExport, defineTableEntity } from "../tableEntity";
+import { ADDRESS_FIELDS, addressColumn, addressExport, defineTableEntity, emailKey } from "../tableEntity";
 import type { FieldDef } from "../registry";
 
 const fields: FieldDef[] = [
@@ -87,7 +87,7 @@ export const entity = defineTableEntity<CustomerImportRow>({
   schema,
   keys: [
     { name: "CPF/CNPJ", fromRow: (row) => row.document, fromDb: (row) => row.document },
-    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email },
+    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email, compare: emailKey },
     { name: "nome", fromRow: (row) => row.name, fromDb: (row) => row.name },
   ],
   validate: (row) => {

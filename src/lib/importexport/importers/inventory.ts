@@ -8,7 +8,7 @@ import type { DatabaseLike } from "@/lib/db/demo";
 import { locationRef, supplierField, supplierRef } from "../refs";
 import type { FieldDef, ImportEntity, RowIssue, UpsertContext } from "../registry";
 import { decimal, money, optionalText, requiredText } from "../schema";
-import { buildPlan, byAge, diffColumns, keyOf, loadActive, loadRefs, stripEmpty, type PlannedRow, type TableEntitySpec } from "../tableEntity";
+import { buildPlan, byAge, codeKey, diffColumns, keyOf, loadActive, loadRefs, stripEmpty, type PlannedRow, type TableEntitySpec } from "../tableEntity";
 import { insertRows, sqliteNow, updateRows, type Row, type RowUpdate } from "../write";
 
 const fields: FieldDef[] = [
@@ -57,7 +57,7 @@ const itemSpec: TableEntitySpec<InventoryImportRow> = {
   schema,
   refs: [supplierRef(), locationRef()],
   keys: [
-    { name: "SKU", fromRow: (row) => row.sku, fromDb: (row) => row.sku },
+    { name: "SKU", fromRow: (row) => row.sku, fromDb: (row) => row.sku, compare: codeKey },
     { name: "nome", fromRow: (row) => row.name, fromDb: (row) => row.name },
   ],
   toColumns: (row, { refs }) => ({
@@ -144,7 +144,8 @@ export const entity: ImportEntity<InventoryImportRow> = {
   schema,
 
   naturalKey(row) {
-    const item = keyOf(row.sku) || keyOf(row.name);
+    const sku = codeKey(row.sku);
+    const item = sku ? `sku:${sku}` : keyOf(row.name) ? `nome:${keyOf(row.name)}` : "";
     return item ? `${item}@${keyOf(row.location)}` : "";
   },
 

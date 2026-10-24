@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { FieldDef } from "../registry";
 import { integer, optionalText, requiredText } from "../schema";
-import { ADDRESS_FIELDS, addressColumn, addressExport, defineTableEntity } from "../tableEntity";
+import { ADDRESS_FIELDS, addressColumn, addressExport, defineTableEntity, emailKey } from "../tableEntity";
 
 const fields: FieldDef[] = [
   { key: "name", label: "Nome / razão social", kind: "text", required: true, aliases: ["nome", "fornecedor", "razão social", "razao social", "empresa"], example: "Distribuidora Central Ltda" },
@@ -54,7 +54,7 @@ export const entity = defineTableEntity<SupplierImportRow>({
   schema,
   keys: [
     { name: "CNPJ/CPF", fromRow: (row) => row.document, fromDb: (row) => row.document },
-    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email },
+    { name: "e-mail", fromRow: (row) => row.email, fromDb: (row) => row.email, compare: emailKey },
     { name: "nome", fromRow: (row) => row.name, fromDb: (row) => row.name },
   ],
   toColumns: (row, { existing }) => ({

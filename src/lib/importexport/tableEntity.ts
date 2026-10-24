@@ -40,6 +40,11 @@ export interface KeySpec<T> {
   fromRow: (row: T, refs: RefValues) => unknown;
   /** Valor da mesma chave numa linha do banco. */
   fromDb: (row: Row) => unknown;
+  /**
+   * Texto comparável (padrão keyOf: sem acento, caixa, pontuação nem espaços, bom para nome e CPF/CNPJ).
+   * E-mail usa emailKey e código (SKU, nº do documento) usa codeKey: neles a pontuação distingue cadastros.
+   */
+  compare?: (value: unknown) => string;
 }
 
 export interface ColumnContext {
@@ -79,6 +84,32 @@ export function keyOf(value: unknown): string {
   return normalizeKey(String(value)).replace(/ /g, "");
 }
 
+/** E-mail comparável: sem espaços nas pontas e em minúsculas. Ponto, traço e "_" contam ("ana.paula@" ≠ "anapaula@"). */
+export function emailKey(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim().toLowerCase();
+}
+
+/**
+ * Código comparável (SKU, nº do documento): pontuação conta ("CAD-001" ≠ "CAD001", "NF 10/01" ≠ "NF 100/1"); só ignora
+ * espaços nas pontas e maiúsculas sem acento, como o COLLATE NOCASE do índice único de SKU.
+ */
+export function codeKey(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .trim()
+    .replace(/[A-Z]/g, (char) => char.toLowerCase());
+}
+
+/** Texto de uma referência (cliente, fornecedor...): e-mail compara inteiro; documento, código e nome sem pontuação. */
+export function refKey(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  return text.includes("@") ? emailKey(text) : keyOf(text);
+}
+
+const compareOf = <T>(key: KeySpec<T>) => key.compare ?? keyOf;
+
 /** Linhas ativas da empresa (o filtro por empresa e por excluídos é feito no SQL; o demo entende este formato). */
 export async function loadActive(db: DatabaseLike, table: string, companyId: string): Promise<Row[]> {
   return db.select<Row[]>(`SELECT * FROM ${table} WHERE company_id=? AND deleted_at IS NULL`, [companyId]);
@@ -109,7 +140,7 @@ export async function loadRefs(db: DatabaseLike, companyId: string, refs: RefSpe
     for (const row of rows) {
       byId.set(String(row.id), row);
       if (spec.filter && !spec.filter(row)) continue;
-      for (const key of new Set(spec.keys(row).map(keyOf).filter(Boolean))) {
+      for (const key of new Set(spec.keys(row).map(refKey).filter(Boolean))) {
         if (!byKey.has(key)) byKey.set(key, new Set());
         byKey.get(key)!.add(String(row.id));
       }
@@ -125,7 +156,7 @@ function resolveRefs<T>(row: T, indexes: RefIndex[]): RefResult {
   const refs: RefValues = {};
   for (const { spec, byKey } of indexes) {
     const raw = (row as Record<string, unknown>)[spec.field];
-    const key = keyOf(raw);
+    const key = refKey(raw);
     if (!key) {
       refs[spec.field] = null;
       continue;
@@ -140,7 +171,7 @@ function resolveRefs<T>(row: T, indexes: RefIndex[]): RefResult {
 
 /** Texto cru das referências (para a chave natural, que não consulta o banco). */
 function rawRefs<T>(row: T, refs: RefSpec[] | undefined): RefValues {
-  return Object.fromEntries((refs ?? []).map((spec) => [spec.field, keyOf((row as Record<string, unknown>)[spec.field]) || null]));
+  return Object.fromEntries((refs ?? []).map((spec) => [spec.field, refKey((row as Record<string, unknown>)[spec.field]) || null]));
 }
 
 export interface PlannedRow<T> {
@@ -172,7 +203,7 @@ export async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, c
   const index = spec.keys.map(() => new Map<string, Row[]>());
   for (const row of existingRows) {
     spec.keys.forEach((key, tier) => {
-      const value = keyOf(key.fromDb(row));
+      const value = compareOf(key)(key.fromDb(row));
       if (!value) return;
       const list = index[tier].get(value);
       if (list) list.push(row);
@@ -192,7 +223,7 @@ export async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, c
       issues.push({ index: rowIndex, field: resolved.field, message: resolved.message });
       return;
     }
-    const values = spec.keys.map((key) => keyOf(key.fromRow(row, resolved.refs)));
+    const values = spec.keys.map((key) => compareOf(key)(key.fromRow(row, resolved.refs)));
     let existing: Row | null = null;
     for (let tier = 0; tier < spec.keys.length && !existing; tier++) {
       if (!values[tier]) continue;
@@ -200,7 +231,7 @@ export async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, c
         (index[tier].get(values[tier]) ?? []).find((candidate) =>
           spec.keys.slice(0, tier).every((key, stronger) => {
             const mine = values[stronger];
-            const theirs = keyOf(key.fromDb(candidate));
+            const theirs = compareOf(key)(key.fromDb(candidate));
             return !mine || !theirs || mine === theirs;
           }),
         ) ?? null;
@@ -287,7 +318,7 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
     naturalKey(row: T): string {
       const refs = rawRefs(row, spec.refs);
       for (const key of spec.keys) {
-        const value = keyOf(key.fromRow(row, refs));
+        const value = compareOf(key)(key.fromRow(row, refs));
         if (value) return `${key.name}:${value}`;
       }
       return "";

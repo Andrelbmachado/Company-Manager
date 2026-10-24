@@ -262,6 +262,67 @@ describe("contas a pagar e a receber", () => {
   });
 });
 
+describe("chaves de identificação", () => {
+  it("e-mail compara inteiro: ana.paula@ e anapaula@ são pessoas diferentes; maiúscula não conta", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    const mapping = { name: "Nome", email: "E-mail" };
+    const first = await run("customers", mapping, [{ Nome: "Ana Paula", "E-mail": "ana.paula@x.com" }, { Nome: "Ana P.", "E-mail": "anapaula@x.com" }], db, companyId, userId);
+    expect(first).toMatchObject({ errors: [], inserted: 2 });
+    const again = await run("customers", mapping, [{ Nome: "Ana Paula Souza", "E-mail": "ANA.PAULA@X.COM" }, { Nome: "Outra", "E-mail": "ana_paula@x.com" }], db, companyId, userId);
+    expect(again).toMatchObject({ errors: [], inserted: 1, updated: 1 });
+    expect(await db.select<Row[]>("SELECT name, email FROM customers WHERE company_id=? ORDER BY email", [companyId])).toEqual([
+      { name: "Ana Paula Souza", email: "ana.paula@x.com" },
+      { name: "Outra", email: "ana_paula@x.com" },
+      { name: "Ana P.", email: "anapaula@x.com" },
+    ]);
+  });
+
+  it("cliente informado pelo e-mail: anapaula@ não aponta para o cadastro de ana.paula@", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await insert(db, "customers", { id: uuidv4(), company_id: companyId, name: "Ana Paula", email: "ana.paula@x.com" });
+    const result = await run("opportunities", { title: "Título", customer: "Cliente" }, [{ Título: "Site", Cliente: "anapaula@x.com" }], db, companyId, userId, "skip-errors");
+    expect(result.errors).toEqual([expect.objectContaining({ field: "customer", message: expect.stringMatching(/Nenhum cadastro de cliente/) })]);
+    expect(await run("opportunities", { title: "Título", customer: "Cliente" }, [{ Título: "Site", Cliente: "Ana.Paula@X.com" }], db, companyId, userId)).toMatchObject({ errors: [], inserted: 1 });
+  });
+
+  it("SKU: pontuação conta (CAD-001 ≠ CAD001), maiúscula não (como o índice único)", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    const mapping = { sku: "SKU", name: "Nome" };
+    expect(await run("products", mapping, [{ SKU: "CAD-001", Nome: "Cadeira" }, { SKU: "CAD001", Nome: "Cadeira gamer" }], db, companyId, userId)).toMatchObject({ errors: [], inserted: 2 });
+    const again = await run("products", mapping, [{ SKU: "cad-001", Nome: "Cadeira de escritório" }, { SKU: "CAD.001", Nome: "Cadeira infantil" }], db, companyId, userId);
+    expect(again).toMatchObject({ errors: [], inserted: 1, updated: 1 });
+    expect(await db.select<Row[]>("SELECT sku, name FROM products WHERE company_id=? ORDER BY name", [companyId])).toEqual([
+      { sku: "cad-001", name: "Cadeira de escritório" },
+      { sku: "CAD001", name: "Cadeira gamer" },
+      { sku: "CAD.001", name: "Cadeira infantil" },
+    ]);
+  });
+
+  it("estoque: SKU com pontuação diferente é outro item", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await insert(db, "stock_locations", { id: uuidv4(), company_id: companyId, name: "Depósito principal" });
+    const result = await run("inventory", { name: "Item", sku: "SKU", quantity: "Qtd" }, [
+      { Item: "Papel A4", SKU: "PAP-A4", Qtd: "10" },
+      { Item: "Papel A4 premium", SKU: "PAPA4", Qtd: "5" },
+    ], db, companyId, userId);
+    expect(result).toMatchObject({ errors: [], inserted: 2 });
+    expect(await count(db, "inventory_items", companyId)).toBe(2);
+  });
+
+  it("contas: nº do documento compara com a pontuação (NF 10/01 ≠ NF 100/1)", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    const mapping = { description: "Descrição", amount: "Valor", document_number: "Documento" };
+    const result = await run("payables", mapping, [
+      { Descrição: "Compra de papel", Valor: "100", Documento: "NF 10/01" },
+      { Descrição: "Compra de toner", Valor: "300", Documento: "NF 100/1" },
+    ], db, companyId, userId);
+    expect(result).toMatchObject({ errors: [], inserted: 2 });
+    const again = await run("payables", mapping, [{ Descrição: "Compra de papel A4", Valor: "120", Documento: "nf 10/01" }], db, companyId, userId);
+    expect(again).toMatchObject({ errors: [], inserted: 0, updated: 1 });
+    expect(await count(db, "payables", companyId)).toBe(2);
+  });
+});
+
 describe("casamento dentro da planilha", () => {
   it("dois clientes novos com o mesmo nome e CNPJs diferentes viram dois cadastros", async () => {
     const { db, companyId, userId } = await sqliteCompany();

@@ -195,6 +195,19 @@ describe("faturamento", () => {
     await expect(invoiceSalesOrder(db, await confirmedThousand(fx), { companyId: fx.companyId, issueDate: "2026-03-01", dueDates: ["2026-02-28"] })).rejects.toThrow(/vencimento/i);
   });
 
+  it("não gera parcela de R$ 0,00: valor pequeno demais para o número de parcelas é recusado sem gravar nada", async () => {
+    const { db, fx } = await setup();
+    const id = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.otherCustomerId, items: [{ description: "Ajuste", qty: 1, unitPrice: 0.02 }], confirm: true });
+    await expect(invoiceSalesOrder(db, id, { companyId: fx.companyId, installments: 3 })).rejects.toThrow(/parcelas/i);
+    expect(await all("SELECT * FROM invoices")).toEqual([]);
+    expect(await all("SELECT * FROM receivables")).toEqual([]);
+    expect((await one<SalesOrder>("sales_orders", id)).status).toBe("confirmado");
+
+    const { receivableIds } = await invoiceSalesOrder(db, id, { companyId: fx.companyId, installments: 2 });
+    expect((await all<Receivable>("SELECT * FROM receivables WHERE company_id=? ORDER BY installment_number", [fx.companyId])).map((row) => row.amount)).toEqual([0.01, 0.01]);
+    expect(receivableIds).toHaveLength(2);
+  });
+
   it("não fatura rascunho, cancelado nem duas vezes", async () => {
     const { db, fx } = await setup();
     const draft = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.customerId, items: [{ productId: fx.products.visita, qty: 1 }] });

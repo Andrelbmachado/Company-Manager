@@ -5,7 +5,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { formatSequence, nextSequenceNumber } from "@/lib/db/sequence";
-import { orderTotals, roundMoney, splitInstallments, sumMoney, toCents } from "@/lib/money";
+import { orderTotals, roundMoney, sumMoney, toCents } from "@/lib/money";
 import { todayIso } from "@/lib/utils";
 import type { Customer, Invoice, InvoiceStatus, Product, Receivable, SalesOrder, SalesOrderItem, StockLocation } from "@/types";
 import { effectivePriceList, quoteItems, type ComputedLine, type QuoteItemInput } from "./pricing";
@@ -20,6 +20,7 @@ import {
   documentById,
   fail,
   insertRow,
+  installmentAmounts,
   isIsoDay,
   nowIso,
   undoing,
@@ -314,7 +315,7 @@ export async function invoiceSalesOrder(db: DatabaseLike, orderId: string, optio
   const issueDate = options.issueDate ?? todayIso();
   if (!isIsoDay(issueDate)) fail("Data de emissão inválida.");
   const dueDates = resolveDueDates(issueDate, options, Number(order.installments) || 1);
-  const amounts = splitInstallments(total, dueDates.length);
+  const amounts = installmentAmounts(total, dueDates.length);
 
   const products = await productsOfOrder(db, companyId);
   const productCategory = items.map((item) => (item.product_id ? products.get(item.product_id)?.revenue_category_id : null)).find(Boolean) ?? null;

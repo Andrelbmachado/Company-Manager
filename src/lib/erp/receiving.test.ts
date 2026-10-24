@@ -217,6 +217,21 @@ describe("recebimento", () => {
     expect(await balance(fx.items.mouse, fx.locationId)).toBe(3);
   });
 
+  it("não gera conta a pagar de R$ 0,00: valor pequeno demais para o número de parcelas é recusado sem gravar nada", async () => {
+    const { db, fx, manager } = await setup();
+    const orderId = await createPurchaseOrder(db, { companyId: fx.companyId, supplierId: fx.supplierId, items: [{ inventoryItemId: fx.items.mouse, qty: 1, unitPrice: 0.02 }] });
+    await approvePurchaseOrder(db, orderId, { companyId: fx.companyId, userId: manager });
+    const [line] = await lines(orderId);
+    await expect(receivePurchaseOrder(db, orderId, [{ itemId: line.id, qty: 1, locationId: fx.locationId }], { companyId: fx.companyId, installments: 3 })).rejects.toThrow(/parcelas/i);
+    expect(await all("SELECT * FROM goods_receipts")).toEqual([]);
+    expect(await all("SELECT * FROM stock_movements")).toEqual([]);
+    expect(await all("SELECT * FROM payables")).toEqual([]);
+    expect(await balance(fx.items.mouse, fx.locationId)).toBe(3);
+
+    await receivePurchaseOrder(db, orderId, [{ itemId: line.id, qty: 1, locationId: fx.locationId }], { companyId: fx.companyId, installments: 2 });
+    expect((await all<Payable>("SELECT * FROM payables WHERE company_id=? ORDER BY installment_number", [fx.companyId])).map((row) => row.amount)).toEqual([0.01, 0.01]);
+  });
+
   it("estorno devolve o estoque, reabre o pedido e cancela as contas a pagar; com conta paga, não estorna", async () => {
     const { db, fx, manager } = await setup();
     const orderId = await approvedOrder(fx, manager);

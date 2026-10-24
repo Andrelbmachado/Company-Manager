@@ -5,7 +5,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { formatSequence, nextSequenceNumber } from "@/lib/db/sequence";
-import { orderTotals, roundMoney, splitInstallments, sumMoney, toCents } from "@/lib/money";
+import { orderTotals, roundMoney, sumMoney, toCents } from "@/lib/money";
 import { todayIso } from "@/lib/utils";
 import type { GoodsReceipt, GoodsReceiptItem, InventoryItem, Payable, Product, PurchaseOrder, PurchaseOrderItem, StockBalance, StockLocation, Supplier } from "@/types";
 import { resolveDueDates, type ActionOptions } from "./orders";
@@ -21,6 +21,7 @@ import {
   documentById,
   fail,
   insertRow,
+  installmentAmounts,
   isIsoDay,
   nowIso,
   undoing,
@@ -340,7 +341,7 @@ export async function receivePurchaseOrder(db: DatabaseLike, orderId: string, it
       ? roundMoney((orderTotal * goods) / Number(order.subtotal))
       : 0;
   const dueDates = value > 0 ? resolveDueDates(receivedDate, { installments: options.installments, firstDueDate: options.firstDueDate, intervalDays: options.intervalDays, dueDates: options.dueDates }, Number(order.installments) || 1) : [];
-  const amounts = dueDates.length > 0 ? splitInstallments(value, dueDates.length) : [];
+  const amounts = dueDates.length > 0 ? installmentAmounts(value, dueDates.length) : [];
 
   const supplier = order.supplier_id ? await activeRow<Supplier>(db, "suppliers", companyId, order.supplier_id) : null;
   const supplierName = supplier?.name ?? "Fornecedor";

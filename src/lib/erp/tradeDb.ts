@@ -4,6 +4,7 @@
 // Sem transação: o tauri-plugin-sql usa um pool de conexões e BEGIN/COMMIT não ficam na mesma conexão. Por isso as
 // funções validam tudo antes da primeira gravação e, se uma gravação falhar no meio, desfazem o que gravaram.
 import type { DatabaseLike } from "@/lib/db/demo";
+import { splitInstallments } from "@/lib/money";
 
 /** Regra de negócio violada: a mensagem (pt-BR) vai direto para a tela. */
 export class TradeRuleError extends Error {
@@ -161,6 +162,16 @@ export function isIsoDay(value: string | null | undefined): value is string {
 export function addDaysIso(day: string, days: number): string {
   const [year, month, date] = day.slice(0, 10).split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Valor de cada parcela (splitInstallments: soma exata, a última absorve os centavos). Recusa quando o valor não dá
+ * ao menos R$ 0,01 por parcela, para não gerar conta a receber/pagar de R$ 0,00.
+ */
+export function installmentAmounts(total: number, count: number): number[] {
+  const amounts = splitInstallments(total, count);
+  if (amounts.some((amount) => !(amount > 0))) fail(`O valor não dá ${count} parcelas de ao menos R$ 0,01; diminua o número de parcelas.`);
+  return amounts;
 }
 
 /** Número finito (aceita texto de formulário com vírgula decimal, ex.: "1.234,56"). */

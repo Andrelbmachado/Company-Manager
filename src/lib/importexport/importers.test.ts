@@ -453,6 +453,27 @@ describe("casamento dentro da planilha", () => {
     expect(result).toMatchObject({ errors: [], inserted: 2 });
   });
 
+  it("matriz e filial com a mesma razão social: a exportação sai pelo CNPJ e volta para o cliente certo", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await insert(db, "customers", { id: "matriz", company_id: companyId, name: "Supermercado ABC Ltda", document: "11.222.333/0001-81" });
+    await insert(db, "customers", { id: "filial", company_id: companyId, name: "Supermercado ABC Ltda", document: "11.222.333/0002-62" });
+    await insert(db, "customers", { id: "outro", company_id: companyId, name: "Padaria Pão Quente Ltda", document: "11.444.777/0001-61" });
+    await insert(db, "opportunities", { id: "o-matriz", company_id: companyId, customer_id: "matriz", title: "Câmeras" });
+    await insert(db, "opportunities", { id: "o-filial", company_id: companyId, customer_id: "filial", title: "Câmeras" });
+    await insert(db, "opportunities", { id: "o-outro", company_id: companyId, customer_id: "outro", title: "Site" });
+    const exported = await exportRows("opportunities", "csv", { db, companyId });
+    const text = await textOf(exported);
+    expect(text).toContain("11.222.333/0002-62");
+    expect(text).toContain("Padaria Pão Quente Ltda");
+    const result = await importFile(registry.opportunities, exported, "oportunidades.csv", db, companyId, userId);
+    expect(result).toMatchObject({ errors: [], inserted: 0, updated: 3 });
+    expect(await db.select<Row[]>("SELECT id, customer_id FROM opportunities WHERE company_id=? ORDER BY id", [companyId])).toEqual([
+      { id: "o-filial", customer_id: "filial" },
+      { id: "o-matriz", customer_id: "matriz" },
+      { id: "o-outro", customer_id: "outro" },
+    ]);
+  });
+
   it("colaborador: jornada em horas vira minutos e volta em horas na exportação", async () => {
     const { db, companyId, userId } = await sqliteCompany();
     await run("employees", { name: "Nome", daily_hours: "Jornada" }, [{ Nome: "Ana", Jornada: "7,5" }], db, companyId, userId);

@@ -156,6 +156,19 @@ export async function loadRefs(db: DatabaseLike, companyId: string, refs: RefSpe
   return indexes;
 }
 
+/**
+ * Texto exportado de uma referência, que a importação resolve de volta para o mesmo cadastro: o nome; se outro
+ * cadastro tem o mesmo nome (matriz e filial), o documento, e-mail ou código que só ele tem.
+ */
+function refText(index: RefIndex, target: Row): string {
+  const shown = index.spec.display(target);
+  for (const candidate of [shown, ...index.spec.keys(target)]) {
+    const key = refKey(candidate);
+    if (key && index.byKey.get(key)?.size === 1) return String(candidate);
+  }
+  return shown;
+}
+
 type RefResult = { ok: true; refs: RefValues } | { ok: false; field: string; message: string };
 
 function resolveRefs<T>(row: T, indexes: RefIndex[]): RefResult {
@@ -386,8 +399,9 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
           const ref = refFields.get(field.key);
           if (ref) {
             const id = row[ref.column];
-            const target = id ? refIndexes.find((index) => index.spec === ref)?.byId.get(String(id)) : undefined;
-            out[field.key] = target ? ref.display(target) : null;
+            const index = refIndexes.find((candidate) => candidate.spec === ref);
+            const target = id ? index?.byId.get(String(id)) : undefined;
+            out[field.key] = target && index ? refText(index, target) : null;
           } else if (field.key in row) {
             out[field.key] = field.kind === "bool" ? toBool(row[field.key]) : row[field.key];
           }

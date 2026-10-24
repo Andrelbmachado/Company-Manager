@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionContext } from "@/hooks/useSession";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { addDays, monthOf } from "@/lib/reports/common";
+import { addDays, addMonths, monthLabel, monthOf } from "@/lib/reports/common";
 import { todayIso } from "@/lib/utils";
 import type { Role, Session } from "@/types";
 
@@ -166,6 +166,23 @@ describe("DRE", () => {
     expect(container.querySelector("h1")?.textContent).toBe("DRE");
     expect(text()).toContain("1.1 Vendas");
     expect(text()).toContain("Receita bruta");
+  });
+
+  it("escolhe o mês final numa lista (o WebKit do macOS não tem input month)", async () => {
+    await render(<DreReportPage />, "financeiro");
+    await until(() => text().includes("Resultado líquido"), "DRE");
+    const field = container.querySelector<HTMLSelectElement>("#dre-ate")!;
+    expect(field.tagName).toBe("SELECT");
+    const current = monthOf(today);
+    const previous = addMonths(current, -1);
+    expect(field.value).toBe(current);
+    expect(Array.from(field.options).map((option) => option.value)).toContain(previous);
+    await act(async () => {
+      field.value = previous;
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const headers = () => Array.from(container.querySelectorAll("th")).map((cell) => cell.textContent);
+    await until(() => headers().includes(monthLabel(previous)) && !headers().includes(monthLabel(current)), "colunas até o mês anterior");
   });
 });
 

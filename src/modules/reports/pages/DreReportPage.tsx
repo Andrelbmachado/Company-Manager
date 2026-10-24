@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
-import { monthLabel, monthOf } from "@/lib/reports/common";
+import { addMonths, monthLabel, monthOf, monthsBetween } from "@/lib/reports/common";
 import { buildDreReport, dreTable, loadDreData } from "@/lib/reports/dre";
 import { formatCurrency, todayIso } from "@/lib/utils";
 import { FIELD, LABEL, MoneyValue, ReportState, StatGrid, useReportData } from "../components/ReportControls";
@@ -17,6 +17,11 @@ const MONTH_COUNTS = [3, 6, 12] as const;
 export default function DreReportPage() {
   const [endMonth, setEndMonth] = useState(() => monthOf(todayIso()));
   const [months, setMonths] = useState<number>(6);
+  // Lista de meses em vez de <input type="month">: o WebKit do macOS não tem esse tipo (vira texto livre).
+  const monthChoices = useMemo(() => {
+    const current = monthOf(todayIso());
+    return monthsBetween(addMonths(current, -71), addMonths(current, 12)).reverse();
+  }, []);
   const data = useReportData("dre", loadDreData);
 
   const report = useMemo(() => (data.data ? buildDreReport(data.data, { endMonth, months }) : null), [data.data, endMonth, months]);
@@ -31,7 +36,13 @@ export default function DreReportPage() {
       <div className="flex flex-wrap items-end gap-3">
         <label className={LABEL} htmlFor="dre-ate">
           Até o mês
-          <input id="dre-ate" type="month" className={FIELD} value={endMonth} onChange={(event) => /^\d{4}-\d{2}$/.test(event.target.value) && setEndMonth(event.target.value)} />
+          <select id="dre-ate" className={FIELD} value={endMonth} onChange={(event) => setEndMonth(event.target.value)}>
+            {monthChoices.map((month) => (
+              <option key={month} value={month}>
+                {monthLabel(month)}
+              </option>
+            ))}
+          </select>
         </label>
         <label className={LABEL} htmlFor="dre-meses">
           Comparar

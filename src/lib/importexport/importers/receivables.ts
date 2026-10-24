@@ -72,6 +72,32 @@ export function financeKeys<T extends { document_number?: string; installment_nu
   ];
 }
 
+export interface SettlementLabels {
+  /** Campo do valor baixado (paid_amount / received_amount). */
+  field: string;
+  /** "pago" / "recebido". */
+  verb: string;
+  done: string;
+  doneLabel: string;
+  partial: string;
+  partialLabel: string;
+}
+
+/**
+ * Situação informada que contradiz o valor baixado (paga = valor todo; paga em parte = entre zero e o valor):
+ * "Paga" com valor menor sumiria com o resto da dívida das contas em aberto.
+ */
+export function settlementIssue(row: { amount: number; status?: string }, settled: number | undefined, context: z.RefinementCtx, labels: SettlementLabels): void {
+  const path = [labels.field];
+  if (row.status === labels.done && settled !== undefined && roundMoney(settled) < roundMoney(row.amount)) {
+    context.addIssue({ code: "custom", path, message: `Situação "${labels.doneLabel}", mas o valor ${labels.verb} é menor que o valor da conta: use "${labels.partialLabel}"` });
+  }
+  if (row.status === labels.partial) {
+    if (!settled) context.addIssue({ code: "custom", path, message: `Situação "${labels.partialLabel}": informe o valor ${labels.verb}` });
+    else if (roundMoney(settled) === roundMoney(row.amount)) context.addIssue({ code: "custom", path, message: `O valor ${labels.verb} quita a conta: use a situação "${labels.doneLabel}"` });
+  }
+}
+
 /** Situação e valor baixado coerentes: "paga"/"recebida" sem valor = valor total; valor parcial = baixa parcial. */
 export function settlementStatus(amount: number, settled: number | undefined, status: string | undefined, done: "paga" | "recebida") {
   const partial = done === "paga" ? "paga_parcial" : "recebida_parcial";
@@ -119,6 +145,7 @@ const schema = z
   })
   .superRefine((row, context) => {
     installmentIssue(row, context);
+    settlementIssue(row, row.received_amount, context, { field: "received_amount", verb: "recebido", done: "recebida", doneLabel: "Recebida", partial: "recebida_parcial", partialLabel: "Recebida em parte" });
     if (row.received_amount !== undefined && roundMoney(row.received_amount) > roundMoney(row.amount)) {
       context.addIssue({ code: "custom", path: ["received_amount"], message: "O valor recebido é maior que o valor da conta" });
     }

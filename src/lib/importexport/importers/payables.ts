@@ -5,7 +5,7 @@ import { categoryRef, costCenterRef, supplierField, supplierRef } from "../refs"
 import type { FieldDef } from "../registry";
 import { isoDate, isoMonth, money, oneOf, optionalText, requiredText } from "../schema";
 import { defineTableEntity } from "../tableEntity";
-import { financeKeys, INSTALLMENT_FIELDS, installmentIssue, installmentSchema, settlementStatus } from "./receivables";
+import { financeKeys, INSTALLMENT_FIELDS, installmentIssue, installmentSchema, settlementIssue, settlementStatus } from "./receivables";
 
 const STATUS = [
   { value: "aberta", label: "Aberta" },
@@ -54,6 +54,7 @@ const schema = z
   })
   .superRefine((row, context) => {
     installmentIssue(row, context);
+    settlementIssue(row, row.paid_amount, context, { field: "paid_amount", verb: "pago", done: "paga", doneLabel: "Paga", partial: "paga_parcial", partialLabel: "Paga em parte" });
     if (row.paid_amount !== undefined && roundMoney(row.paid_amount) > roundMoney(row.amount)) {
       context.addIssue({ code: "custom", path: ["paid_amount"], message: "O valor pago é maior que o valor da conta" });
     }

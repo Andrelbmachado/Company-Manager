@@ -251,6 +251,29 @@ describe("contas a pagar e a receber", () => {
     expect(rows[0].category_id).toBeTruthy();
   });
 
+  it("situação que contradiz o valor baixado é erro: Paga com valor menor sumiria com o resto da dívida", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    const mapping = { description: "Descrição", amount: "Valor", status: "Situação", paid_amount: "Pago" };
+    const result = await run("payables", mapping, [
+      { Descrição: "Aluguel", Valor: "200", Situação: "Paga", Pago: "50" },
+      { Descrição: "Internet", Valor: "200", Situação: "Paga em parte", Pago: "" },
+      { Descrição: "Energia", Valor: "200", Situação: "Paga em parte", Pago: "200,00" },
+      { Descrição: "Água", Valor: "200", Situação: "Paga", Pago: "200" },
+      { Descrição: "Gás", Valor: "200", Situação: "Paga em parte", Pago: "80" },
+    ], db, companyId, userId, "skip-errors");
+    expect(result.errors.map((error) => [error.row, error.field])).toEqual([[2, "paid_amount"], [3, "paid_amount"], [4, "paid_amount"]]);
+    expect(result.errors[0].message).toMatch(/Paga em parte/);
+    expect(result).toMatchObject({ inserted: 2 });
+    expect(await db.select<Row[]>("SELECT description, status, paid_amount FROM payables WHERE company_id=? ORDER BY paid_amount DESC", [companyId])).toEqual([
+      { description: "Água", status: "paga", paid_amount: 200 },
+      { description: "Gás", status: "paga_parcial", paid_amount: 80 },
+    ]);
+    const received = await run("receivables", { description: "Descrição", amount: "Valor", status: "Situação", received_amount: "Recebido" }, [
+      { Descrição: "Mensalidade", Valor: "990", Situação: "Recebida", Recebido: "500" },
+    ], db, companyId, userId, "skip-errors");
+    expect(received.errors).toEqual([expect.objectContaining({ field: "received_amount", message: expect.stringMatching(/Recebida em parte/) })]);
+  });
+
   it("conta a receber antiga (texto em ref_id) é reconhecida pela descrição exportada", async () => {
     const { db, companyId, userId } = await sqliteCompany();
     await insert(db, "receivables", { id: uuidv4(), company_id: companyId, ref_id: "Mensalidade outubro", amount: 990, due_date: "2026-10-10" });

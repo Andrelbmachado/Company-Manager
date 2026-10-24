@@ -25,8 +25,22 @@ describe("seeds de área no banco demo", () => {
     const categories = await db.select<Row[]>("SELECT * FROM finance_categories WHERE company_id=?", [DEMO_COMPANY_ID]);
     expect(categories.some((category) => category.parent_id != null)).toBe(true);
 
+    // CRM, vendas, compras, estoque, RH, importação e extrato também sobem no demo (clientes, itens e fornecedores do demo).
+    const tables = ["crm_activities", "proposal_items", "sales_orders", "invoices", "purchase_orders", "goods_receipts", "inventory_counts", "employees", "hr_time_entries", "import_batches", "recurring_entries", "finance_settlements", "bank_transactions", "stock_movements", "receivables", "payables"];
+    const before: Record<string, number> = {};
+    for (const table of tables) {
+      const [{ n }] = await db.select<{ n: number }[]>(`SELECT count(*) AS n FROM ${table} WHERE company_id=?`, [DEMO_COMPANY_ID]);
+      expect(n, table).toBeGreaterThan(0);
+      before[table] = n;
+    }
+
     await runAreaSeeds(DEMO_COMPANY_ID);
     expect(await db.select("SELECT count(*) AS n FROM products WHERE company_id=?", [DEMO_COMPANY_ID])).toEqual([{ n: products.length }]);
     expect(await db.select("SELECT count(*) AS n FROM finance_categories WHERE company_id=?", [DEMO_COMPANY_ID])).toEqual([{ n: categories.length }]);
+    for (const table of tables) {
+      expect(await db.select(`SELECT count(*) AS n FROM ${table} WHERE company_id=?`, [DEMO_COMPANY_ID]), table).toEqual([{ n: before[table] }]);
+    }
+    const balances = await db.select<Row[]>("SELECT * FROM stock_balances WHERE company_id=?", [DEMO_COMPANY_ID]);
+    expect(balances.filter((row) => Number(row.quantity) < 0)).toEqual([]);
   });
 });

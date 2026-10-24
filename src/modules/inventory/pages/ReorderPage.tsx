@@ -27,7 +27,8 @@ export default function ReorderPage() {
   // Itens desmarcados pelo usuário; tudo o que está na lista começa marcado.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [quantities, setQuantities] = useState<Record<string, string>>({});
-  const [locationId, setLocationId] = useState("");
+  // null = ainda não escolhido (começa no primeiro local); "" = "Definir no pedido".
+  const [locationId, setLocationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedPurchaseOrder[]>([]);
 
@@ -51,7 +52,7 @@ export default function ReorderPage() {
     .map((item) => ({ ...item, on_order: onOrder?.get(item.id) ?? 0 }));
 
   useEffect(() => {
-    if (!locationId && locations[0]) setLocationId(locations[0].id);
+    if (locationId === null && locations[0]) setLocationId(locations[0].id);
   }, [locations, locationId]);
 
   const qtyOf = (row: ReorderSuggestion) => {
@@ -101,7 +102,11 @@ export default function ReorderPage() {
       setExcluded(new Set());
       invalidate({ purchases: true });
     },
-    onError: (caught) => setError(errorText(caught)),
+    onError: (caught) => {
+      setError(errorText(caught));
+      // Parte dos pedidos pode ter sido gravada: recarrega a sugestão (o que já está em pedido sai dela) antes de tentar de novo.
+      invalidate({ purchases: true });
+    },
   });
 
   function toggle(itemId: string) {
@@ -233,7 +238,7 @@ export default function ReorderPage() {
             <div className="flex flex-wrap items-end justify-end gap-3 rounded-xl border bg-card p-4">
               <div className="w-64">
                 <Field label="Entregar em" htmlFor="reorder-location">
-                  <select id="reorder-location" value={locationId} onChange={(event) => setLocationId(event.target.value)} className={INPUT}>
+                  <select id="reorder-location" value={locationId ?? ""} onChange={(event) => setLocationId(event.target.value)} className={INPUT}>
                     <option value="">Definir no pedido</option>
                     {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                   </select>

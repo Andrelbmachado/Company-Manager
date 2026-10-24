@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, X } from "lucide-react";
-import { StockError } from "@/lib/inventory/stock";
+import { roundQty, StockError } from "@/lib/inventory/stock";
 import { MOVEMENT_TYPE_LABELS } from "@/lib/inventory/queries";
 import { cn } from "@/lib/utils";
 import type { StockMovementType } from "@/types";
@@ -40,12 +40,63 @@ export function errorText(error: unknown): string {
   return detail ? `Não foi possível concluir: ${detail}` : "Não foi possível concluir a operação.";
 }
 
-/** Número digitado em pt-BR ("1.234,5" ou "2,5") ou com ponto ("2.5"); vazio → NaN. */
+/**
+ * Número digitado em pt-BR, no mesmo formato que a tela mostra (formatQty): "2,5", "1.234,5" e "1.250" (= mil duzentos
+ * e cinquenta, ponto de milhar). Ponto que não é de milhar vale como decimal ("2.5", "0.125"), e "1,234.56" também é
+ * aceito. Ignora "R$" e espaços. Vazio ou texto que não é número ("1O,50", "2,5 kg") → NaN.
+ */
 export function parseDecimal(text: string): number {
-  const value = text.trim();
+  let value = text.replace(/R\$/gi, "").replace(/\s+/g, "");
+  let sign = 1;
+  if (value.startsWith("-") || value.startsWith("+")) {
+    if (value.startsWith("-")) sign = -1;
+    value = value.slice(1);
+  }
   if (!value) return Number.NaN;
-  const normalized = value.includes(",") ? value.replace(/\./g, "").replace(",", ".") : value;
-  return Number(normalized);
+  let normalized: string;
+  if (/^\d{1,3}(,\d{3})+\.\d+$/.test(value)) {
+    // "1,234.56": vírgula de milhar e ponto decimal.
+    normalized = value.replace(/,/g, "");
+  } else if (value.includes(",")) {
+    // Vírgula decimal (uma só); pontos antes dela só como milhar ("1.234,5").
+    const parts = value.split(",");
+    if (parts.length !== 2 || (parts[0] && !/^(\d+|\d{1,3}(\.\d{3})+)$/.test(parts[0]))) return Number.NaN;
+    normalized = `${parts[0].replace(/\./g, "")}.${parts[1]}`;
+  } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(value)) {
+    // "1.250" e "1.234.567": ponto de milhar, como a tela mostra.
+    normalized = value.replace(/\./g, "");
+  } else {
+    normalized = value;
+  }
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(normalized)) return Number.NaN;
+  return sign * Number(normalized);
+}
+
+export interface ItemNumberFields {
+  min_stock: string;
+  max_stock: string;
+  cost: string;
+  initial_qty?: string;
+}
+
+/**
+ * Números do cadastro de item lidos do formulário. Campo vazio usa o padrão (mínimo, custo e saldo inicial 0; sem
+ * máximo). Texto que não é número ou negativo é recusado com o nome do campo, em vez de virar 0 sem aviso.
+ */
+export function readItemNumbers(form: ItemNumberFields): { minStock: number; maxStock: number | null; cost: number; initialQty: number } {
+  const read = (text: string | undefined, label: string): number | null => {
+    if (!text?.trim()) return null;
+    const value = parseDecimal(text);
+    if (!Number.isFinite(value) || value < 0) throw new StockError("valor_invalido", `${label}: informe um número igual ou maior que zero (ex.: 12,5).`);
+    return value;
+  };
+  const minStock = roundQty(read(form.min_stock, "Estoque mínimo") ?? 0);
+  const max = read(form.max_stock, "Estoque máximo");
+  const maxStock = max == null ? null : roundQty(max);
+  const cost = read(form.cost, "Custo") ?? 0;
+  const initialQty = roundQty(read(form.initial_qty, "Saldo inicial") ?? 0);
+  if (maxStock != null && maxStock < minStock) throw new StockError("valor_invalido", "O estoque máximo não pode ser menor que o mínimo.");
+  return { minStock, maxStock, cost, initialQty };
 }
 
 export const INPUT = "h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";

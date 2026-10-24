@@ -29,12 +29,22 @@ function signed(value: number, unit?: string): string {
 export default function InventoryCountPage() {
   const { id = "" } = useParams();
   const session = useRequiredSession();
+  // A rota só exige `view`: abrir contagem pede `create` em inventory, como o botão "Nova contagem" da lista.
+  const canCreate = usePermission("create", "inventory");
   if (id === "nova") {
     return (
       <div className="space-y-6">
         <BackLink />
-        <PageHeader title="Nova contagem de inventário" description="Escolha o local a contar." />
-        <NewCountForm companyId={session.company.id} userId={session.user.id} />
+        <PageHeader title="Nova contagem de inventário" description={canCreate ? "Escolha o local a contar." : undefined} />
+        {canCreate ? (
+          <NewCountForm companyId={session.company.id} userId={session.user.id} />
+        ) : (
+          <EmptyState
+            icon={ClipboardCheck}
+            title="Sem permissão para abrir contagem"
+            description="Seu perfil consulta o estoque, mas não abre contagem de inventário. Peça a quem cuida do estoque."
+          />
+        )}
       </div>
     );
   }

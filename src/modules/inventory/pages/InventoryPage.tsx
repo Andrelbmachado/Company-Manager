@@ -8,9 +8,10 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
 import { emit } from "@/lib/events/bus";
 import { isAtReorderPoint, loadStockSnapshot, type StockItemRow } from "@/lib/inventory/queries";
-import { formatQty, recordStockMovement } from "@/lib/inventory/stock";
+import { activeLocation, formatQty, recordStockMovement, StockError } from "@/lib/inventory/stock";
 import { lineTotal, sumMoney } from "@/lib/money";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { CrudDialog } from "@/components/shared/CrudDialog";
@@ -19,7 +20,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { StockMovementDialog, type ManualMovementKind } from "../components/StockMovementDialog";
-import { BUTTON_OUTLINE, BUTTON_PRIMARY, ErrorBanner, errorText, inventoryKeys, normalizeSearch, parseDecimal, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
+import { BUTTON_OUTLINE, BUTTON_PRIMARY, ErrorBanner, errorText, inventoryKeys, normalizeSearch, readItemNumbers, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
 
 interface ItemCustody {
   id: string;
@@ -37,11 +38,6 @@ interface SupplierOption {
 
 const EMPTY_FORM = { name: "", sku: "", category: "", supplier_id: "", unit: "un", min_stock: "0", max_stock: "", cost: "0", initial_qty: "", initial_location_id: "" };
 type ItemForm = typeof EMPTY_FORM;
-
-function numberOr(text: string, fallback: number): number {
-  const value = parseDecimal(text);
-  return Number.isFinite(value) ? value : fallback;
-}
 
 export default function InventoryPage() {
   const session = useRequiredSession();
@@ -64,6 +60,9 @@ export default function InventoryPage() {
   const [form, setForm] = useState<ItemForm>(EMPTY_FORM);
   const [movement, setMovement] = useState<{ kind: ManualMovementKind; itemId?: string; locationId?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Erros do formulário de novo item e do diálogo de edição aparecem dentro deles (o aviso da página fica atrás do diálogo).
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const { data: snapshot, isLoading } = useQuery({
     queryKey: inventoryKeys.snapshot(companyId),
@@ -94,71 +93,88 @@ export default function InventoryPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ warning: string | null }> => {
+      // Tudo validado antes de gravar: se algo falhar aqui, nada foi gravado e salvar de novo não duplica o item.
+      const numbers = readItemNumbers(form);
+      const name = form.name.trim();
+      const locationId = numbers.initialQty > 0 ? form.initial_location_id || locations[0]?.id || "" : "";
+      if (numbers.initialQty > 0 && !locationId) {
+        throw new StockError("local_invalido", "Cadastre um local em Estoque › Locais para lançar o saldo inicial, ou deixe o saldo inicial em branco.");
+      }
       const db = await getDb();
+      if (locationId) await activeLocation(db, companyId, locationId);
       const id = uuidv4();
-      const initialQty = parseDecimal(form.initial_qty);
-      const maxStock = parseDecimal(form.max_stock);
       await db.execute(
         "INSERT INTO inventory_items (id, company_id, name, sku, category, supplier_id, unit, min_stock, max_stock, cost) VALUES (?,?,?,?,?,?,?,?,?,?)",
         [
-          id, companyId, form.name.trim(),
+          id, companyId, name,
           form.sku.trim() || null, form.category.trim() || null, form.supplier_id || null, form.unit.trim() || "un",
-          numberOr(form.min_stock, 0), Number.isFinite(maxStock) ? maxStock : null, numberOr(form.cost, 0),
+          numbers.minStock, numbers.maxStock, numbers.cost,
         ]
       );
-      await emit({
-        type: "stock.item_created",
-        companyId,
-        actorId: session.user.id,
-        entityType: "inventory_item",
-        entityId: id,
-        title: `Item criado: ${form.name}`,
-        module: "inventory",
-        newValue: form,
-      });
-      // Saldo inicial vira uma entrada no local escolhido (fica no histórico de movimentações).
-      if (Number.isFinite(initialQty) && initialQty > 0) {
-        await recordStockMovement(db, {
-          companyId,
-          itemId: id,
-          type: "entrada",
-          quantity: initialQty,
-          toLocationId: form.initial_location_id || locations[0]?.id,
-          refType: "manual",
-          userId: session.user.id,
-          note: "Saldo inicial",
-        });
+      // O item já está gravado: daqui em diante um erro não pode deixar o formulário aberto (salvar de novo duplicaria).
+      let warning: string | null = null;
+      if (numbers.initialQty > 0) {
+        // Saldo inicial vira uma entrada no local escolhido (fica no histórico de movimentações).
+        try {
+          await recordStockMovement(db, {
+            companyId,
+            itemId: id,
+            type: "entrada",
+            quantity: numbers.initialQty,
+            toLocationId: locationId,
+            refType: "manual",
+            userId: session.user.id,
+            note: "Saldo inicial",
+          });
+        } catch (caught) {
+          warning = `"${name}" foi cadastrado, mas o saldo inicial não foi lançado (${errorText(caught)}). Abra o item e use "Entrada" para lançar o saldo.`;
+        }
       }
+      try {
+        await emit({
+          type: "stock.item_created",
+          companyId,
+          actorId: session.user.id,
+          entityType: "inventory_item",
+          entityId: id,
+          title: `Item criado: ${name}`,
+          module: "inventory",
+          newValue: form,
+        });
+      } catch (caught) {
+        console.error("[estoque] evento stock.item_created falhou", caught);
+      }
+      return { warning };
     },
-    onSuccess: () => {
+    onSuccess: ({ warning }) => {
       invalidate();
       setShowForm(false);
       setForm(EMPTY_FORM);
+      setCreateError(null);
+      if (warning) setError(warning);
     },
-    onError: (caught) => {
-      invalidate();
-      setError(errorText(caught));
-    },
+    onError: (caught) => setCreateError(errorText(caught)),
   });
 
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!selectedItem) return;
-      const maxStock = parseDecimal(form.max_stock);
+      const numbers = readItemNumbers({ min_stock: form.min_stock, max_stock: form.max_stock, cost: form.cost });
       await (await getDb()).execute(
         "UPDATE inventory_items SET name=?, sku=?, category=?, supplier_id=?, unit=?, min_stock=?, max_stock=?, cost=?, updated_at=datetime('now') WHERE id=? AND company_id=?",
         [
           form.name.trim(), form.sku.trim() || null, form.category.trim() || null, form.supplier_id || null, form.unit.trim() || "un",
-          numberOr(form.min_stock, 0), Number.isFinite(maxStock) ? maxStock : null, numberOr(form.cost, 0), selectedItem.id, companyId,
+          numbers.minStock, numbers.maxStock, numbers.cost, selectedItem.id, companyId,
         ]
       );
     },
     onSuccess: () => {
       invalidate();
       setEditing(false);
+      setEditError(null);
     },
-    onError: (caught) => setError(errorText(caught)),
+    onError: (caught) => setEditError(errorText(caught)),
   });
 
   const deleteMutation = useMutation({
@@ -201,7 +217,7 @@ export default function InventoryPage() {
       <PageHeader
         title="Estoque"
         description="Itens, saldos por local e movimentações"
-        // TODO(integração): <ImportExportButtons entity="inventory" onImported={() => invalidate()} /> (Tarefa 5) nas ações.
+        actions={<ImportExportButtons entity="inventory" onImported={() => invalidate()} />}
       />
 
       <ErrorBanner message={error} onClose={() => setError(null)} />
@@ -244,6 +260,7 @@ export default function InventoryPage() {
             type="button"
             onClick={() => {
               setForm({ ...EMPTY_FORM, initial_location_id: locations[0]?.id ?? "" });
+              setCreateError(null);
               setShowForm(true);
             }}
             className={BUTTON_PRIMARY}
@@ -318,6 +335,7 @@ export default function InventoryPage() {
               </select>
             </div>
           </div>
+          <ErrorBanner message={createError} onClose={() => setCreateError(null)} />
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowForm(false)} className="rounded-md border px-4 py-1.5 text-sm transition-colors hover:bg-muted">
               Cancelar
@@ -415,6 +433,7 @@ export default function InventoryPage() {
                     max_stock: selectedItem.max_stock == null ? "" : String(selectedItem.max_stock).replace(".", ","),
                     cost: String(selectedItem.cost).replace(".", ","),
                   });
+                  setEditError(null);
                   setEditing(true);
                 }
               : undefined
@@ -516,6 +535,11 @@ export default function InventoryPage() {
           busy={updateMutation.isPending}
         >
           <p className="mt-4 text-xs text-muted-foreground">O saldo muda só por movimentação (entrada, saída, transferência ou inventário), não por aqui.</p>
+          {editError && (
+            <div className="mt-4">
+              <ErrorBanner message={editError} onClose={() => setEditError(null)} />
+            </div>
+          )}
         </CrudDialog>
       )}
 

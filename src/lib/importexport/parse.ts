@@ -164,6 +164,20 @@ async function parseXlsx(bytes: Uint8Array, maxRows: number): Promise<ParsedShee
 
 // ── entrada ───────────────────────────────────────────────────────
 
+/** Bytes do arquivo: Blob.arrayBuffer quando existe; senão FileReader (WebKit antigo, jsdom) ou Response. */
+export async function readBytes(blob: Blob): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === "function") return new Uint8Array(await blob.arrayBuffer());
+  if (typeof FileReader !== "undefined") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+      reader.onerror = () => reject(reader.error ?? new ImportFileError("Não foi possível ler o arquivo."));
+      reader.readAsArrayBuffer(blob);
+    });
+  }
+  return new Uint8Array(await new Response(blob).arrayBuffer());
+}
+
 function detectFormat(name: string, bytes: Uint8Array): "csv" | "xlsx" {
   const extension = /\.([^.]+)$/.exec(name)?.[1]?.toLowerCase() ?? "";
   const zip = bytes[0] === 0x50 && bytes[1] === 0x4b;
@@ -179,7 +193,7 @@ export async function parseFile(file: FileLike, options: ParseOptions = {}): Pro
   const maxRows = options.maxRows ?? MAX_IMPORT_ROWS;
   if (file.size === 0) throw new ImportFileError("O arquivo está vazio.");
   if (file.size > MAX_FILE_BYTES) throw new ImportFileError(`Arquivo grande demais (máximo ${MAX_FILE_BYTES / 1024 / 1024} MB). Divida em partes menores.`);
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = await readBytes(file);
   const name = file.name ?? "";
   const format = detectFormat(name, bytes);
   const sheets = format === "xlsx" ? await parseXlsx(bytes, maxRows) : await parseCsv(bytes, name, maxRows);

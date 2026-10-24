@@ -85,17 +85,17 @@ export async function loadActive(db: DatabaseLike, table: string, companyId: str
 }
 
 /** Linhas mais antigas primeiro (em chave repetida no banco, vale o cadastro mais antigo). */
-function byAge(a: Row, b: Row): number {
+export function byAge(a: Row, b: Row): number {
   return String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || String(a.id).localeCompare(String(b.id));
 }
 
-interface RefIndex {
+export interface RefIndex {
   spec: RefSpec;
   byKey: Map<string, Set<string>>;
   byId: Map<string, Row>;
 }
 
-async function loadRefs(db: DatabaseLike, companyId: string, refs: RefSpec[]): Promise<RefIndex[]> {
+export async function loadRefs(db: DatabaseLike, companyId: string, refs: RefSpec[]): Promise<RefIndex[]> {
   const cache = new Map<string, Row[]>();
   const indexes: RefIndex[] = [];
   for (const spec of refs) {
@@ -131,34 +131,41 @@ function resolveRefs<T>(row: T, indexes: RefIndex[]): RefResult {
       continue;
     }
     const ids = byKey.get(key);
-    if (!ids || ids.size === 0) return { ok: false, field: spec.field, message: `${capitalize(spec.label)} não encontrado: "${String(raw)}"` };
-    if (ids.size > 1) return { ok: false, field: spec.field, message: `Mais de um ${spec.label} com "${String(raw)}": use o documento ou o código` };
+    if (!ids || ids.size === 0) return { ok: false, field: spec.field, message: `Nenhum cadastro de ${spec.label} com "${String(raw)}"` };
+    if (ids.size > 1) return { ok: false, field: spec.field, message: `Mais de um cadastro de ${spec.label} com "${String(raw)}": use o documento ou o código` };
     refs[spec.field] = [...ids][0];
   }
   return { ok: true, refs };
 }
-
-const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Texto cru das referências (para a chave natural, que não consulta o banco). */
 function rawRefs<T>(row: T, refs: RefSpec[] | undefined): RefValues {
   return Object.fromEntries((refs ?? []).map((spec) => [spec.field, keyOf((row as Record<string, unknown>)[spec.field]) || null]));
 }
 
-interface PlannedRow<T> {
+export interface PlannedRow<T> {
   index: number;
   row: T;
   refs: RefValues;
   existing: Row | null;
+  /** Linha nova que repete o cadastro novo de uma linha anterior (só com allowRepeat): índice dessa linha. */
+  pendingOf?: number;
 }
 
-interface Plan<T> {
+export interface Plan<T> {
   planned: PlannedRow<T>[];
   issues: RowIssue[];
 }
 
+export interface PlanOptions {
+  userId?: string | null;
+  /** Várias linhas podem apontar para o mesmo cadastro (ex.: um item de estoque em vários locais). */
+  allowRepeat?: boolean;
+}
+
 /** Casa cada linha com um cadastro existente (ou nenhum) e aponta conflitos. */
-async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, companyId: string, rows: T[], userId: string | null): Promise<Plan<T>> {
+export async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, companyId: string, rows: T[], options: PlanOptions = {}): Promise<Plan<T>> {
+  const userId = options.userId ?? null;
   const refIndexes = await loadRefs(db, companyId, spec.refs ?? []);
   const existingRows = (await loadActive(db, spec.table, companyId)).sort(byAge);
   // tier → valor → linhas do banco
@@ -177,6 +184,7 @@ async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, companyI
   const claimed = new Map<string, number>();
   // Chaves das linhas novas desta planilha (duas linhas novas com o mesmo e-mail viram conflito, não dois cadastros).
   const pendingKeys = spec.keys.map(() => new Map<string, number>());
+  const pendingValues = new Map<number, string[]>();
 
   rows.forEach((row, rowIndex) => {
     const resolved = resolveRefs(row, refIndexes);
@@ -197,20 +205,31 @@ async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, companyI
           }),
         ) ?? null;
     }
+    let pendingOf: number | undefined;
     if (existing) {
       const first = claimed.get(String(existing.id));
-      if (first !== undefined) {
+      if (first !== undefined && !options.allowRepeat) {
         issues.push({ index: rowIndex, field: "", message: `Mesmo cadastro de outra linha da planilha (${describe(spec, existing)})`, relatedIndex: first });
         return;
       }
-      claimed.set(String(existing.id), rowIndex);
+      if (first === undefined) claimed.set(String(existing.id), rowIndex);
     } else {
-      const tier = values.findIndex((value, position) => value && pendingKeys[position].has(value));
-      if (tier >= 0) {
+      // Mesma regra do banco: chave fraca igual não junta duas linhas cuja chave mais forte é diferente.
+      const tier = values.findIndex((value, position) => {
+        const other = value ? pendingKeys[position].get(value) : undefined;
+        if (other === undefined) return false;
+        const theirs = pendingValues.get(other) ?? [];
+        return values.slice(0, position).every((mine, stronger) => !mine || !theirs[stronger] || mine === theirs[stronger]);
+      });
+      if (tier >= 0 && !options.allowRepeat) {
         issues.push({ index: rowIndex, field: "", message: `Repetido na planilha (mesmo ${spec.keys[tier].name})`, relatedIndex: pendingKeys[tier].get(values[tier]) });
         return;
       }
-      values.forEach((value, position) => value && pendingKeys[position].set(value, rowIndex));
+      if (tier >= 0) pendingOf = pendingKeys[tier].get(values[tier]);
+      else {
+        pendingValues.set(rowIndex, values);
+        values.forEach((value, position) => value && !pendingKeys[position].has(value) && pendingKeys[position].set(value, rowIndex));
+      }
     }
     const context: ColumnContext = { refs: resolved.refs, existing, userId };
     const problem = spec.validate?.(row, context);
@@ -218,7 +237,7 @@ async function buildPlan<T>(spec: TableEntitySpec<T>, db: DatabaseLike, companyI
       issues.push({ index: rowIndex, field: problem.field, message: problem.message });
       return;
     }
-    planned.push({ index: rowIndex, row, refs: resolved.refs, existing });
+    planned.push({ index: rowIndex, row, refs: resolved.refs, existing, pendingOf });
   });
   return { planned, issues };
 }
@@ -228,7 +247,31 @@ function describe<T>(spec: TableEntitySpec<T>, row: Row): string {
   return `${spec.label}: ${String(name)}`;
 }
 
-const sameValue = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || (typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 1e-9);
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Mesmo valor; a data da planilha ('YYYY-MM-DD') não troca uma data com hora do mesmo dia (não perde a hora). */
+const sameValue = (a: unknown, b: unknown) =>
+  (a ?? null) === (b ?? null) ||
+  (typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 1e-9) ||
+  (typeof a === "string" && typeof b === "string" && DATE_ONLY.test(b) && a.length > 10 && a.startsWith(b) && (a[10] === "T" || a[10] === " "));
+
+/**
+ * Colunas que mudam num cadastro existente: ignora vazias (célula vazia não apaga) e iguais; com alguma mudança,
+ * também grava updated_at. Devolve null se nada muda.
+ */
+export function diffColumns(columns: Row, existing: Row, now = sqliteNow()): { values: Row; previous: Row } | null {
+  const values: Row = {};
+  const previous: Row = {};
+  for (const [column, value] of Object.entries(columns)) {
+    if (value === null || value === undefined || sameValue(existing[column], value)) continue;
+    values[column] = value;
+    previous[column] = existing[column] ?? null;
+  }
+  if (Object.keys(values).length === 0) return null;
+  values.updated_at = now;
+  previous.updated_at = existing.updated_at ?? null;
+  return { values, previous };
+}
 
 /** Monta a entidade importável/exportável a partir da descrição da tabela. */
 export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> {
@@ -251,12 +294,12 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
     },
 
     async check(db, companyId, rows) {
-      return (await buildPlan(spec, db, companyId, rows, null)).issues;
+      return (await buildPlan(spec, db, companyId, rows)).issues;
     },
 
     async upsert(db, companyId, rows, context: UpsertContext = {}) {
       const userId = context.userId ?? null;
-      const plan = await buildPlan(spec, db, companyId, rows, userId);
+      const plan = await buildPlan(spec, db, companyId, rows, { userId });
       if (plan.issues.length) throw new Error(`${plan.issues.length} linha(s) não conferem mais com o banco: ${plan.issues[0].message}`);
       const now = sqliteNow();
       const inserts: Row[] = [];
@@ -268,18 +311,8 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
           inserts.push({ ...spec.insertDefaults?.(item.row, columnContext), ...stripEmpty(columns), id: uuidv4(), company_id: companyId });
           continue;
         }
-        const values: Row = {};
-        const previous: Row = {};
-        for (const [column, value] of Object.entries(columns)) {
-          if (value === null || value === undefined || sameValue(item.existing[column], value)) continue;
-          values[column] = value;
-          previous[column] = item.existing[column] ?? null;
-        }
-        if (Object.keys(values).length) {
-          values.updated_at = now;
-          previous.updated_at = item.existing.updated_at ?? null;
-          updates.push({ id: String(item.existing.id), values, previous });
-        }
+        const change = diffColumns(columns, item.existing, now);
+        if (change) updates.push({ id: String(item.existing.id), ...change });
       }
       const inserted = inserts.length;
       const updated = plan.planned.length - inserted;
@@ -316,7 +349,7 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
   };
 }
 
-function stripEmpty(row: Row): Row {
+export function stripEmpty(row: Row): Row {
   return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null && value !== undefined));
 }
 

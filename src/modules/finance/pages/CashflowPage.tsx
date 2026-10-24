@@ -2,7 +2,7 @@
 // (contas em aberto), agrupado por dia, semana ou mês. O cálculo fica em lib/erp/cashflow.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownCircle, ArrowUpCircle, Landmark, TrendingDown, TrendingUp } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { cashEvents, cashflow, groupCashflow, type CashEvent, type CashflowDay } from "@/lib/erp/cashflow";
@@ -166,7 +166,7 @@ export default function CashflowPage() {
 
       {rangeValid && !error && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
             <KpiCard title="Saldo inicial" value={formatCurrency(opening)} subtitle={`Antes de ${formatDay(range.from)}`} icon={Landmark} />
             <KpiCard title="Entradas" value={formatCurrency(totalIn)} subtitle={includeForecast ? `${formatCurrency(forecastIn)} previstas` : "Só realizado"} icon={ArrowUpCircle} iconClassName="bg-emerald-600/10 text-emerald-700 dark:text-emerald-400" />
             <KpiCard title="Saídas" value={formatCurrency(totalOut)} subtitle={includeForecast ? `${formatCurrency(forecastOut)} previstas` : "Só realizado"} icon={ArrowDownCircle} iconClassName="bg-red-600/10 text-red-700 dark:text-red-400" />
@@ -186,7 +186,12 @@ export default function CashflowPage() {
             <EmptyState icon={Landmark} title="Sem dados no período" />
           ) : (
             <>
-              <section aria-label="Gráfico do fluxo de caixa" className="rounded-xl border p-4">
+              <section aria-label="Gráfico do fluxo de caixa" className="space-y-3 rounded-xl border p-4">
+                <ul className="flex flex-wrap gap-4 text-xs text-muted-foreground" aria-label="Legenda">
+                  <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-600 dark:bg-emerald-400" aria-hidden="true" /> Entradas</li>
+                  <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-600 dark:bg-red-400" aria-hidden="true" /> Saídas</li>
+                  <li className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-primary" aria-hidden="true" /> Saldo</li>
+                </ul>
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={periods} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -198,10 +203,9 @@ export default function CashflowPage() {
                         contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                         labelStyle={{ color: "hsl(var(--popover-foreground))" }}
                       />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Bar dataKey="in" name="Entradas" fill="currentColor" className="text-emerald-600 dark:text-emerald-400" radius={[3, 3, 0, 0]} />
                       <Bar dataKey="out" name="Saídas" fill="currentColor" className="text-red-600 dark:text-red-400" radius={[3, 3, 0, 0]} />
-                      <Line type="monotone" dataKey="balance" name="Saldo" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      <Line type="linear" dataKey="balance" name="Saldo" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>

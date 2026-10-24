@@ -184,7 +184,7 @@ export default function FinancePage() {
       </div>
 
       <TabPanel idPrefix="financeiro" id={tab}>
-        <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar descrição, ${partyLabel.toLowerCase()}, categoria ou documento`}>
+        <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar descrição, ${partyLabel.toLowerCase()} ou documento`}>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Situação
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className={inputClass}>

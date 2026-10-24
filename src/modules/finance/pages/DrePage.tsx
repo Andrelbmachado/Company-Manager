@@ -61,8 +61,11 @@ function detailRows(results: DreResult[], group: DreGroup): DetailRow[] {
 
 const percent = (value: number, base: number) => (base > 0 ? `${((value / base) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%` : "—");
 
+/** Valor com sinal; zero nunca aparece como "-R$ 0,00" (−0 de uma dedução vazia). */
+const money = (value: number) => formatCurrency(value || 0);
+
 function Value({ value, strong }: { value: number; strong?: boolean }) {
-  return <span className={cn("tabular-nums", strong && "font-semibold", value < 0 && "text-red-700 dark:text-red-400")}>{formatCurrency(value)}</span>;
+  return <span className={cn("tabular-nums", strong && "font-semibold", value < 0 && "text-red-700 dark:text-red-400")}>{money(value)}</span>;
 }
 
 export default function DrePage() {
@@ -151,7 +154,7 @@ export default function DrePage() {
                       rows.push(
                         <tr key={`${section.group}-${row.key}`} className="text-muted-foreground">
                           <td className="py-1.5 pl-8 pr-4">{row.label}</td>
-                          {row.values.map((value, index) => <td key={shown[index].month} className="px-4 py-1.5 text-right tabular-nums">{formatCurrency(value)}</td>)}
+                          {row.values.map((value, index) => <td key={shown[index].month} className="px-4 py-1.5 text-right tabular-nums">{money(value)}</td>)}
                           <td className="px-4 py-1.5 text-right tabular-nums">{percent(Math.abs(row.values[row.values.length - 1]), last.receita)}</td>
                         </tr>,
                       );

@@ -1,6 +1,6 @@
 # AGENTS.md — Company Manager
 
-Guia para agentes de IA (e pessoas) trabalharem neste repositório. Tudo aqui foi extraído do código; quando algo **não existe** (ex.: testes), está dito explicitamente.
+Guia para agentes de IA (e pessoas) trabalharem neste repositório. Tudo aqui foi extraído do código; quando algo **não existe** (ex.: lint), está dito explicitamente.
 
 ## 1. Mapa do projeto e módulos
 
@@ -41,13 +41,14 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
 ├── components.json                # config shadcn (aliases @/components, @/lib...)
 ├── package.json                   # scripts e dependências
 ├── vite.config.ts                 # porta 1420, alias @ -> src, ignora src-tauri no watch
+├── vitest.config.ts               # testes: alias @, Node por padrão, *.test.tsx em jsdom
 ├── tailwind.config.js             # tokens shadcn (hsl(var(--...))), darkMode: class
 ├── scripts/sync-project-manager.mjs   # copia o módulo do Project Manager para src/modules/project-manager (`npm run sync:project-manager`)
 ├── scripts/site-prospecting/      # gerador do seed de prospecção (ver §4 e §8)
 │   ├── pricing.mjs                #   pacotes Básico/Essencial/Premium, preços da Proposta, cenários, tarefas, cronograma
 │   ├── build-seed.mjs             #   CSV -> src/lib/prospecting/data/siteProspecting.generated.ts
 │   └── export-pacotes.mjs         #   gera ~/LeadingSitesSorocaba/PACOTES_PRECOS.md (preços + previsão)
-├── .github/workflows/             # ci.yml (tsc + cargo check), release.yml (tags v*)
+├── .github/workflows/             # ci.yml (tsc + npm test + cargo check), release.yml (tags v*)
 ├── src-tauri/
 │   ├── Cargo.toml                 # crate company-manager; plugins sql(sqlite)/fs/dialog/shell
 │   ├── tauri.conf.json            # identifier com.company.manager, devUrl :1420
@@ -77,12 +78,13 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
     ├── modules/<modulo>/pages/    # uma página por rota (ver tabela do §1); leads, settings (UsersAccess) têm components/; hr e payroll têm só pages/
     ├── modules/project-manager/   # CÓPIA do módulo do app Project Manager (não edite aqui; ver §7)
     ├── styles/globals.css         # tokens claro/escuro, fontes, foco visível, .kpi-card (opaco)
+    ├── test/                      # sqlite.ts (createTestDb: SQLite real em memória com as migrations), mockDb.ts (useTestDb + mock de lib/db/client)
     └── types/index.ts             # tipos de domínio espelhando as tabelas
 ```
 
 ## 3. Stack e comandos
 
-Node 20+ (CI usa 20), npm, Rust estável (só para o desktop). Dependências principais: React 18, react-router-dom 6, @tanstack/react-query 5, @tanstack/react-table 8, Tailwind 3 + tailwindcss-animate, lucide-react, cmdk, recharts, framer-motion, zod, uuid, plugins Tauri (`sql`, `fs`, `dialog`, `shell`).
+Node 22+ (CI usa 22; o `better-sqlite3` dos testes exige), npm, Rust estável (só para o desktop). Dependências principais: React 18, react-router-dom 6, @tanstack/react-query 5, @tanstack/react-table 8, Tailwind 3 + tailwindcss-animate, lucide-react, cmdk, recharts, framer-motion, zod, uuid, plugins Tauri (`sql`, `fs`, `dialog`, `shell`).
 
 | Objetivo | Comando |
 |---|---|
@@ -92,17 +94,23 @@ Node 20+ (CI usa 20), npm, Rust estável (só para o desktop). Dependências pri
 | Typecheck | `npm run typecheck` (= `tsc --noEmit`) |
 | Build (tsc + vite) | `npm run build` |
 | Build desktop | `npm run tauri build` |
-| Testes | **não existe test runner configurado** (sem vitest/jest). Verifique com typecheck + build e exercite a UI. |
+| Testes | `npm test` (= `vitest run`, uma vez) ou `npm run test:watch`; um arquivo: `npx vitest run src/lib/dev/devSeed.test.ts`. Ver "Testes" abaixo. |
 | Lint | **não existe** ESLint configurado. |
 | Regenerar seed de prospecção | `node scripts/site-prospecting/build-seed.mjs [caminho.csv]` |
 | Atualizar o módulo Project Manager | `npm run sync:project-manager` (`-- --check` só compara) |
 
-CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em `src-tauri`.
+CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `npm test`, `cargo check` em `src-tauri`.
+
+**Testes (vitest 2):** arquivos `src/**/*.test.ts` (Node) e `src/**/*.test.tsx` (jsdom, para componente), ao lado do código. `e2e/` (Playwright) e a cópia `src/modules/project-manager/` ficam fora.
+- **SQLite real:** `createTestDb()` (`src/test/sqlite.ts`) abre um banco em memória (`better-sqlite3`), liga `foreign_keys` (como o sqlx do app) e aplica **todas** as migrations de `src-tauri/migrations` em ordem numérica, cada uma numa transação. Devolve `{ select<T>(sql, binds?), execute(sql, binds?) → {rowsAffected, lastInsertId}, close(), migrate(), appliedVersions, raw }`, compatível com `DatabaseLike`. `createTestDb({ upTo: N })` + `migrate()` testa upgrade de schema com dados antigos. `insertTestCompany(db)` cria empresa + uma conta por papel (`test-user-<papel>`).
+- **Código que chama `getDb()`:** no topo do teste, `vi.mock("@/lib/db/client", () => import("@/test/mockDb"))` e `const testDb = useTestDb()`: cada teste recebe um banco novo, `getDb()` devolve esse banco e `isTauriRuntime()` é `true` (caminho do desktop). Exemplo: `src/lib/dev/devSeed.test.ts`.
+- **Binds iguais aos do app desktop** (`tauri-plugin-sql` 2.x): `undefined`/`NaN` → `NULL`, número → `REAL`, `Date` → texto ISO, objeto/array → texto JSON e **booleano → texto `'true'`/`'false'`** (não 1/0). Em colunas 0/1, passe `1`/`0`. BigInt e binários são recusados (o plugin não grava). O banco de teste **não** emula o demo do navegador: SQL de tabela nova continua tendo de caber nos padrões do `demo.ts` (§4).
+- `src/test/sample.test.ts` também confere que toda migration está registrada no `lib.rs` com a versão do prefixo, sem buracos.
 
 ## 4. Modelo de dados e onde fica
 
 - **Desktop (Tauri):** SQLite via `@tauri-apps/plugin-sql`, arquivo `company-manager.db` no diretório de dados do app (macOS: `~/Library/Application Support/com.company.manager/`). Schema = `src-tauri/migrations/*.sql`, aplicadas pelo `lib.rs` (`Migration { version, sql }`). Banco é ignorado pelo git (`*.db`).
-- **Navegador:** `src/lib/db/demo.ts` — banco em **localStorage** (`cm_demo_database_v4`) que **emula SQL por padrões de texto**. Seed fixo (empresa TechFlow, contas demo `DEMO_ACCOUNTS`). Consulta/comando fora dos padrões lança `Consulta demo nao suportada` / `Comando demo nao suportada`. Há um fallback genérico para `INSERT [OR IGNORE|OR REPLACE]`, `UPDATE ... WHERE ...` e `SELECT ... WHERE ...` nas tabelas novas (`EXTRA_TABLES`: leads, service_packages, package_prices, revenue_scenarios, revenue_forecasts, settings, tasks, project_stages, employees, hr_*, employee_compensation). O WHERE só aceita `col=?`, `col IS [NOT] NULL` ligados por `AND`: nessas tabelas, qualquer outra condição (`IN`, `LIKE`, `<`, `OR`) **lança erro** em vez de devolver linhas a mais. **Diferenças conhecidas do SQLite** (o demo é só para visualização): não aplica UNIQUE nem FK, `normalize()` baixa a caixa de literais de texto no SQL (use binds), nulos vão por último na ordenação, `COUNT(*)` e `LIMIT` só nos formatos fixos. Teste qualquer SQL novo em SQLite real (migrations aplicadas em memória) **e** no demo.
+- **Navegador:** `src/lib/db/demo.ts` — banco em **localStorage** (`cm_demo_database_v4`) que **emula SQL por padrões de texto**. Seed fixo (empresa TechFlow, contas demo `DEMO_ACCOUNTS`). Consulta/comando fora dos padrões lança `Consulta demo nao suportada` / `Comando demo nao suportada`. Há um fallback genérico para `INSERT [OR IGNORE|OR REPLACE]`, `UPDATE ... WHERE ...` e `SELECT ... WHERE ...` nas tabelas novas (`EXTRA_TABLES`: leads, service_packages, package_prices, revenue_scenarios, revenue_forecasts, settings, tasks, project_stages, employees, hr_*, employee_compensation). O WHERE só aceita `col=?`, `col IS [NOT] NULL` ligados por `AND`: nessas tabelas, qualquer outra condição (`IN`, `LIKE`, `<`, `OR`) **lança erro** em vez de devolver linhas a mais. **Diferenças conhecidas do SQLite** (o demo é só para visualização): não aplica UNIQUE nem FK, `normalize()` baixa a caixa de literais de texto no SQL (use binds), nulos vão por último na ordenação, `COUNT(*)` e `LIMIT` só nos formatos fixos. Teste qualquer SQL novo em SQLite real (`createTestDb()` de `src/test/sqlite.ts`, ver §3) **e** no demo.
 - Acesso: sempre `const db = await getDb()` (`src/lib/db/client.ts`) → `db.select<T>(sql, binds)` / `db.execute(sql, binds)`, com `?` posicionais. **O primeiro bind das consultas costuma ser `company_id`** (o demo depende disso).
 - Convenções do schema (0001): IDs `TEXT` (uuid gerado no app), timestamps `TEXT` ISO (`datetime('now')`), `company_id` em quase tudo (multiempresa), **soft delete** com `deleted_at` (não use `DELETE` no fluxo normal), FKs ativas, índices por `company_id`/status/datas.
 - Tabelas: `companies, users, departments, memberships` (núcleo/RBAC); `customers, contacts, leads, opportunities, proposals` (CRM); `projects, tasks`; `tickets, work_orders`; `inventory_items, stock_locations, stock_balances, stock_movements, custodies, suppliers`; `cost_centers, payables, receivables`; `documents, attachments`; `activities, audit_logs, notifications, automation_rules, approval_flows, approvals, settings` (0001); `user_settings` (0002); `service_packages, package_prices, revenue_scenarios, revenue_forecasts` + colunas novas em `leads` (0003); `package_prices.feature_note` e, em `leads`, `pricing_segment, referred_by, referral_status` (0004); `project_stages` + `tasks.stage_id` (0005); `employees, hr_requests, hr_announcements, hr_tasks` (0006); `employee_compensation` (0007, folha).
@@ -146,7 +154,7 @@ CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `cargo check` em 
 5. **Rota:** `lazy()` + `<Route path="/<modulo>/*" element={<RequireModule module="<chave>">...}` em `routes.tsx`.
 6. **Navegação:** item em `NAV_ITEMS` (`Sidebar.tsx`) e em `COMMANDS` (`CommandMenu.tsx`), com ícone lucide e grupo.
 7. **Status novos:** cores e rótulos em `StatusBadge.tsx`.
-8. Rode `npm run typecheck` e `npm run build`; abra o módulo com um papel que tenha acesso e outro que não tenha.
+8. Rode `npm run typecheck`, `npm test` e `npm run build`; abra o módulo com um papel que tenha acesso e outro que não tenha.
 
 ## 7. Integração Company Manager ⇄ Project Manager
 
@@ -197,8 +205,9 @@ Estas regras vêm de `~/LeadingSitesSorocaba/INSTRUCAO_*.md` e valem para o CRM,
 ## 10. Checklist antes de commitar
 
 - [ ] `npm run typecheck` sem erros.
+- [ ] `npm test` passa (lógica nova com teste, SQL testado com `createTestDb`).
 - [ ] `npm run build` conclui.
-- [ ] Se mexeu em SQL: o banco demo suporta (abra a tela no `npm run dev`) **e** o SQLite real aceita (aplique as migrations em um `sqlite3` temporário e rode a consulta).
+- [ ] Se mexeu em SQL: o banco demo suporta (abra a tela no `npm run dev`) **e** o SQLite real aceita (teste com `createTestDb()`, que aplica as migrations em memória).
 - [ ] Nova migration criada (não editou as antigas), registrada em `lib.rs`, tipos atualizados.
 - [ ] Novo recurso/módulo: RBAC (`rbac.ts`), rota (`routes.tsx`), sidebar e `CommandMenu`.
 - [ ] Textos de UI em pt-BR; cores via tokens; componentes de `components/shared` reutilizados.

@@ -303,3 +303,56 @@ describe("migrations 0008 (CRM/ERP) e 0009 (documentos)", () => {
     expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
   });
 });
+
+describe("migration 0011 (mesclagem de clientes, admissão e índices das telas novas)", () => {
+  it("cliente mesclado aponta para o que ficou (chave estrangeira) e colaborador ganha dados de admissão", async () => {
+    const { db, companyId } = await withCompany();
+    expect(db.appliedVersions).toContain(11);
+    await db.execute("INSERT INTO customers (id, company_id, name, email) VALUES (?, ?, ?, ?)", ["keep", companyId, "NorteLog", "a@x.com"]);
+    await db.execute("INSERT INTO customers (id, company_id, name, email, merged_into_id, deleted_at) VALUES (?, ?, ?, ?, ?, datetime('now'))", ["dup", companyId, "Nortelog", "A@X.com", "keep"]);
+    const merged = await db.select<{ id: string; merged_into_id: string | null }[]>("SELECT id, merged_into_id FROM customers ORDER BY id");
+    expect(merged).toEqual([{ id: "dup", merged_into_id: "keep" }, { id: "keep", merged_into_id: null }]);
+    await expect(
+      db.execute("INSERT INTO customers (id, company_id, name, merged_into_id) VALUES (?, ?, ?, ?)", ["dup-2", companyId, "X", "nao-existe"]),
+    ).rejects.toThrow(/FOREIGN KEY/);
+
+    await db.execute(
+      "INSERT INTO employees (id, company_id, name, rg, pis, emergency_contact_name, emergency_contact_phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ["emp-1", companyId, "Rafael Souza", "12.345.678-9", "123.45678.90-1", "Ana Souza", "(15) 99999-0000"],
+    );
+    const [employee] = await db.select<Record<string, unknown>[]>("SELECT * FROM employees WHERE id = ?", ["emp-1"]);
+    expect(employee).toMatchObject({ rg: "12.345.678-9", pis: "123.45678.90-1", address_json: "{}", emergency_contact_name: "Ana Souza", emergency_contact_phone: "(15) 99999-0000" });
+    expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
+  });
+
+  it("cria os índices de relatórios, vínculos e versões de documento", async () => {
+    db = await createTestDb();
+    const indexes = (await db.select<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type = 'index'")).map((row) => row.name);
+    for (const name of [
+      "idx_customers_merged",
+      "idx_sales_orders_seller",
+      "idx_stock_movements_ref",
+      "idx_payables_supplier",
+      "idx_crm_activities_contact",
+      "idx_bank_transactions_payable",
+      "idx_bank_transactions_receivable",
+      "idx_documents_folder_title",
+    ]) {
+      expect(indexes, name).toContain(name);
+    }
+  });
+
+  it("atualiza um banco até a 0010 sem perder dados", async () => {
+    db = await createTestDb({ upTo: 10 });
+    const { companyId } = await insertTestCompany(db, { roles: ["ceo"] });
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?, ?, ?)", ["cli-1", companyId, "Cliente antigo"]);
+    await db.execute("INSERT INTO employees (id, company_id, name, document) VALUES (?, ?, ?, ?)", ["emp-1", companyId, "Colaborador antigo", "123.456.789-09"]);
+    await db.migrate();
+    expect(db.appliedVersions).toContain(11);
+    const [customer] = await db.select<Record<string, unknown>[]>("SELECT * FROM customers WHERE id = ?", ["cli-1"]);
+    expect(customer).toMatchObject({ name: "Cliente antigo", merged_into_id: null });
+    const [employee] = await db.select<Record<string, unknown>[]>("SELECT * FROM employees WHERE id = ?", ["emp-1"]);
+    expect(employee).toMatchObject({ name: "Colaborador antigo", document: "123.456.789-09", rg: null, address_json: "{}" });
+    expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
+  });
+});

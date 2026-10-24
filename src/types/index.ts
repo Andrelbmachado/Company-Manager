@@ -94,6 +94,8 @@ export interface Customer {
   payment_terms?: string | null;
   credit_limit?: number | null;
   price_list_id?: string | null;
+  /** Cliente duplicado mesclado neste (0011); o mesclado também recebe deleted_at. */
+  merged_into_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -731,6 +733,11 @@ export interface StockLocation {
 
 export type StockMovementType = "entrada" | "saida" | "transferencia" | "ajuste";
 
+/**
+ * Movimentação de estoque. `quantity` é sempre positiva; o sentido vem dos locais: entrada (to_location_id),
+ * saída (from_location_id), transferência (from e to) e ajuste de inventário (to = sobra, from = falta).
+ * ref_type/ref_id: origem (goods_receipt, sales_order, inventory_count...).
+ */
 export interface StockMovement {
   id: string;
   company_id: string;
@@ -1139,6 +1146,13 @@ export interface Employee {
   termination_date?: string | null;
   termination_reason?: string | null;
   notes?: string | null;
+  // Dados de admissão (0011)
+  rg?: string | null;
+  pis?: string | null;
+  /** JSON: { logradouro, numero, complemento, bairro, cidade, uf, cep }. */
+  address_json?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

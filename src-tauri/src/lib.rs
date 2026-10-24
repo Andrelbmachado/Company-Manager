@@ -76,6 +76,12 @@ pub fn run() {
             sql: include_str!("../migrations/0010_auth_hash.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "crm_hr_extras",
+            sql: include_str!("../migrations/0011_crm_hr_extras.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

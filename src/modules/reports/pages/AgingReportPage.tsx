@@ -90,6 +90,9 @@ export default function AgingReportPage() {
             <TabPanel idPrefix="aging-visao" id={view}>
               <ReportDataTable table={table} empty={side === "receber" ? "Nenhuma conta a receber em aberto." : "Nenhuma conta a pagar em aberto."} />
             </TabPanel>
+            <p className="text-xs text-muted-foreground">
+              Data-base passada: vale o saldo daquele dia (baixas feitas depois são desfeitas e contas emitidas depois ficam fora). Hoje ou adiante: saldo atual, só os dias de atraso mudam.
+            </p>
           </TabPanel>
         )}
       </ReportState>

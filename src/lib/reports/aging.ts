@@ -1,7 +1,11 @@
 // Aging de contas a receber e a pagar: saldo em aberto (valor − recebido/pago) por faixa de atraso numa data-base.
 // Quitadas, canceladas, excluídas e saldo zerado ficam fora. Vence hoje = a vencer.
+// Data-base passada: vale o saldo daquele dia. Conta emitida depois (issue_date; sem ela, created_at) fica fora e baixa
+// feita depois é desfeita (finance_settlements; conta sem baixa registrada usa a data de quitação paid_at/received_at).
+// Data-base de hoje em diante: saldo atual, só os dias de atraso mudam.
 import type { DatabaseLike } from "@/lib/db/demo";
 import { roundMoney, sumMoney } from "@/lib/money";
+import { todayIso } from "@/lib/utils";
 import { dayLabel, daysBetween, localDayOf, num, sharePercent, text, type DbRow, type ReportTable } from "./common";
 
 export type AgingSide = "receber" | "pagar";
@@ -18,13 +22,22 @@ export const AGING_BUCKETS: readonly { key: AgingBucket; label: string }[] = [
 ];
 
 const BUCKET_LABEL = new Map(AGING_BUCKETS.map((bucket) => [bucket.key, bucket.label]));
-const CLOSED = new Set(["paga", "recebida", "cancelada"]);
+/** Quitadas. A tela antiga do financeiro muda o status sem gravar o valor pago: o status manda. */
+const SETTLED = new Set(["paga", "recebida"]);
+
+/** Baixa de uma conta: dia local e principal baixado. */
+export interface AgingSettlement {
+  day: string | null;
+  amount: number;
+}
 
 export interface AgingData {
   receivables: DbRow[];
   payables: DbRow[];
   customers: Map<string, string>;
   suppliers: Map<string, string>;
+  /** Baixas por conta (`receber:<id>` / `pagar:<id>`), para reconstruir o saldo numa data-base passada. */
+  settlements?: Map<string, AgingSettlement[]>;
 }
 
 export interface AgingEntry {
@@ -74,14 +87,55 @@ function names(rows: DbRow[]): Map<string, string> {
   return new Map(rows.map((row) => [String(row.id), String(row.name ?? "")]));
 }
 
+function settlementKey(side: AgingSide, id: string): string {
+  return `${side}:${id}`;
+}
+
+function settlementsByEntry(rows: DbRow[]): Map<string, AgingSettlement[]> {
+  const map = new Map<string, AgingSettlement[]>();
+  for (const row of rows) {
+    const receivableId = text(row.receivable_id);
+    const payableId = text(row.payable_id);
+    const key = receivableId ? settlementKey("receber", receivableId) : payableId ? settlementKey("pagar", payableId) : null;
+    if (!key) continue;
+    const list = map.get(key) ?? [];
+    list.push({ day: localDayOf(text(row.paid_at)), amount: num(row.amount) });
+    map.set(key, list);
+  }
+  return map;
+}
+
 export async function loadAgingData(db: DatabaseLike, companyId: string): Promise<AgingData> {
-  const [receivables, payables, customers, suppliers] = await Promise.all([
+  const [receivables, payables, customers, suppliers, settlements] = await Promise.all([
     db.select<DbRow[]>("SELECT * FROM receivables WHERE company_id=? AND deleted_at IS NULL", [companyId]),
     db.select<DbRow[]>("SELECT * FROM payables WHERE company_id=? AND deleted_at IS NULL", [companyId]),
     db.select<DbRow[]>("SELECT * FROM customers WHERE company_id=?", [companyId]),
     db.select<DbRow[]>("SELECT * FROM suppliers WHERE company_id=?", [companyId]),
+    // Baixa estornada fica excluída (deleted_at) e não conta.
+    db.select<DbRow[]>("SELECT * FROM finance_settlements WHERE company_id=? AND deleted_at IS NULL", [companyId]),
   ]);
-  return { receivables, payables, customers: names(customers), suppliers: names(suppliers) };
+  return { receivables, payables, customers: names(customers), suppliers: names(suppliers), settlements: settlementsByEntry(settlements) };
+}
+
+/**
+ * Principal baixado na data-base e se a conta já estava quitada; null = a conta ainda não existia. Data-base passada:
+ * baixas posteriores são desfeitas; sem baixa registrada, a data de quitação (paid_at/received_at) decide.
+ */
+function stateAt(row: DbRow, side: AgingSide, asOf: string, historical: boolean, settlements: AgingSettlement[] | undefined): { settled: number; closed: boolean } | null {
+  const receber = side === "receber";
+  const settledNow = roundMoney(num(receber ? row.received_amount : row.paid_amount));
+  const closedNow = SETTLED.has(String(row.status));
+  if (!historical) return { settled: settledNow, closed: closedNow };
+
+  const issued = localDayOf(text(row.issue_date)) ?? localDayOf(text(row.created_at));
+  if (issued !== null && issued > asOf) return null;
+  if (settlements && settlements.length > 0) {
+    const later = sumMoney(settlements.filter((item) => item.day !== null && item.day > asOf).map((item) => item.amount));
+    return later > 0 ? { settled: Math.max(0, roundMoney(settledNow - later)), closed: false } : { settled: settledNow, closed: closedNow };
+  }
+  const settledDay = localDayOf(text(receber ? row.received_at : row.paid_at));
+  if (settledDay !== null && settledDay > asOf) return { settled: 0, closed: false };
+  return { settled: settledNow, closed: closedNow };
 }
 
 export function bucketOf(daysOverdue: number | null): AgingBucket {
@@ -97,17 +151,21 @@ function emptyBuckets(): Record<AgingBucket, number> {
   return { a_vencer: 0, "1_30": 0, "31_60": 0, "61_90": 0, "90_mais": 0, sem_vencimento: 0 };
 }
 
-export function buildAgingReport(data: AgingData, side: AgingSide, asOf: string): AgingReport {
+/** `today` (dia local) separa a data-base passada (saldo reconstruído) da de hoje em diante (saldo atual). */
+export function buildAgingReport(data: AgingData, side: AgingSide, asOf: string, today: string = todayIso()): AgingReport {
   const receber = side === "receber";
   const rows = receber ? data.receivables : data.payables;
   const parties = receber ? data.customers : data.suppliers;
   const none = receber ? "Sem cliente" : "Sem fornecedor";
+  const historical = asOf < today;
 
   const entries = rows
-    .filter((row) => !CLOSED.has(String(row.status)))
-    .map<AgingEntry>((row) => {
+    .filter((row) => String(row.status) !== "cancelada")
+    .flatMap<AgingEntry>((row) => {
+      const state = stateAt(row, side, asOf, historical, data.settlements?.get(settlementKey(side, String(row.id))));
+      if (!state || state.closed) return [];
       const amount = roundMoney(num(row.amount));
-      const settled = roundMoney(num(receber ? row.received_amount : row.paid_amount));
+      const settled = state.settled;
       const dueDate = localDayOf(text(row.due_date));
       const daysOverdue = dueDate ? daysBetween(dueDate, asOf) : null;
       const partyId = text(receber ? row.customer_id : row.supplier_id);

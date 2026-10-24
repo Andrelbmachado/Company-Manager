@@ -173,7 +173,7 @@ export default function EmployeeDetailPage() {
   const title = isNew ? "Novo colaborador" : employee?.name ?? "Colaborador";
   const description = isNew
     ? "Cadastre a ficha de quem já trabalha na empresa. Para quem ainda vai entrar, prefira “Nova admissão”, que já cria o checklist de entrada."
-    : employee ? [employee.position, employee.department, employee.contract_type ? CONTRACT_LABEL[employee.contract_type] : null, employee.hire_date ? `há ${tenureLabel(employee.hire_date, today)}` : null].filter(Boolean).join(" · ") : undefined;
+    : employee ? [employee.position, employee.department, employee.contract_type ? CONTRACT_LABEL[employee.contract_type] : null, employee.hire_date ? (employee.hire_date.slice(0, 10) > today ? `começa em ${formatDay(employee.hire_date)}` : `há ${tenureLabel(employee.hire_date, today)}`) : null].filter(Boolean).join(" · ") : undefined;
 
   const dataForm = (
     <form
@@ -203,7 +203,7 @@ export default function EmployeeDetailPage() {
         </Field>
         <Field label="Jornada diária" hint="Base do banco de horas (ex.: 8h, 8:48, 6h)."><input className={INPUT} value={journey} onChange={(event) => setJourney(event.target.value)} disabled={!canSave} /></Field>
         <Field label="Dias de férias por ano"><input type="number" min={0} max={60} className={INPUT} value={form.vacation_days_entitled} onChange={(event) => set("vacation_days_entitled", Number(event.target.value))} disabled={!canSave} /></Field>
-        <Field label="Situação" hint={form.status === "desligado" ? undefined : "Para desligar, use “Registrar desligamento” (gera o checklist de saída)."}>
+        <Field label="Situação" hint={isNew || form.status === "desligado" ? undefined :"Para desligar, use “Registrar desligamento” (gera o checklist de saída)."}>
           <select className={INPUT} value={form.status} onChange={(event) => set("status", event.target.value as EmployeeStatus)} disabled={!canSave}>
             {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -276,7 +276,7 @@ export default function EmployeeDetailPage() {
         <div className="h-48 animate-pulse rounded-xl border bg-card" />
       ) : (
         <>
-          <div className="overflow-x-auto border-b">
+          <div className="overflow-x-auto overflow-y-hidden border-b">
             <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da ficha do colaborador" idPrefix="colaborador" />
           </div>
           <TabPanel idPrefix="colaborador" id={tab}>

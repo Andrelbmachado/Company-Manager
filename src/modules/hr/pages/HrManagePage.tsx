@@ -242,7 +242,7 @@ export default function HrManagePage() {
                           {employee.termination_date && employee.status !== "desligado" && <StatusBadge status={`sai em ${formatDay(employee.termination_date)}`} tone="warning" />}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right"><Link to={`/hr/manage/colaboradores/${employee.id}`} className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">{canEdit ? "Abrir ficha" : "Ver ficha"}</Link></td>
+                      <td className="px-4 py-3 text-right"><Link to={`/hr/manage/colaboradores/${employee.id}`} className="inline-block whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">{canEdit ? "Abrir ficha" : "Ver ficha"}</Link></td>
                     </tr>
                   );
                 })}

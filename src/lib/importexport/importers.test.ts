@@ -274,6 +274,15 @@ describe("contas a pagar e a receber", () => {
     expect(received.errors).toEqual([expect.objectContaining({ field: "received_amount", message: expect.stringMatching(/Recebida em parte/) })]);
   });
 
+  it("conta marcada Paga na tela antiga (valor pago 0) volta pela importação e fica quitada", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    await insert(db, "payables", { id: "antiga", company_id: companyId, description: "Seguro", amount: 340, due_date: "2026-10-05", status: "paga" });
+    const exported = await exportRows("payables", "csv", { db, companyId });
+    const result = await importFile(registry.payables, exported, "pagar.csv", db, companyId, userId);
+    expect(result).toMatchObject({ errors: [], inserted: 0, updated: 1 });
+    expect(await db.select<Row[]>("SELECT status, paid_amount FROM payables WHERE id='antiga'")).toEqual([{ status: "paga", paid_amount: 340 }]);
+  });
+
   it("conta a receber antiga (texto em ref_id) é reconhecida pela descrição exportada", async () => {
     const { db, companyId, userId } = await sqliteCompany();
     await insert(db, "receivables", { id: uuidv4(), company_id: companyId, ref_id: "Mensalidade outubro", amount: 990, due_date: "2026-10-10" });

@@ -85,11 +85,12 @@ export interface SettlementLabels {
 
 /**
  * Situação informada que contradiz o valor baixado (paga = valor todo; paga em parte = entre zero e o valor):
- * "Paga" com valor menor sumiria com o resto da dívida das contas em aberto.
+ * "Paga" com valor menor sumiria com o resto da dívida das contas em aberto. "Paga" com 0 é a conta quitada pela
+ * tela antiga, que não gravava o valor pago: vale como sem valor (quita o total).
  */
 export function settlementIssue(row: { amount: number; status?: string }, settled: number | undefined, context: z.RefinementCtx, labels: SettlementLabels): void {
   const path = [labels.field];
-  if (row.status === labels.done && settled !== undefined && roundMoney(settled) < roundMoney(row.amount)) {
+  if (row.status === labels.done && settled && roundMoney(settled) < roundMoney(row.amount)) {
     context.addIssue({ code: "custom", path, message: `Situação "${labels.doneLabel}", mas o valor ${labels.verb} é menor que o valor da conta: use "${labels.partialLabel}"` });
   }
   if (row.status === labels.partial) {
@@ -98,10 +99,10 @@ export function settlementIssue(row: { amount: number; status?: string }, settle
   }
 }
 
-/** Situação e valor baixado coerentes: "paga"/"recebida" sem valor = valor total; valor parcial = baixa parcial. */
+/** Situação e valor baixado coerentes: "paga"/"recebida" sem valor (ou 0) = valor total; valor parcial = baixa parcial. */
 export function settlementStatus(amount: number, settled: number | undefined, status: string | undefined, done: "paga" | "recebida") {
   const partial = done === "paga" ? "paga_parcial" : "recebida_parcial";
-  if (status === done && settled === undefined) return { status, paid: amount };
+  if (status === done && !settled) return { status, paid: amount };
   if (status || settled === undefined) return { status, paid: settled };
   if (roundMoney(settled) >= roundMoney(amount)) return { status: done, paid: settled };
   return { status: settled > 0 ? partial : undefined, paid: settled };

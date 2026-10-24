@@ -231,7 +231,8 @@ async function hasRows(db: FinanceDb, table: string, column: string, companyId: 
 export async function deleteBankAccount(db: FinanceDb, companyId: string, id: string): Promise<void> {
   const account = (await loadBankAccounts(db, companyId)).find((item) => item.id === id);
   if (!account) throw new Error("Conta bancária não encontrada.");
-  for (const table of ["bank_transactions", "finance_settlements", "payables", "receivables", "recurring_entries"]) {
+  // Faturas guardam a conta prevista e passam para as contas a receber ao emitir/parcelar.
+  for (const table of ["bank_transactions", "finance_settlements", "payables", "receivables", "recurring_entries", "invoices"]) {
     if (await hasRows(db, table, "bank_account_id", companyId, id)) throw new Error("Esta conta tem lançamentos ligados: desative em vez de excluir.");
   }
   await db.execute("UPDATE bank_accounts SET deleted_at=datetime('now'), is_default=?, updated_at=datetime('now') WHERE company_id=? AND id=?", [0, companyId, id]);
@@ -292,8 +293,18 @@ export async function deleteCategory(db: FinanceDb, companyId: string, id: strin
   const categories = await loadCategories(db, companyId);
   if (!categories.some((category) => category.id === id)) throw new Error("Categoria não encontrada.");
   if (categories.some((category) => category.parent_id === id)) throw new Error("Esta categoria tem subcategorias: exclua ou mova as subcategorias antes.");
-  for (const table of ["payables", "receivables", "bank_transactions", "recurring_entries"]) {
-    if (await hasRows(db, table, "category_id", companyId, id)) throw new Error("Categoria em uso em lançamentos: desative em vez de excluir.");
+  // Faturas, pedidos de compra e produtos levam a categoria para as contas que geram depois.
+  const uses: [string, string][] = [
+    ["payables", "category_id"],
+    ["receivables", "category_id"],
+    ["bank_transactions", "category_id"],
+    ["recurring_entries", "category_id"],
+    ["invoices", "category_id"],
+    ["purchase_orders", "category_id"],
+    ["products", "revenue_category_id"],
+  ];
+  for (const [table, column] of uses) {
+    if (await hasRows(db, table, column, companyId, id)) throw new Error("Categoria em uso em lançamentos, faturas, pedidos ou produtos: desative em vez de excluir.");
   }
   await db.execute("UPDATE finance_categories SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND id=?", [companyId, id]);
 }
@@ -317,8 +328,8 @@ export async function saveCostCenter(db: FinanceDb, companyId: string, input: { 
 }
 
 export async function deleteCostCenter(db: FinanceDb, companyId: string, id: string): Promise<void> {
-  for (const table of ["payables", "receivables", "recurring_entries"]) {
-    if (await hasRows(db, table, "cost_center_id", companyId, id)) throw new Error("Centro de custo em uso em lançamentos: não pode ser excluído.");
+  for (const table of ["payables", "receivables", "recurring_entries", "purchase_orders"]) {
+    if (await hasRows(db, table, "cost_center_id", companyId, id)) throw new Error("Centro de custo em uso em lançamentos ou pedidos de compra: não pode ser excluído.");
   }
   await db.execute("UPDATE cost_centers SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND id=?", [companyId, id]);
 }

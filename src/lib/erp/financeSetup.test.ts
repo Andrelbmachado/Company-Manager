@@ -99,6 +99,12 @@ describe("contas bancárias", () => {
     await deleteBankAccount(db, companyId, unused);
     expect((await row("bank_accounts", unused)).deleted_at).toBeTruthy();
   });
+
+  it("conta prevista numa fatura também está em uso", async () => {
+    const id = await saveBankAccount(db, companyId, { name: "Recebimentos", kind: "corrente" });
+    await insertRow(db, "invoices", { id: "fat-1", company_id: companyId, number: 1, total: 100, bank_account_id: id });
+    await expect(deleteBankAccount(db, companyId, id)).rejects.toThrow(/desative/);
+  });
 });
 
 describe("plano de contas e centros de custo", () => {
@@ -127,6 +133,22 @@ describe("plano de contas e centros de custo", () => {
     await db.execute("UPDATE payables SET deleted_at = datetime('now') WHERE id = 'p'");
     await deleteCostCenter(db, companyId, id);
     expect((await row("cost_centers", id)).deleted_at).toBeTruthy();
+  });
+
+  it("categoria de receita de produto, de fatura ou de pedido de compra está em uso (as contas geradas depois herdam a categoria)", async () => {
+    const product = await saveCategory(db, companyId, { name: "Vendas de produtos", kind: "receita" });
+    const invoice = await saveCategory(db, companyId, { name: "Serviços", kind: "receita" });
+    const purchase = await saveCategory(db, companyId, { name: "Insumos", kind: "despesa" });
+    await insertRow(db, "products", { id: "prod-1", company_id: companyId, name: "Roteador", revenue_category_id: product });
+    await insertRow(db, "invoices", { id: "fat-1", company_id: companyId, number: 1, total: 100, category_id: invoice });
+    await insertRow(db, "purchase_orders", { id: "pc-1", company_id: companyId, number: 1, total: 50, category_id: purchase });
+    for (const id of [product, invoice, purchase]) await expect(deleteCategory(db, companyId, id)).rejects.toThrow(/em uso/);
+  });
+
+  it("centro de custo de pedido de compra está em uso", async () => {
+    const id = await saveCostCenter(db, companyId, { name: "Produção" });
+    await insertRow(db, "purchase_orders", { id: "pc-1", company_id: companyId, number: 1, total: 50, cost_center_id: id });
+    await expect(deleteCostCenter(db, companyId, id)).rejects.toThrow(/em uso/);
   });
 });
 

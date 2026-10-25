@@ -1,18 +1,19 @@
-import { useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderPlus, Upload } from "lucide-react";
-import { CrudDialog } from "@/components/shared/CrudDialog";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { FileTypeIcon } from "@/components/shared/FileTypeIcon";
 import { FileUploadFeedback } from "@/components/shared/FileUploadFeedback";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { useFileDrop } from "@/components/shared/useFileDrop";
 import { useFileUploads } from "@/hooks/useFileUploads";
-import { formatBytes } from "@/lib/files/format";
+import { formatBytes, formatTimestamp } from "@/lib/files/format";
 import { documentFolder, getFileBackend, listFolderDocuments, sanitizeFileName } from "@/lib/files/store";
 import { cn } from "@/lib/utils";
 import type { DocumentRow, Role } from "@/types";
 import { canSeeFolder, defaultRoot, foldName, visibleRoots } from "../access";
-import { DocumentDrawer } from "./DocumentDrawer";
+import { saveDocumentMetadata } from "../metadata";
+import { DocumentPanel } from "./DocumentPanel";
 
 interface FolderBrowserProps {
   role: Role;
@@ -20,7 +21,7 @@ interface FolderBrowserProps {
   userId: string;
   /** attach em documents: enviar arquivos, nova versão, criar pasta. */
   canUpload: boolean;
-  /** edit em documents: renomear, restaurar versão. */
+  /** edit em documents: nome/observação, restaurar versão. */
   canEdit: boolean;
   /** delete em documents: excluir documento ou versão. */
   canDelete: boolean;
@@ -29,23 +30,27 @@ interface FolderBrowserProps {
 const split = (folder: string) => folder.split("/").filter(Boolean);
 const startsWith = (values: string[], prefix: string[]) => prefix.every((value, index) => values[index] === value);
 
-/** Pastas e arquivos (versão atual) que o setor enxerga, com envio por botão ou arrastando para a pasta aberta. */
+/**
+ * Pastas (navegação) e os arquivos da pasta aberta numa EditableTable: nome e observação editáveis na própria linha,
+ * Adicionar registra um documento só com os dados (o arquivo vem por Nova versão). Envio por botão ou arrastando.
+ */
 export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, canDelete }: FolderBrowserProps) {
+  const qc = useQueryClient();
   const uploadInput = useRef<HTMLInputElement>(null);
   const [path, setPath] = useState<string[]>([]);
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<DocumentRow | null>(null);
+  const [picked, setPicked] = useState<DocumentRow | null>(null);
   const [createdFolders, setCreatedFolders] = useState<string[]>([]);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
   const uploads = useFileUploads({ companyId, userId });
 
-  const { data: docs = [], isLoading, error } = useQuery({
-    queryKey: ["documents", companyId, "folders"],
-    queryFn: () => listFolderDocuments(companyId),
-  });
+  const queryKey = ["documents", companyId, "folders"];
+  const { data: docs = [], isLoading, error, refetch } = useQuery({ queryKey, queryFn: () => listFolderDocuments(companyId) });
 
   const visibleDocs = useMemo(() => docs.filter((doc) => canSeeFolder(role, documentFolder(doc))), [docs, role]);
+  // A linha relida da lista (nome novo depois de salvar) ou, logo após nova versão, a que o painel devolveu.
+  const selected = picked ? visibleDocs.find((doc) => doc.id === picked.id) ?? picked : null;
   const knownFolders = useMemo(
     () => [...new Set([...visibleDocs.map((doc) => documentFolder(doc)), ...createdFolders])].filter((folder) => folder && canSeeFolder(role, folder)),
     [visibleDocs, createdFolders, role],
@@ -58,8 +63,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
     return knownFolders.map((folder) => split(folder)[0]).find((root) => foldName(root) === wanted) ?? defaultRoot(role);
   }, [path, role, knownFolders]);
 
-  // Com o detalhe ou um diálogo aberto por cima, soltar arquivo não envia para a pasta de trás.
-  const drop = useFileDrop((files) => uploads.upload(files, { folder: uploadFolder }), { disabled: !canUpload || uploads.busy || Boolean(selected) || creatingFolder });
+  const drop = useFileDrop((files) => uploads.upload(files, { folder: uploadFolder }), { disabled: !canUpload || uploads.busy || creatingFolder });
 
   const needle = foldName(search);
   const folders = useMemo(() => {
@@ -87,14 +91,46 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
   const roots = visibleRoots(role);
   const canCreateFolder = canUpload && (path.length > 0 || roots === "*");
 
-  function createFolder() {
+  function openFolder(next: string[]) {
+    setPath(next);
+    setSearch("");
+    setPicked(null);
+  }
+
+  function createFolder(event: FormEvent) {
+    event.preventDefault();
     const name = sanitizeFileName(folderName, "");
     if (!name) return;
     setCreatedFolders((current) => [...current, [...path, name].join("/")]);
-    setPath([...path, name]);
+    openFolder([...path, name]);
     setCreatingFolder(false);
     setFolderName("");
   }
+
+  async function save(changes: EditableTableChanges<DocumentRow>) {
+    await saveDocumentMetadata(companyId, { role, userId }, uploadFolder, changes);
+  }
+
+  const columns: EditableColumn<DocumentRow>[] = [
+    {
+      key: "title",
+      header: "Nome",
+      kind: "text",
+      required: true,
+      render: (file) => (
+        <button type="button" onClick={() => setPicked(file)} aria-expanded={selected?.id === file.id} className="flex items-center gap-2 text-left font-medium hover:underline">
+          <FileTypeIcon name={file.title} fileType={file.type} size={16} className="shrink-0 text-muted-foreground" />
+          {file.title}
+        </button>
+      ),
+    },
+    { key: "description", header: "Observação", kind: "text" },
+    ...(needle ? [{ key: "folder", header: "Pasta", kind: "text", readOnly: true, render: (file: DocumentRow) => split(documentFolder(file)).slice(path.length).join("/") || "—" } as EditableColumn<DocumentRow>] : []),
+    { key: "type", header: "Tipo", kind: "text", readOnly: true },
+    { key: "version", header: "Versão", kind: "number", readOnly: true, render: (file) => `v${file.version}` },
+    { key: "size_bytes", header: "Tamanho", kind: "number", readOnly: true, render: (file) => (file.size_bytes ? formatBytes(file.size_bytes) : "sem arquivo") },
+    { key: "created_at", header: "Enviado em", kind: "date", readOnly: true, render: (file) => formatTimestamp(file.created_at) },
+  ];
 
   return (
     <div {...drop.bind} className={cn("relative space-y-4 rounded-lg", drop.isDragging && "ring-2 ring-primary/40")}>
@@ -124,14 +160,26 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         )}
       </PageToolbar>
 
+      {creatingFolder && (
+        <form onSubmit={createFolder} aria-label="Nova pasta" className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
+          <label className="min-w-[14rem] flex-1 space-y-1 text-xs font-medium">
+            Nome da pasta, dentro de /{path.join("/")}
+            <input value={folderName} onChange={(event) => setFolderName(event.target.value)} aria-label="Nome da pasta" placeholder="Ex.: Contratos 2026" required autoFocus className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+          </label>
+          <button type="button" onClick={() => { setCreatingFolder(false); setFolderName(""); }} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">Cancelar</button>
+          <button type="submit" className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">Criar e abrir</button>
+          <p className="w-full text-xs text-muted-foreground">A pasta passa a existir quando o primeiro arquivo for enviado ou registrado nela.</p>
+        </form>
+      )}
+
       <nav aria-label="Caminho da pasta" className="flex flex-wrap items-center gap-1 text-sm">
-        <button type="button" onClick={() => setPath([])} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Documentos /</button>
+        <button type="button" onClick={() => openFolder([])} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Documentos /</button>
         {path.map((segment, index) => (
-          <button key={`${segment}-${index}`} type="button" onClick={() => setPath(path.slice(0, index + 1))} aria-current={index === path.length - 1 ? "location" : undefined} className="rounded px-1 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+          <button key={`${segment}-${index}`} type="button" onClick={() => openFolder(path.slice(0, index + 1))} aria-current={index === path.length - 1 ? "location" : undefined} className="rounded px-1 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             {segment} /
           </button>
         ))}
-        {canUpload && <span className="ml-auto text-xs text-muted-foreground">Envios e arquivos arrastados vão para /{uploadFolder}</span>}
+        {canUpload && <span className="ml-auto text-xs text-muted-foreground">Envios, arquivos arrastados e linhas adicionadas vão para /{uploadFolder}</span>}
       </nav>
 
       {!getFileBackend().persistent && canUpload && (
@@ -139,73 +187,53 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
       )}
       <FileUploadFeedback summary={uploads.summary} onDismiss={uploads.clear} />
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-          {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-32 animate-pulse rounded-lg bg-muted/40" />)}
-        </div>
-      ) : error ? (
+      {error ? (
         <p role="alert" className="text-sm text-destructive">Não foi possível carregar os documentos.</p>
-      ) : folders.length === 0 && files.length === 0 ? (
-        <div className="flex min-h-60 flex-col items-center justify-center rounded-lg border border-dashed text-center">
-          <FolderIcon />
-          <p className="mt-3 text-sm font-medium">{search ? "Nada encontrado" : "Esta pasta está vazia"}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{canUpload ? "Arraste arquivos para cá ou use Enviar arquivos." : "Nenhum arquivo nesta pasta."}</p>
-        </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
-          {folders.map((folder) => (
-            <button key={folder} type="button" onClick={() => { setPath([...path, folder]); setSearch(""); }} className="group min-h-[9rem] rounded-xl border border-transparent p-3 text-center transition-all hover:border-border hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <span className="flex h-full flex-col items-center justify-center">
-                <FolderIcon />
-                <span className="mt-3 w-full truncate text-sm font-medium">{folder}</span>
-              </span>
-            </button>
-          ))}
-          {files.map((file) => {
-            const relative = split(documentFolder(file)).slice(path.length).join("/");
-            return (
-              <button key={file.id} type="button" onClick={() => setSelected(file)} className="group min-h-[9rem] rounded-xl border border-transparent p-3 text-center transition-all hover:border-border hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <span className="flex h-full flex-col items-center justify-start pt-1">
-                  <FileTypeIcon name={file.title} fileType={file.type} size={40} strokeWidth={1.5} className="shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5" />
-                  <span className="mt-3 line-clamp-2 w-full break-words text-sm font-medium leading-snug" title={file.title}>{file.title}</span>
-                  <span className="mt-1 text-[11px] text-muted-foreground">{file.type} · v{file.version}</span>
-                  <span className="text-[11px] text-muted-foreground">{file.size_bytes ? formatBytes(file.size_bytes) : "sem arquivo"}</span>
-                  {needle && relative && <span className="mt-0.5 w-full truncate text-[10px] text-muted-foreground">em {relative}</span>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {folders.length > 0 && (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
+              {folders.map((folder) => (
+                <button key={folder} type="button" onClick={() => openFolder([...path, folder])} className="group min-h-[8rem] rounded-xl border border-transparent p-3 text-center transition-all hover:border-border hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="flex h-full flex-col items-center justify-center">
+                    <FolderIcon />
+                    <span className="mt-3 w-full truncate text-sm font-medium">{folder}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <EditableTable<DocumentRow>
+            resource="documents"
+            label={`Arquivos em /${path.join("/")}`}
+            title={path.length ? `Arquivos em /${path.join("/")}` : "Arquivos na raiz"}
+            rows={files}
+            columns={columns}
+            loading={isLoading}
+            onSave={save}
+            onRefresh={() => qc.invalidateQueries({ queryKey: ["documents", companyId] }).then(() => refetch())}
+            emptyMessage={search ? "Nada encontrado." : canUpload ? "Nenhum arquivo nesta pasta. Arraste arquivos para cá, use Enviar arquivos ou Adicionar." : "Nenhum arquivo nesta pasta."}
+          />
+        </>
+      )}
+
+      {selected && (
+        <DocumentPanel
+          key={selected.id}
+          doc={selected}
+          onClose={() => setPicked(null)}
+          onChanged={setPicked}
+          canUpload={canUpload}
+          canEdit={canEdit}
+          canDelete={canDelete}
+        />
       )}
 
       {drop.isDragging && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-primary/10 text-sm font-medium text-primary-text">
           Solte para enviar para /{uploadFolder}
         </div>
-      )}
-
-      {selected && (
-        <DocumentDrawer
-          doc={selected}
-          onClose={() => setSelected(null)}
-          onChanged={setSelected}
-          canUpload={canUpload}
-          canEdit={canEdit}
-          canDelete={canDelete}
-        />
-      )}
-      {creatingFolder && (
-        <CrudDialog
-          title="Nova pasta"
-          fields={[{ key: "name", label: "Nome da pasta", required: true, placeholder: "Ex.: Contratos 2026" }]}
-          values={{ name: folderName }}
-          onChange={(_, value) => setFolderName(value)}
-          onClose={() => setCreatingFolder(false)}
-          onSubmit={createFolder}
-          submitLabel="Criar e abrir"
-        >
-          <p className="mt-3 text-xs text-muted-foreground">Dentro de /{path.join("/") || ""}. A pasta passa a existir quando o primeiro arquivo for enviado para ela.</p>
-        </CrudDialog>
       )}
     </div>
   );

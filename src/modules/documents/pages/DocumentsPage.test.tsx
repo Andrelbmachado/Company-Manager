@@ -114,7 +114,9 @@ describe("DocumentsPage", () => {
     await click(buttonWith("Contratos"));
     await until(() => text().includes("Contrato NorteLog.pdf"), "arquivo antigo");
     await click(buttonWith("Contrato NorteLog.pdf"));
-    const drawer = () => container.querySelector('[role="dialog"]');
+    // Detalhe no próprio lugar, abaixo da tabela (sem painel lateral).
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    const drawer = () => container.querySelector("[data-document-panel]");
     await until(() => drawer()?.textContent?.includes("Versões") ?? false, "detalhe");
     expect(drawer()!.textContent).toContain("Registro antigo, só com os dados");
     const download = [...drawer()!.querySelectorAll("button")].find((element) => element.textContent?.includes("Baixar"));

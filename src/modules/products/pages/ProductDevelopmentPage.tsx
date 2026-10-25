@@ -1,46 +1,102 @@
 import { useMemo, useState } from "react";
-import { Box, Boxes, MonitorSmartphone } from "lucide-react";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
+import { CalendarView } from "@/components/shared/CalendarView";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { usePermission } from "@/hooks/usePermission";
+import { useRequiredSession } from "@/hooks/useSession";
+import { confirmAction } from "@/lib/confirm";
+import { getDb } from "@/lib/db/client";
+import { emit } from "@/lib/events/bus";
+import { useLabel } from "@/lib/labels/useLabel";
+import {
+  deleteInitiative,
+  INITIATIVE_STATUS_OPTIONS,
+  INITIATIVE_TYPE_OPTIONS,
+  isActiveInitiative,
+  loadInitiatives,
+  milestoneItems,
+  saveInitiativeChanges,
+  type InitiativeType,
+  type ProductInitiative,
+} from "@/lib/products/initiatives";
 import { cn } from "@/lib/utils";
+import { ViewSwitch, type ListOrCalendar } from "@/modules/hr/components/ViewSwitch";
+import type { Role } from "@/types";
 
-type ProductType = "physical" | "digital";
-type ProductStatus = "Descoberta" | "Em desenvolvimento" | "Em validação" | "Planejado";
+const statusLabel = (value: string) => INITIATIVE_STATUS_OPTIONS.find((option) => option.value === value)?.label ?? value;
 
-interface ProductInitiative {
-  id: string;
-  name: string;
-  type: ProductType;
-  status: ProductStatus;
-  owner: string;
-  nextMilestone: string;
-}
-
-const PRODUCTS: ProductInitiative[] = [
-  { id: "product-1", name: "Sensor de monitoramento Edge", type: "physical", status: "Em validação", owner: "Equipe Hardware", nextMilestone: "Lote piloto · 18 jun" },
-  { id: "product-2", name: "Portal de gestão de dispositivos", type: "digital", status: "Em desenvolvimento", owner: "Equipe Plataforma", nextMilestone: "Beta interno · 24 jun" },
-  { id: "product-3", name: "Gateway industrial compacto", type: "physical", status: "Descoberta", owner: "Equipe Hardware", nextMilestone: "Protótipo · 05 jul" },
-  { id: "product-4", name: "Aplicativo de acompanhamento", type: "digital", status: "Planejado", owner: "Equipe Experiência", nextMilestone: "Kickoff · 12 jul" },
-];
-
+/** Desenvolvimento de Produtos: roadmap de produtos físicos e digitais, editável na tabela, com os marcos no calendário. */
 export default function ProductDevelopmentPage() {
+  const session = useRequiredSession();
+  const companyId = session.company.id;
+  const role = session.membership.role as Role;
+  const qc = useQueryClient();
+  const title = useLabel("module.products");
+  const canDelete = usePermission("delete", "product_development");
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | ProductType>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | InitiativeType>("all");
   const [showFilters, setShowFilters] = useState(false);
-  const filteredProducts = useMemo(() => PRODUCTS.filter((product) => {
-    const query = normalizeSearch(search);
-    const matchesSearch = [product.name, product.owner, product.status]
-      .some((value) => normalizeSearch(value).includes(query));
-    return matchesSearch && (typeFilter === "all" || product.type === typeFilter);
-  }), [search, typeFilter]);
+  const [view, setView] = useState<ListOrCalendar>("lista");
+  const [error, setError] = useState("");
+
+  const queryKey = ["product-development", companyId];
+  const query = useQuery({ queryKey, queryFn: async () => loadInitiatives(await getDb(), companyId) });
+  const initiatives = useMemo(() => query.data ?? [], [query.data]);
+
+  const filtered = useMemo(() => {
+    const needle = normalizeSearch(search);
+    return initiatives.filter((item) => {
+      const matches = !needle || [item.name, item.owner ?? "", statusLabel(item.status), item.next_milestone ?? ""].some((value) => normalizeSearch(value).includes(needle));
+      return matches && (typeFilter === "all" || item.type === typeFilter);
+    });
+  }, [initiatives, search, typeFilter]);
+
+  async function save(changes: EditableTableChanges<ProductInitiative>) {
+    const db = await getDb();
+    const result = await saveInitiativeChanges(db, companyId, role, changes);
+    for (const id of result.created) {
+      await emit({ type: "product_initiative.created", companyId, actorId: session.user.id, entityType: "product_initiative", entityId: id, title: "Iniciativa de produto criada", module: "products" });
+    }
+    for (const fields of changes.updated) {
+      await emit({ type: "product_initiative.updated", companyId, actorId: session.user.id, entityType: "product_initiative", entityId: fields.id, title: "Iniciativa de produto atualizada", module: "products", newValue: fields });
+    }
+  }
+
+  async function remove(item: ProductInitiative) {
+    if (!(await confirmAction(`Excluir a iniciativa "${item.name}"?`, { title: "Excluir iniciativa", okLabel: "Excluir" }))) return;
+    try {
+      await deleteInitiative(await getDb(), companyId, role, item.id);
+      await emit({ type: "product_initiative.deleted", companyId, actorId: session.user.id, entityType: "product_initiative", entityId: item.id, title: `Iniciativa excluída: ${item.name}`, module: "products" });
+      setError("");
+      await qc.invalidateQueries({ queryKey });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  const columns: EditableColumn<ProductInitiative>[] = [
+    { key: "name", header: "Produto", kind: "text", required: true, render: (item) => <span className="font-medium">{item.name}</span> },
+    { key: "type", header: "Tipo", kind: "select", options: INITIATIVE_TYPE_OPTIONS, required: true },
+    { key: "status", header: "Status", kind: "select", options: INITIATIVE_STATUS_OPTIONS, required: true, render: (item) => <StatusBadge status={statusLabel(item.status)} tone={item.status === "lancado" ? "success" : item.status === "pausado" ? "neutral" : "info"} /> },
+    { key: "owner", header: "Responsável", kind: "text" },
+    { key: "next_milestone", header: "Próximo marco", kind: "text" },
+    { key: "milestone_date", header: "Data do marco", kind: "date" },
+  ];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Desenvolvimento de Produtos"
-        description="Roadmap de produtos físicos e digitais"
-      />
+      <PageHeader title={title} description="Roadmap de produtos físicos e digitais" />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <KpiCard title="Iniciativas ativas" value={initiatives.filter(isActiveInitiative).length} />
+        <KpiCard title="Produtos físicos" value={initiatives.filter((item) => item.type === "fisico").length} />
+        <KpiCard title="Produtos digitais" value={initiatives.filter((item) => item.type === "digital").length} />
+      </div>
 
       <PageToolbar
         search={search}
@@ -48,24 +104,20 @@ export default function ProductDevelopmentPage() {
         searchPlaceholder="Buscar produtos..."
         onFilterClick={() => setShowFilters((visible) => !visible)}
         filterActive={typeFilter !== "all"}
-      />
+      >
+        <ViewSwitch value={view} onChange={setView} label="Ver iniciativas em" />
+      </PageToolbar>
 
       {showFilters && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-4 py-3">
           <span className="mr-1 text-sm font-medium">Tipo</span>
-          {([
-            ["all", "Todos"],
-            ["physical", "Físicos"],
-            ["digital", "Digitais"],
-          ] as const).map(([value, label]) => (
+          {([["all", "Todos"], ["fisico", "Físicos"], ["digital", "Digitais"]] as const).map(([value, label]) => (
             <button
               key={value}
               type="button"
+              aria-pressed={typeFilter === value}
               onClick={() => setTypeFilter(value)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-muted",
-                typeFilter === value && "border-primary/40 bg-primary/10 text-primary-text"
-              )}
+              className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-muted", typeFilter === value && "border-primary bg-primary text-primary-foreground hover:bg-primary/90")}
             >
               {label}
             </button>
@@ -73,69 +125,33 @@ export default function ProductDevelopmentPage() {
         </div>
       )}
 
-      <div className="grid gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-3">
-        <Metric label="Iniciativas ativas" value={PRODUCTS.length} />
-        <Metric label="Produtos físicos" value={PRODUCTS.filter((product) => product.type === "physical").length} />
-        <Metric label="Produtos digitais" value={PRODUCTS.filter((product) => product.type === "digital").length} />
-      </div>
+      {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
 
-      {filteredProducts.length === 0 ? (
-        <EmptyState icon={Boxes} title="Nenhum produto encontrado" />
+      {view === "lista" ? (
+        <EditableTable<ProductInitiative>
+          resource="product_development"
+          label="Iniciativas de produto"
+          title="Iniciativas"
+          rows={filtered}
+          columns={columns}
+          loading={query.isLoading}
+          newRow={() => ({ type: "digital", status: "planejado" })}
+          onSave={save}
+          onRefresh={() => query.refetch()}
+          rowActions={canDelete ? (item) => (
+            <button type="button" onClick={() => void remove(item)} aria-label={`Excluir ${item.name}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive">
+              <Trash2 size={14} />
+            </button>
+          ) : undefined}
+          emptyMessage={initiatives.length === 0 ? "Nenhuma iniciativa cadastrada. Use Adicionar." : "Nenhum produto encontrado."}
+        />
       ) : (
-        <div className="overflow-hidden rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Produto</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipo</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Responsável</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Próximo marco</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y bg-background">
-              {filteredProducts.map((product) => {
-                const Icon = product.type === "physical" ? Box : MonitorSmartphone;
-                return (
-                  <tr key={product.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-2 font-medium">
-                        <Icon size={15} className="text-primary-text" />
-                        {product.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{product.type === "physical" ? "Físico" : "Digital"}</td>
-                    <td className="px-4 py-3"><Status status={product.status} /></td>
-                    <td className="px-4 py-3 text-muted-foreground">{product.owner}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{product.nextMilestone}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CalendarView items={milestoneItems(filtered)} label="Marcos das iniciativas" />
       )}
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-background px-4 py-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function Status({ status }: { status: ProductStatus }) {
-  return (
-    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary-text">
-      {status}
-    </span>
-  );
-}
-
 function normalizeSearch(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { useLabel } from "@/lib/labels/useLabel";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
@@ -19,6 +20,7 @@ type TabId = (typeof TABS)[number]["id"];
  */
 export default function DocumentsPage() {
   const session = useRequiredSession();
+  const title = useLabel("module.documents");
   const role = session.membership.role as Role;
   const canUpload = usePermission("attach", "documents");
   const canEdit = usePermission("edit", "documents");
@@ -28,7 +30,7 @@ export default function DocumentsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Documentos"
+        title={title}
         description={canUpload ? "Pastas e arquivos da sua área: envie, arraste, visualize, baixe e acompanhe as versões." : "Pastas e arquivos compartilhados com a sua área."}
         className="pb-2"
       />

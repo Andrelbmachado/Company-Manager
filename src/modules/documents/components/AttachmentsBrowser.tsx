@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Paperclip } from "lucide-react";
-import { DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileTypeIcon } from "@/components/shared/FileTypeIcon";
 import { PageToolbar } from "@/components/shared/PageToolbar";
@@ -11,11 +10,12 @@ import { formatBytes, formatTimestamp } from "@/lib/files/format";
 import { listAllAttachments } from "@/lib/files/store";
 import type { DocumentRow, Role } from "@/types";
 import { foldName } from "../access";
-import { DocumentDrawer } from "./DocumentDrawer";
+import { DocumentPanel } from "./DocumentPanel";
 
 /**
  * Anexos enviados nas fichas (cliente, fatura, colaborador...), só dos tipos de registro que o papel pode ver. Aqui é
- * consulta: enviar, nova versão e restaurar ficam na tela do registro (FileAttachments), que conhece a permissão dele.
+ * consulta (tabela só de leitura): enviar, editar, nova versão e restaurar ficam na ficha do registro
+ * (FileAttachments), que conhece a permissão dele. O detalhe abre no próprio lugar, abaixo da tabela.
  */
 export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role; companyId: string; canDelete: boolean }) {
   const [search, setSearch] = useState("");
@@ -89,7 +89,7 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
               {list.map((doc) => (
                 <tr key={doc.id} className="hover:bg-muted/30">
                   <td className="px-3 py-2">
-                    <button type="button" onClick={() => setSelected(doc)} className="flex items-center gap-2 text-left font-medium hover:underline">
+                    <button type="button" onClick={() => setSelected(doc)} aria-expanded={selected?.id === doc.id} className="flex items-center gap-2 text-left font-medium hover:underline">
                       <FileTypeIcon name={doc.title} fileType={doc.type} size={16} className="shrink-0 text-muted-foreground" />
                       {doc.title}
                     </button>
@@ -106,14 +106,15 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
       )}
 
       {selected && (
-        <DocumentDrawer
+        <DocumentPanel
+          key={selected.id}
           doc={selected}
           onClose={() => setSelected(null)}
           onChanged={setSelected}
           canUpload={false}
           canEdit={false}
           canDelete={canDelete}
-          extra={<DetailItem label="Registro" value={ownerCell(selected)} />}
+          extra={{ label: "Registro", value: ownerCell(selected) }}
         />
       )}
     </div>

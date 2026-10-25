@@ -5,7 +5,8 @@
 // Funções com `db` recebem o banco; SQL nos padrões do banco demo (contas e filtros no TypeScript).
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
-import type { ContractType, Employee, HrTask } from "@/types";
+import { can } from "@/lib/permissions/rbac";
+import type { ContractType, Employee, HrTask, Role } from "@/types";
 
 export type CycleKind = "admissao" | "desligamento";
 
@@ -91,12 +92,43 @@ export function duplicateEmailMessage(existing: Pick<Employee, "name" | "status"
 }
 
 /** Cadastra quem está entrando (status ativo) e cria o checklist de admissão com prazos a partir da data de início. */
+/** Regras de uma admissão que não dependem do banco. Retorna a mensagem do primeiro problema ou null. */
+function admissionProblem(input: AdmissionInput): string | null {
+  const email = input.email.trim().toLowerCase();
+  if (!input.name.trim()) return "Informe o nome de quem está entrando.";
+  if (!DATE.test(input.hire_date)) return "Informe a data de início.";
+  if (email && !EMAIL.test(email)) return "E-mail inválido.";
+  return null;
+}
+
+/**
+ * Confere várias admissões (linhas novas da tabela) antes de gravar a primeira: permissão (`create` em `hr_admin`),
+ * regras de cada uma, e-mail repetido no lote ou de quem já tem ficha. Se a gravação falhasse no meio, a tabela
+ * manteria as linhas e salvar de novo duplicaria as admissões já gravadas.
+ */
+export async function checkAdmissions(db: DatabaseLike, companyId: string, role: Role, inputs: readonly AdmissionInput[]): Promise<void> {
+  if (inputs.length && !can(role, "create", "hr_admin")) throw new Error("Seu perfil não tem permissão para iniciar admissões.");
+  for (const input of inputs) {
+    const problem = admissionProblem(input);
+    if (problem) throw new Error(problem);
+  }
+  const emails = inputs.map((input) => input.email.trim().toLowerCase()).filter(Boolean);
+  if (!emails.length) return;
+  const all = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [companyId]);
+  const seen = new Set<string>();
+  for (const email of emails) {
+    if (seen.has(email)) throw new Error(`O e-mail ${email} está em mais de uma admissão.`);
+    seen.add(email);
+    const same = all.find((employee) => employee.email?.trim().toLowerCase() === email);
+    if (same) throw new Error(duplicateEmailMessage(same));
+  }
+}
+
 export async function startAdmission(db: DatabaseLike, companyId: string, input: AdmissionInput, actorId: string): Promise<{ employeeId: string; taskIds: string[] }> {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
-  if (!name) throw new Error("Informe o nome de quem está entrando.");
-  if (!DATE.test(input.hire_date)) throw new Error("Informe a data de início.");
-  if (email && !EMAIL.test(email)) throw new Error("E-mail inválido.");
+  const problem = admissionProblem(input);
+  if (problem) throw new Error(problem);
   if (email) {
     // E-mail sem diferenciar maiúsculas (cadastros antigos ou importados podem ter sido gravados como digitados).
     const all = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [companyId]);

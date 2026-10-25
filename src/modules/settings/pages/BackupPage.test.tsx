@@ -122,6 +122,10 @@ describe("BackupPage", () => {
     expect(text()).toContain("Manual");
     expect(text()).toContain("3 MB");
     expect(text()).toContain(DIR);
+    // Cards do topo: só título e número/data, nada de texto embaixo.
+    const cards = [...document.querySelectorAll(".kpi-card")];
+    expect(cards.length).toBe(3);
+    for (const card of cards) expect(card.querySelectorAll("p").length).toBeLessThanOrEqual(2);
   });
 
   it("faz backup agora e registra no histórico", async () => {

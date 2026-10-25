@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { saveProposalRows } from "@/lib/commercial/crmEdits";
 import { getDb } from "@/lib/db/client";
 import { displayProposalStatus } from "@/lib/crm/proposals";
@@ -76,7 +76,7 @@ export function ProposalsTable({ proposals, loading, customerId, title = "Propos
           <span className="text-muted-foreground">—</span>
         ),
     },
-    { key: "status", header: "Situação", kind: "text", readOnly: true, render: (proposal) => <StatusBadge status={displayProposalStatus(proposal, today)} /> },
+    { key: "status", header: "Situação", kind: "select", readOnly: true, sortValue: (proposal) => statusLabel(displayProposalStatus(proposal, today)), render: (proposal) => <StatusBadge status={displayProposalStatus(proposal, today)} /> },
     { key: "value", header: "Total", kind: "money", placeholder: "valor do item", render: (proposal) => <span className="tabular-nums">{formatCurrency(Number(proposal.value ?? 0))}</span> },
     {
       key: "valid_until",

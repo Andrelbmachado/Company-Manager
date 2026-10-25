@@ -8,7 +8,7 @@ import { FileText, Undo2 } from "lucide-react";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { usePermission } from "@/hooks/usePermission";
 import { getDb } from "@/lib/db/client";
 import { formatSequence } from "@/lib/db/sequence";
@@ -95,7 +95,7 @@ export default function GoodsReceiptsPage() {
       { key: "supplier", header: "Fornecedor", kind: "text", readOnly: true },
       { key: "received_at", header: "Data", kind: "date", readOnly: true },
       { key: "supplier_invoice_number", header: "NF", kind: "text", placeholder: "Nota fiscal" },
-      { key: "status", header: "Status", kind: "text", readOnly: true, render: (row) => (row.status ? <StatusBadge status={row.status} /> : null) },
+      { key: "status", header: "Status", kind: "select", readOnly: true, sortValue: (row) => (row.status ? statusLabel(row.status) : null), render: (row) => (row.status ? <StatusBadge status={row.status} /> : null) },
       { key: "total", header: "Valor", kind: "money", readOnly: true },
       { key: "notes", header: "Observações", kind: "text", width: 200 },
     ];

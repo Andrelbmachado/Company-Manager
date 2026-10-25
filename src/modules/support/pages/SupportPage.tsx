@@ -186,7 +186,7 @@ export default function SupportPage() {
     { key: "description", header: "Descrição", kind: "text", placeholder: "Detalhes (opcional)" },
     { key: "requester_area", header: "Área", kind: "text", readOnly: true },
     { key: "opener_name", header: "Aberto por", kind: "text", readOnly: true },
-    { key: "created_at", header: "Aberto em", kind: "text", readOnly: true, render: (ticket) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(ticket.created_at)}</span> },
+    { key: "created_at", header: "Aberto em", kind: "date", readOnly: true, render: (ticket) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(ticket.created_at)}</span> },
   ];
 
   if (selectedTicket) {

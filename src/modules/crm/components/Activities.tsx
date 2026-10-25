@@ -137,6 +137,7 @@ export function ActivitiesTable({ activities, loading, entity, showEntity, title
     header: "Registro",
     kind: "text",
     readOnly: true,
+    sortValue: (row) => `${ENTITY_LABELS[row.entity_type]}: ${entityNames.name(row.entity_type, row.entity_id) ?? ""}`,
     render: (row) => {
       const href = entityHref(row.entity_type, row.entity_id, row.customer_id);
       const name = entityNames.name(row.entity_type, row.entity_id);
@@ -159,7 +160,7 @@ export function ActivitiesTable({ activities, loading, entity, showEntity, title
         return <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-muted-foreground"><Icon size={14} aria-hidden="true" /> {ACTIVITY_KIND_LABELS[row.kind]}</span>;
       },
     },
-    { key: "subject", header: "Assunto", kind: "text", width: 220, placeholder: "Ex.: Ligar para apresentar a proposta", render: (row) => <span className="font-medium">{label(row)}</span> },
+    { key: "subject", header: "Assunto", kind: "text", width: 220, placeholder: "Ex.: Ligar para apresentar a proposta", sortValue: label, render: (row) => <span className="font-medium">{label(row)}</span> },
     { key: "body", header: "Descrição", kind: "text", width: 200, render: (row) => <span className="line-clamp-2 text-muted-foreground">{row.body ?? "—"}</span> },
     ...(entity ? [] : [customerColumn]),
     { key: "due_day", header: "Prazo", kind: "date", render: (row) => <span className={cn("whitespace-nowrap", activityState(row) === "atrasada" ? "font-semibold text-destructive" : "text-muted-foreground")}>{row.due_at ? formatWhen(row.due_at) : "—"}</span> },
@@ -167,7 +168,14 @@ export function ActivitiesTable({ activities, loading, entity, showEntity, title
     { key: "user_id", header: "Responsável", kind: "select", options: users.map((user) => ({ value: user.id, label: user.name })), render: (row) => <span className="whitespace-nowrap text-muted-foreground">{row.user_id ? names.get(row.user_id) ?? "—" : "—"}</span> },
     { key: "done", header: "Feita", kind: "bool" },
     { key: "outcome", header: "Resultado", kind: "text", placeholder: "Ex.: Pediu nova proposta" },
-    { key: "done_at", header: "Situação", kind: "text", readOnly: true, render: (row) => (row.kind === "nota" ? <span className="text-xs text-muted-foreground">Nota</span> : <ActivityStateBadge activity={row} />) },
+    {
+      key: "done_at",
+      header: "Situação",
+      kind: "select",
+      readOnly: true,
+      sortValue: (row) => (row.kind === "nota" ? "Nota" : STATE_BADGE[activityState(row)].label),
+      render: (row) => (row.kind === "nota" ? <span className="text-xs text-muted-foreground">Nota</span> : <ActivityStateBadge activity={row} />),
+    },
     ...(showEntity ? [entityColumn] : []),
   ];
 

@@ -60,6 +60,7 @@ export default function InventoryCountsPage() {
       header: "Número",
       kind: "text",
       readOnly: true,
+      sortValue: (row) => formatSequence("inventory_counts", row.number),
       render: (row) => (
         <Link to={`/inventory/inventarios/${row.id}`} className="font-medium text-primary-text hover:underline">
           {formatSequence("inventory_counts", row.number)}
@@ -87,8 +88,8 @@ export default function InventoryCountsPage() {
     },
     { key: "status", header: "Situação", kind: "select", readOnly: true, options: STATUS_OPTIONS, render: (row) => <StatusBadge status={row.status} /> },
     { key: "notes", header: "Observação", kind: "text", placeholder: "Ex.: contagem mensal das prateleiras" },
-    { key: "started_at", header: "Início", kind: "text", readOnly: true, render: (row) => (row.started_at ? formatDateTime(row.started_at) : "—") },
-    { key: "finished_at", header: "Conclusão", kind: "text", readOnly: true, render: (row) => (row.finished_at ? formatDateTime(row.finished_at) : "—") },
+    { key: "started_at", header: "Início", kind: "date", readOnly: true, render: (row) => (row.started_at ? formatDateTime(row.started_at) : "—") },
+    { key: "finished_at", header: "Conclusão", kind: "date", readOnly: true, render: (row) => (row.finished_at ? formatDateTime(row.finished_at) : "—") },
     { key: "counted_count", header: "Contados", kind: "number", readOnly: true, render: (row) => `${row.counted_count}/${row.item_count}` },
     {
       key: "divergent_count",

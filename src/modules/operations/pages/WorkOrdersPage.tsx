@@ -73,7 +73,7 @@ export default function WorkOrdersPage() {
     { key: "status", header: "Status", kind: "select", required: true, options: WORK_ORDER_STATUSES, render: (row) => <StatusBadge status={row.status} /> },
     { key: "priority", header: "Prioridade", kind: "select", required: true, options: WORK_ORDER_PRIORITIES, render: (row) => <StatusBadge status={row.priority} /> },
     { key: "sla_due_at", header: "Prazo", kind: "date" },
-    { key: "opened_at", header: "Aberta em", kind: "text", readOnly: true, render: (row) => <span className="text-muted-foreground">{formatDateTime(row.opened_at)}</span> },
+    { key: "opened_at", header: "Aberta em", kind: "date", readOnly: true, render: (row) => <span className="text-muted-foreground">{formatDateTime(row.opened_at)}</span> },
     { key: "labor_cost", header: "Mão de obra", kind: "money" },
     { key: "materials_cost", header: "Materiais", kind: "money" },
     { key: "total_cost", header: "Custo total", kind: "money", readOnly: true },

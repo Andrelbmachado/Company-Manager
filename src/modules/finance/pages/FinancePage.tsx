@@ -21,7 +21,7 @@ import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import type { Payable, Receivable, RecurringKind } from "@/types";
 import { ENTRY_RESOURCE, entryRow, saveEntryChanges, type EntryRow } from "../data/entryEditing";
@@ -133,7 +133,7 @@ function entryColumns(kind: EntryKind, lookups: FinanceLookups, byId: Map<string
     { key: "amount", header: "Valor", kind: "money", required: true },
     { key: "paid", header: payable ? "Pago" : "Recebido", kind: "money", readOnly: true },
     { key: "remaining", header: "Saldo", kind: "money", readOnly: true },
-    { key: "status", header: "Status", kind: "text", readOnly: true, render: (row) => <StatusBadge status={row.status} /> },
+    { key: "status", header: "Status", kind: "select", readOnly: true, sortValue: (row) => statusLabel(row.status), render: (row) => <StatusBadge status={row.status} /> },
     { key: "document_number", header: "Documento", kind: "text" },
     { key: "payment_method", header: "Forma de pagamento", kind: "select", options: PAYMENT_METHODS },
     { key: "bank_account_id", header: "Conta prevista", kind: "select", options: options(lookups.bankAccounts), render: (row) => lookups.bankAccountName(row.bank_account_id) },

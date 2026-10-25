@@ -9,7 +9,7 @@ import { EditableTable, type EditableColumn, type EditableTableChanges } from "@
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { getDb } from "@/lib/db/client";
 import { formatSequence } from "@/lib/db/sequence";
 import { useLabel } from "@/lib/labels/useLabel";
@@ -140,7 +140,7 @@ export default function PurchasingPage() {
     },
     { key: "payment_terms", header: "Condição", kind: "text", placeholder: "Ex.: 28 dias" },
     { key: "installments", header: "Parcelas", kind: "number", width: 80 },
-    { key: "status", header: "Status", kind: "text", readOnly: true, render: (row) => (row.status ? <StatusBadge status={row.status} /> : null) },
+    { key: "status", header: "Status", kind: "select", readOnly: true, sortValue: (row) => (row.status ? statusLabel(row.status) : null), render: (row) => (row.status ? <StatusBadge status={row.status} /> : null) },
     { key: "total", header: "Total", kind: "money", readOnly: true },
     { key: "notes", header: "Observações", kind: "text", width: 200 },
   ], [suppliers, suppliersById, items, itemsByOrder, locations, orders, today]);

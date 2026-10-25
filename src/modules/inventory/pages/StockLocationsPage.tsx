@@ -45,6 +45,7 @@ export default function StockLocationsPage() {
       header: "Contagem",
       kind: "text",
       readOnly: true,
+      sortValue: (row) => (row.open_count_id ? `${formatSequence("inventory_counts", row.open_count_number)} aberta` : null),
       render: (row) =>
         row.open_count_id ? (
           <Link to={`/inventory/inventarios/${row.open_count_id}`} className="text-primary-text hover:underline">

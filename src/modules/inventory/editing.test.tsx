@@ -4,7 +4,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buttonIn, click, mountPage, until, type Mounted } from "@/modules/catalog/testHarness";
+import { buttonIn, click, mountPage, typeInto, until, type Mounted } from "@/modules/catalog/testHarness";
 import { openInventoryCount } from "@/lib/inventory/counts";
 import { recordStockMovement, transferStock } from "@/lib/inventory/stock";
 import { useTestDb } from "@/test/mockDb";
@@ -99,6 +99,41 @@ describe("logística — histórico com cadastro excluído", () => {
     const shown = [...table()!.querySelectorAll("select")].map((select) => select.selectedOptions[0]?.textContent ?? "");
     for (const label of EXPECTED[name]) expect(shown).toContain(label);
     expect(shown.filter((text) => /item-1|loc-1/.test(text))).toEqual([]);
+  });
+});
+
+describe("logística — ordenar e filtrar pelo que a tabela mostra", () => {
+  const DATED: Record<string, string> = {
+    Movimentações: "Data",
+    Transferências: "Data",
+    "Inventário (contagens)": "Início",
+    Custódia: "Retirada",
+    "Ordens de serviço": "Aberta em",
+  };
+
+  async function openTable(name: string) {
+    const page = PAGES.find((item) => item.name === name)!;
+    mounted = await mountPage({ companyId, role: "admin", path: page.path.replace(":count", countId), routes: [{ path: page.route, element: page.element }] });
+    const table = () => mounted!.container.querySelector<HTMLElement>("[data-editable-table]")!;
+    await until(() => Boolean(mounted!.container.querySelector("[data-editable-table] tr[data-row-key]")), "tabela com linhas");
+    await click(buttonIn(table(), "Filtrar"));
+    return table;
+  }
+
+  it.each(Object.entries(DATED))("%s: a coluna %s (data com hora) filtra por período de–até, não por texto", async (name, header) => {
+    const table = await openTable(name);
+    expect(table().querySelector<HTMLInputElement>(`[aria-label="${header}: de"]`)?.type).toBe("date");
+    expect(table().querySelector<HTMLInputElement>(`[aria-label="${header}: até"]`)?.type).toBe("date");
+    expect(table().querySelector(`[aria-label="${header}: contém"]`)).toBeNull();
+  });
+
+  it("Movimentações: Origem filtra pelo nome mostrado (Lançamento manual, Transferência), não pelo código gravado", async () => {
+    const table = await openTable("Movimentações");
+    const origins = () => [...table().querySelectorAll("tr[data-row-key] td[data-column='ref_type']")].map((cell) => cell.textContent);
+    expect(origins()).toContain("Lançamento manual");
+    await typeInto(table().querySelector("[aria-label='Origem: contém']"), "lançamento");
+    expect(origins().length).toBeGreaterThan(0);
+    expect(new Set(origins())).toEqual(new Set(["Lançamento manual"]));
   });
 });
 

@@ -216,9 +216,14 @@ interface StatusBadgeProps {
   className?: string;
 }
 
+/** Rótulo que o StatusBadge mostra (para ordenar e filtrar a coluna pelo texto da tela, não pelo código gravado). */
+export function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
 export function StatusBadge({ status, tone, className }: StatusBadgeProps) {
   const style = TONES[tone ?? STATUS_TONE[status] ?? "neutral"];
-  const label = STATUS_LABELS[status] ?? status;
+  const label = statusLabel(status);
   return (
     <span className={cn("inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold", style, className)}>
       {label}

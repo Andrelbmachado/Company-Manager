@@ -81,6 +81,31 @@ describe("Faturas", () => {
     expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 
+  it("lista ordena e filtra Cliente pelo nome (não pelo código) e Status pelo rótulo, em múltipla escolha", async () => {
+    const other = await createSalesOrder(testDb(), { companyId: fx.companyId, customerId: fx.otherCustomerId, items: [{ productId: fx.products.visita, qty: 1 }] });
+    await confirmSalesOrder(testDb(), other, { companyId: fx.companyId });
+    await invoiceSalesOrder(testDb(), other, { companyId: fx.companyId, installments: 1, issueDate: "2999-01-10" });
+    page = await mountPage({ companyId: fx.companyId, role: "financeiro", path: "/sales/faturas", routes });
+    await until(() => text().includes("FAT-00002"), "duas faturas");
+    const table = page.container.querySelector<HTMLElement>("[data-editable-table='invoices']")!;
+    const customers = () => [...table.querySelectorAll("tr[data-row-key] td[data-column='customer_id']")].map((cell) => cell.textContent);
+
+    // fx-cust-1 = Cliente Revenda, fx-cust-2 = Cliente Final: pelo código a Revenda viria primeiro.
+    await click(table.querySelector("th [data-sort-key='customer_id']"));
+    expect(customers()).toEqual(["Cliente Final", "Cliente Revenda"]);
+
+    await click(buttonIn(table, "Filtrar"));
+    await typeInto(table.querySelector("[aria-label='Cliente: contém']"), "revenda");
+    expect(customers()).toEqual(["Cliente Revenda"]);
+    await click(buttonIn(table, "Limpar filtros"));
+
+    const status = [...table.querySelectorAll("[data-filter-bar] fieldset")].find((item) => item.querySelector("legend")?.textContent === "Status")!;
+    const choices = [...status.querySelectorAll("label")];
+    expect(choices.map((label) => label.textContent)).toEqual(["Emitida", "Vencida"]);
+    await click(choices.find((label) => label.textContent === "Vencida")!.querySelector("input"));
+    expect(customers()).toEqual(["Cliente Revenda"]);
+  });
+
   it("'nova' explica que fatura nasce do pedido", async () => {
     page = await mountPage({ companyId: fx.companyId, role: "financeiro", path: "/sales/faturas/nova", routes });
     await until(() => text().includes("Faturas nascem dos pedidos de venda"), "explicação");

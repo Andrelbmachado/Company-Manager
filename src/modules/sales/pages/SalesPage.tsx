@@ -9,7 +9,7 @@ import { EditableTable, type EditableColumn, type EditableTableChanges } from "@
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { useRequiredSession } from "@/hooks/useSession";
 import { saveSalesOrderRows } from "@/lib/commercial/salesEdits";
 import { getDb } from "@/lib/db/client";
@@ -91,8 +91,9 @@ export default function SalesPage() {
     {
       key: "status",
       header: "Status",
-      kind: "text",
+      kind: "select",
       readOnly: true,
+      sortValue: (order) => statusLabel(order.status),
       render: (order) => (
         <span className="flex flex-wrap items-center gap-1.5">
           <StatusBadge status={order.status} />

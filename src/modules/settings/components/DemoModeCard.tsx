@@ -176,7 +176,11 @@ function DemoModeSwitch() {
       // Os dados de todos os módulos mudaram.
       void qc.invalidateQueries();
     },
-    onError: (err) => setError(err instanceof Error ? err.message : "Não foi possível mudar o modo demonstração."),
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Não foi possível mudar o modo demonstração.");
+      // Um seed pode ter gravado parte dos exemplos antes de falhar: relê o card (o que ficou + "Remover agora") e os módulos.
+      void qc.invalidateQueries();
+    },
   });
 
   async function change(next: boolean) {

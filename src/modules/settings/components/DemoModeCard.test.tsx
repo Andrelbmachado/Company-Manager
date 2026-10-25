@@ -121,6 +121,23 @@ describe("DemoModeCard", () => {
     expect(page!.text()).not.toMatch(/goods|receipts|payables|purchase|suppliers/);
   });
 
+  it("se ligar falha no meio, mostra o erro e o que já foi gravado, com Remover agora", async () => {
+    const db = testDb();
+    // O seed principal grava clientes, financeiro, estoque... e quebra no fim (tabela de auditoria ausente).
+    await db.execute("DROP TABLE audit_logs");
+    await open("ceo");
+    await eventually(() => toggle()?.disabled === false, "switch liberado");
+
+    await click(toggle());
+    await eventually(() => document.querySelector("[role=alert]") !== null && toggle()?.disabled === false, "erro ao ligar");
+
+    expect(toggle()?.getAttribute("aria-checked")).toBe("false");
+    expect(await isDemoMode(db, COMPANY)).toBe(false);
+    expect(await count(db, "customers")).toBeGreaterThan(0);
+    await eventually(() => /Ainda há [\d.]+ registros de exemplo/.test(page!.text()), "aviso do que ficou gravado", 2_000);
+    expect(findButton(document, "Remover agora")).toBeDefined();
+  });
+
   it("toda tabela que a limpeza alcança e toda área de exemplo têm nome em português", async () => {
     const db = testDb();
     const tables = await db.select<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");

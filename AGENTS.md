@@ -51,6 +51,9 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
 ├── vitest.config.ts               # testes: alias @, Node por padrão, *.test.tsx em jsdom
 ├── tailwind.config.js             # tokens shadcn (hsl(var(--...))), darkMode: class
 ├── scripts/sync-project-manager.mjs   # copia o módulo do Project Manager para src/modules/project-manager (`npm run sync:project-manager`)
+├── scripts/build-dmg.sh           # `npm run dmg`: gera o instalador DMG em dist-installers/ (ver §3)
+├── scripts/install-app.sh         # `npm run install:app`: compila e deixa UMA cópia em /Applications
+├── dist-installers/               # DMG gerado (ignorado pelo git; só o último)
 ├── scripts/site-prospecting/      # gerador do seed de prospecção (ver §4 e §8)
 │   ├── pricing.mjs                #   pacotes Básico/Essencial/Premium, preços da Proposta, cenários, tarefas, cronograma
 │   ├── build-seed.mjs             #   CSV -> src/lib/prospecting/data/siteProspecting.generated.ts
@@ -58,7 +61,7 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
 ├── .github/workflows/             # ci.yml (tsc + npm test + cargo check), release.yml (tags v*)
 ├── src-tauri/
 │   ├── Cargo.toml                 # crate company-manager; plugins sql(sqlite)/fs/dialog/shell
-│   ├── tauri.conf.json            # identifier com.company.manager, devUrl :1420, dragDropEnabled: false
+│   ├── tauri.conf.json            # identifier com.company.manager, devUrl :1420, dragDropEnabled: false, bundle macOS (categoria, macOS 12+, ad-hoc, layout do DMG)
 │   ├── capabilities/default.json  # permissões sql/fs/dialog/shell do webview
 │   ├── migrations/                # 0001_init … 0007_payroll, 0008_crm_erp_core, 0009_documents_files, 0010_auth_hash, 0011_crm_hr_extras
 │   ├── src/lib.rs                 # registra as migrations (versão -> arquivo), os plugins e os comandos
@@ -106,12 +109,25 @@ Node 22+ (CI usa 22; o `better-sqlite3` dos testes exige), npm, Rust estável (s
 | Typecheck | `npm run typecheck` (= `tsc --noEmit`) |
 | Build (tsc + vite) | `npm run build` |
 | Build desktop | `npm run tauri build` |
+| Instalador macOS (DMG) | `npm run dmg` → `dist-installers/Company Manager_<versão>_<arch>.dmg` (ver "Instalador DMG" abaixo) |
+| Instalar/reinstalar no próprio Mac | `npm run install:app` (uma única cópia em `/Applications`; não use o DMG para isso) |
 | Testes | `npm test` (= `vitest run`, uma vez) ou `npm run test:watch`; um arquivo: `npx vitest run src/lib/dev/devSeed.test.ts`. Ver "Testes" abaixo. |
 | Lint | **não existe** ESLint configurado. |
 | Regenerar seed de prospecção | `node scripts/site-prospecting/build-seed.mjs [caminho.csv]` |
 | Atualizar o módulo Project Manager | `npm run sync:project-manager` (`-- --check` só compara) |
 
 CI (`.github/workflows/ci.yml`): `npm ci`, `npx tsc --noEmit`, `npm test`, `cargo check` em `src-tauri`.
+
+**Instalador DMG (`npm run dmg` = `scripts/build-dmg.sh`, só macOS):**
+- Roda `tauri build --bundles dmg` (o `beforeBuildCommand` faz `npm run build`) com `CARGO_TARGET_DIR=~/cm-target`: fora do iCloud Drive e o mesmo diretório do `install:app`, então um reaproveita a compilação do outro. Antes, pede `brctl download` das pastas de código (arquivos "só na nuvem").
+- Resultado: `dist-installers/Company Manager_<versão>_<arch>.dmg` (pasta ignorada pelo git; só o último). Para manter **uma única cópia do app** (regra 1 do plano), o script apaga o DMG e o `.app` intermediários do `~/cm-target/.../bundle` e desmonta volumes `/Volumes/Company Manager*`. Antes de publicar, ele se autoverifica com a imagem ainda numa pasta temporária: `hdiutil verify`, monta só-leitura, confere `.app` + atalho Aplicativos e `codesign --verify --deep --strict`, lê versão, macOS mínimo e arquitetura, e desmonta. **Só então troca o DMG anterior de `dist-installers/`**: se o build ou a verificação falhar, o anterior fica intacto e nenhum DMG novo aparece. Com `~/cm-target` aquecido leva ~2 min (DMG de ~3 MB, arm64); do zero demora bem mais (todas as dependências em release com LTO).
+- **Flag `hidden` do iCloud:** checkout dentro de pasta oculta no iCloud Drive (ex.: worktree em `.claude/worktrees/`) fica com o flag `hidden` em todos os arquivos, e o iCloud o recoloca segundos depois de um `chflags nohidden`. O bundler copia o flag do `icon.icns` para o volume HFS+ do DMG, onde ele vira `com.apple.FinderInfo`, e o app falha no `codesign --verify --strict` (e falharia na notarização). Por isso o script converte o DMG para leitura-escrita, tira flag/FinderInfo do `.app` (a assinatura não cobre esses atributos), apaga `.fseventsd` e recomprime em UDZO. Do checkout principal o problema não aparece, mas a limpeza roda sempre.
+- Opções: `npm run dmg -- --no-finder` (exporta `CI=true` e o bundler pula o AppleScript do Finder que arruma ícones e janela; o DMG continua com o app e o atalho Aplicativos; use em sessão sem tela ou sem permissão de Automação); `-- --install-deps` (`npm ci` antes); outros argumentos vão para o `tauri build` (ex.: `-- --target universal-apple-darwin`, exige `rustup target add x86_64-apple-darwin`).
+- Configuração em `src-tauri/tauri.conf.json > bundle`: `category: "Business"`, `macOS.minimumSystemVersion: "12.0"`, `macOS.signingIdentity: "-"` (**assinatura ad-hoc**) e o layout `macOS.dmg` (janela 660×400, app à esquerda, Aplicativos à direita). O nome do DMG usa a `version` do `tauri.conf.json`: mantenha igual à do `package.json` e do `Cargo.toml` (`src/test/buildConfig.test.ts` confere isso e a configuração acima).
+- O build release depende do fix `[profile.release.build-override] strip = "none"` do `Cargo.toml` (strip dos proc-macros quebrava o link no macOS 27). Não remova.
+- **Gatekeeper:** sem Apple Developer ID + notarização (exige conta paga, pendente), no Mac que gerou o DMG o app abre direto; em outro Mac (DMG baixado, AirDrop, e-mail: o arquivo chega com quarentena) o macOS bloqueia a primeira abertura (`spctl --assess` responde `rejected`, esperado para ad-hoc). Liberar: Ajustes do Sistema > Privacidade e Segurança > "Abrir Mesmo Assim" (no macOS 15+ o clique com Control > Abrir não basta), ou no Terminal `xattr -dr com.apple.quarantine "/Applications/Company Manager.app"`.
+- O DMG é para **distribuir**. Para instalar no próprio Mac use `npm run install:app`. **Não abra o app do DMG com duplo clique para testar**: ele usaria o banco real em `~/Library/Application Support/com.company.manager/`. Teste de fumaça isolado (sem instalar e sem tocar no banco real): `hdiutil attach -readonly -nobrowse -mountpoint <tmp>/mnt "<dmg>"` e rode o binário com outra home, `HOME=<tmp>/home CFFIXED_USER_HOME=<tmp>/home "<tmp>/mnt/Company Manager.app/Contents/MacOS/company-manager" &` (o banco, o WebKit e os caches vão para `<tmp>/home/Library`; confira com `lsof -p <pid>`). Depois `kill <pid>`, `hdiutil detach <tmp>/mnt` e apague `<tmp>`. O banco só é criado (e as migrations só rodam) quando o front chama `getDb()`, ou seja, ao clicar em "Configurar empresa" ou entrar; a tela de login sozinha não abre o banco.
+- **Login rápido ligado (`DEV_QUICK_LOGIN = true` em `src/lib/dev/quickLogin.ts`, regra 2 do plano):** o app empacotado mostra os botões de área e entra sem senha; o primeiro login rápido cria as contas `dev.<papel>@company.local` (senha fixa, inclusive a do CEO) e grava os dados de exemplo no banco. O script avisa no fim do build. Não distribua um DMG assim fora da empresa: ponha `DEV_QUICK_LOGIN = false` e gere de novo (contas `dev.*` já criadas num banco continuam lá e precisam ser desativadas à parte).
 
 **Testes (vitest 2):** arquivos `src/**/*.test.ts` (Node) e `src/**/*.test.tsx` (jsdom, para componente), ao lado do código. `e2e/` (Playwright) e a cópia `src/modules/project-manager/` ficam fora.
 - **SQLite real:** `createTestDb()` (`src/test/sqlite.ts`) abre um banco em memória (`better-sqlite3`), liga `foreign_keys` (como o sqlx do app) e aplica **todas** as migrations de `src-tauri/migrations` em ordem numérica, cada uma numa transação. Devolve `{ select<T>(sql, binds?), execute(sql, binds?) → {rowsAffected, lastInsertId}, close(), migrate(), appliedVersions, raw }`, compatível com `DatabaseLike`. `createTestDb({ upTo: N })` + `migrate()` testa upgrade de schema com dados antigos. `insertTestCompany(db)` cria empresa + uma conta por papel (`test-user-<papel>`).

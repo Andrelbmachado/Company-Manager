@@ -1,0 +1,120 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+// Guarda a configuração do instalador macOS (DMG): se alguém mexer no tauri.conf.json ou no
+// script sem querer, o teste avisa antes de um build release de vários minutos.
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const read = (file: string) => readFileSync(path.join(ROOT, file), "utf8");
+
+interface TauriConf {
+  $schema?: string;
+  version: string;
+  productName: string;
+  bundle: {
+    active: boolean;
+    category?: string;
+    macOS?: {
+      minimumSystemVersion?: string;
+      signingIdentity?: string | null;
+      dmg?: {
+        windowSize?: { width: number; height: number };
+        appPosition?: { x: number; y: number };
+        applicationFolderPosition?: { x: number; y: number };
+      };
+    };
+  };
+}
+
+const tauriConf = JSON.parse(read("src-tauri/tauri.conf.json")) as TauriConf;
+const pkg = JSON.parse(read("package.json")) as { version: string; scripts: Record<string, string> };
+
+describe("empacotamento DMG (macOS)", () => {
+  it("tauri.conf.json declara categoria, macOS mínimo, assinatura ad-hoc e layout do DMG", () => {
+    expect(tauriConf.bundle.active).toBe(true);
+    expect(tauriConf.bundle.category).toBe("Business");
+    expect(tauriConf.bundle.macOS?.minimumSystemVersion).toBe("12.0");
+    // "-" = assinatura ad-hoc: o .app abre no Apple Silicon sem conta Apple Developer
+    // (o Gatekeeper ainda avisa até haver Developer ID + notarização).
+    expect(tauriConf.bundle.macOS?.signingIdentity).toBe("-");
+    const dmg = tauriConf.bundle.macOS?.dmg;
+    expect(dmg?.windowSize).toEqual({ width: 660, height: 400 });
+    expect(dmg?.appPosition).toEqual({ x: 180, y: 170 });
+    expect(dmg?.applicationFolderPosition).toEqual({ x: 480, y: 170 });
+  });
+
+  it("$schema do tauri.conf.json aponta para o schema da CLI instalada (o editor valida as chaves do bundle)", () => {
+    expect(tauriConf.$schema).toMatch(/^\.\.\/node_modules\/@tauri-apps\/cli\//);
+    expect(existsSync(path.join(ROOT, "src-tauri", tauriConf.$schema ?? ""))).toBe(true);
+  });
+
+  it("versão é a mesma no tauri.conf.json, package.json e Cargo.toml (nome do DMG usa a do Tauri)", () => {
+    const cargoVersion = /^version\s*=\s*"([^"]+)"/m.exec(read("src-tauri/Cargo.toml"))?.[1];
+    expect(tauriConf.version).toBe(pkg.version);
+    expect(cargoVersion).toBe(pkg.version);
+  });
+
+  it("npm run dmg chama scripts/build-dmg.sh, que existe, é executável e tem sintaxe bash válida", () => {
+    expect(pkg.scripts.dmg).toBe("scripts/build-dmg.sh");
+    const script = path.join(ROOT, "scripts/build-dmg.sh");
+    expect(statSync(script).mode & 0o111).not.toBe(0);
+    expect(() => execFileSync("bash", ["-n", script])).not.toThrow();
+  });
+
+  it("o script gera só o DMG, fora do iCloud, e deixa uma única cópia em dist-installers/", () => {
+    const script = read("scripts/build-dmg.sh");
+    expect(script).toMatch(/--bundles dmg/);
+    expect(script).toMatch(/CARGO_TARGET_DIR="\$\{CARGO_TARGET_DIR:-\$HOME\/cm-target\}"/);
+    expect(script).toMatch(/dist-installers/);
+    // Regra 1 do plano: não sobra .app de build nem DMG duplicado.
+    expect(script).toMatch(/rm -rf "\$BUNDLE_DIR\/macos\/\$\{APP_NAME\}\.app"/);
+    expect(read(".gitignore")).toMatch(/^dist-installers\/$/m);
+  });
+
+  it("o script limpa flag 'hidden'/FinderInfo do app dentro do DMG e confere a assinatura em modo estrito", () => {
+    const script = read("scripts/build-dmg.sh");
+    // Checkout em pasta oculta no iCloud (worktree em .claude/) gera DMG com app "sujo" (FinderInfo no icon.icns);
+    // o iCloud recoloca o flag na origem, então a limpeza tem de ser no app já dentro do DMG.
+    expect(script).toMatch(/hdiutil convert -quiet "\$DMG" -format UDRW/);
+    expect(script).toMatch(/chflags -R nohidden "\$MNT\/\$\{APP_NAME\}\.app"/);
+    expect(script).toMatch(/xattr -dr com\.apple\.FinderInfo "\$MNT\/\$\{APP_NAME\}\.app"/);
+    expect(script).toMatch(/-format UDZO/);
+    expect(script).toMatch(/codesign --verify --deep --strict/);
+  });
+
+  it("só troca o DMG de dist-installers/ depois da autoverificação (falha não publica DMG quebrado nem apaga o anterior)", () => {
+    const script = read("scripts/build-dmg.sh");
+    // A imagem final nasce na pasta temporária (que o trap apaga se algo falhar), não em dist-installers/.
+    expect(script).toMatch(/-format UDZO -imagekey zlib-level=9 -o "\$NEW"/);
+    const verifyImage = script.indexOf('hdiutil verify -quiet "$NEW"');
+    const verifySignature = script.indexOf("codesign --verify --deep --strict");
+    const removePrevious = script.indexOf('rm -f "$OUT_DIR/${APP_NAME}"_*.dmg');
+    const publish = script.indexOf('mv "$NEW" "$FINAL"');
+    expect(verifyImage).toBeGreaterThan(-1);
+    expect(verifySignature).toBeGreaterThan(verifyImage);
+    expect(removePrevious).toBeGreaterThan(verifySignature);
+    expect(publish).toBeGreaterThan(removePrevious);
+  });
+
+  it("avisa quando o DMG sai com o login rápido de desenvolvimento ligado (qualquer área sem senha)", () => {
+    const script = read("scripts/build-dmg.sh");
+    expect(script).toMatch(/^QUICK_LOGIN_FILE="src\/lib\/dev\/quickLogin\.ts"$/m);
+    const pattern = /grep -Eq '([^']+)' "\$QUICK_LOGIN_FILE"/.exec(script)?.[1];
+    expect(pattern).toBeDefined();
+    // A regra 2 do plano permite apagar a pasta src/lib/dev; aí não há o que avisar.
+    const file = path.join(ROOT, "src/lib/dev/quickLogin.ts");
+    if (!existsSync(file)) return;
+    // O aviso depende de o grep do script achar a declaração: se o formato mudar, este teste quebra.
+    const declared = /^export const DEV_QUICK_LOGIN\b[^=]*=\s*(true|false)\s*;/m.exec(readFileSync(file, "utf8"))?.[1];
+    expect(declared).toBeDefined();
+    let detected = true;
+    try {
+      execFileSync("grep", ["-Eq", pattern as string, file]);
+    } catch {
+      detected = false;
+    }
+    expect(detected).toBe(declared === "true");
+  });
+});

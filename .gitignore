@@ -27,3 +27,6 @@ npm-debug.log*
 *.db
 *.db-shm
 *.db-wal
+
+# Instaladores gerados por npm run dmg
+dist-installers/

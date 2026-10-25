@@ -6,8 +6,11 @@ import "@fontsource-variable/public-sans";
 import "@fontsource-variable/bricolage-grotesque";
 import "./styles/globals.css";
 import { applyTheme, getTheme } from "./lib/theme";
+import { installFileDropGuard } from "./components/shared/useFileDrop";
 
 applyTheme(getTheme());
+// Arquivo solto fora de uma área de envio faria a webview do desktop abrir o arquivo no lugar do app (dragDropEnabled: false).
+installFileDropGuard();
 
 const queryClient = new QueryClient({
   defaultOptions: {

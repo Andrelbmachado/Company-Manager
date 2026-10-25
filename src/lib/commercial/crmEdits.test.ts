@@ -80,6 +80,24 @@ describe("saveContactRows", () => {
     await db.execute("INSERT INTO contacts (id, company_id, customer_id, name, is_primary) VALUES (?,?,?,?,?)", ["k1", companyId, null, "Ana", 1]);
     await expect(saveContactRows(db, companyId, seller, { updated: [{ id: "k1", is_primary: 0 }], created: [] })).rejects.toThrow(/principal/);
   });
+
+  it("o novo principal precisa ser do mesmo cliente; contato novo marcado como principal também troca", async () => {
+    const { db, companyId, seller } = await setup();
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?), (?,?,?)", ["c1", companyId, "Clínica Vida", "c2", companyId, "Pet Amigo"]);
+    const contacts = [["k1", "c1", "Ana", 1], ["k2", "c1", "Bruno", 0], ["k3", "c2", "Carla", 1], ["k4", "c2", "Davi", 0]] as const;
+    for (const [id, customerId, name, primary] of contacts) await db.execute("INSERT INTO contacts (id, company_id, customer_id, name, is_primary) VALUES (?,?,?,?,?)", [id, companyId, customerId, name, primary]);
+    const primaries = async () => (await db.select<Row[]>("SELECT id FROM contacts WHERE company_id=? AND is_primary=1 ORDER BY id", [companyId])).map((row) => row.id);
+
+    // Davi é de outro cliente: Ana continuaria principal e a gravação diria que deu certo.
+    await expect(saveContactRows(db, companyId, seller, { updated: [{ id: "k1", is_primary: 0 }, { id: "k4", is_primary: 1 }], created: [] })).rejects.toThrow(/principal/);
+    expect(await primaries()).toEqual(["k1", "k3"]);
+
+    await saveContactRows(db, companyId, seller, { updated: [{ id: "k1", is_primary: 0 }, { id: "k2", is_primary: 1 }], created: [] });
+    expect(await primaries()).toEqual(["k2", "k3"]);
+
+    const { created } = await saveContactRows(db, companyId, seller, { updated: [{ id: "k2", is_primary: 0 }], created: [{ name: "Elisa", is_primary: 1 }] }, { customerId: "c1" });
+    expect(await primaries()).toEqual([created[0], "k3"].sort());
+  });
 });
 
 describe("saveOpportunityRows", () => {
@@ -130,6 +148,20 @@ describe("saveActivityRows", () => {
     await expect(saveActivityRows(db, companyId, seller, { updated: [], created: [{ kind: "tarefa", subject: "Enviar", customer_id: "c1", due_day: "2026-11-03", due_time: "25h" }] })).rejects.toThrow(/Hora/);
     const ok = await saveActivityRows(db, companyId, seller, { updated: [], created: [{ kind: "tarefa", subject: "Enviar", customer_id: "c1", due_day: "2026-11-03" }] });
     expect((await one("SELECT due_at FROM crm_activities WHERE id=?", [ok.created[0]]))!.due_at).toBe(new Date("2026-11-03T09:00").toISOString());
+  });
+
+  it("apagar só o dia tira o prazo (a hora que estava gravada não trava); hora sem dia continua recusada", async () => {
+    const { db, companyId, seller } = await setup();
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["c1", companyId, "Clínica Vida"]);
+    const entity = { type: "customer" as const, id: "c1", customerId: "c1" };
+    const { created } = await saveActivityRows(db, companyId, seller, { updated: [], created: [{ kind: "ligacao", subject: "Retornar", due_day: "2026-11-03", due_time: "14:30" }, { kind: "tarefa", subject: "Sem prazo" }] }, { entity });
+    const [withDue, withoutDue] = created as [string, string];
+
+    await saveActivityRows(db, companyId, seller, { updated: [{ id: withDue, due_day: null }], created: [] });
+    expect(await one("SELECT due_at FROM crm_activities WHERE id=?", [withDue])).toEqual({ due_at: null });
+
+    await expect(saveActivityRows(db, companyId, seller, { updated: [{ id: withoutDue, due_time: "10:00" }], created: [] })).rejects.toThrow(/dia do prazo/);
+    await expect(saveActivityRows(db, companyId, seller, { updated: [{ id: withDue, due_day: null, due_time: "10:00" }], created: [] })).rejects.toThrow(/dia do prazo/);
   });
 });
 

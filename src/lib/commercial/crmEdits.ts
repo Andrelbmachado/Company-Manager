@@ -81,23 +81,32 @@ const CONTACT_FIELDS = ["customer_id", "name", "email", "phone", "whatsapp", "ro
  */
 export async function saveContactRows(db: DatabaseLike, companyId: string, actor: EditActor, changes: RowChanges<Contact>, options: { customerId?: string | null } = {}): Promise<SaveResult> {
   assertChanges(actor, changes, "customers");
+  const currents = new Map<string, Contact>();
+  for (const patch of changes.updated) currents.set(patch.id, await activeRow<Contact>(db, "contacts", companyId, patch.id, "Contato não encontrado (ou excluído). Atualize a lista."));
+  const creations = changes.created.map((row, index) => {
+    if (!clean(row.name)) throw lineError(index, changes.created.length, "informe o nome do contato.");
+    return { row, customerId: clean(row.customer_id) ?? clean(options.customerId) };
+  });
+  // Quem vira principal nesta gravação e de qual cliente (já com a troca de cliente feita na mesma linha).
+  const newPrimaries = [
+    ...changes.updated.filter((patch) => isOn(patch.is_primary)).map((patch) => ({ id: patch.id as string | null, customerId: clean({ ...currents.get(patch.id), ...patch }.customer_id) })),
+    ...creations.filter(({ row }) => isOn(row.is_primary)).map(({ customerId }) => ({ id: null as string | null, customerId })),
+  ];
   const updates: { id: string; merged: Contact; fields: boolean; primary: boolean }[] = [];
   for (const patch of changes.updated) {
-    const current = await activeRow<Contact>(db, "contacts", companyId, patch.id, "Contato não encontrado (ou excluído). Atualize a lista.");
+    const current = currents.get(patch.id)!;
     const merged = { ...current, ...patch } as Contact;
     if (!clean(merged.name)) throw new Error(`Informe o nome do contato (${current.name}).`);
     const wasPrimary = isOn(current.is_primary);
     const primary = "is_primary" in patch ? isOn(patch.is_primary) : false;
     if ("is_primary" in patch && !primary && wasPrimary) {
-      const replaced = changes.updated.some((other) => other.id !== patch.id && isOn(other.is_primary));
-      if (!replaced) throw new Error(`Marque outro contato como principal antes de desmarcar ${current.name}.`);
+      // O substituto tem de ser do mesmo cliente: marcar contato de outro cliente não desmarcaria este.
+      const customerId = clean(current.customer_id);
+      const replaced = customerId != null && newPrimaries.some((other) => other.id !== patch.id && other.customerId === customerId);
+      if (!replaced) throw new Error(`Marque outro contato do mesmo cliente como principal antes de desmarcar ${current.name}.`);
     }
     updates.push({ id: patch.id, merged, fields: CONTACT_FIELDS.some((field) => field in patch), primary: primary && !wasPrimary });
   }
-  const creations = changes.created.map((row, index) => {
-    if (!clean(row.name)) throw lineError(index, changes.created.length, "informe o nome do contato.");
-    return { row, customerId: clean(row.customer_id) ?? clean(options.customerId) };
-  });
   for (const { id, merged, fields } of updates) if (fields) await saveContact(db, companyId, merged, id);
   for (const { id, primary } of updates) if (primary) await setPrimaryContact(db, companyId, id);
   const created: string[] = [];
@@ -233,7 +242,11 @@ export async function saveActivityRows(db: DatabaseLike, companyId: string, acto
     const update: ActivityPatch = {};
     if ("kind" in patch) update.kind = checkKind(patch.kind);
     for (const field of ["subject", "body", "outcome", "user_id", "contact_id"] as const) if (field in patch) update[field] = (patch[field] as string | null | undefined) ?? null;
-    if ("due_day" in patch || "due_time" in patch) update.due_at = dueAtFrom(merged.due_day, merged.due_time);
+    if ("due_day" in patch || "due_time" in patch) {
+      // Apagar só o dia tira o prazo: a hora que já estava gravada não conta como "hora sem dia".
+      const clearsDay = "due_day" in patch && !clean(patch.due_day) && !("due_time" in patch);
+      update.due_at = clearsDay ? null : dueAtFrom(merged.due_day, merged.due_time);
+    }
     if (!clean(merged.subject) && !clean(merged.body)) throw new Error("Informe o assunto da atividade.");
     let customerId: string | null | undefined;
     if ("customer_id" in patch && (patch.customer_id ?? null) !== (current.customer_id ?? null)) {

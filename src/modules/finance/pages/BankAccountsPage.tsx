@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Landmark, ListChecks, Plus, Trash2, Wallet } from "lucide-react";
+import { Landmark, ListChecks, Plus, Trash2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { accountBalances, type AccountBalance } from "@/lib/erp/cashflow";
@@ -134,14 +134,11 @@ export default function BankAccountsPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard title="Saldo em contas" value={formatCurrency(sumMoney(active.map((item) => item.balance)))} subtitle={`Realizado até ${formatDay(today)}`} icon={Wallet} />
-        <KpiCard title="Contas ativas" value={String(active.length)} subtitle={balances.length > active.length ? `${balances.length - active.length} inativa(s)` : undefined} icon={Landmark} />
+        <KpiCard title="Saldo em contas" value={formatCurrency(sumMoney(active.map((item) => item.balance)))} />
+        <KpiCard title="Contas ativas" value={String(active.length)} />
         <KpiCard
           title="Diferença com o extrato"
           value={String(differences.length)}
-          subtitle={differences.length ? "Conta(s) com saldo diferente do extrato: concilie os pendentes" : "Saldos batem com o último extrato"}
-          icon={AlertTriangle}
-          iconClassName={differences.length ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" : undefined}
         />
       </div>
       <ErrorNote message={error ? errorMessage(error) : null} />

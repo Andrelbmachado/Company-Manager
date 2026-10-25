@@ -169,7 +169,7 @@ export default function FinanceCategoriesPage() {
         }
       />
 
-      <div className="border-b">
+      <div>
         <TabList tabs={TABS} value={tab} onChange={setTab} label="Cadastros do financeiro" idPrefix="plano-de-contas" />
       </div>
       <ErrorNote message={remove.error ? errorMessage(remove.error) : toggleActive.error ? errorMessage(toggleActive.error) : null} />

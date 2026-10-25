@@ -76,10 +76,10 @@ export default function TimeBankPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Saldo da equipe" value={formatMinutes(team.balance)} hint={`${formatMinutes(team.credits)} em créditos e ${formatMinutes(team.debits)} em compensações aprovadas`} />
-        <StatCard title="Aguardando aprovação" value={pending.length} hint={pending.length ? `${formatMinutes(team.pending)} informados pelos colaboradores` : "Nada aguardando o RH"} />
-        <StatCard title="Horas extras no mês" value={formatMinutes(monthCredits, { signed: false })} hint="Créditos aprovados com data neste mês" />
-        <StatCard title="Saldo negativo" value={negative} hint={negative ? "Colaboradores devendo horas" : "Ninguém devendo horas"} />
+        <StatCard title="Saldo da equipe" value={formatMinutes(team.balance)} />
+        <StatCard title="Aguardando aprovação" value={pending.length} />
+        <StatCard title="Horas extras no mês" value={formatMinutes(monthCredits, { signed: false })} />
+        <StatCard title="Saldo negativo" value={negative} />
       </div>
 
       <ErrorAlert message={error} onClose={() => setError("")} />

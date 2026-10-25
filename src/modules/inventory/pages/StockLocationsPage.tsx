@@ -99,8 +99,8 @@ export default function StockLocationsPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard title="Locais ativos" value={locations.length} />
-        <StatCard title="Unidades em estoque" value={formatQty(locations.reduce((sum, row) => sum + row.total_qty, 0))} kind="text" />
-        <StatCard title="Valor em estoque" value={formatCurrency(sumMoney(locations.map((row) => row.stock_value)))} kind="text" hint="Saldo × custo unitário" />
+        <StatCard title="Unidades em estoque" value={formatQty(locations.reduce((sum, row) => sum + row.total_qty, 0))} />
+        <StatCard title="Valor em estoque" value={formatCurrency(sumMoney(locations.map((row) => row.stock_value)))} />
       </div>
 
       {isLoading ? (

@@ -62,14 +62,14 @@ export default function CrmPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Clientes ativos" value={customers.filter((customer) => customer.status === "active").length} hint={`${customers.length} no cadastro`} />
+        <StatCard title="Clientes ativos" value={customers.filter((customer) => customer.status === "active").length} />
         {can("view", "opportunities") && (
           <>
-            <StatCard title="Oportunidades abertas" value={summary.open.count} hint={formatCurrency(summary.open.total)} />
-            <StatCard title="Valor ponderado do funil" value={formatCurrency(summary.open.weighted)} kind="text" hint="valor × probabilidade de cada oportunidade" />
+            <StatCard title="Oportunidades abertas" value={summary.open.count} />
+            <StatCard title="Valor ponderado do funil" value={formatCurrency(summary.open.weighted)} />
           </>
         )}
-        <StatCard title="Segmentos" value={segments.length} hint={segments.slice(0, 3).join(", ") || "nenhum ainda"} />
+        <StatCard title="Segmentos" value={segments.length} />
       </div>
 
       {can("view", "crm_activities") && (

@@ -66,10 +66,10 @@ export default function SalesPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Vendido no mês" value={formatCurrency(sumMoney(monthSales.map((order) => Number(order.total))))} hint={`${monthSales.length} pedido(s) confirmados no mês`} />
-        <StatCard title="Rascunhos" value={drafts.length} hint={formatCurrency(sumMoney(drafts.map((order) => Number(order.total))))} />
-        <StatCard title="A faturar" value={toInvoice.length} hint={formatCurrency(sumMoney(toInvoice.map((order) => Number(order.total))))} />
-        <StatCard title="A entregar" value={toDeliver.length} hint="Confirmados ou faturados, sem saída do estoque" />
+        <StatCard title="Vendido no mês" value={formatCurrency(sumMoney(monthSales.map((order) => Number(order.total))))} />
+        <StatCard title="Rascunhos" value={drafts.length} />
+        <StatCard title="A faturar" value={toInvoice.length} />
+        <StatCard title="A entregar" value={toDeliver.length} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou cliente...">

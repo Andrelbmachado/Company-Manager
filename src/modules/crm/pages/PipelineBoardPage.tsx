@@ -106,10 +106,10 @@ export default function PipelineBoardPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Em aberto" value={formatCurrency(summary.open.total)} kind="text" hint={`${summary.open.count} oportunidade(s)`} />
-        <StatCard title="Ponderado" value={formatCurrency(summary.open.weighted)} kind="text" hint="valor × probabilidade" />
-        <StatCard title="Taxa de ganho" value={summary.winRate == null ? "—" : `${Math.round(summary.winRate * 100)}%`} hint="ganhas ÷ fechadas" />
-        <StatCard title="Ganhos no mês" value={formatCurrency(wonThisMonth.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0))} kind="text" hint={`${wonThisMonth.length} negócio(s)`} />
+        <StatCard title="Em aberto" value={formatCurrency(summary.open.total)} />
+        <StatCard title="Ponderado" value={formatCurrency(summary.open.weighted)} />
+        <StatCard title="Taxa de ganho" value={summary.winRate == null ? "—" : `${Math.round(summary.winRate * 100)}%`} />
+        <StatCard title="Ganhos no mês" value={formatCurrency(wonThisMonth.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0))} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por título, cliente, origem...">

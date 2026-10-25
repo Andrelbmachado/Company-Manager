@@ -224,10 +224,10 @@ export default function InventoryPage() {
       <ErrorBanner message={error} onClose={() => setError(null)} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Itens ativos" value={items.length} hint={`${locations.length} ${locations.length === 1 ? "local" : "locais"} de estoque`} />
-        <StatCard title="Valor em estoque" value={formatCurrency(stockValue)} kind="text" hint="Saldo × custo unitário" />
-        <StatCard title="No ponto de reposição" value={atReorderPoint} hint="Saldo igual ou abaixo do mínimo" />
-        <StatCard title="Unidades em estoque" value={formatQty(items.reduce((sum, item) => sum + item.total, 0))} kind="text" hint="Soma de todos os locais" />
+        <StatCard title="Itens ativos" value={items.length} />
+        <StatCard title="Valor em estoque" value={formatCurrency(stockValue)} />
+        <StatCard title="No ponto de reposição" value={atReorderPoint} />
+        <StatCard title="Unidades em estoque" value={formatQty(items.reduce((sum, item) => sum + item.total, 0))} />
       </div>
       {atReorderPoint > 0 && (
         <p className="text-sm">

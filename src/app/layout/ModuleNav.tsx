@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useRequiredSession } from "@/hooks/useSession";
+import { TAB_LIST_CLASS, tabClass } from "@/components/shared/Tabs";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 import { activeNavPath, moduleNavItems, sectionForPath } from "../subpages";
@@ -18,7 +19,7 @@ export function ModuleNav() {
   const active = activeNavPath(items.map((item) => item.path), pathname);
 
   return (
-    <nav aria-label={`Seções de ${section.title}`} className="mb-6 flex gap-1 overflow-x-auto border-b">
+    <nav aria-label={`Seções de ${section.title}`} className={cn("mb-6", TAB_LIST_CLASS)}>
       {items.map((item) => {
         const current = item.path === active;
         return (
@@ -26,10 +27,7 @@ export function ModuleNav() {
             key={item.path}
             to={item.path}
             aria-current={current ? "page" : undefined}
-            className={cn(
-              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
-              current ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
+            className={tabClass(current)}
           >
             {item.label}
           </Link>

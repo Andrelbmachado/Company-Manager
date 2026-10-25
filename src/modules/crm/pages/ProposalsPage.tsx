@@ -63,10 +63,10 @@ export default function ProposalsPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Aguardando resposta" value={formatCurrency(sum(sent))} kind="text" hint={`${sent.length} enviada(s) no prazo`} />
-        <StatCard title="Aceitas" value={formatCurrency(sum(accepted))} kind="text" hint={`${accepted.length} proposta(s)`} />
-        <StatCard title="Taxa de aceite" value={decided ? `${Math.round((accepted.length / decided) * 100)}%` : "—"} hint="aceitas ÷ (aceitas + recusadas)" />
-        <StatCard title="Rascunhos" value={rows.filter((row) => row.status === "rascunho").length} hint={`${rows.filter((row) => row.status === "expirada").length} expirada(s)`} />
+        <StatCard title="Aguardando resposta" value={formatCurrency(sum(sent))} />
+        <StatCard title="Aceitas" value={formatCurrency(sum(accepted))} />
+        <StatCard title="Taxa de aceite" value={decided ? `${Math.round((accepted.length / decided) * 100)}%` : "—"} />
+        <StatCard title="Rascunhos" value={rows.filter((row) => row.status === "rascunho").length} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, título, cliente...">

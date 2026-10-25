@@ -46,8 +46,6 @@ export default function LeadsPage() {
   const { data: scenarios = [] } = useQuery({ queryKey: ["revenue-scenarios", companyId], queryFn: () => fetchRevenueScenarios(companyId) });
   const { data: forecasts = [] } = useQuery({ queryKey: ["revenue-forecasts", companyId], queryFn: () => fetchRevenueForecasts(companyId) });
 
-  const broken = leads.filter((lead) => lead.presence_kind === "site_quebrado").length;
-  const withWhatsapp = leads.filter((lead) => lead.whatsapp).length;
   const potential = leads.reduce((sum, lead) => sum + lead.estimated_revenue, 0);
   const count = (status: string) => leads.filter((lead) => lead.status === status).length;
 
@@ -69,13 +67,13 @@ export default function LeadsPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Leads" value={leads.length} hint={`${broken} com site quebrado · ${withWhatsapp} com WhatsApp`} />
-        <StatCard title="Potencial 1º ano (estimativa)" value={formatMoney(potential)} hint="implantação + 12 mensalidades, preços da Proposta" />
-        <StatCard title="Funil" value={`${count("abordado")} / ${count("interessado")} / ${count("fechado")}`} hint="abordados / interessados / fechados" />
-        <StatCard title="Novos" value={count("novo")} hint={`${PER_DAY} abordagens por dia útil`} />
+        <StatCard title="Leads" value={leads.length} />
+        <StatCard title="Potencial 1º ano (estimativa)" value={formatMoney(potential)} />
+        <StatCard title="Funil" value={`${count("abordado")} / ${count("interessado")} / ${count("fechado")}`} />
+        <StatCard title="Novos" value={count("novo")} />
       </div>
 
-      <div className="border-b"><TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da prospecção" idPrefix="leads" /></div>
+      <div><TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da prospecção" idPrefix="leads" /></div>
 
       <TabPanel idPrefix="leads" id={tab}>
       {tab === "leads" && <LeadsPanel leads={leads} packages={packages} loading={isLoading} />}

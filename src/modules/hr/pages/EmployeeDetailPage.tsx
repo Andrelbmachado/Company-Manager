@@ -282,7 +282,7 @@ export default function EmployeeDetailPage() {
         <div className="h-48 animate-pulse rounded-xl border bg-card" />
       ) : (
         <>
-          <div className="overflow-x-auto overflow-y-hidden border-b">
+          <div>
             <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da ficha do colaborador" idPrefix="colaborador" />
           </div>
           <TabPanel idPrefix="colaborador" id={tab}>
@@ -291,9 +291,9 @@ export default function EmployeeDetailPage() {
             {tab === "ferias" && balance && (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <StatCard title={`Férias disponíveis em ${year}`} value={`${balance.available} dias`} hint={`${balance.entitled} de direito por ano`} />
-                  <StatCard title="Aprovadas no ano" value={`${balance.used} dias`} hint="Férias que começam neste ano" />
-                  <StatCard title="Em análise" value={`${balance.pending} dias`} hint="Pedidos aguardando o RH" />
+                  <StatCard title={`Férias disponíveis em ${year}`} value={`${balance.available} dias`} />
+                  <StatCard title="Aprovadas no ano" value={`${balance.used} dias`} />
+                  <StatCard title="Em análise" value={`${balance.pending} dias`} />
                 </div>
                 <Panel title="Solicitações" actions={<Link to="/hr/manage" className="text-sm font-medium text-primary-text hover:underline">Decidir em Gestão de RH</Link>}>
                   {myRequests.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhuma solicitação. O colaborador pede férias, folgas e envia atestados pelo Meu RH.</p> : (
@@ -321,9 +321,9 @@ export default function EmployeeDetailPage() {
             {tab === "horas" && (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <StatCard title="Saldo" value={<span className={balanceTone(hours.balance)}>{formatMinutes(hours.balance)}</span>} hint={`Jornada de ${formatMinutes(Number(employee.daily_minutes) || 480, { signed: false })} por dia`} />
-                  <StatCard title="Horas extras aprovadas" value={formatMinutes(hours.credits, { signed: false })} hint={`${formatMinutes(hours.debits, { signed: false })} compensadas`} />
-                  <StatCard title="Em análise" value={hours.pendingCount} hint={hours.pendingCount ? `${formatMinutes(hours.pending)} aguardando aprovação` : "Nada aguardando"} />
+                  <StatCard title="Saldo" value={<span className={balanceTone(hours.balance)}>{formatMinutes(hours.balance)}</span>} />
+                  <StatCard title="Horas extras aprovadas" value={formatMinutes(hours.credits, { signed: false })} />
+                  <StatCard title="Em análise" value={hours.pendingCount} />
                 </div>
                 <Panel
                   title="Lançamentos"

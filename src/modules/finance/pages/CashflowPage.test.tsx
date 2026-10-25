@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { addBankAccount, addReceivable, addSettlement } from "@/test/financeFixtures";
-import { click, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { click, plain, renderPage, until, type RenderedPage } from "@/test/pageHarness";
 import { todayIso } from "@/lib/utils";
 import CashflowPage from "./CashflowPage";
 
@@ -16,6 +16,10 @@ afterEach(() => {
   page?.unmount();
   page = null;
 });
+
+/** Valor do card do topo pelo título (o card só tem título e número). */
+const kpi = (scope: ParentNode, title: string) =>
+  plain([...scope.querySelectorAll(".kpi-card")].find((card) => card.firstElementChild?.textContent === title)?.querySelector("[data-kpi-value]")?.textContent);
 
 describe("CashflowPage", () => {
   it("mostra saldo inicial, entradas realizadas e previstas e o detalhe do dia", async () => {
@@ -30,14 +34,14 @@ describe("CashflowPage", () => {
     page = await renderPage(<CashflowPage />, { companyId });
     const view = page;
     await until(() => view.text().includes("R$ 1.800,00"), "saldo final com o previsto");
-    expect(view.text()).toContain("R$ 1.000,00");
-    expect(view.text()).toContain("R$ 300,00 previstas");
+    expect(kpi(view.container, "Saldo inicial")).toBe("R$ 1.000,00");
+    expect(kpi(view.container, "Entradas")).toBe("R$ 800,00");
 
     await click([...view.container.querySelectorAll("tbody tr")].find((row) => row.textContent?.includes(`01/${month.slice(5, 7)}/${month.slice(0, 4)}`)));
     await until(() => view.text().includes("Venda balcão"), "movimento do dia");
     expect(view.text()).toContain("Realizado · Baixa · Banco Principal");
 
     await click([...view.container.querySelectorAll<HTMLInputElement>("input[type=checkbox]")][0]);
-    await until(() => view.text().includes("R$ 1.500,00") && view.text().includes("Só realizado"), "só realizado");
+    await until(() => kpi(view.container, "Saldo final") === "R$ 1.500,00" && kpi(view.container, "Entradas") === "R$ 500,00", "só realizado");
   });
 });

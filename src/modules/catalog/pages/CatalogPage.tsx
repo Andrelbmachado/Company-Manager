@@ -210,9 +210,9 @@ export default function CatalogPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="Itens ativos" value={activeProducts.length} hint={`${activeProducts.filter((product) => product.kind === "produto").length} produtos e ${activeProducts.filter((product) => product.kind === "servico").length} serviços`} />
-        <StatCard title="Margem média" value={formatMargin(averageMargin)} hint="Sobre o preço de venda do catálogo" />
-        <StatCard title="Produtos sem estoque" value={outOfStock} hint="Ativos, ligados ao estoque e com saldo zero" />
+        <StatCard title="Itens ativos" value={activeProducts.length} />
+        <StatCard title="Margem média" value={formatMargin(averageMargin)} />
+        <StatCard title="Produtos sem estoque" value={outOfStock} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, SKU, categoria...">

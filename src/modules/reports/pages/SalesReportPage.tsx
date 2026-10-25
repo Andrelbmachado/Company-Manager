@@ -5,7 +5,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { buildSalesReport, defaultGranularity, loadSalesData, salesTable, type SalesGranularity, type SalesView } from "@/lib/reports/sales";
 import { formatCurrency } from "@/lib/utils";
-import { DateRangeFilter, FIELD, initialRange, LABEL, MoneyValue, ReportState, StatGrid, useReportData, type DateRange } from "../components/ReportControls";
+import { DateRangeFilter, FIELD, initialRange, LABEL, ReportState, StatGrid, useReportData, type DateRange } from "../components/ReportControls";
 import { ExportButtons } from "../components/ExportButtons";
 import { ReportDataTable } from "../components/ReportDataTable";
 
@@ -54,13 +54,13 @@ export default function SalesReportPage() {
         {report && table && (
           <>
             <StatGrid>
-              <StatCard title="Faturamento" value={<MoneyValue value={report.total} />} hint="Soma dos pedidos do período" />
+              <StatCard title="Faturamento" value={formatCurrency(report.total)} />
               <StatCard title="Pedidos" value={report.orders} />
-              <StatCard title="Ticket médio" value={<MoneyValue value={report.averageTicket} />} />
+              <StatCard title="Ticket médio" value={formatCurrency(report.averageTicket)} />
               <StatCard title="Clientes atendidos" value={customers} />
             </StatGrid>
 
-            <div className="border-b">
+            <div>
               <TabList tabs={VIEWS} value={view} onChange={setView} label="Visão do relatório de vendas" idPrefix="vendas" />
             </div>
             <TabPanel idPrefix="vendas" id={view}>

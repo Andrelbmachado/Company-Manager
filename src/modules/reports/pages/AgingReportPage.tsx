@@ -3,10 +3,9 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
-import { sharePercent } from "@/lib/reports/common";
 import { agingTable, buildAgingReport, loadAgingData, type AgingSide, type AgingView } from "@/lib/reports/aging";
 import { formatCurrency, todayIso } from "@/lib/utils";
-import { FIELD, LABEL, MoneyValue, ReportState, StatGrid, useReportData } from "../components/ReportControls";
+import { FIELD, LABEL, ReportState, StatGrid, useReportData } from "../components/ReportControls";
 import { ExportButtons } from "../components/ExportButtons";
 import { ReportDataTable } from "../components/ReportDataTable";
 
@@ -50,7 +49,7 @@ export default function AgingReportPage() {
     <div className="space-y-6">
       <PageHeader title="Contas a receber e a pagar" description="Saldo em aberto (valor menos o já recebido ou pago) por faixa de atraso na data-base." actions={<ExportButtons table={table} />} />
 
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <TabList tabs={SIDES} value={side} onChange={setSide} label="Contas a receber ou a pagar" idPrefix="aging-lado" />
         <label className={`${LABEL} pb-2`} htmlFor="aging-data-base">
           Data-base
@@ -62,10 +61,10 @@ export default function AgingReportPage() {
         {report && table && (
           <TabPanel idPrefix="aging-lado" id={side}>
             <StatGrid>
-              <StatCard title="Em aberto" value={<MoneyValue value={report.total} />} hint={`${report.count} ${report.count === 1 ? "título" : "títulos"}`} />
-              <StatCard title="Vencido" value={<MoneyValue value={report.overdue} />} hint={`${sharePercent(report.overdue, report.total).toLocaleString("pt-BR")}% do saldo em aberto`} />
-              <StatCard title="A vencer" value={<MoneyValue value={report.buckets[0].total} />} />
-              <StatCard title="Mais de 90 dias" value={<MoneyValue value={report.buckets[4].total} />} hint="Maior risco de atraso longo" />
+              <StatCard title="Em aberto" value={formatCurrency(report.total)} />
+              <StatCard title="Vencido" value={formatCurrency(report.overdue)} />
+              <StatCard title="A vencer" value={formatCurrency(report.buckets[0].total)} />
+              <StatCard title="Mais de 90 dias" value={formatCurrency(report.buckets[4].total)} />
             </StatGrid>
 
             {report.count > 0 && (
@@ -91,7 +90,7 @@ export default function AgingReportPage() {
               </div>
             )}
 
-            <div className="border-b">
+            <div>
               <TabList tabs={views} value={view} onChange={setView} label="Visão do aging" idPrefix="aging-visao" />
             </div>
             <TabPanel idPrefix="aging-visao" id={view}>

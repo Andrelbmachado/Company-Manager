@@ -2,7 +2,7 @@
 // por categoria do plano de contas e comparativo de meses. O cálculo fica em lib/erp/dre.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Calculator, Receipt, Scale, TrendingUp } from "lucide-react";
+import { Calculator } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { dreMonths, type DreResult } from "@/lib/erp/dre";
 import { addMonths, isIsoMonth, monthLabel } from "@/lib/erp/financeCommon";
@@ -85,11 +85,6 @@ export default function DrePage() {
   });
   const shown = data.slice(-span);
   const current = data[data.length - 1];
-  const previous = data.length > 1 ? data[data.length - 2] : undefined;
-  const variation = (value: (r: DreResult) => number) => {
-    if (!current || !previous || value(previous) === 0) return undefined;
-    return { value: Math.round(((value(current) - value(previous)) / Math.abs(value(previous))) * 1000) / 10, label: "vs mês anterior" };
-  };
   const empty = shown.every((result) => result.linhas.length === 0);
   const costs = (r: DreResult) => roundMoney(r.deducoes + r.custos + r.despesas);
 
@@ -117,10 +112,10 @@ export default function DrePage() {
 
       {current && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard title="Receita bruta" value={formatCurrency(current.receita)} subtitle={monthLabel(current.month)} icon={TrendingUp} trend={variation((r) => r.receita)} iconClassName="bg-emerald-600/10 text-emerald-700 dark:text-emerald-400" />
-          <KpiCard title="Receita líquida" value={formatCurrency(current.receitaLiquida)} subtitle={`Deduções: ${formatCurrency(current.deducoes)}`} icon={Receipt} />
-          <KpiCard title="Custos e despesas" value={formatCurrency(costs(current))} subtitle={`${percent(costs(current), current.receita)} da receita`} icon={Scale} iconClassName="bg-red-600/10 text-red-700 dark:text-red-400" />
-          <KpiCard title="Resultado" value={formatCurrency(current.resultado)} subtitle={`Margem: ${percent(current.resultado, current.receita)}`} icon={Calculator} trend={variation((r) => r.resultado)} />
+          <KpiCard title="Receita bruta" value={formatCurrency(current.receita)} />
+          <KpiCard title="Receita líquida" value={formatCurrency(current.receitaLiquida)} />
+          <KpiCard title="Custos e despesas" value={formatCurrency(costs(current))} />
+          <KpiCard title="Resultado" value={formatCurrency(current.resultado)} />
         </div>
       )}
 

@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
+import { formatCurrency } from "@/lib/utils";
 import { buildStockReport, loadStockData, stockTable } from "@/lib/reports/stock";
-import { DateRangeFilter, initialRange, MoneyValue, ReportState, StatGrid, useReportData, type DateRange } from "../components/ReportControls";
+import { DateRangeFilter, initialRange, ReportState, StatGrid, useReportData, type DateRange } from "../components/ReportControls";
 import { ExportButtons } from "../components/ExportButtons";
 import { ReportDataTable } from "../components/ReportDataTable";
 
@@ -33,9 +34,9 @@ export default function StockReportPage() {
           <>
             <StatGrid>
               <StatCard title="Itens" value={report.totals.items} />
-              <StatCard title="Valor em estoque" value={<MoneyValue value={report.totals.value} />} hint="Saldo final × custo do item" />
+              <StatCard title="Valor em estoque" value={formatCurrency(report.totals.value)} />
               <StatCard title="Itens parados" value={report.totals.idleItems} />
-              <StatCard title="Valor parado" value={<MoneyValue value={report.totals.idleValue} />} hint="Capital em itens sem saída no período" />
+              <StatCard title="Valor parado" value={formatCurrency(report.totals.idleValue)} />
             </StatGrid>
             <ReportDataTable table={table} empty={onlyIdle ? "Nenhum item parado no período." : "Nenhum item cadastrado no estoque."} />
             <p className="text-xs text-muted-foreground">

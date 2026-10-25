@@ -124,10 +124,10 @@ export default function EmploymentCyclePage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Admissões em andamento" value={open.filter((item) => item.kind === "admissao").length} hint="Checklist de entrada com itens abertos" />
-        <StatCard title="Desligamentos em andamento" value={open.filter((item) => item.kind === "desligamento").length} hint={`${open.filter((item) => item.kind === "desligamento" && item.employee.status !== "desligado" && !!item.employee.termination_date).length} agendado(s) para data futura`} />
-        <StatCard title="Itens em atraso" value={lateItems} hint={lateItems ? "Prazo vencido nos processos abertos" : "Tudo dentro do prazo"} />
-        <StatCard title="Processos concluídos" value={finished.length} hint="Checklists com todos os itens feitos" />
+        <StatCard title="Admissões em andamento" value={open.filter((item) => item.kind === "admissao").length} />
+        <StatCard title="Desligamentos em andamento" value={open.filter((item) => item.kind === "desligamento").length} />
+        <StatCard title="Itens em atraso" value={lateItems} />
+        <StatCard title="Processos concluídos" value={finished.length} />
       </div>
 
       <ErrorAlert message={error} onClose={() => setError("")} />

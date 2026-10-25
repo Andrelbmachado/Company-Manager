@@ -30,7 +30,8 @@ describe("DrePage", () => {
     page = await renderPage(<DrePage />, { companyId });
     const view = page;
     await until(() => view.text().includes("= Resultado do período") && view.text().includes("3.1 · Vendas"), "DRE montada");
-    expect(view.text()).toContain("Margem: 60,0%");
+    const resultCard = [...view.container.querySelectorAll(".kpi-card")].find((card) => card.firstElementChild?.textContent === "Resultado");
+    expect(resultCard?.querySelector("[data-kpi-value]")?.textContent?.replace(/\u00a0/g, " ")).toBe("R$ 600,00");
     expect(view.text()).toContain("4.1 · Aluguel");
     const result = [...view.container.querySelectorAll("tr")].find((row) => row.textContent?.includes("= Resultado do período"));
     expect(result?.textContent?.replace(/ /g, " ")).toContain("R$ 600,00");

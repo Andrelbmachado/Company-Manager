@@ -79,10 +79,10 @@ export default function MyHrPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Férias disponíveis" value={`${balance.available} dias`} hint={`${balance.entitled} de direito, ${balance.used} aprovados, ${balance.pending} em análise`} />
-        <StatCard title="Solicitações em análise" value={pendingRequests.length} hint={pendingRequests.length ? "Aguardando resposta do RH" : "Nada aguardando resposta"} />
-        <StatCard title="Pendências abertas" value={openTodos.length} hint={openTodos.some((todo) => todo.due_date && todo.due_date < today) ? "Há pendência com prazo vencido" : "Itens que o RH pediu para você"} />
-        <StatCard title="Tempo de empresa" kind="text" value={tenureLabel(me.hire_date, today)} hint={me.hire_date ? `Admissão em ${formatDay(me.hire_date)}` : "Admissão não informada"} />
+        <StatCard title="Férias disponíveis" value={`${balance.available} dias`} />
+        <StatCard title="Solicitações em análise" value={pendingRequests.length} />
+        <StatCard title="Pendências abertas" value={openTodos.length} />
+        <StatCard title="Tempo de empresa" value={tenureLabel(me.hire_date, today)} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

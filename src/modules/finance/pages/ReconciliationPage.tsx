@@ -21,7 +21,6 @@ import {
   type MatchTarget,
   type ReconcileResult,
 } from "@/lib/erp/reconcile";
-import { sumMoney } from "@/lib/money";
 import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
@@ -201,12 +200,12 @@ export default function ReconciliationPage() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <KpiCard title="Pendentes" value={String(pending.length)} subtitle={`${formatCurrency(sumMoney(pending.filter((item) => item.amount > 0).map((item) => item.amount)))} entradas · ${formatCurrency(Math.abs(sumMoney(pending.filter((item) => item.amount < 0).map((item) => item.amount))))} saídas`} icon={ListChecks} />
-            <KpiCard title="Saldo no sistema" value={formatCurrency(balance?.balance ?? 0)} subtitle={`Realizado até ${formatDay(today)}`} icon={Link2} />
-            <KpiCard title="Saldo do extrato" value={balance?.statementBalance != null ? formatCurrency(balance.statementBalance) : "—"} subtitle={balance?.statementDate ? `Em ${formatDay(balance.statementDate)}` : "Importe um extrato com saldo"} icon={FileUp} />
+            <KpiCard title="Pendentes" value={String(pending.length)} />
+            <KpiCard title="Saldo no sistema" value={formatCurrency(balance?.balance ?? 0)} />
+            <KpiCard title="Saldo do extrato" value={balance?.statementBalance != null ? formatCurrency(balance.statementBalance) : "—"} />
           </div>
 
-          <div className="border-b">
+          <div>
             <TabList
               tabs={TABS.map((item) => ({ id: item.id, label: `${item.label} (${byStatus(item.id).length})` }))}
               value={tab}

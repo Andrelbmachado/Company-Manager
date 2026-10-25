@@ -32,7 +32,7 @@ export default function DocumentsPage() {
         description={canUpload ? "Pastas e arquivos da sua área: envie, arraste, visualize, baixe e acompanhe as versões." : "Pastas e arquivos compartilhados com a sua área."}
         className="pb-2"
       />
-      <div className="border-b">
+      <div>
         <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções de documentos" idPrefix="documentos" />
       </div>
       <TabPanel idPrefix="documentos" id={tab}>

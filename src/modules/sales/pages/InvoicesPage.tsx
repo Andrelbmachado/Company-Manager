@@ -74,9 +74,9 @@ export default function InvoicesPage() {
       <PageHeader title="Faturas" description="Faturas emitidas a partir dos pedidos de venda. As parcelas ficam em contas a receber; a baixa é feita no Financeiro." />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="A receber" value={formatCurrency(sumMoney(openRows.map((row) => row.open)))} hint={`${openRows.length} fatura(s) em aberto`} />
-        <StatCard title="Vencido" value={formatCurrency(sumMoney(overdue.flatMap((parcel) => [Number(parcel.amount), -receivedOf(parcel)])))} hint={`${overdue.length} parcela(s) vencida(s)`} />
-        <StatCard title="Faturado no mês" value={formatCurrency(sumMoney(issuedThisMonth.map((row) => Number(row.invoice.total))))} hint={`${issuedThisMonth.length} fatura(s)`} />
+        <StatCard title="A receber" value={formatCurrency(sumMoney(openRows.map((row) => row.open)))} />
+        <StatCard title="Vencido" value={formatCurrency(sumMoney(overdue.flatMap((parcel) => [Number(parcel.amount), -receivedOf(parcel)])))} />
+        <StatCard title="Faturado no mês" value={formatCurrency(sumMoney(issuedThisMonth.map((row) => Number(row.invoice.total))))} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por fatura, pedido ou cliente...">

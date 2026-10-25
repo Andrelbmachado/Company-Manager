@@ -65,10 +65,10 @@ export default function PurchasingPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Aguardando aprovação" value={awaitingApproval.length} hint={formatCurrency(sumMoney(awaitingApproval.map((order) => Number(order.total))))} />
-        <StatCard title="A receber" value={awaitingGoods.length} hint={formatCurrency(sumMoney(awaitingGoods.map((order) => Number(order.total))))} />
-        <StatCard title="Entrega atrasada" value={late.length} hint="Previsão de entrega já passou" />
-        <StatCard title="Recebido no mês" value={formatCurrency(sumMoney(receivedThisMonth.map((receipt) => Number(receipt.total))))} hint={`${receivedThisMonth.length} recebimento(s)`} />
+        <StatCard title="Aguardando aprovação" value={awaitingApproval.length} />
+        <StatCard title="A receber" value={awaitingGoods.length} />
+        <StatCard title="Entrega atrasada" value={late.length} />
+        <StatCard title="Recebido no mês" value={formatCurrency(sumMoney(receivedThisMonth.map((receipt) => Number(receipt.total))))} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou fornecedor...">

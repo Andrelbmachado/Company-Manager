@@ -2,7 +2,7 @@
 // sem duplicar. Regras em lib/erp/recurring e lib/erp/financeSetup.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Pencil, Play, Plus, Repeat, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { Pencil, Play, Plus, Repeat, Trash2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { isTrue, monthLabel, parseMoneyInput } from "@/lib/erp/financeCommon";
@@ -176,10 +176,10 @@ export default function RecurringEntriesPage() {
       <ErrorNote message={generate.error ? errorMessage(generate.error) : update.error ? errorMessage(update.error) : null} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Ativas" value={String(active.length)} subtitle={entries.length > active.length ? `${entries.length - active.length} pausada(s)` : undefined} icon={Repeat} />
-        <KpiCard title="A pagar por mês" value={formatCurrency(monthly("pagar"))} subtitle="Equivalente mensal" icon={TrendingDown} iconClassName="bg-red-600/10 text-red-700 dark:text-red-400" />
-        <KpiCard title="A receber por mês" value={formatCurrency(monthly("receber"))} subtitle="Equivalente mensal" icon={TrendingUp} iconClassName="bg-emerald-600/10 text-emerald-700 dark:text-emerald-400" />
-        <KpiCard title="Próximo lançamento" value={upcoming ? formatDay(upcoming.next.dueDate) : "—"} subtitle={upcoming?.entry.description} icon={CalendarClock} />
+        <KpiCard title="Ativas" value={String(active.length)} />
+        <KpiCard title="A pagar por mês" value={formatCurrency(monthly("pagar"))} />
+        <KpiCard title="A receber por mês" value={formatCurrency(monthly("receber"))} />
+        <KpiCard title="Próximo lançamento" value={upcoming ? formatDay(upcoming.next.dueDate) : "—"} />
       </div>
 
       {entries.length === 0 ? (

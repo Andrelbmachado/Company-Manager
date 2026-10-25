@@ -10,6 +10,17 @@ interface TabListProps<T extends string> {
   idPrefix: string;
 }
 
+/** Lista das abas: do tamanho das abas (a linha não ocupa a largura toda) e rola sem barra visível se não couber. */
+export const TAB_LIST_CLASS = "flex w-fit max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+/** Aba: texto maior, linha embaixo de cada aba e indicador na ativa (sem margem negativa: nada vaza e cria rolagem). */
+export function tabClass(active: boolean): string {
+  return cn(
+    "shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-base font-semibold transition-colors",
+    active ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground",
+  );
+}
+
 /** Abas acessíveis: setas e Home/End trocam de aba, só a aba ativa entra na ordem do Tab, aria-controls aponta para o painel. */
 export function TabList<T extends string>({ tabs, value, onChange, label, idPrefix }: TabListProps<T>) {
   const refs = useRef(new Map<T, HTMLButtonElement>());
@@ -24,7 +35,7 @@ export function TabList<T extends string>({ tabs, value, onChange, label, idPref
   }
 
   return (
-    <div role="tablist" aria-label={label} className="flex gap-1">
+    <div role="tablist" aria-label={label} className={TAB_LIST_CLASS}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -36,7 +47,7 @@ export function TabList<T extends string>({ tabs, value, onChange, label, idPref
           tabIndex={value === tab.id ? 0 : -1}
           onKeyDown={(event) => onKeyDown(event, tab.id)}
           onClick={() => onChange(tab.id)}
-          className={cn("-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors", value === tab.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}
+          className={tabClass(value === tab.id)}
         >
           {tab.label}
         </button>

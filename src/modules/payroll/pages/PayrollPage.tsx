@@ -70,9 +70,9 @@ export default function PayrollPage() {
       <PageHeader title="Folha de pagamento" description="Remuneração dos colaboradores. Só a diretoria e a administração veem esta tela: o RH e o Financeiro não têm acesso." />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard title="Folha mensal (salários base)" value={formatMoney(monthly)} hint={`${withSalary.length} colaboradores com salário cadastrado`} />
-        <StatCard title="Colaboradores na folha" value={`${withSalary.length}/${active.length}`} hint="com salário cadastrado / ativos" />
-        <StatCard title="Sem salário cadastrado" value={active.length - withSalary.length} hint={active.length - withSalary.length ? "Cadastre para entrar na soma da folha" : "Todos cadastrados"} />
+        <StatCard title="Folha mensal (salários base)" value={formatMoney(monthly)} />
+        <StatCard title="Colaboradores na folha" value={`${withSalary.length}/${active.length}`} />
+        <StatCard title="Sem salário cadastrado" value={active.length - withSalary.length} />
       </div>
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, setor ou cargo..." />

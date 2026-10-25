@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db/client";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { periodPresets, type PeriodPresetKey } from "@/lib/reports/common";
 import { useRequiredSession } from "@/hooks/useSession";
-import { formatCurrency, todayIso } from "@/lib/utils";
+import { todayIso } from "@/lib/utils";
 
 export const FIELD = "h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 export const LABEL = "flex flex-col gap-1 text-xs font-medium text-muted-foreground";
@@ -89,9 +89,4 @@ export function ReportState({ query, children }: { query: { isLoading: boolean; 
 /** Linha de indicadores do relatório (4 colunas só em tela larga: valor em R$ é comprido). */
 export function StatGrid({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</div>;
-}
-
-/** Valor em R$ do indicador, um pouco menor que o número padrão do StatCard para caber sem cortar. */
-export function MoneyValue({ value }: { value: number }) {
-  return <span className="block break-words text-[clamp(1.375rem,2vw,2rem)]">{formatCurrency(value)}</span>;
 }

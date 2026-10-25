@@ -149,10 +149,10 @@ export default function HrManagePage() {
       <PageHeader title="Gestão de RH" description="Colaboradores, solicitações, comunicados e pendências. Esta área é só do RH e da diretoria; os demais setores veem o Meu RH." />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Colaboradores ativos" value={active.length} hint={`${employees.length - active.length} desligado(s) no cadastro`} />
-        <StatCard title="Solicitações pendentes" value={pending.length} hint={pending.length ? "Aguardando decisão do RH" : "Nada aguardando"} />
-        <StatCard title="De férias hoje" value={onVacation} hint="Férias aprovadas cobrindo a data de hoje" />
-        <StatCard title="Pendências em atraso" value={lateTasks} hint="Pedidas aos colaboradores e de checklists, com prazo vencido" />
+        <StatCard title="Colaboradores ativos" value={active.length} />
+        <StatCard title="Solicitações pendentes" value={pending.length} />
+        <StatCard title="De férias hoje" value={onVacation} />
+        <StatCard title="Pendências em atraso" value={lateTasks} />
       </div>
 
       {error && !dialog && (
@@ -162,7 +162,7 @@ export default function HrManagePage() {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <TabList tabs={TAB_ITEMS} value={tab} onChange={setTab} label="Seções da gestão de RH" idPrefix="rh" />
         <div className="mb-2 flex gap-2">
           {tab === "colaboradores" && (

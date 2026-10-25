@@ -270,9 +270,9 @@ function CountSheet({ countId }: { countId: string }) {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
         <StatCard title="Itens" value={lines.length} />
-        <StatCard title="Contados" value={`${counted.length}/${lines.length}`} kind="text" />
-        <StatCard title="Com diferença" value={divergent.length} hint={divergent.length ? `Falta ${formatQty(Math.abs(missingUnits))} · sobra ${formatQty(extraUnits)}` : undefined} />
-        <StatCard title="Valor da diferença" value={formatCurrency(differenceValue)} kind="text" hint="Pelo custo do item (negativo = perda)" />
+        <StatCard title="Contados" value={`${counted.length}/${lines.length}`} />
+        <StatCard title="Com diferença" value={divergent.length} />
+        <StatCard title="Valor da diferença" value={formatCurrency(differenceValue)} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4 print:hidden">

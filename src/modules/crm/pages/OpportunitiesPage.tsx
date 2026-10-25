@@ -90,9 +90,9 @@ export default function OpportunitiesPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard title="Oportunidades" value={filtered.length} hint="com os filtros atuais" />
-        <StatCard title="Valor total" value={formatCurrency(totalValue)} kind="text" />
-        <StatCard title="Valor ponderado" value={formatCurrency(weighted)} kind="text" hint="valor × probabilidade" />
+        <StatCard title="Oportunidades" value={filtered.length} />
+        <StatCard title="Valor total" value={formatCurrency(totalValue)} />
+        <StatCard title="Valor ponderado" value={formatCurrency(weighted)} />
       </div>
 
       <PageToolbar search={filters.search ?? ""} onSearchChange={(search) => set({ search })} searchPlaceholder="Buscar por título, cliente, origem...">

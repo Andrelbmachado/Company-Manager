@@ -5,7 +5,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { addMonths, monthLabel, monthOf, monthsBetween } from "@/lib/reports/common";
 import { buildDreReport, dreTable, loadDreData } from "@/lib/reports/dre";
 import { formatCurrency, todayIso } from "@/lib/utils";
-import { FIELD, LABEL, MoneyValue, ReportState, StatGrid, useReportData } from "../components/ReportControls";
+import { FIELD, LABEL, ReportState, StatGrid, useReportData } from "../components/ReportControls";
 import { ExportButtons } from "../components/ExportButtons";
 import { ReportDataTable } from "../components/ReportDataTable";
 
@@ -60,10 +60,10 @@ export default function DreReportPage() {
         {report && table && (
           <>
             <StatGrid>
-              <StatCard title="Receita bruta" value={<MoneyValue value={line("receita")!.total} />} />
-              <StatCard title="Receita líquida" value={<MoneyValue value={line("receita_liquida")!.total} />} />
-              <StatCard title="Lucro bruto" value={<MoneyValue value={line("lucro_bruto")!.total} />} />
-              <StatCard title="Resultado líquido" value={<MoneyValue value={line("resultado")!.total} />} hint={`${line("resultado")!.share.toLocaleString("pt-BR")}% da receita bruta`} />
+              <StatCard title="Receita bruta" value={formatCurrency(line("receita")!.total)} />
+              <StatCard title="Receita líquida" value={formatCurrency(line("receita_liquida")!.total)} />
+              <StatCard title="Lucro bruto" value={formatCurrency(line("lucro_bruto")!.total)} />
+              <StatCard title="Resultado líquido" value={formatCurrency(line("resultado")!.total)} />
             </StatGrid>
 
             <div className="h-64 rounded-xl border bg-card p-4" aria-hidden>

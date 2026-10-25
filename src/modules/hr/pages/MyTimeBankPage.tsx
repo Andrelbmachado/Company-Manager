@@ -60,10 +60,10 @@ export default function MyTimeBankPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Saldo" value={<span className={balanceTone(summary.balance)}>{formatMinutes(summary.balance)}</span>} hint={summary.balance < 0 ? "Você deve horas: combine a reposição com o RH" : "Horas aprovadas a compensar"} />
-        <StatCard title="Em análise" value={summary.pendingCount} hint={summary.pendingCount ? `${formatMinutes(summary.pending)} aguardando o RH` : "Nada aguardando o RH"} />
-        <StatCard title="Créditos aprovados" value={formatMinutes(summary.credits, { signed: false })} hint={`${formatMinutes(summary.debits, { signed: false })} já compensadas`} />
-        <StatCard title="Jornada diária" kind="text" value={formatMinutes(daily, { signed: false })} hint={summary.balance > 0 ? `Seu saldo equivale a ${(summary.balance / daily).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} dia(s) de folga` : "Base para converter horas em dias de folga"} />
+        <StatCard title="Saldo" value={<span className={balanceTone(summary.balance)}>{formatMinutes(summary.balance)}</span>} />
+        <StatCard title="Em análise" value={summary.pendingCount} />
+        <StatCard title="Créditos aprovados" value={formatMinutes(summary.credits, { signed: false })} />
+        <StatCard title="Jornada diária" value={formatMinutes(daily, { signed: false })} />
       </div>
 
       <ErrorAlert message={error} onClose={() => setError("")} />

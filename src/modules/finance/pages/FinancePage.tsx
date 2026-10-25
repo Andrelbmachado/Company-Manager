@@ -2,7 +2,7 @@
 // As regras ficam em lib/erp (settlements, financeSetup, recurring); a tela só chama e mostra.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Ban, CheckCircle2, HandCoins, Plus, Trash2, TrendingDown, TrendingUp, Undo2, Wallet } from "lucide-react";
+import { Ban, CheckCircle2, HandCoins, Plus, Trash2, Undo2, Wallet } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { displayStatus, isOverdue, loadPayables, loadReceivables, SETTLED_STATUS, toEntry, type EntryKind, type FinanceEntry } from "@/lib/erp/financeCommon";
@@ -173,13 +173,13 @@ export default function FinancePage() {
       {notice && <SuccessNote onClose={() => setNotice(null)}>{notice}</SuccessNote>}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="A receber" value={formatCurrency(rec.open)} subtitle={rec.overdueCount ? `${rec.overdueCount} vencida(s): ${formatCurrency(rec.overdue)}` : "Nenhuma vencida"} icon={TrendingUp} iconClassName="bg-emerald-600/10 text-emerald-700 dark:text-emerald-400" />
-        <KpiCard title="A pagar" value={formatCurrency(pay.open)} subtitle={pay.overdueCount ? `${pay.overdueCount} vencida(s): ${formatCurrency(pay.overdue)}` : "Nenhuma vencida"} icon={TrendingDown} iconClassName="bg-red-600/10 text-red-700 dark:text-red-400" />
-        <KpiCard title="Vencidas" value={String(rec.overdueCount + pay.overdueCount)} subtitle={`${formatCurrency(rec.overdue)} a receber · ${formatCurrency(pay.overdue)} a pagar`} icon={AlertTriangle} iconClassName="bg-amber-500/10 text-amber-700 dark:text-amber-400" />
-        <KpiCard title="Saldo projetado" value={formatCurrency(rec.open - pay.open)} subtitle="A receber menos a pagar (em aberto)" icon={Wallet} />
+        <KpiCard title="A receber" value={formatCurrency(rec.open)} />
+        <KpiCard title="A pagar" value={formatCurrency(pay.open)} />
+        <KpiCard title="Vencidas" value={String(rec.overdueCount + pay.overdueCount)} />
+        <KpiCard title="Saldo projetado" value={formatCurrency(rec.open - pay.open)} />
       </div>
 
-      <div className="border-b">
+      <div>
         <TabList tabs={TABS} value={tab} onChange={(next) => { setTab(next); setSelectedId(null); }} label="Tipo de conta" idPrefix="financeiro" />
       </div>
 

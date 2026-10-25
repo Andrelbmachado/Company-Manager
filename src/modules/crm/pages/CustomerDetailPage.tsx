@@ -19,7 +19,6 @@ import type { Contact } from "@/types";
 import { ActivityTimeline } from "../components/Activities";
 import { ContactFormDialog } from "../components/ContactFormDialog";
 import { CustomerFormDialog, formatAddress } from "../components/CustomerFormDialog";
-import { formatWhen } from "../components/format";
 import { ConfirmDialog, errorText } from "../components/Modal";
 import { OpportunityDrawer } from "../components/OpportunityDrawer";
 import { OpportunityFormDialog } from "../components/OpportunityFormDialog";
@@ -139,7 +138,7 @@ function CustomerRecord({ id }: { id: string }) {
         <TagEditor entityType="customer" entityId={customer.id} canEdit={can("edit", "customers")} />
       </div>
 
-      <div className="border-b overflow-x-auto"><TabList tabs={tabs} value={tab} onChange={setTab} label="Seções da ficha do cliente" idPrefix="cliente" /></div>
+      <div><TabList tabs={tabs} value={tab} onChange={setTab} label="Seções da ficha do cliente" idPrefix="cliente" /></div>
 
       <TabPanel idPrefix="cliente" id={tab}>
         {tab === "resumo" && (
@@ -191,22 +190,19 @@ function SummaryTab({ customerId }: { customerId: string }) {
   const today = todayIso();
   const openProposals = proposals.filter((proposal) => proposal.customer_id === customerId && ["enviada", "rascunho"].includes(displayProposalStatus(proposal, today)));
   const next = activities.filter((activity) => !activity.done_at && activity.due_at).sort((a, b) => String(a.due_at).localeCompare(String(b.due_at)))[0];
-  const last = activities.filter((activity) => activity.done_at).sort((a, b) => String(b.done_at).localeCompare(String(a.done_at)))[0];
   const primary = contacts[0];
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {can("view", "opportunities") && <StatCard title="Em negociação" value={formatCurrency(summary.open.total)} kind="text" hint={`${summary.open.count} oportunidade(s) · ponderado ${formatCurrency(summary.open.weighted)}`} />}
-      {can("view", "opportunities") && <StatCard title="Negócios ganhos" value={won.length} hint={formatCurrency(won.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0))} />}
-      {can("view", "proposals") && <StatCard title="Propostas em aberto" value={openProposals.length} hint={formatCurrency(openProposals.reduce((sum, proposal) => sum + Number(proposal.value ?? 0), 0))} />}
+      {can("view", "opportunities") && <StatCard title="Em negociação" value={formatCurrency(summary.open.total)} />}
+      {can("view", "opportunities") && <StatCard title="Negócios ganhos" value={won.length} />}
+      {can("view", "proposals") && <StatCard title="Propostas em aberto" value={openProposals.length} />}
       {can("view", "crm_activities") && (
         <StatCard
           title="Próximo passo"
-          kind="text"
           value={next ? <span className={cn(activityState(next) === "atrasada" && "text-destructive")}>{next.subject ?? "Atividade"}</span> : "Nenhum agendado"}
-          hint={next ? `${formatWhen(next.due_at)}${activityState(next) === "atrasada" ? " · atrasado" : ""}` : last ? `Último contato: ${formatWhen(last.done_at)}` : "Registre a próxima ligação ou reunião"}
         />
       )}
-      <StatCard title="Contato principal" kind="text" value={primary?.name ?? "Nenhum"} hint={primary ? [primary.role, primary.phone ?? primary.email].filter(Boolean).join(" · ") : "Cadastre na aba Contatos"} />
+      <StatCard title="Contato principal" value={primary?.name ?? "Nenhum"} />
     </div>
   );
 }
@@ -409,12 +405,12 @@ function FinanceTab({ customerId, creditLimit, paymentTerms }: { customerId: str
   return (
     <section className="space-y-4" aria-label="Financeiro">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {seesInvoices && <StatCard title="Faturado" value={formatCurrency(data.invoiced)} kind="text" hint="faturas emitidas (sem as canceladas)" />}
+        {seesInvoices && <StatCard title="Faturado" value={formatCurrency(data.invoiced)} />}
         {seesReceivables && (
           <>
-            <StatCard title="Recebido" value={formatCurrency(data.received)} kind="text" />
-            <StatCard title="Em aberto" value={formatCurrency(data.open)} kind="text" hint={paymentTerms ? `Condição: ${paymentTerms}` : undefined} />
-            <StatCard title="Vencido" value={<span className={cn(data.overdue > 0 && "text-destructive")}>{formatCurrency(data.overdue)}</span>} kind="text" hint={data.overdue > 0 ? "parcelas com vencimento antes de hoje" : "nada vencido"} />
+            <StatCard title="Recebido" value={formatCurrency(data.received)} />
+            <StatCard title="Em aberto" value={formatCurrency(data.open)} />
+            <StatCard title="Vencido" value={<span className={cn(data.overdue > 0 && "text-destructive")}>{formatCurrency(data.overdue)}</span>} />
           </>
         )}
       </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownCircle, ArrowUpCircle, Landmark, TrendingDown, TrendingUp } from "lucide-react";
+import { Landmark } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { cashEvents, cashflow, groupCashflow, type CashEvent, type CashflowDay } from "@/lib/erp/cashflow";
 import { addDays, addMonths, daysBetween, daysInMonth, monthLabel } from "@/lib/erp/financeCommon";
@@ -109,8 +109,6 @@ export default function CashflowPage() {
   const closing = days.length ? days[days.length - 1].balance : 0;
   const totalIn = sumMoney(days.map((day) => day.in));
   const totalOut = sumMoney(days.map((day) => day.out));
-  const forecastIn = sumMoney(days.map((day) => day.inForecast));
-  const forecastOut = sumMoney(days.map((day) => day.outForecast));
   const lowest = days.reduce<CashflowDay | null>((min, day) => (!min || day.balance < min.balance ? day : min), null);
   const selected = periods.find((period) => period.key === selectedKey) ?? null;
   const selectedEvents = selected ? events.filter((event) => event.date >= selected.from && event.date <= selected.to) : [];
@@ -167,16 +165,13 @@ export default function CashflowPage() {
       {rangeValid && !error && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-            <KpiCard title="Saldo inicial" value={formatCurrency(opening)} subtitle={`Antes de ${formatDay(range.from)}`} icon={Landmark} />
-            <KpiCard title="Entradas" value={formatCurrency(totalIn)} subtitle={includeForecast ? `${formatCurrency(forecastIn)} previstas` : "Só realizado"} icon={ArrowUpCircle} iconClassName="bg-emerald-600/10 text-emerald-700 dark:text-emerald-400" />
-            <KpiCard title="Saídas" value={formatCurrency(totalOut)} subtitle={includeForecast ? `${formatCurrency(forecastOut)} previstas` : "Só realizado"} icon={ArrowDownCircle} iconClassName="bg-red-600/10 text-red-700 dark:text-red-400" />
-            <KpiCard title="Saldo final" value={formatCurrency(closing)} subtitle={`Em ${formatDay(range.to)}`} icon={TrendingUp} />
+            <KpiCard title="Saldo inicial" value={formatCurrency(opening)} />
+            <KpiCard title="Entradas" value={formatCurrency(totalIn)} />
+            <KpiCard title="Saídas" value={formatCurrency(totalOut)} />
+            <KpiCard title="Saldo final" value={formatCurrency(closing)} />
             <KpiCard
               title="Menor saldo"
               value={formatCurrency(lowest?.balance ?? 0)}
-              subtitle={lowest ? `Em ${formatDay(lowest.date)}${lowest.balance < 0 ? ": caixa negativo" : ""}` : undefined}
-              icon={TrendingDown}
-              iconClassName={lowest && lowest.balance < 0 ? "bg-red-600/10 text-red-700 dark:text-red-400" : undefined}
             />
           </div>
 

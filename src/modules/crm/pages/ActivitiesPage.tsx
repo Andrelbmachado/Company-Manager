@@ -82,7 +82,7 @@ export default function ActivitiesPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="A fazer" value={counts.abertas} />
-        <StatCard title="Atrasadas" value={<span className={cn(counts.atrasada > 0 && "text-destructive")}>{counts.atrasada}</span>} hint="prazo já passou" />
+        <StatCard title="Atrasadas" value={<span className={cn(counts.atrasada > 0 && "text-destructive")}>{counts.atrasada}</span>} />
         <StatCard title="Para hoje" value={counts.hoje} />
         <StatCard title="Feitas em 7 dias" value={counts.semana} />
       </div>

@@ -155,8 +155,8 @@ export default function ReorderPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard title="Itens para repor" value={suggestions.length} />
-        <StatCard title="Fornecedores" value={new Set(suggestions.map((row) => row.supplier_id ?? "")).size} hint="Um pedido de compra por fornecedor" />
-        <StatCard title="Custo estimado (selecionados)" value={formatCurrency(chosenCost)} kind="text" hint="Quantidade × custo do item" />
+        <StatCard title="Fornecedores" value={new Set(suggestions.map((row) => row.supplier_id ?? "")).size} />
+        <StatCard title="Custo estimado (selecionados)" value={formatCurrency(chosenCost)} />
       </div>
 
       {isLoading ? (

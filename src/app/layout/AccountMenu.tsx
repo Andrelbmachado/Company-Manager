@@ -61,7 +61,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
         aria-label="Abrir menu da conta"
         aria-expanded={open}
         aria-controls="account-menu"
-        title={collapsed ? session.user.name : undefined}
+        data-rail-tip={collapsed ? session.user.name : undefined}
         className={cn(
           "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-sidebar-accent",
           collapsed && "justify-center px-0",

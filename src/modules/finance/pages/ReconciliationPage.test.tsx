@@ -1,13 +1,18 @@
-// Conciliação na tela: importa OFX (concilia sozinho o exato, não duplica), casa pendente com conta, categoriza e desfaz.
+// Conciliação na tela: importa OFX (concilia sozinho o exato, não duplica), casa pendente com conta e categoriza na
+// ficha aberta abaixo da lista (sem modal), desfaz, e lançamento manual adicionado e editado na própria tabela.
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { addBankAccount, addCategory, addPayable, addReceivable } from "@/test/financeFixtures";
-import { choose, click, dialog, findButton, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { choose, click, findButton, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { addRow, editCell, saveError, saveTable, startEditing, tableOf } from "../testing/tableActions";
 import ReconciliationPage from "./ReconciliationPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
+vi.mock("@/lib/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
+
+const panel = (title: string) => document.querySelector<HTMLElement>(`section[aria-label="${title}"]`);
 
 const testDb = useTestDb();
 let page: RenderedPage | null = null;
@@ -15,6 +20,7 @@ let page: RenderedPage | null = null;
 afterEach(() => {
   page?.unmount();
   page = null;
+  document.body.innerHTML = "";
 });
 
 type Row = Record<string, unknown>;
@@ -56,15 +62,16 @@ describe("ReconciliationPage", () => {
     await until(() => view.text().includes("0 lançamento(s) importado(s)") && view.text().includes("3 já importado(s) antes"), "reimportação sem duplicar");
 
     await click(findButton(view.container, "Conciliar PIX RECEBIDO"));
-    let drawer = dialog("PIX RECEBIDO")!;
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    let drawer = panel("PIX RECEBIDO")!;
     await until(() => drawer.textContent?.includes("Mensalidade cliente") ?? false, "sugestão de conta a receber");
     expect(drawer.textContent).toContain("Baixa parcial");
     await click(findButton(drawer, "Conciliar com Mensalidade cliente"));
     await until(async () => (await db.select<Row[]>("SELECT * FROM receivables WHERE id = ?", ["r1"]))[0].status === "recebida_parcial", "baixa parcial pela conciliação");
 
     await click(findButton(view.container, "Conciliar TARIFA PACOTE"));
-    drawer = dialog("TARIFA PACOTE")!;
-    await choose(drawer.querySelector("select"), "tarifas");
+    drawer = panel("TARIFA PACOTE")!;
+    await choose(drawer.querySelector("section[aria-label=\"Sem conta ligada\"] select"), "tarifas");
     await click(findButton(drawer, "Categorizar"));
     await until(() => view.text().includes("Nada para conciliar"), "nada pendente");
 
@@ -88,11 +95,46 @@ describe("ReconciliationPage", () => {
     await until(() => view.text().includes("Minha conta"), "contas da empresa carregadas");
     expect(view.text()).toContain("Escolha a conta bancária");
     expect(view.button("Importar extrato")?.disabled).toBe(true);
-    expect(view.button("Lançamento manual")?.disabled).toBe(true);
+    expect(view.container.querySelector("[data-editable-table]")).toBeNull();
 
     const input = view.container.querySelector<HTMLInputElement>("input[type=file]")!;
     await upload(input, new File([OFX], "extrato.ofx", { type: "application/x-ofx" }));
     await until(() => view.text().includes("Escolha a conta bancária do extrato."), "importação recusada");
     expect(await db.select<Row[]>("SELECT * FROM bank_transactions WHERE bank_account_id = ?", ["alheia"])).toEqual([]);
+  });
+
+  it("lançamento manual: adicionado na tabela e editado só enquanto pendente; o importado só muda a observação", async () => {
+    const db = testDb();
+    const { companyId } = await insertTestCompany(db, { companyId: "empresa-manual", roles: ["financeiro"] });
+    await addBankAccount(db, companyId, { id: "banco", name: "Banco Principal", is_default: 1 });
+    page = await renderPage(<ReconciliationPage />, { companyId, path: "/finance/conciliacao?conta=banco" });
+    const view = page;
+    await until(() => Boolean(view.container.querySelector("[data-editable-table]")), "tabela do extrato");
+    const table = tableOf(view.container, "bank");
+
+    await addRow(table);
+    await editCell(table, "nova", "posted_at", "02/10/2026");
+    await editCell(table, "nova", "description", "Sangria do caixa");
+    await editCell(table, "nova", "amount", "-1.234,56");
+    await saveTable(table);
+    let manual: Row | undefined;
+    await until(async () => {
+      [manual] = await db.select<Row[]>("SELECT * FROM bank_transactions WHERE company_id = ?", [companyId]);
+      return Boolean(manual);
+    }, "lançamento manual gravado");
+    expect(manual).toMatchObject({ posted_at: "2026-10-02", description: "Sangria do caixa", amount: -1234.56, source: "manual", status: "pendente" });
+
+    await until(() => view.text().includes("Sangria do caixa"), "lançamento na lista");
+    await startEditing(table);
+    await editCell(table, String(manual!.id), "amount", "-1.200,00");
+    await saveTable(table);
+    await until(async () => (await db.select<Row[]>("SELECT * FROM bank_transactions WHERE id = ?", [manual!.id]))[0].amount === -1200, "valor editado");
+
+    await db.execute("INSERT INTO bank_transactions (id, company_id, bank_account_id, posted_at, amount, description, source, status, fitid) VALUES (?,?,?,?,?,?,?,?,?)", ["ofx-1", companyId, "banco", "2026-10-03", -10, "TARIFA", "ofx", "pendente", "F9"]);
+    await click(findButton(table, "Atualizar"));
+    await until(() => view.text().includes("TARIFA"), "importado na lista");
+    await startEditing(table);
+    await editCell(table, "ofx-1", "amount", "-20");
+    expect(await saveError(table)).toContain("só a observação muda");
   });
 });

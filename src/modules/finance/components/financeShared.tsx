@@ -35,7 +35,7 @@ export const BANK_ACCOUNT_KIND_LABELS: Record<BankAccountKind, string> = {
 
 export const paymentMethodLabel = (value: string | null | undefined) => PAYMENT_METHODS.find((method) => method.value === value)?.label ?? value ?? "—";
 
-/** Opções de <select> do CrudDialog com a primeira opção vazia. */
+/** Opções de <select> com a primeira opção vazia. */
 export function withEmpty(options: { value: string; label: string }[], emptyLabel = "—"): { value: string; label: string }[] {
   return [{ value: "", label: emptyLabel }, ...options];
 }
@@ -204,7 +204,7 @@ export function ConfirmButton({ label, confirmLabel, onConfirm, icon, disabled, 
   );
 }
 
-/** Campo com rótulo para filtros e formulários fora do CrudDialog. */
+/** Campo com rótulo para filtros e formulários no próprio lugar. */
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={cn("flex flex-col gap-1 text-xs font-medium text-muted-foreground", className)}>

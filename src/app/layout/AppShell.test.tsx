@@ -98,6 +98,18 @@ describe("AppShell", () => {
     expect(page!.text()).toMatch(/Novo ticket aguardando atendimento/);
   });
 
+  it("com o menu da conta aberto, os itens vêm depois do botão (Tab a partir dele entra no menu, na ordem)", async () => {
+    await openShell();
+    const account = byName(sidebar(), "Abrir menu da conta")!;
+    await click(account);
+    const settings = byName(sidebar(), "Configurações da conta");
+    const signOut = byName(sidebar(), "Sair");
+    expect(settings).toBeDefined();
+    expect(signOut).toBeDefined();
+    expect(precedes(account, settings!)).toBe(true);
+    expect(precedes(settings!, signOut!)).toBe(true);
+  });
+
   it("Buscar e ⌘K abrem a busca", async () => {
     await openShell();
     expect(document.querySelector("[role=dialog][aria-label=Buscar]")).toBeNull();

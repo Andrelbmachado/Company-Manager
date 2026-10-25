@@ -55,6 +55,35 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Abrir menu da conta"
+        aria-expanded={open}
+        aria-controls="account-menu"
+        title={collapsed ? session.user.name : undefined}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-sidebar-accent",
+          collapsed && "justify-center px-0",
+          open && "bg-sidebar-accent",
+        )}
+      >
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
+          {initials}
+          {unread > 0 && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-destructive" />}
+        </span>
+        {!collapsed && (
+          <>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-sm font-semibold text-sidebar-accent-foreground">{session.user.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">{ROLE_LABELS[role]}</span>
+            </span>
+            <ChevronUp size={15} className={cn("shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+          </>
+        )}
+      </button>
+
+      {/* Depois do botão no DOM (o CSS é que o põe acima): Tab a partir do botão entra no menu, na ordem. */}
       {open && (
         <div
           id="account-menu"
@@ -165,34 +194,6 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
           </div>
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-label="Abrir menu da conta"
-        aria-expanded={open}
-        aria-controls="account-menu"
-        title={collapsed ? session.user.name : undefined}
-        className={cn(
-          "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-sidebar-accent",
-          collapsed && "justify-center px-0",
-          open && "bg-sidebar-accent",
-        )}
-      >
-        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
-          {initials}
-          {unread > 0 && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-destructive" />}
-        </span>
-        {!collapsed && (
-          <>
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-semibold text-sidebar-accent-foreground">{session.user.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{ROLE_LABELS[role]}</span>
-            </span>
-            <ChevronUp size={15} className={cn("shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-          </>
-        )}
-      </button>
     </div>
   );
 }

@@ -246,6 +246,20 @@ describe("telas do CRM", () => {
     await until(() => text().includes("Nenhum duplicado encontrado"), "lista vazia depois de mesclar");
   });
 
+  it("duplicados: a tabela do grupo ordena pelo cabeçalho sem mexer em quem fica", async () => {
+    await testDb().execute("INSERT INTO customers (id, company_id, name, email, created_at) VALUES (?,?,?,?,?)", ["old", companyId, "Clínica Vida", "contato@vida.com", "2026-01-01 10:00:00"]);
+    await testDb().execute("INSERT INTO customers (id, company_id, name, email, created_at) VALUES (?,?,?,?,?)", ["new", companyId, "Clinica Vida Ltda", "CONTATO@vida.com", "2026-05-01 10:00:00"]);
+    await renderAt("/crm/duplicados", "/crm/duplicados", <DuplicatesPage />);
+    await until(() => text().includes("Mesmo e-mail"), "grupo de duplicados");
+    const names = () => [...container.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td")[2]?.querySelector("a")?.textContent);
+    expect(names()).toEqual(["Clínica Vida", "Clinica Vida Ltda"]);
+    await click(container.querySelector("th [data-sort-key='created_at']"));
+    await click(container.querySelector("th [data-sort-key='created_at']"));
+    expect(names()).toEqual(["Clinica Vida Ltda", "Clínica Vida"]);
+    expect(container.querySelector<HTMLInputElement>("input[aria-label='Manter Clínica Vida']")?.checked).toBe(true);
+    expect(container.querySelector("th [data-sort-key='keep']")).toBeNull();
+  });
+
   it("lead: converter em oportunidade e abrir no funil", async () => {
     await testDb().execute("INSERT INTO leads (id, company_id, name, status, estimated_revenue, owner_id) VALUES (?,?,?,?,?,?)", ["lead-1", companyId, "Pet Shop Amigo", "interessado", 4800, USER]);
     const [lead] = await testDb().select<Lead[]>("SELECT * FROM leads WHERE id=?", ["lead-1"]);

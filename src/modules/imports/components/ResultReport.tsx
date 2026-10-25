@@ -1,6 +1,8 @@
 // Resultado da importação (ou da simulação): quantos entraram, quantos atualizaram e o que deu errado em cada linha.
+import { useMemo } from "react";
 import { AlertTriangle, CheckCircle2, Download, FlaskConical, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import type { ImportRowError } from "@/lib/importexport/errors";
 import type { ImportEntity } from "@/lib/importexport/registry";
 import type { ImportBatchStatus } from "@/types";
@@ -46,10 +48,23 @@ function headline(result: ResultSummary): { icon: typeof CheckCircle2; tone: str
   return { icon: CheckCircle2, tone: "text-status-success dark:text-green-400", text: `Importação concluída: ${base}.` };
 }
 
+const ERROR_TH = "px-3 py-2";
+
 export function ResultReport({ entity, result, onDownloadErrors, storedErrorsNote }: ResultReportProps) {
   const { icon: Icon, tone, text } = headline(result);
   const labelOf = (field: string) => entity.fields.find((candidate) => candidate.key === field)?.label ?? field;
-  const shown = result.errors.slice(0, SHOWN_ERRORS);
+  // Ordenação e filtro valem para todos os erros (não só os mostrados): o filtro acha problema além dos 100 primeiros.
+  const columns = useMemo<SortFilterColumn<ImportRowError>[]>(
+    () => [
+      { key: "row", header: "Linha", kind: "integer", sortValue: (error) => error.row || null },
+      { key: "field", header: "Coluna", kind: "select", sortValue: (error) => (error.field ? entity.fields.find((candidate) => candidate.key === error.field)?.label ?? error.field : null) },
+      { key: "value", header: "Valor", kind: "text" },
+      { key: "message", header: "Problema", kind: "text" },
+    ],
+    [entity],
+  );
+  const view = useSortFilter(result.errors, columns);
+  const shown = view.rows.slice(0, SHOWN_ERRORS);
   const stats = [
     { label: "Linhas no arquivo", value: result.total },
     { label: result.dryRun ? "Seriam criados" : "Criados", value: result.inserted },
@@ -83,20 +98,23 @@ export function ResultReport({ entity, result, onDownloadErrors, storedErrorsNot
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold">Problemas encontrados</h4>
-            {onDownloadErrors && (
-              <button type="button" onClick={onDownloadErrors} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
-                <Download size={14} aria-hidden="true" /> Baixar relatório de erros (CSV)
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {onDownloadErrors && (
+                <button type="button" onClick={onDownloadErrors} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+                  <Download size={14} aria-hidden="true" /> Baixar relatório de erros (CSV)
+                </button>
+              )}
+              <TableFilterButton view={view} />
+            </div>
           </div>
+          <TableFilterBar view={view} className="rounded-lg border" />
           <div className="max-h-80 overflow-auto rounded-lg border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">Linha</th>
-                  <th scope="col" className="px-3 py-2 font-medium">Coluna</th>
-                  <th scope="col" className="px-3 py-2 font-medium">Valor</th>
-                  <th scope="col" className="px-3 py-2 font-medium">Problema</th>
+                  {columns.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} className={ERROR_TH} />
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -108,12 +126,13 @@ export function ResultReport({ entity, result, onDownloadErrors, storedErrorsNot
                     <td className="px-3 py-1.5">{error.message}</td>
                   </tr>
                 ))}
+                {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
               </tbody>
             </table>
           </div>
-          {(result.errors.length > SHOWN_ERRORS || storedErrorsNote) && (
+          {(view.rows.length > SHOWN_ERRORS || storedErrorsNote) && (
             <p className="text-xs text-muted-foreground">
-              {result.errors.length > SHOWN_ERRORS ? `Mostrando ${SHOWN_ERRORS} de ${result.errors.length.toLocaleString("pt-BR")} problemas; o relatório traz todos. ` : ""}
+              {view.rows.length > SHOWN_ERRORS ? `Mostrando ${SHOWN_ERRORS} de ${view.rows.length.toLocaleString("pt-BR")} problemas; o relatório traz todos. ` : ""}
               {storedErrorsNote}
             </p>
           )}

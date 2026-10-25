@@ -140,6 +140,29 @@ describe("ImportsPage", () => {
     expect(activities).toHaveLength(1);
   });
 
+  it("prévia ordena pelo cabeçalho e filtra por coluna", async () => {
+    await renderPage(<ImportsPage />, "ceo", "/imports?entity=customers");
+    await until(() => text().includes("Arraste a planilha"), "envio do arquivo");
+    await upload(new File([CSV], "clientes.csv", { type: "text/csv" }));
+    await until(() => container.querySelectorAll('[data-erro="sim"]').length === 2, "prévia com erros");
+    const preview = container.querySelector<HTMLElement>("section[aria-labelledby='previa-titulo']")!;
+    const names = () => [...preview.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td")[1]?.textContent);
+    expect(names()).toEqual(["Padaria Pão Quente Ltda", "Mercado Bom Preço", "Ana Souza"]);
+    await click(preview.querySelector("th [data-sort-key='field:name']"));
+    expect(names()).toEqual(["Ana Souza", "Mercado Bom Preço", "Padaria Pão Quente Ltda"]);
+    await click(preview.querySelector("th [data-sort-key='field:credit_limit']"));
+    await click(preview.querySelector("th [data-sort-key='field:credit_limit']"));
+    expect(names()[0]).toBe("Padaria Pão Quente Ltda");
+
+    await click([...preview.querySelectorAll("button")].find((item) => item.getAttribute("aria-label") === "Filtrar"));
+    const problems = preview.querySelector<HTMLInputElement>("[aria-label='Problemas: contém']")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(problems, "ok");
+      problems.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(names()).toEqual(["Padaria Pão Quente Ltda"]);
+  });
+
   it("simula sem gravar e importa depois pelo botão do resultado", async () => {
     const { db, companyId } = await renderPage(<ImportsPage />, "ceo", "/imports?entity=customers");
     await until(() => text().includes("Arraste a planilha"), "envio do arquivo");

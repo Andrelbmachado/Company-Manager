@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Merge } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { SortableHeader, nextSort, sortRows, type SortFilterColumn, type SortState } from "@/components/shared/table";
 import { getDb } from "@/lib/db/client";
 import { findDuplicateCustomers, mergeCustomers, type DuplicateGroup, type DuplicateReason } from "@/lib/crm/dedupe";
 import { cn, formatDay } from "@/lib/utils";
@@ -13,6 +14,18 @@ import { BTN_PRIMARY, CARD, LINK, TD, TH, TONE_CLASS } from "../components/ui";
 import { useAudit, useCrmSession, useCustomerMap, useInvalidateCrm } from "../components/useCrm";
 
 const REASON_LABELS: Record<DuplicateReason, string> = { documento: "Mesmo CNPJ/CPF", email: "Mesmo e-mail", telefone: "Mesmo telefone" };
+
+// Tabela do grupo: o cabeçalho ordena (Fica e Mesclar são escolhas, não ordenam). Não há filtro: cadastro escondido
+// continuaria marcado para mesclar sem aparecer na tela.
+const GROUP_COLUMNS: SortFilterColumn<Customer>[] = [
+  { key: "keep", header: "Fica", kind: "text", sortable: false, filterable: false },
+  { key: "merge", header: "Mesclar", kind: "text", sortable: false, filterable: false },
+  { key: "name", header: "Cliente", kind: "text", sortValue: (customer) => [customer.name, customer.trade_name].filter(Boolean).join(" ") },
+  { key: "document", header: "Documento", kind: "text" },
+  { key: "email", header: "E-mail", kind: "text" },
+  { key: "phone", header: "Telefone", kind: "text" },
+  { key: "created_at", header: "Cadastrado em", kind: "datetime" },
+];
 
 /** Clientes duplicados (mesmo documento, e-mail ou telefone): escolher o cadastro que fica e mesclar os outros nele. */
 export default function DuplicatesPage() {
@@ -55,7 +68,12 @@ function DuplicateGroupCard({ group, customers }: { group: DuplicateGroup; custo
   const invalidate = useInvalidateCrm();
   const audit = useAudit();
   const ids = [group.keep, ...group.merge];
-  const rows = ids.map((id) => customers.get(id)).filter((customer): customer is Customer => !!customer);
+  const [sort, setSort] = useState<SortState | null>(null);
+  const groupCustomers = useMemo(
+    () => [group.keep, ...group.merge].map((id) => customers.get(id)).filter((customer): customer is Customer => !!customer),
+    [group, customers],
+  );
+  const rows = useMemo(() => sortRows(groupCustomers, GROUP_COLUMNS, sort), [groupCustomers, sort]);
   const [keep, setKeep] = useState(group.keep);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(group.merge));
   const [confirming, setConfirming] = useState(false);
@@ -98,13 +116,17 @@ function DuplicateGroupCard({ group, customers }: { group: DuplicateGroup; custo
         <table className="w-full text-sm">
           <thead className="bg-muted/30">
             <tr>
-              <th className={TH}>Fica</th>
-              <th className={TH}>Mesclar</th>
-              <th className={TH}>Cliente</th>
-              <th className={TH}>Documento</th>
-              <th className={TH}>E-mail</th>
-              <th className={TH}>Telefone</th>
-              <th className={TH}>Cadastrado em</th>
+              {GROUP_COLUMNS.map((column) => (
+                <SortableHeader
+                  key={column.key}
+                  label={column.header}
+                  sortKey={column.key}
+                  sort={sort}
+                  onSort={(key) => setSort((current) => nextSort(current, key))}
+                  sortable={column.sortable !== false}
+                  className={cn(TH, "text-sm")}
+                />
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y">

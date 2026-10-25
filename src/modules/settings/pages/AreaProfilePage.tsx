@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { IconButton, TABLE_ICONS } from "@/components/shared/table";
+import { IconButton, NoFilterMatchRow, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
 import { getDb } from "@/lib/db/client";
 import { confirmAction } from "@/lib/confirm";
 import { emit } from "@/lib/events/bus";
-import { AREA_PROFILES, AREA_PROFILE_LABELS, LABEL_DEFS, MAX_LABEL_LENGTH, labelFor, type AreaProfile } from "@/lib/labels/profiles";
+import { AREA_PROFILES, AREA_PROFILE_LABELS, LABEL_DEFS, MAX_LABEL_LENGTH, labelFor, type AreaProfile, type LabelDef } from "@/lib/labels/profiles";
 import { loadAreaLabels, saveAreaLabels, type AreaLabelChanges } from "@/lib/labels/store";
 import { areaLabelsQueryKey } from "@/lib/labels/useLabel";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import type { Role } from "@/types";
 const NO_PERMISSION = "Só CEO e Administração mudam a área da empresa e os rótulos.";
 const BUTTON = "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 const INPUT = "h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
+const LABEL_ROWS = [...LABEL_DEFS];
 
 /**
  * Configurações > Área da empresa: a área (TI, advocacia, serviços, comércio ou personalizado) define os rótulos de
@@ -39,6 +40,16 @@ export default function AreaProfilePage() {
   const loaded = settings.data !== undefined;
   const editing = drafts !== null;
   const dirty = editing && LABEL_DEFS.some((def) => (drafts[def.key] ?? "").trim() !== (overrides[def.key] ?? ""));
+  // Ordena e filtra pelo que está gravado (não pelo rascunho): a linha não foge enquanto se digita.
+  const columns = useMemo<SortFilterColumn<LabelDef>[]>(
+    () => [
+      { key: "where", header: "Onde aparece", kind: "text", sortValue: (def) => `${def.group} · ${def.description}` },
+      { key: "area", header: "Texto da área", kind: "text", sortValue: (def) => labelFor(def.key, profile, {}) },
+      { key: "used", header: "Rótulo usado", kind: "text", sortValue: (def) => labelFor(def.key, profile, overrides) },
+    ],
+    [profile, overrides],
+  );
+  const labelsView = useSortFilter(LABEL_ROWS, columns);
 
   const save = useMutation({
     mutationFn: async (changes: AreaLabelChanges) => {
@@ -124,23 +135,25 @@ export default function AreaProfilePage() {
               <IconButton label="Editar" icon={TABLE_ICONS.edit} disabled={!canEdit || !loaded} title={canEdit ? undefined : NO_PERMISSION} onClick={startEditing} />
             )}
             <IconButton label="Atualizar" icon={TABLE_ICONS.refresh} onClick={() => void refresh()} />
+            <TableFilterButton view={labelsView} disabled={!settings.data} />
           </div>
         </div>
         {status && <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">{status}</p>}
         {settings.isLoading && <p className="p-4 text-sm text-muted-foreground">Carregando rótulos...</p>}
         {settings.isError && <p role="alert" className="p-4 text-sm text-destructive">Não foi possível ler os rótulos da empresa.</p>}
+        {settings.data && <TableFilterBar view={labelsView} />}
         {settings.data && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Onde aparece</th>
-                  <th className="px-4 py-2 font-medium">Texto da área</th>
-                  <th className="px-4 py-2 font-medium">Rótulo usado</th>
+                  {columns.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={labelsView.sort} onSort={labelsView.toggleSort} className="px-4 py-2" />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {LABEL_DEFS.map((def) => {
+                {labelsView.rows.map((def) => {
                   const areaText = labelFor(def.key, profile, {});
                   const draft = drafts?.[def.key] ?? "";
                   const changed = editing && draft.trim() !== (overrides[def.key] ?? "");
@@ -168,6 +181,7 @@ export default function AreaProfilePage() {
                     </tr>
                   );
                 })}
+                {!labelsView.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
               </tbody>
             </table>
           </div>

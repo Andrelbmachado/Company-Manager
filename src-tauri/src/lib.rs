@@ -91,6 +91,12 @@ pub fn run() {
             sql: include_str!("../migrations/0012_redesign_modular.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "assistant_claude_session",
+            sql: include_str!("../migrations/0013_assistant_claude_session.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

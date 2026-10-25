@@ -22,6 +22,13 @@ function watchErrors(page: Page): string[] {
   return errors;
 }
 
+/** Página do módulo carregada: o código dela vem sob demanda na primeira visita (carregando só no conteúdo). */
+async function pageLoaded(page: Page) {
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("main [data-page-loading]")).toHaveCount(0);
+  await expect(page.locator("aside nav")).toBeVisible();
+}
+
 async function quickLogin(page: Page, area = "CEO") {
   await page.goto("/");
   await page.getByRole("button", { name: `Entrar rápido como ${area}` }).click();
@@ -166,6 +173,47 @@ test.describe("redesign modular", () => {
     await expect(chart.locator("[data-legend]")).toHaveText(["Resultado do mês", "Acumulado no ano", "Previsão de receita"]);
 
     expect(errors).toEqual([]);
+  });
+
+  test("login rápido nas 11 áreas abre todas as telas e abas sem erro", async ({ browser }) => {
+    test.setTimeout(300_000);
+    const areas = ["CEO", "Admin", "Gerência", "TI", "Estoque", "Financeiro", "RH", "Comercial", "Atendimento", "Produtos", "Auditoria"];
+    const problems: string[] = [];
+    let pages = 0;
+    for (const area of areas) {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      const errors = watchErrors(page);
+      await quickLogin(page, area);
+      const visited = new Set<string>();
+      const nav = page.locator('aside nav[aria-label="Módulos"]');
+      const modules = await nav.locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+      expect(modules.length, `${area}: módulos na sidebar`).toBeGreaterThan(1);
+      for (const href of modules) {
+        visited.add(href);
+        await nav.locator(`a[href="${href}"]`).click();
+        await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/|$|\\?)`));
+        await pageLoaded(page);
+        // Abas visíveis do módulo (ModuleNav e abas da página) que o papel abre.
+        const tabs = await page.locator("main nav a:visible").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+        for (const tab of tabs) {
+          if (!tab || visited.has(tab)) continue;
+          visited.add(tab);
+          const link = page.locator(`main nav a[href="${tab}"]:visible`).first();
+          if (!(await link.count())) continue;
+          await link.click();
+          await pageLoaded(page);
+          for (const alert of await page.locator("main [role=alert]").allInnerTexts()) if (alert.trim()) problems.push(`${area} ${tab}: ${alert}`);
+        }
+        for (const alert of await page.locator("main [role=alert]").allInnerTexts()) if (alert.trim()) problems.push(`${area} ${href}: ${alert}`);
+      }
+      problems.push(...errors.map((error) => `${area}: ${error}`));
+      pages += visited.size;
+      await context.close();
+    }
+    expect(problems).toEqual([]);
+    // Módulos + abas somados nas 11 áreas (eram 296 em 25/10/2026); bem menos que isso = a varredura não achou as abas.
+    expect(pages).toBeGreaterThan(200);
   });
 
   test("calendário: agenda por link iCal (fixture) e link fora do ar sem derrubar a outra", async ({ page }) => {

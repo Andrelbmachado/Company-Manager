@@ -147,8 +147,11 @@ export function summarizeCampaignLeads(leads: readonly Pick<Lead, "status" | "es
   };
 }
 
+/** Números da campanha: só leads da mesma empresa da campanha (a FK de `campaign_id` não confere a empresa). */
 export async function campaignStats(db: DatabaseLike, campaignId: string): Promise<CampaignStats> {
-  const rows = await db.select<Lead[]>("SELECT * FROM leads WHERE campaign_id=? AND deleted_at IS NULL", [campaignId]);
+  const [campaign] = await db.select<ProspectingCampaign[]>("SELECT * FROM prospecting_campaigns WHERE id=?", [campaignId]);
+  if (!campaign) return summarizeCampaignLeads([]);
+  const rows = await db.select<Lead[]>("SELECT * FROM leads WHERE company_id=? AND campaign_id=? AND deleted_at IS NULL", [campaign.company_id, campaignId]);
   return summarizeCampaignLeads(rows);
 }
 

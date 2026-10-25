@@ -140,6 +140,17 @@ describe.each([
     expect(await campaignStats(db, b)).toEqual({ leads: 1, contacted: 1, won: 1, potential: 5000 });
   });
 
+  it("os números só contam leads da empresa da campanha; campanha que não existe fica zerada", async () => {
+    const { db, companyId } = await open();
+    const a = await createCampaign(db, companyId, "Clínicas");
+    await insertLead(db, companyId, "a-1", a, "fechado", 1000);
+    // Lead de outra empresa apontando para a campanha (a FK não confere a empresa).
+    await insertLead(db, "outra", "x-1", a, "fechado", 9000);
+
+    expect(await campaignStats(db, a)).toEqual({ leads: 1, contacted: 1, won: 1, potential: 1000 });
+    expect(await campaignStats(db, "nao-existe")).toEqual({ leads: 0, contacted: 0, won: 0, potential: 0 });
+  });
+
   it("renomear muda só o nome: os leads continuam na mesma campanha", async () => {
     const { db, companyId } = await open();
     const id = await createCampaign(db, companyId, "Clínicas");

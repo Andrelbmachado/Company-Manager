@@ -178,6 +178,31 @@ describe("Admissões e desligamentos", () => {
 
     await showsCalendar();
   });
+
+  it("duas admissões na mesma gravação: se uma falha nenhuma entra, e salvar de novo não duplica", async () => {
+    await insertTestCompany(testDb());
+    await employee("Eva Prado", { email: "eva@empresa.com" });
+    page = await renderPage(<EmploymentCyclePage />, { companyId: C, role: "rh" });
+    await until(() => !!table(), "tabela de admissões");
+    await click(findButton(table(), "Adicionar"));
+    await click(findButton(table(), "Adicionar"));
+    const cells = (header: string) => [...table().querySelectorAll<HTMLInputElement>(`[aria-label="${header} (nova linha)"]`)];
+    // A linha de cima é gravada primeiro: a de baixo falha (e-mail de quem já tem ficha) depois dela.
+    await typeInto(cells("Nome completo")[0], "Gabi Nunes");
+    await typeInto(cells("Data de início")[0], "01/03/2099");
+    await typeInto(cells("Nome completo")[1], "Eva Outra");
+    await typeInto(cells("E-mail")[1], "eva@empresa.com");
+    await typeInto(cells("Data de início")[1], "01/03/2099");
+    await click(findButton(table(), "Salvar"));
+    await until(() => page!.text().includes("Já existe um colaborador com este e-mail"), "erro da segunda linha");
+    const names = async () => (await testDb().select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [C])).map((item) => item.name).sort();
+    expect(await names()).toEqual(["Eva Prado"]);
+
+    await typeInto(cells("E-mail")[1], "eva.outra@empresa.com");
+    await click(findButton(table(), "Salvar"));
+    await until(() => page!.text().includes("2 linhas salvas"), "salvou");
+    expect(await names()).toEqual(["Eva Outra", "Eva Prado", "Gabi Nunes"]);
+  });
 });
 
 describe("Ficha do colaborador", () => {

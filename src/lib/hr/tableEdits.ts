@@ -1,15 +1,18 @@
 // Gravação das tabelas editáveis do RH (EditableTable): colaboradores, solicitações, pendências, comunicados e banco
 // de horas. Cada função recebe só o que mudou (por id) e confere permissão e regras aqui, não só na tela. Decisões
 // (aprovar/recusar) continuam nas funções próprias; o que já foi decidido não se altera pela tabela.
+// Todas as linhas do lote são conferidas antes da primeira escrita: se a gravação falha, a tabela mantém todos os
+// rascunhos, e uma linha já gravada seria gravada de novo (duplicada) ao salvar outra vez.
 // Funções com `db` recebem o banco (getDb() da tela ou o SQLite dos testes); SQL nos padrões do banco demo.
 import { v4 as uuidv4 } from "uuid";
 import type { CalendarItem } from "@/components/shared/CalendarView";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { can } from "@/lib/permissions/rbac";
 import type { ContractType, Employee, HrAnnouncement, HrAnnouncementCategory, HrRequest, HrRequestType, HrTask, HrTimeEntry, Role } from "@/types";
-import { emptyEmployeeInput, employeeToInput, fetchEmployee, saveEmployee, type EmployeeInput } from "./employees";
+import { emptyEmployeeInput, employeeToInput, fetchEmployee, saveEmployee, validateEmployee, type EmployeeInput } from "./employees";
+import { duplicateEmailMessage } from "./employment";
 import { REQUEST_TYPE_LABEL, REQUEST_TYPES, inclusiveDays, validateRequest, vacationBalance } from "./rules";
-import { addTimeEntry, formatMinutes, parseDuration, validateTimeEntry } from "./timebank";
+import { addTimeEntry, formatMinutes, parseDuration, validateTimeEntry, type NewTimeEntry } from "./timebank";
 
 export interface HrActor {
   role: Role;
@@ -51,20 +54,40 @@ function applyEmployeeFields(input: EmployeeInput, fields: EmployeeRowFields): E
   return next;
 }
 
+const emailKey = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();
+
 /** Colaboradores criados e alterados na tabela da Gestão de RH. O resto da ficha (endereço, documentos...) fica como está. */
 export async function saveEmployeeRows(db: DatabaseLike, companyId: string, role: Role, changes: RowChanges<EmployeeRowFields>, today: string): Promise<{ created: string[] }> {
   if (changes.created.length) requirePermission(role, "create", "hr_admin", "colaboradores");
   if (changes.updated.length) requirePermission(role, "edit", "hr_admin", "colaboradores");
-  for (const fields of changes.updated) {
-    const current = await fetchEmployee(db, companyId, fields.id);
+  const all = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL", [companyId]);
+  const updates = changes.updated.map((fields) => {
+    const current = all.find((employee) => employee.id === fields.id);
     if (!current) throw new Error("Colaborador não encontrado.");
-    await saveEmployee(db, companyId, applyEmployeeFields(employeeToInput(current), fields), fields.id, today);
+    return { id: fields.id, input: applyEmployeeFields(employeeToInput(current), fields) };
+  });
+  const creates = changes.created.map((fields) => applyEmployeeFields(emptyEmployeeInput(), fields));
+  for (const input of [...updates.map((update) => update.input), ...creates]) {
+    const problem = validateEmployee(input, today);
+    if (problem) throw new Error(problem);
   }
+  // E-mail de outra pessoa, na ordem em que saveEmployee grava (alterações e depois cadastros novos).
+  const emails = new Map(all.map((employee) => [employee.id, emailKey(employee.email)]));
+  for (const update of updates) {
+    const email = emailKey(update.input.email);
+    const clash = email ? all.find((employee) => employee.id !== update.id && emails.get(employee.id) === email) : undefined;
+    if (clash) throw new Error(`Já existe um colaborador com este e-mail: ${clash.name}.`);
+    emails.set(update.id, email);
+  }
+  for (const input of creates) {
+    const email = emailKey(input.email);
+    const same = email ? all.find((employee) => emails.get(employee.id) === email) : undefined;
+    if (same?.status === "desligado") throw new Error(duplicateEmailMessage(same));
+  }
+
+  for (const update of updates) await saveEmployee(db, companyId, update.input, update.id, today);
   const created: string[] = [];
-  for (const fields of changes.created) {
-    const result = await saveEmployee(db, companyId, applyEmployeeFields(emptyEmployeeInput(), fields), null, today);
-    created.push(result.id);
-  }
+  for (const input of creates) created.push((await saveEmployee(db, companyId, input, null, today)).id);
   return { created };
 }
 
@@ -77,15 +100,14 @@ async function employeeRequests(db: DatabaseLike, companyId: string, employeeId:
   return db.select<HrRequest[]>("SELECT * FROM hr_requests WHERE company_id=? AND employee_id=? AND deleted_at IS NULL", [companyId, employeeId]);
 }
 
-async function checkRequest(db: DatabaseLike, companyId: string, employeeId: string, input: { type: string; start: string; end: string }, today: string, ignoreId?: string): Promise<void> {
-  if (!REQUEST_TYPE_SET.has(input.type)) throw new Error("Tipo de solicitação inválido.");
-  const employee = await fetchEmployee(db, companyId, employeeId);
-  if (!employee) throw new Error("Colaborador não encontrado.");
-  const others = (await employeeRequests(db, companyId, employeeId)).filter((request) => request.id !== ignoreId);
-  // O saldo é o do ano em que as férias começam (não o de hoje).
-  const year = Number((input.start || today).slice(0, 4));
-  const problem = validateRequest({ type: input.type as HrRequestType, start: input.start, end: input.end }, vacationBalance(employee, others, year), today);
-  if (problem) throw new Error(problem);
+type BalanceRequest = Pick<HrRequest, "id" | "type" | "status" | "days" | "start_date">;
+interface RequestPlan {
+  id: string;
+  employeeId: string;
+  type: string;
+  start: string;
+  end: string;
+  reason: string | null;
 }
 
 /**
@@ -100,38 +122,65 @@ export async function saveRequestRows(db: DatabaseLike, companyId: string, actor
     requirePermission(actor.role, "edit", "hr_admin", "solicitações");
   }
 
+  // Saldo de férias por colaborador, já com as linhas do lote conferidas antes (pendentes até o RH decidir).
+  const known = new Map<string, { employee: Employee; requests: BalanceRequest[] }>();
+  async function check(plan: RequestPlan): Promise<void> {
+    if (!REQUEST_TYPE_SET.has(plan.type)) throw new Error("Tipo de solicitação inválido.");
+    let entry = known.get(plan.employeeId);
+    if (!entry) {
+      const employee = await fetchEmployee(db, companyId, plan.employeeId);
+      if (!employee) throw new Error("Colaborador não encontrado.");
+      entry = { employee, requests: await employeeRequests(db, companyId, plan.employeeId) };
+      known.set(plan.employeeId, entry);
+    }
+    const others = entry.requests.filter((request) => request.id !== plan.id);
+    // O saldo é o do ano em que as férias começam (não o de hoje).
+    const year = Number((plan.start || today).slice(0, 4));
+    const problem = validateRequest({ type: plan.type as HrRequestType, start: plan.start, end: plan.end }, vacationBalance(entry.employee, others, year), today);
+    if (problem) throw new Error(problem);
+    entry.requests = [...others, { id: plan.id, type: plan.type as HrRequestType, status: "pendente", days: inclusiveDays(plan.start, plan.end), start_date: plan.start }];
+  }
+
+  const updates: RequestPlan[] = [];
   for (const fields of changes.updated) {
     const [current] = await db.select<HrRequest[]>("SELECT * FROM hr_requests WHERE company_id=? AND id=? AND deleted_at IS NULL", [companyId, fields.id]);
     if (!current) throw new Error("Solicitação não encontrada.");
     if (current.status !== "pendente") throw new Error("Esta solicitação já foi decidida e não se altera.");
     if ("employee_id" in fields && fields.employee_id !== current.employee_id) throw new Error("Para trocar o colaborador, registre outra solicitação.");
-    const next = {
+    const plan: RequestPlan = {
+      id: current.id,
+      employeeId: current.employee_id,
       type: "type" in fields ? text(fields.type) : current.type,
       start: "start_date" in fields ? text(fields.start_date) : current.start_date,
       end: "end_date" in fields ? text(fields.end_date) : current.end_date,
       reason: "reason" in fields ? text(fields.reason) || null : current.reason ?? null,
     };
-    await checkRequest(db, companyId, current.employee_id, next, today, current.id);
-    await db.execute(
-      "UPDATE hr_requests SET type=?, start_date=?, end_date=?, days=?, reason=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND status='pendente' AND deleted_at IS NULL",
-      [next.type, next.start, next.end, inclusiveDays(next.start, next.end), next.reason, companyId, current.id],
-    );
+    await check(plan);
+    updates.push(plan);
   }
 
-  const created: string[] = [];
+  const creates: RequestPlan[] = [];
   for (const fields of changes.created) {
     const employeeId = options.employeeId ?? text(fields.employee_id);
     if (!employeeId) throw new Error("Escolha o colaborador.");
-    const input = { type: text(fields.type) || "ferias", start: text(fields.start_date), end: text(fields.end_date) };
-    await checkRequest(db, companyId, employeeId, input, today);
-    const id = uuidv4();
+    const plan: RequestPlan = { id: uuidv4(), employeeId, type: text(fields.type) || "ferias", start: text(fields.start_date), end: text(fields.end_date), reason: text(fields.reason) || null };
+    await check(plan);
+    creates.push(plan);
+  }
+
+  for (const plan of updates) {
+    await db.execute(
+      "UPDATE hr_requests SET type=?, start_date=?, end_date=?, days=?, reason=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND status='pendente' AND deleted_at IS NULL",
+      [plan.type, plan.start, plan.end, inclusiveDays(plan.start, plan.end), plan.reason, companyId, plan.id],
+    );
+  }
+  for (const plan of creates) {
     await db.execute(
       "INSERT INTO hr_requests (id, company_id, employee_id, type, start_date, end_date, days, reason, status) VALUES (?,?,?,?,?,?,?,?,?)",
-      [id, companyId, employeeId, input.type, input.start, input.end, inclusiveDays(input.start, input.end), text(fields.reason) || null, "pendente"],
+      [plan.id, companyId, plan.employeeId, plan.type, plan.start, plan.end, inclusiveDays(plan.start, plan.end), plan.reason, "pendente"],
     );
-    created.push(id);
   }
-  return { created };
+  return { created: creates.map((plan) => plan.id) };
 }
 
 // ── Pendências ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -149,33 +198,37 @@ export async function saveTaskRows(db: DatabaseLike, companyId: string, actor: H
     return optionalDate(fields.due_date, "Prazo inválido.");
   };
 
+  const updates: { id: string; title: string; due: string | null; status: string }[] = [];
   for (const fields of changes.updated) {
     const [current] = await db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND id=? AND deleted_at IS NULL", [companyId, fields.id]);
     if (!current) throw new Error("Pendência não encontrada.");
     if ("employee_id" in fields && fields.employee_id !== current.employee_id) throw new Error("Para pedir a outra pessoa, crie outra pendência.");
     const due = check(fields, false);
-    await db.execute(
-      "UPDATE hr_tasks SET title=?, due_date=?, status=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL",
-      ["title" in fields ? text(fields.title) : current.title, "due_date" in fields ? due : current.due_date ?? null, fields.status ?? current.status, companyId, current.id],
-    );
+    updates.push({ id: current.id, title: "title" in fields ? text(fields.title) : current.title, due: "due_date" in fields ? due : current.due_date ?? null, status: fields.status ?? current.status });
   }
 
-  const created: string[] = [];
+  const creates: { id: string; employeeId: string; title: string; due: string | null; status: string }[] = [];
   for (const fields of changes.created) {
     const due = check(fields, true);
     const target = text(fields.employee_id);
     const targets = target === "todos" ? [...activeEmployeeIds] : activeEmployeeIds.includes(target) ? [target] : [];
     if (targets.length === 0) throw new Error("Escolha para quem é a pendência (colaborador ativo ou todos).");
-    for (const employeeId of targets) {
-      const id = uuidv4();
-      await db.execute(
-        "INSERT INTO hr_tasks (id, company_id, employee_id, title, due_date, status, created_by) VALUES (?,?,?,?,?,?,?)",
-        [id, companyId, employeeId, text(fields.title), due, fields.status ?? "pendente", actor.userId],
-      );
-      created.push(id);
-    }
+    for (const employeeId of targets) creates.push({ id: uuidv4(), employeeId, title: text(fields.title), due, status: fields.status ?? "pendente" });
   }
-  return { created };
+
+  for (const task of updates) {
+    await db.execute(
+      "UPDATE hr_tasks SET title=?, due_date=?, status=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL",
+      [task.title, task.due, task.status, companyId, task.id],
+    );
+  }
+  for (const task of creates) {
+    await db.execute(
+      "INSERT INTO hr_tasks (id, company_id, employee_id, title, due_date, status, created_by) VALUES (?,?,?,?,?,?,?)",
+      [task.id, companyId, task.employeeId, task.title, task.due, task.status, actor.userId],
+    );
+  }
+  return { created: creates.map((task) => task.id) };
 }
 
 // ── Comunicados ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -193,19 +246,20 @@ export async function saveAnnouncementRows(db: DatabaseLike, companyId: string, 
     if (fields.category != null && !CATEGORIES.has(fields.category)) throw new Error("Categoria inválida.");
   };
 
+  const updates: unknown[][] = [];
   for (const fields of changes.updated) {
     const [current] = await db.select<HrAnnouncement[]>("SELECT * FROM hr_announcements WHERE company_id=? AND id=? AND deleted_at IS NULL", [companyId, fields.id]);
     if (!current) throw new Error("Comunicado não encontrado.");
     check(fields, false);
-    await db.execute(
-      "UPDATE hr_announcements SET title=?, body=?, category=?, pinned=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL",
-      ["title" in fields ? text(fields.title) : current.title, "body" in fields ? text(fields.body) : current.body, fields.category ?? current.category, "pinned" in fields ? flag(fields.pinned) : current.pinned, companyId, current.id],
-    );
+    updates.push(["title" in fields ? text(fields.title) : current.title, "body" in fields ? text(fields.body) : current.body, fields.category ?? current.category, "pinned" in fields ? flag(fields.pinned) : current.pinned, companyId, current.id]);
   }
+  for (const fields of changes.created) check(fields, true);
 
+  for (const values of updates) {
+    await db.execute("UPDATE hr_announcements SET title=?, body=?, category=?, pinned=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL", values);
+  }
   const created: string[] = [];
   for (const fields of changes.created) {
-    check(fields, true);
     const id = uuidv4();
     await db.execute(
       "INSERT INTO hr_announcements (id, company_id, title, body, category, pinned, published_by, published_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -244,10 +298,12 @@ export async function saveTimeEntryRows(db: DatabaseLike, companyId: string, act
     requirePermission(actor.role, "edit", "hr_admin", "lançamentos no banco de horas");
   }
 
+  const updates: { id: string; date: string; minutes: number; reason: string }[] = [];
   for (const fields of changes.updated) {
     const [current] = await db.select<HrTimeEntry[]>("SELECT * FROM hr_time_entries WHERE company_id=? AND id=? AND deleted_at IS NULL", [companyId, fields.id]);
     if (!current) throw new Error("Lançamento não encontrado.");
     if (current.status !== "pendente") throw new Error("Lançamento já decidido não se altera: lance um ajuste (crédito ou compensação).");
+    if ("employee_id" in fields && fields.employee_id !== current.employee_id) throw new Error("Para lançar para outra pessoa, registre outro lançamento.");
     const next = {
       date: "entry_date" in fields ? text(fields.entry_date) : current.entry_date,
       minutes: "hours" in fields ? minutesOf(fields.hours) : current.minutes,
@@ -255,20 +311,28 @@ export async function saveTimeEntryRows(db: DatabaseLike, companyId: string, act
     };
     const problem = validateTimeEntry(next, today);
     if (problem) throw new Error(problem);
-    await db.execute(
-      "UPDATE hr_time_entries SET entry_date=?, minutes=?, reason=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND status='pendente' AND deleted_at IS NULL",
-      [next.date, next.minutes, next.reason.trim(), companyId, current.id],
-    );
+    updates.push({ id: current.id, ...next });
   }
 
-  const created: string[] = [];
+  const creates: NewTimeEntry[] = [];
   for (const fields of changes.created) {
     const employeeId = options.employeeId ?? text(fields.employee_id);
     if (!employeeId) throw new Error("Escolha o colaborador.");
     if (!(await fetchEmployee(db, companyId, employeeId))) throw new Error("Colaborador não encontrado.");
-    const id = await addTimeEntry(db, companyId, { employeeId, date: text(fields.entry_date), minutes: minutesOf(fields.hours), reason: text(fields.reason) }, actor.userId, today, rh ? actor.userId : null);
-    created.push(id);
+    const entry = { employeeId, date: text(fields.entry_date), minutes: minutesOf(fields.hours), reason: text(fields.reason) };
+    const problem = validateTimeEntry(entry, today);
+    if (problem) throw new Error(problem);
+    creates.push(entry);
   }
+
+  for (const next of updates) {
+    await db.execute(
+      "UPDATE hr_time_entries SET entry_date=?, minutes=?, reason=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND status='pendente' AND deleted_at IS NULL",
+      [next.date, next.minutes, next.reason.trim(), companyId, next.id],
+    );
+  }
+  const created: string[] = [];
+  for (const entry of creates) created.push(await addTimeEntry(db, companyId, entry, actor.userId, today, rh ? actor.userId : null));
   return { created };
 }
 

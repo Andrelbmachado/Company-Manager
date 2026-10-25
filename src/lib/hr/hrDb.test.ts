@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import { EMPTY_ADDRESS, emptyEmployeeInput, employeeToInput, fetchEmployee, formatAddress, parseAddress, saveEmployee, validateEmployee, type EmployeeInput } from "./employees";
-import { ADMISSION_STEPS, TERMINATION_STEPS, applyDueTerminations, cancelTermination, cycleCases, setTaskDone, startAdmission, startTermination } from "./employment";
+import { ADMISSION_STEPS, TERMINATION_STEPS, applyDueTerminations, cancelTermination, checkAdmissions, cycleCases, setTaskDone, startAdmission, startTermination } from "./employment";
 import { addTimeEntry, decideTimeEntry, fetchEmployeeTimeEntries, fetchTimeEntries, withdrawTimeEntry } from "./timebank";
 import type { Employee, HrTask, HrTimeEntry } from "@/types";
 
@@ -127,6 +127,16 @@ describe("admissão e desligamento", () => {
     expect(tasks.at(-1)?.due_date).toBe("2026-12-17");
     await expect(startAdmission(db, C, { name: "Outro", email: "rafael@empresa.com", department: "", position: "", hire_date: "2026-11-02", contract_type: "" }, RH)).rejects.toThrow(/Rafael/);
     await expect(startAdmission(db, C, { name: "Sem data", email: "", department: "", position: "", hire_date: "", contract_type: "" }, RH)).rejects.toThrow(/data de início/);
+  });
+
+  it("várias admissões na mesma gravação: confere todas antes de gravar a primeira", async () => {
+    const base = { department: "", position: "", hire_date: "2026-11-02", contract_type: "" as const };
+    await startAdmission(db, C, { ...base, name: "Rafael", email: "rafael@empresa.com" }, RH);
+    await expect(checkAdmissions(db, C, [{ ...base, name: "Bia", email: "" }, { ...base, name: "Sem data", email: "", hire_date: "" }])).rejects.toThrow(/data de início/);
+    await expect(checkAdmissions(db, C, [{ ...base, name: "Bia", email: "bia@empresa.com" }, { ...base, name: "Bia Souza", email: "BIA@empresa.com" }])).rejects.toThrow(/mais de uma admissão/);
+    await expect(checkAdmissions(db, C, [{ ...base, name: "Bia", email: "" }, { ...base, name: "Outro", email: "Rafael@Empresa.com" }])).rejects.toThrow(/Rafael/);
+    await checkAdmissions(db, C, [{ ...base, name: "Bia", email: "" }, { ...base, name: "Caio", email: "caio@empresa.com" }]);
+    expect((await employees()).map((employee) => employee.name)).toEqual(["Rafael"]);
   });
 
   it("desligamento com data passada efetiva na hora; segundo desligamento é recusado", async () => {

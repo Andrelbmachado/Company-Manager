@@ -108,6 +108,77 @@ describe("banco de horas na tabela", () => {
     expect(await one<HrTimeEntry>("SELECT * FROM hr_time_entries WHERE id=?", [created[0]])).toMatchObject({ employee_id: me, minutes: 75, status: "pendente", decided_by: null });
     await expect(saveTimeEntryRows(db, C, self, { created: [], updated: [{ id: created[0], hours: "2h" }] }, TODAY, { mode: "self", employeeId: me })).rejects.toThrow(/RH/);
   });
+
+  it("trocar o colaborador de um lançamento é recusado, não ignorado", async () => {
+    const ana = await employee("Ana");
+    const bia = await employee("Bia");
+    const pending = await addTimeEntry(db, C, { employeeId: ana, date: TODAY, minutes: 60, reason: "Plantão" }, "test-user-tecnico", TODAY);
+    await expect(saveTimeEntryRows(db, C, rh, { created: [], updated: [{ id: pending, employee_id: bia }] }, TODAY, { mode: "rh" })).rejects.toThrow(/outro lançamento/);
+    expect((await one<HrTimeEntry>("SELECT * FROM hr_time_entries WHERE id=?", [pending])).employee_id).toBe(ana);
+  });
+});
+
+// A tabela mantém todos os rascunhos quando a gravação falha: se uma linha errada só aparecesse depois de outras já
+// gravadas, salvar de novo duplicaria essas outras. Por isso tudo é conferido antes da primeira escrita.
+describe("lote com uma linha errada não grava nenhuma", () => {
+  const count = async (table: string) => (await db.select<{ n: number }[]>(`SELECT COUNT(*) AS n FROM ${table} WHERE company_id=? AND deleted_at IS NULL`, [C]))[0].n;
+
+  it("banco de horas: o RH lança duas horas e a segunda está errada", async () => {
+    const ana = await employee("Ana");
+    await expect(saveTimeEntryRows(db, C, rh, { created: [{ employee_id: ana, entry_date: TODAY, hours: "2:00", reason: "Plantão" }, { employee_id: ana, entry_date: TODAY, hours: "abc", reason: "X" }], updated: [] }, TODAY, { mode: "rh" })).rejects.toThrow(/duração/);
+    expect(await count("hr_time_entries")).toBe(0);
+    const pending = await addTimeEntry(db, C, { employeeId: ana, date: TODAY, minutes: 60, reason: "Plantão" }, "test-user-tecnico", TODAY);
+    await expect(saveTimeEntryRows(db, C, rh, { created: [{ employee_id: "nao-existe", entry_date: TODAY, hours: "1:00", reason: "X" }], updated: [{ id: pending, hours: "3:00" }] }, TODAY, { mode: "rh" })).rejects.toThrow(/não encontrado/);
+    expect((await one<HrTimeEntry>("SELECT * FROM hr_time_entries WHERE id=?", [pending])).minutes).toBe(60);
+    expect(await count("hr_time_entries")).toBe(1);
+  });
+
+  it("solicitações: o saldo de férias conta as outras linhas do mesmo lote", async () => {
+    const ana = await employee("Ana", { vacation_days_entitled: 15 });
+    const twoVacations = [
+      { employee_id: ana, type: "ferias" as const, start_date: "2026-11-02", end_date: "2026-11-11" },
+      { employee_id: ana, type: "ferias" as const, start_date: "2026-12-01", end_date: "2026-12-10" },
+    ];
+    await expect(saveRequestRows(db, C, rh, { created: twoVacations, updated: [] }, TODAY)).rejects.toThrow(/5 dia\(s\) de férias/);
+    expect(await count("hr_requests")).toBe(0);
+    await expect(saveRequestRows(db, C, rh, { created: [{ employee_id: ana, type: "folga", start_date: "2026-11-02", end_date: "2026-11-02" }, { employee_id: ana, type: "folga", start_date: "2026-11-05", end_date: "2026-11-04" }], updated: [] }, TODAY)).rejects.toThrow(/anterior/);
+    expect(await count("hr_requests")).toBe(0);
+
+    const { created } = await saveRequestRows(db, C, rh, { created: [twoVacations[0]], updated: [] }, TODAY);
+    // Aumentar a pendente para 12 dias e pedir mais 10 passa do direito (15): nada muda.
+    await expect(saveRequestRows(db, C, rh, { created: [twoVacations[1]], updated: [{ id: created[0], end_date: "2026-11-13" }] }, TODAY)).rejects.toThrow(/3 dia\(s\) de férias/);
+    expect(await count("hr_requests")).toBe(1);
+    expect((await one<HrRequest>("SELECT * FROM hr_requests WHERE id=?", [created[0]])).days).toBe(10);
+  });
+
+  it("pendências e comunicados", async () => {
+    const a = await employee("Ana");
+    await expect(saveTaskRows(db, C, rh, { created: [{ employee_id: a, title: "Assinar contrato" }, { employee_id: a, title: " " }], updated: [] }, [a])).rejects.toThrow(/pendência/);
+    expect(await count("hr_tasks")).toBe(0);
+    const { created } = await saveTaskRows(db, C, rh, { created: [{ employee_id: a, title: "Assinar contrato" }], updated: [] }, [a]);
+    await expect(saveTaskRows(db, C, rh, { created: [{ employee_id: "inativo", title: "Outra" }], updated: [{ id: created[0], status: "concluida" }] }, [a])).rejects.toThrow(/para quem/);
+    expect((await one<HrTask>("SELECT * FROM hr_tasks WHERE id=?", [created[0]])).status).toBe("pendente");
+
+    await expect(saveAnnouncementRows(db, C, rh, { created: [{ title: "Recesso", body: "Dia 24" }, { title: "Sem texto", body: "" }], updated: [] })).rejects.toThrow(/texto/);
+    expect(await count("hr_announcements")).toBe(0);
+  });
+
+  it("colaboradores: regras da ficha e e-mail de outra pessoa conferidos antes de gravar", async () => {
+    const a = await employee("Ana", { email: "ana@empresa.com" });
+    const b = await employee("Bruno");
+    await employee("Eduardo", { email: "edu@empresa.com", status: "desligado" });
+    const before = await count("employees");
+
+    await expect(saveEmployeeRows(db, C, "rh", { created: [{ name: "Caio" }, { name: "Duda", email: "sem-arroba" }], updated: [{ id: a, position: "Gerente" }] }, TODAY)).rejects.toThrow(/E-mail inválido/);
+    await expect(saveEmployeeRows(db, C, "rh", { created: [], updated: [{ id: a, position: "Gerente" }, { id: b, email: "ANA@empresa.com" }] }, TODAY)).rejects.toThrow(/Já existe um colaborador com este e-mail: Ana/);
+    await expect(saveEmployeeRows(db, C, "rh", { created: [{ name: "Caio" }, { name: "Edu", email: "edu@empresa.com" }], updated: [] }, TODAY)).rejects.toThrow(/desligado/);
+    expect(await count("employees")).toBe(before);
+    expect((await one<Employee>("SELECT * FROM employees WHERE id=?", [a])).position).toBeNull();
+
+    // Trocar e-mails entre duas pessoas no mesmo lote continua possível (vale o resultado final).
+    await saveEmployeeRows(db, C, "rh", { created: [], updated: [{ id: a, email: "ana.lima@empresa.com" }, { id: b, email: "ana@empresa.com" }] }, TODAY);
+    expect((await one<Employee>("SELECT * FROM employees WHERE id=?", [b])).email).toBe("ana@empresa.com");
+  });
 });
 
 describe("itens do calendário", () => {

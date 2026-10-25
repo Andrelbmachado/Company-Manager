@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { fetchEmployees, fetchHrTasks } from "@/lib/hr/queries";
 import { CONTRACT_TYPES } from "@/lib/hr/employees";
-import { applyDueTerminations, cancelTermination, cycleCases, setTaskDone, startAdmission, startTermination, type CycleCase } from "@/lib/hr/employment";
+import { applyDueTerminations, cancelTermination, checkAdmissions, cycleCases, setTaskDone, startAdmission, startTermination, type AdmissionInput, type CycleCase } from "@/lib/hr/employment";
 import { saveEmployeeRows, taskCalendarItems } from "@/lib/hr/tableEdits";
 import { CycleCaseCard } from "../components/CycleCaseCard";
 import { TerminationForm, type TerminationDraft } from "../components/TerminationForm";
@@ -75,18 +75,21 @@ export default function EmploymentCyclePage() {
   async function saveAdmissions(changes: EditableTableChanges<AdmissionRow>) {
     const db = await getDb();
     if (changes.created.length && !canCreate) throw new Error("Seu perfil não tem permissão para iniciar admissões.");
-    for (const fields of changes.created) {
-      const result = await startAdmission(db, companyId, {
-        name: String(fields.name ?? ""),
-        email: String(fields.email ?? ""),
-        department: String(fields.department ?? ""),
-        position: String(fields.position ?? ""),
-        hire_date: String(fields.hire_date ?? ""),
-        contract_type: (fields.contract_type ?? "") as ContractType | "",
-      }, session.user.id);
-      await emit({ type: "employee.admission_started", companyId, actorId: session.user.id, entityType: "employee", entityId: result.employeeId, title: `Admissão iniciada: ${String(fields.name ?? "").trim()}`, module: "hr_manage" });
-    }
+    const admissions: AdmissionInput[] = changes.created.map((fields) => ({
+      name: String(fields.name ?? ""),
+      email: String(fields.email ?? ""),
+      department: String(fields.department ?? ""),
+      position: String(fields.position ?? ""),
+      hire_date: String(fields.hire_date ?? ""),
+      contract_type: (fields.contract_type ?? "") as ContractType | "",
+    }));
+    // Tudo conferido antes da primeira escrita: se falhar, a tabela mantém as linhas e nada fica gravado pela metade.
+    await checkAdmissions(db, companyId, admissions);
     if (changes.updated.length) await saveEmployeeRows(db, companyId, role, { created: [], updated: changes.updated }, today);
+    for (const admission of admissions) {
+      const result = await startAdmission(db, companyId, admission, session.user.id);
+      await emit({ type: "employee.admission_started", companyId, actorId: session.user.id, entityType: "employee", entityId: result.employeeId, title: `Admissão iniciada: ${admission.name.trim()}`, module: "hr_manage" });
+    }
     if (changes.created.length) setFilter("andamento");
   }
 

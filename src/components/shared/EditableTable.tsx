@@ -14,7 +14,7 @@ import type { Resource } from "@/lib/permissions/rbac";
 import { cn } from "@/lib/utils";
 import { CellEditor, cellText, displayCell, type EditableColumn } from "./editable/cellEditors";
 import { collectChanges, draftText, hasChanges, hiddenChangedRows, isRowChanged, useRowDrafts } from "./editable/useRowDrafts";
-import { FilterBar, FilterButton, IconButton, SortableHeader, TABLE_ICONS, TH_CLASS, useSortFilter } from "./table";
+import { IconButton, NO_FILTER_MATCH, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterButton, TH_CLASS, useSortFilter } from "./table";
 
 export type { ColumnKind, EditableColumn } from "./editable/cellEditors";
 
@@ -220,7 +220,7 @@ export function EditableTable<T extends { id: string }>({
           {actions}
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <FilterButton open={view.filtersOpen} onToggle={view.toggleFilters} activeCount={view.activeCount} controls={view.filtersId} />
+          <TableFilterButton view={view} />
           {!editing && (
             <IconButton label="Editar" icon={TABLE_ICONS.edit} disabled={!canEdit || loading || busy !== null} title={canEdit ? undefined : NO_EDIT} onClick={startEditing} />
           )}
@@ -243,7 +243,7 @@ export function EditableTable<T extends { id: string }>({
           <IconButton label="Atualizar" icon={TABLE_ICONS.refresh} spinning={busy === "refreshing"} disabled={busy !== null} onClick={() => void refresh()} />
         </div>
       </div>
-      {view.filtersOpen && <FilterBar id={view.filtersId} rows={rows} columns={columns} filters={view.filters} onChange={view.setFilter} onClear={view.clearFilters} />}
+      <TableFilterBar view={view} />
       {message &&
         (message.kind === "error" ? (
           <p role="alert" className="px-4 pt-3 text-sm font-medium text-destructive">{message.text}</p>
@@ -289,7 +289,7 @@ export function EditableTable<T extends { id: string }>({
             {!created.length && !visibleRows.length && (
               <tr>
                 <td colSpan={columnCount} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  {loading ? "Carregando..." : rows.length ? "Nenhum registro com esses filtros." : emptyMessage}
+                  {loading ? "Carregando..." : rows.length ? NO_FILTER_MATCH : emptyMessage}
                 </td>
               </tr>
             )}

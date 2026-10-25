@@ -212,8 +212,13 @@ export function isFilterActive(filter: ColumnFilter | undefined): boolean {
   }
 }
 
-export function activeFilterCount(filters: FilterState): number {
-  return Object.values(filters).filter(isFilterActive).length;
+/**
+ * Quantos filtros tiram linhas. Com `columns`, só os de coluna que está na tabela e é filtrável (os mesmos que
+ * filterRows aplica): filtro de coluna que saiu da tela não aparece no contador.
+ */
+export function activeFilterCount<T>(filters: FilterState, columns?: SortFilterColumn<T>[]): number {
+  const keys = columns ? new Set(columns.filter((column) => column.filterable !== false).map((column) => column.key)) : null;
+  return Object.entries(filters).filter(([key, filter]) => (!keys || keys.has(key)) && isFilterActive(filter)).length;
 }
 
 function isEmptyValue(value: unknown): boolean {

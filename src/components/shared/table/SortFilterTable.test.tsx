@@ -1,10 +1,21 @@
 // Peças reutilizáveis para tabelas que não usam EditableTable: useSortFilter + SortableHeader (clique ordena,
 // aria-sort) + FilterButton/FilterBar (filtros por tipo, contador e limpar) + IconButton (só ícone, com dica).
-import { act } from "react";
+import { act, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Plus } from "lucide-react";
 import { click, plain, renderPage, type as typeInto, type RenderedPage } from "@/test/pageHarness";
-import { FilterBar, FilterButton, IconButton, SortableHeader, useSortFilter, type SortFilterColumn } from ".";
+import {
+  FilterBar,
+  FilterButton,
+  IconButton,
+  NO_FILTER_MATCH,
+  NoFilterMatchRow,
+  SortableHeader,
+  TableFilterBar,
+  TableFilterButton,
+  useSortFilter,
+  type SortFilterColumn,
+} from ".";
 
 interface Row {
   id: string;
@@ -154,6 +165,8 @@ describe("tabela comum com useSortFilter", () => {
     expect(filter.getAttribute("aria-expanded")).toBe("false");
     expect(input("Nome: contém")).toBeNull();
 
+    // aria-controls só aponta para a linha de filtros enquanto ela existe na tela.
+    expect(filter.hasAttribute("aria-controls")).toBe(false);
     await click(filter);
     expect(filter.getAttribute("aria-expanded")).toBe("true");
     expect(document.getElementById(filter.getAttribute("aria-controls")!)).not.toBeNull();
@@ -203,6 +216,68 @@ describe("tabela comum com useSortFilter", () => {
     await typeInto(input("Valor: mínimo"), "9");
     await click(headerButton("Nome"));
     expect(order()).toEqual(["r-2", "r-4", "r-1"]);
+  });
+
+  it("TableFilterButton/TableFilterBar ligam Filtrar e a linha de filtros ao useSortFilter; sem resultado, NoFilterMatchRow avisa", async () => {
+    function Bound() {
+      const view = useSortFilter(ROWS, COLUMNS);
+      return (
+        <div>
+          <TableFilterButton view={view} />
+          <TableFilterBar view={view} />
+          <table>
+            <tbody>
+              {view.rows.map((row) => (
+                <tr key={row.id} data-row-key={row.id}>
+                  <td>{row.name}</td>
+                </tr>
+              ))}
+              {!view.rows.length && <NoFilterMatchRow colSpan={4} />}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    page = await renderPage(<Bound />, { companyId: "empresa-1", role: "ceo" });
+    const filter = page.button("Filtrar")!;
+    expect(document.querySelector("[data-filter-bar]")).toBeNull();
+    expect(filter.hasAttribute("aria-controls")).toBe(false);
+    await click(filter);
+    expect(document.getElementById(filter.getAttribute("aria-controls")!)?.hasAttribute("data-filter-bar")).toBe(true);
+    await typeInto(input("Nome: contém"), "zzz");
+    expect(order()).toEqual([null]);
+    expect(document.querySelector("tbody td")?.getAttribute("colspan")).toBe("4");
+    expect(page.text()).toContain(NO_FILTER_MATCH);
+    expect(filter.querySelector("[data-filter-count]")?.textContent).toBe("1");
+    await click(filter);
+    expect(document.querySelector("[data-filter-bar]")).toBeNull();
+    // Fechar a linha não tira o filtro: o número continua no botão.
+    expect(filter.querySelector("[data-filter-count]")?.textContent).toBe("1");
+  });
+
+  it("filtro de coluna que saiu da tabela não conta nem filtra", async () => {
+    function Switching() {
+      const [withAmount, setWithAmount] = useState(true);
+      const columns = withAmount ? COLUMNS : COLUMNS.filter((column) => column.key !== "amount");
+      const view = useSortFilter(ROWS, columns);
+      return (
+        <div>
+          <button type="button" onClick={() => setWithAmount(false)}>Sem valor</button>
+          <TableFilterButton view={view} />
+          <TableFilterBar view={view} />
+          <ul>{view.rows.map((row) => <li key={row.id}>{row.name}</li>)}</ul>
+        </div>
+      );
+    }
+    page = await renderPage(<Switching />, { companyId: "empresa-1", role: "ceo" });
+    await click(page.button("Filtrar"));
+    await typeInto(input("Valor: mínimo"), "100");
+    expect(document.querySelectorAll("li")).toHaveLength(1);
+    expect(page.button("Filtrar")!.querySelector("[data-filter-count]")?.textContent).toBe("1");
+    await click(page.button("Sem valor"));
+    expect(document.querySelectorAll("li")).toHaveLength(4);
+    expect(page.button("Filtrar")!.querySelector("[data-filter-count]")).toBeNull();
+    expect(page.text()).not.toMatch(/filtro ativo/);
   });
 
   it("múltipla escolha com muitas opções vira lista suspensa compacta que resume o que foi marcado", async () => {

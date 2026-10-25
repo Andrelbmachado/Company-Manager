@@ -11,6 +11,9 @@ export interface SortFilterOptions {
 export interface SortFilterView<T> {
   /** Linhas filtradas e ordenadas. */
   rows: T[];
+  /** Linhas recebidas, antes do filtro (de onde saem as opções da múltipla escolha). */
+  source: T[];
+  columns: SortFilterColumn<T>[];
   sort: SortState | null;
   setSort: (sort: SortState | null) => void;
   /** Clique no cabeçalho: crescente → decrescente → sem ordenação. */
@@ -19,7 +22,7 @@ export interface SortFilterView<T> {
   /** `null` remove o filtro da coluna. */
   setFilter: (key: string, filter: ColumnFilter | null) => void;
   clearFilters: () => void;
-  /** Quantos filtros estão tirando linhas. */
+  /** Quantos filtros estão tirando linhas (só de colunas presentes). */
   activeCount: number;
   filtersOpen: boolean;
   setFiltersOpen: (open: boolean) => void;
@@ -50,13 +53,15 @@ export function useSortFilter<T>(rows: T[], columns: SortFilterColumn<T>[], opti
 
   return {
     rows: visible,
+    source: rows,
+    columns,
     sort,
     setSort,
     toggleSort,
     filters,
     setFilter,
     clearFilters,
-    activeCount: activeFilterCount(filters),
+    activeCount: activeFilterCount(filters, columns),
     filtersOpen,
     setFiltersOpen,
     toggleFilters,

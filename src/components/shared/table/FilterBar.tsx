@@ -24,7 +24,7 @@ const INLINE_CHOICES = 3;
 
 export function FilterBar<T>({ id, rows, columns, filters, onChange, onClear, className }: FilterBarProps<T>) {
   const filterable = columns.filter((column) => column.filterable !== false);
-  const count = activeFilterCount(filters);
+  const count = activeFilterCount(filters, columns);
   return (
     <div
       id={id}

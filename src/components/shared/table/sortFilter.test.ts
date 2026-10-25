@@ -192,6 +192,19 @@ describe("choiceOptions e activeFilterCount", () => {
     ).toBe(2);
   });
 
+  it("com as colunas, conta só o filtro de coluna que está na tabela e é filtrável (o mesmo que filterRows aplica)", () => {
+    const filters = {
+      name: { type: "text", contains: "ana" },
+      amount: { type: "range", min: "10", max: "" },
+      sumiu: { type: "text", contains: "x" },
+    } as const;
+    const locked: SortFilterColumn<Row> = { ...AMOUNT, filterable: false };
+    expect(activeFilterCount(filters)).toBe(3);
+    expect(activeFilterCount(filters, [NAME, AMOUNT])).toBe(2);
+    expect(activeFilterCount(filters, [NAME, locked])).toBe(1);
+    expect(activeFilterCount(filters, [])).toBe(0);
+  });
+
   it("applySortFilter filtra e depois ordena", () => {
     const list = rows([{ name: "Carla", amount: 30 }, { name: "Ana", amount: 5 }, { name: "Bruno", amount: 20 }]);
     const result = applySortFilter(list, COLUMNS, { key: "name", direction: "desc" }, { amount: { type: "range", min: "10", max: "" } });

@@ -49,7 +49,7 @@ export interface FilterButtonProps {
   onToggle: () => void;
   /** Filtros ativos: aparece como número no canto do botão. */
   activeCount: number;
-  /** id da FilterBar (aria-controls). */
+  /** id da FilterBar: vai no aria-controls só com a linha aberta (fechada, ela não está na tela). */
   controls?: string;
   disabled?: boolean;
   className?: string;
@@ -63,7 +63,7 @@ export function FilterButton({ open, onToggle, activeCount, controls, disabled, 
       type="button"
       aria-label="Filtrar"
       aria-expanded={open}
-      aria-controls={controls}
+      aria-controls={open ? controls : undefined}
       title={title}
       disabled={disabled}
       onClick={onToggle}

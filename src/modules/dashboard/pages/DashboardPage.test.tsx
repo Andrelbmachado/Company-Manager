@@ -283,6 +283,39 @@ describe("DashboardPage (resumo do topo e balanço anual)", () => {
     expect(container.querySelectorAll("[data-chart='balance'] table tbody tr")).toHaveLength(12);
   });
 
+  it("home aberta de domingo para segunda: a semana vira sozinha, sem trocar de página", async () => {
+    // Só o relógio (Date) é falso: as esperas do teste e das consultas continuam reais.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // Domingo, 25/10/2026, 23:59 (horário local): a semana é só o domingo.
+      vi.setSystemTime(new Date(2026, 9, 25, 23, 59, 0));
+      const db = testDb();
+      await insertTestCompany(db);
+      await addReceivable(db, "test-company", { id: "r-domingo", amount: 300, due_date: "2026-10-25" });
+      await addPayable(db, "test-company", { id: "p-segunda", amount: 120, due_date: "2026-10-26", status: "aprovada" });
+      await render("financeiro");
+      await settled();
+      await overviewLoaded();
+      const week = () => overviewCards().filter((card) => card.key !== "result").map((card) => card.value);
+      expect(week()).toEqual(["R$ 0,00", "R$ 300,00"]);
+
+      // 00:00:30 de segunda: a janela volta a ter foco e a semana passa a ser de 26/10 a 01/11.
+      vi.setSystemTime(new Date(2026, 9, 26, 0, 0, 30));
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      for (let attempt = 0; attempt < 300 && week()[0] !== "R$ 120,00"; attempt++) {
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        });
+      }
+      await overviewLoaded();
+      expect(week()).toEqual(["R$ 120,00", "R$ 0,00"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("gráficos da home são monocromáticos: as séries só usam os tokens cinza do tema (nada do vermelho de erro)", () => {
     for (const color of Object.values(SERIES_COLORS)) expect(color).toMatch(/^hsl\(var\(--(primary|foreground|muted-foreground)\)( \/ 0?\.\d+)?\)$/);
   });

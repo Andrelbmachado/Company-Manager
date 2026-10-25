@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
+import { useToday } from "@/hooks/useToday";
 import { ROLE_LABELS, can } from "@/lib/permissions/rbac";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
@@ -50,7 +51,8 @@ export default function DashboardPage() {
   const role = session.membership.role as Role;
   const companyId = session.company.id;
   const userId = session.user.id;
-  const today = todayIso();
+  // Vira à meia-noite: com o app aberto de um dia para o outro, a semana, o mês e o gráfico não ficam no dia anterior.
+  const today = useToday();
   const { label, profile, loading: labelsLoading } = useAreaLabels();
   const widgets = useMemo(() => roleHome(role), [role]);
   const sectorData = useMemo(() => widgets.filter((widget) => widget.kind !== "shortcut" && !isHrWidget(widget) && !MODULE_PANELS.has(widget.id)), [widgets]);

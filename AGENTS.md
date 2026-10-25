@@ -77,7 +77,7 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
     │   └── layout/                # AppShell (sem top bar; bootstrap e ⌘K), Sidebar (logo → SidebarSearch → AssistantLauncher → navegação → AccountMenu no rodapé), CommandMenu (busca em sobreposição, Cmd/Ctrl+K), ModuleNav (abas do módulo), useDismiss (fecha menu suspenso)
     ├── components/shared/         # EditableTable (+ editable/: células e rascunhos), CalendarView (+ calendar/: layout, MonthGrid, WeekGrid), KpiCard (só título + número; StatCard = alias), Tabs (TabList), PageHeader, PageToolbar, CrudDialog, DetailDrawer, EmptyState, PagePlaceholder, StatusBadge (tags sólidas), ImportExportButtons, FileAttachments e suas peças (FilePreviewDialog, FileVersionList, FileUploadFeedback, FileTypeIcon; também usadas em documents/)
     ├── components/ui/             # vazio: nenhum componente shadcn instalado ainda
-    ├── hooks/                     # useSession, usePermission, useProspectingBootstrap, useFileUploads (envio de vários arquivos, motivo de cada recusa)
+    ├── hooks/                     # useSession, usePermission, useProspectingBootstrap, useFileUploads (envio de vários arquivos, motivo de cada recusa), useToday (dia local que vira sozinho à meia-noite; use em chave de consulta com "hoje")
     ├── lib/
     │   ├── db/                    # client.ts (SQLite/Tauri ou demo), demo.ts (banco demo + contas demo), demoSchema.ts (schema do demo lido das migrations), sequence.ts (número PV-00012 por empresa)
     │   ├── money.ts               # dinheiro em centavos: roundMoney, sumMoney, lineTotal, orderTotals, splitInstallments

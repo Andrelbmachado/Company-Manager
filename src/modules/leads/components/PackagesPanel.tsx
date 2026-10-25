@@ -8,9 +8,9 @@ import { EditableTable, type EditableColumn, type EditableTableChanges } from "@
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
-import { formatMoney } from "@/lib/prospecting/contact";
 import {
   CARD_FEATURE_LIMIT,
+  formatPackagePrice,
   PACKAGE_CODES,
   packageFeatures,
   packagePricesQueryKey,
@@ -48,10 +48,10 @@ function PackageCard({ pkg, prices }: { pkg: ServicePackage; prices: PackagePric
       <div data-package-price="" className="mt-auto w-full border-t pt-4">
         {start ? (
           <>
-            <p className="text-xs text-muted-foreground">Implantação a partir de {formatMoney(start.setup)}</p>
+            <p className="text-xs text-muted-foreground">Implantação a partir de {formatPackagePrice(start.setup)}</p>
             <p className="mt-2 text-xs text-muted-foreground">Mensalidade a partir de</p>
             <p data-package-price-value="" className={PRICE_VALUE}>
-              {formatMoney(start.monthly)}
+              {formatPackagePrice(start.monthly)}
               <span className="text-base font-medium text-muted-foreground">/mês</span>
             </p>
           </>

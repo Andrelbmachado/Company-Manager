@@ -87,6 +87,8 @@ describe("PackagesPanel", () => {
     for (const [index, card] of cards.entries()) {
       const pkg = SITE_PACKAGES[index];
       const children = [...card.children];
+      // Nada entre a lista e o preço, nem depois dele.
+      expect(children).toHaveLength(4);
       expect(children[0].tagName).toBe("H3");
       expect(children[0].textContent).toBe(pkg.name);
       expect(children[1].textContent).toBe(packageSummary(pkg.description));
@@ -147,5 +149,20 @@ describe("PackagesPanel", () => {
     expect(row.setup_price).toBe(2200);
     // Depois de salvar a tabela recarrega: o card do Básico passa a começar na outra mensalidade.
     await until(() => plain(page.container.querySelector('article[data-package="basico"] [data-package-price-value]')?.textContent) === "R$ 179/mês", "card atualizado");
+  });
+
+  it("preço com centavos aparece com centavos no card, igual à tabela (nunca arredondado)", async () => {
+    const { page } = await open();
+    await click(page.button("Editar"));
+    await typeInto(page.container.querySelector('[aria-label="Básico mensal (linha 1)"]'), "99,90");
+    await typeInto(page.container.querySelector('[aria-label="Básico implantação (linha 1)"]'), "1.999,99");
+    await click(page.button("Salvar"));
+    await until(() => page.text().includes("1 linha salva."), "mensagem de salvo");
+
+    const card = page.container.querySelector('article[data-package="basico"]')!;
+    await until(() => plain(card.querySelector("[data-package-price-value]")?.textContent) === "R$ 99,90/mês", "mensalidade com centavos no card");
+    expect(plain(card.querySelector("[data-package-price]")?.textContent)).toContain("R$ 1.999,99");
+    // Preço inteiro continua sem centavos.
+    expect(plain(page.container.querySelector('article[data-package="essencial"] [data-package-price-value]')?.textContent)).toBe("R$ 249/mês");
   });
 });

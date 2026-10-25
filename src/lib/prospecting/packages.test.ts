@@ -6,6 +6,7 @@ import { can } from "@/lib/permissions/rbac";
 import type { PackagePrice, ServicePackage } from "@/types";
 import { SITE_PACKAGES } from "./data/siteProspecting.generated";
 import {
+  formatPackagePrice,
   PACKAGE_CODES,
   packageFeatures,
   packageSummary,
@@ -72,6 +73,18 @@ describe("packageSummary", () => {
     expect(packageSummary("Vitrine e gerenciador juntos")).toBe("Vitrine e gerenciador juntos");
     expect(packageSummary(null)).toBe("");
     expect(packageSummary("  ")).toBe("");
+  });
+});
+
+describe("formatPackagePrice", () => {
+  const text = (value: number) => formatPackagePrice(value).replace(/\u00a0/g, " ");
+
+  it("sem centavos quando o valor é inteiro, com os centavos quando tem (nunca arredonda o preço)", () => {
+    expect(text(149)).toBe("R$ 149");
+    expect(text(1600)).toBe("R$ 1.600");
+    expect(text(149.9)).toBe("R$ 149,90");
+    expect(text(1234.567)).toBe("R$ 1.234,57");
+    expect(text(0.1 + 0.2)).toBe("R$ 0,30");
   });
 });
 

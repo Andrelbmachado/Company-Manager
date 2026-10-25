@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { roundMoney } from "@/lib/money";
 import { can } from "@/lib/permissions/rbac";
+import { formatMoney } from "@/lib/prospecting/contact";
+import { formatCurrency } from "@/lib/utils";
 import type { PackagePrice, Role, ServicePackage } from "@/types";
 
 export const PACKAGE_CODES = ["basico", "essencial", "premium"] as const;
@@ -92,6 +94,12 @@ export function packageFeatures(packages: readonly PackageFeatureSource[]): Pack
 export function packageSummary(description: string | null | undefined): string {
   const text = description?.trim() ?? "";
   return text.split(/(?<=[.!?])\s+/)[0] ?? "";
+}
+
+/** Preço do card: sem centavos quando o valor é inteiro (R$ 149), com os centavos quando tem (R$ 149,90), como na tabela. */
+export function formatPackagePrice(value: number): string {
+  const amount = roundMoney(value);
+  return Number.isInteger(amount) ? formatMoney(amount) : formatCurrency(amount);
 }
 
 /** Menor implantação e menor mensalidade do pacote entre os segmentos ("a partir de"); sem preço, null. */

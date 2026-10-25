@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Pencil, X } from "lucide-react";
+import { X } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "./table";
 import { useModalFocus } from "./useModalFocus";
 
 interface DetailDrawerProps {
@@ -21,7 +22,7 @@ export function DetailDrawer({ title, subtitle, onClose, onEdit, children }: Det
             <h2 className="mt-1 text-xl font-semibold">{title}</h2>
           </div>
           <div className="flex gap-1">
-            {onEdit && <button onClick={onEdit} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"><Pencil size={14} /> Editar</button>}
+            {onEdit && <IconButton label="Editar" icon={TABLE_ICONS.edit} onClick={onEdit} />}
             <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X size={17} /></button>
           </div>
         </div>

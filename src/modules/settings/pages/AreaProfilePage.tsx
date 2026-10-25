@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, RefreshCw, RotateCcw, Save, X } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
 import { getDb } from "@/lib/db/client";
@@ -116,21 +117,13 @@ export default function AreaProfilePage() {
                 <button type="button" className={BUTTON} onClick={() => setDrafts({})}>
                   <RotateCcw size={14} /> Restaurar padrões
                 </button>
-                <button type="button" className={BUTTON} onClick={() => setDrafts(null)}>
-                  <X size={14} /> Cancelar
-                </button>
-                <button type="button" className={cn(BUTTON, "border-transparent bg-primary text-primary-foreground hover:bg-primary/90")} disabled={save.isPending} onClick={saveDrafts}>
-                  <Save size={14} /> Salvar
-                </button>
+                <IconButton label="Cancelar" icon={TABLE_ICONS.cancel} onClick={() => setDrafts(null)} />
+                <IconButton label="Salvar" icon={TABLE_ICONS.save} variant="primary" disabled={save.isPending} onClick={saveDrafts} />
               </>
             ) : (
-              <button type="button" className={BUTTON} disabled={!canEdit || !loaded} title={canEdit ? undefined : NO_PERMISSION} onClick={startEditing}>
-                <Pencil size={14} /> Editar
-              </button>
+              <IconButton label="Editar" icon={TABLE_ICONS.edit} disabled={!canEdit || !loaded} title={canEdit ? undefined : NO_PERMISSION} onClick={startEditing} />
             )}
-            <button type="button" className={BUTTON} onClick={() => void refresh()}>
-              <RefreshCw size={14} /> Atualizar
-            </button>
+            <IconButton label="Atualizar" icon={TABLE_ICONS.refresh} onClick={() => void refresh()} />
           </div>
         </div>
         {status && <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">{status}</p>}

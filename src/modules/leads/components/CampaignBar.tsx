@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { EditIcon } from "@/components/shared/table";
 import { campaignNameProblem, CAMPAIGN_NAME_MAX, nextCampaignName } from "@/lib/prospecting/campaigns";
 import type { ProspectingCampaign } from "@/types";
 
@@ -107,7 +108,7 @@ export function CampaignBar({ campaigns, selected, onSelect, canCreate, canEdit,
         onClick={() => selected && setMode({ kind: "rename", name: selected.name })}
         className={`${BUTTON} px-2.5`}
       >
-        <Pencil size={15} />
+        <EditIcon size={15} aria-hidden="true" />
       </button>
       <button
         type="button"

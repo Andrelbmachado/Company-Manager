@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, Pencil, Save, Trash2, UploadCloud, X } from "lucide-react";
+import { Download, Eye, Save, Trash2, UploadCloud, X } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { FilePreviewDialog } from "@/components/shared/FilePreviewDialog";
 import { FileTypeIcon } from "@/components/shared/FileTypeIcon";
 import { FileUploadFeedback } from "@/components/shared/FileUploadFeedback";
@@ -144,7 +145,7 @@ export function DocumentPanel({ doc, onClose, onChanged, canUpload, canEdit, can
             <button type="button" onClick={() => versionInput.current?.click()} disabled={uploads.busy} className={BUTTON}><UploadCloud size={14} aria-hidden="true" /> {uploads.busy ? "Enviando…" : "Nova versão"}</button>
           </>
         )}
-        {editable && !editing && <button type="button" onClick={startEditing} className={BUTTON}><Pencil size={14} aria-hidden="true" /> Editar dados</button>}
+        {editable && !editing && <IconButton label="Editar dados" icon={TABLE_ICONS.edit} onClick={startEditing} />}
         {canDelete && (confirmDelete ? (
           <span className="flex items-center gap-1">
             <button type="button" onClick={() => remove.mutate()} disabled={remove.isPending} className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground disabled:opacity-50">Excluir todas as versões</button>

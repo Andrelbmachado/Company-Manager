@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, FilePlus2, Pencil, Target, UserRound } from "lucide-react";
+import { ArrowLeft, FilePlus2, Target, UserRound } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -133,7 +134,7 @@ function CustomerRecord({ id }: { id: string }) {
               <StatusBadge status={customer.status} />
               {can("create", "opportunities") && <button type="button" onClick={() => { setNewOpportunity(true); setTab("oportunidades"); }} className={BTN_SECONDARY}><Target size={14} /> Nova oportunidade</button>}
               {can("create", "proposals") && <Link to={`/crm/propostas/nova?cliente=${customer.id}`} className={BTN_SECONDARY}><FilePlus2 size={14} /> Nova proposta</Link>}
-              {can("edit", "customers") && !editing && <button type="button" onClick={() => { setEditing(true); setTab("resumo"); }} className={BTN_PRIMARY}><Pencil size={14} /> Editar cadastro</button>}
+              {can("edit", "customers") && !editing && <IconButton label="Editar cadastro" icon={TABLE_ICONS.edit} variant="primary" onClick={() => { setEditing(true); setTab("resumo"); }} />}
             </>
           }
         />

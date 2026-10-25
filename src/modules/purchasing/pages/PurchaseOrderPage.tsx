@@ -4,7 +4,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Ban, Check, PackageCheck, Pencil, Send, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Ban, Check, PackageCheck, Send, Trash2, Truck } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
@@ -185,7 +186,7 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
         description={supplier ? `${supplier.name} · ${formatDay(order.order_date)}` : formatDay(order.order_date)}
         actions={
           <>
-            {editable && <button type="button" className={BUTTON} aria-pressed={panel === "header"} onClick={() => open("header")}><Pencil size={14} /> Editar dados do pedido</button>}
+            {editable && <IconButton label="Editar dados do pedido" icon={TABLE_ICONS.edit} aria-pressed={panel === "header"} onClick={() => open("header")} />}
             {showApprove && <button type="button" className={PRIMARY} disabled={action.isPending} onClick={() => action.mutate("approve")}><Check size={14} /> Aprovar</button>}
             {showSend && <button type="button" className={BUTTON} disabled={action.isPending} onClick={() => action.mutate("send")}><Send size={14} /> Marcar como enviado</button>}
             {showReceive && <button type="button" className={PRIMARY} aria-pressed={panel === "receive"} onClick={() => open("receive")}><PackageCheck size={14} /> Receber mercadoria</button>}

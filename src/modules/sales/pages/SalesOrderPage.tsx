@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Ban, Check, FileText, Pencil, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Ban, Check, FileText, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
@@ -323,7 +324,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         description={customer ? `${customer.name} · ${formatDay(order.order_date)}` : formatDay(order.order_date)}
         actions={
           <>
-            {editable && <button type="button" className={BUTTON} onClick={() => setEditing(true)}><Pencil size={14} /> Editar pedido</button>}
+            {editable && <IconButton label="Editar pedido" icon={TABLE_ICONS.edit} onClick={() => setEditing(true)} />}
             {canConfirm && <button type="button" className={PRIMARY} disabled={confirm.isPending} onClick={() => confirm.mutate()}><Check size={14} /> Confirmar</button>}
             {canBill && <button type="button" className={PRIMARY} onClick={() => open("invoice", { issueDate: today, installments: String(order.installments || 1), firstDueDate: "", intervalDays: "30", paymentMethod: Number(order.installments) > 1 ? "boleto" : "pix", notes: "" })}><FileText size={14} /> Faturar</button>}
             {canDeliver && <button type="button" className={BUTTON} onClick={() => open("deliver", { locationId: order.location_id ?? locations[0]?.id ?? "" })}><Truck size={14} /> Entregar</button>}

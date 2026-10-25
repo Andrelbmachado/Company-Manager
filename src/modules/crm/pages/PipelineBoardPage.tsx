@@ -2,6 +2,7 @@ import { useMemo, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { List, Plus } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
@@ -216,9 +217,7 @@ export default function PipelineBoardPage() {
                   {items.length === 0 && <p className="px-1 py-4 text-center text-xs text-muted-foreground">{closed ? `Nada nos últimos ${CLOSED_WINDOW_DAYS} dias` : "Nenhuma oportunidade"}</p>}
                   {hidden > 0 && <Link to="/opportunities" className="px-1 text-center text-xs text-muted-foreground hover:text-foreground">+ {hidden} mais antiga(s) na lista</Link>}
                   {!closed && can("create", "opportunities") && (
-                    <button type="button" onClick={() => setCreating(stage)} className="mt-auto rounded-md px-2 py-1 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
-                      <Plus size={12} className="mr-1 inline" /> Adicionar
-                    </button>
+                    <IconButton label={`Adicionar em ${STAGE_LABELS[stage]}`} icon={TABLE_ICONS.add} onClick={() => setCreating(stage)} className="mt-auto" />
                   )}
                 </div>
               </section>

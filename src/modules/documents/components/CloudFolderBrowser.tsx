@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Cloud, RefreshCw, Upload, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Cloud, Upload, X } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { FilePreview, type FilePreviewSource } from "@/components/shared/FilePreviewDialog";
 import { FileTypeIcon } from "@/components/shared/FileTypeIcon";
 import { PageToolbar } from "@/components/shared/PageToolbar";
@@ -42,7 +43,6 @@ interface CloudUploadSummary {
 }
 
 const TILE = "group min-h-[9rem] rounded-xl border border-transparent p-3 text-center transition-all hover:border-border hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const BUTTON = "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-60";
 
 const samePath = (a: string, b: string) => a.normalize("NFC").toLocaleLowerCase("pt-BR") === b.normalize("NFC").toLocaleLowerCase("pt-BR");
 const toBlob = (bytes: Uint8Array, name: string) => new Blob([bytes.slice().buffer], { type: guessMime(name) });
@@ -156,9 +156,7 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
   return (
     <div {...drop.bind} className={cn("relative space-y-4 rounded-lg", drop.isDragging && "ring-2 ring-primary/40")}>
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar em ${folder.label}...`}>
-        <button type="button" onClick={() => void listing.refetch()} disabled={listing.isFetching} className={BUTTON}>
-          <RefreshCw size={14} aria-hidden="true" className={cn(listing.isFetching && "animate-spin")} /> Atualizar
-        </button>
+        <IconButton label="Atualizar" icon={TABLE_ICONS.refresh} spinning={listing.isFetching} disabled={listing.isFetching} onClick={() => void listing.refetch()} />
         {canUpload && (
           <>
             <input

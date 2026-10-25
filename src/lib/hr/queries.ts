@@ -1,6 +1,7 @@
 import { v5 as uuidv5 } from "uuid";
 import { getDb } from "@/lib/db/client";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import { isCycleTask } from "./employment";
 import type { Employee, HrAnnouncement, HrRequest, HrTask, Role, Session } from "@/types";
 
 const NAMESPACE = "b3d1c4e2-5a7f-4c11-9e0a-2f6d8a7c1b55";
@@ -50,6 +51,11 @@ export async function fetchHrTasks(companyId: string): Promise<HrTask[]> {
   return (await getDb()).select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND deleted_at IS NULL ORDER BY due_date ASC", [companyId]);
 }
 
+/**
+ * Pendências que o RH pediu à pessoa (Meu RH). O checklist de admissão/desligamento sobre ela é tarefa do RH: não
+ * aparece aqui (nem um desligamento agendado se revela, nem a pessoa marca itens do RH).
+ */
 export async function fetchMyHrTasks(companyId: string, employeeId: string): Promise<HrTask[]> {
-  return (await getDb()).select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND deleted_at IS NULL ORDER BY due_date ASC", [companyId, employeeId]);
+  const tasks = await (await getDb()).select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND deleted_at IS NULL ORDER BY due_date ASC", [companyId, employeeId]);
+  return tasks.filter((task) => !isCycleTask(task));
 }

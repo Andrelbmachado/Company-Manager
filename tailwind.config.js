@@ -4,6 +4,8 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{ts,tsx}",
+    // Testes não geram classes; fixtures como o fuso do OFX ("[-3:BRT]") virariam CSS inválido no build.
+    "!./src/**/*.test.{ts,tsx}",
   ],
   theme: {
     container: {

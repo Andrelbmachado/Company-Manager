@@ -50,7 +50,7 @@ function ofxField(block: string, tag: string): string | null {
   return value === "" ? null : value;
 }
 
-/** "20261003120000[-3:BRT]" → "2026-10-03" (o dia que o banco informa, sem converter fuso). */
+/** Data do OFX ("20261003120000", seguida do fuso entre colchetes) → "2026-10-03": o dia que o banco informa, sem converter fuso. */
 function ofxDate(value: string | null): string | null {
   const match = value ? /^(\d{4})(\d{2})(\d{2})/.exec(value) : null;
   if (!match) return null;

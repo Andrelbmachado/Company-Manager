@@ -151,8 +151,8 @@ Em cada tela do grupo: toda lista vira `EditableTable` com Editar/Adicionar/Atua
 - Cronograma de abordagens em `CalendarView`.
 - **Interfaces:** `createCampaign(db, companyId, name): Promise<string>`, `renameCampaign(db, id, name)`, `campaignStats(db, campaignId): Promise<{ leads: number; contacted: number; won: number; potential: number }>`.
 
-- [ ] **Step 1:** Testes: nova campanha começa vazia; leads de uma campanha não entram nos números de outra; renomear não muda os leads; nenhum texto de `KpiCard` além do título e do valor (teste de componente da página).
-- [ ] **Step 2:** FAIL → implementar → PASS. Commit `feat(leads): várias prospecções nomeadas e cards só com números`.
+- [x] **Step 1:** Testes: nova campanha começa vazia; leads de uma campanha não entram nos números de outra; renomear não muda os leads; nenhum texto de `KpiCard` além do título e do valor (teste de componente da página).
+- [x] **Step 2:** FAIL → implementar → PASS. Commit `feat(leads): várias prospecções nomeadas e cards só com números`.
 
 ### Task 8: Pacotes e preços
 

@@ -73,10 +73,10 @@ Tokens (escuro, padrão): `--background: 0 0% 11%`, `--card: 0 0% 14%`, `--sideb
 - Produces: `LABEL_KEYS` (`dashboard.active_work`, `dashboard.profit`, `dashboard.payables_week`, `dashboard.receivables_week`, `dashboard.balance_chart`, `module.projects`, ...), `labelFor(key, profile, overrides): string`, hook `useLabel(key): string`.
 - Exemplo fixo: `labelFor("dashboard.active_work", "ti", {}) === "Projetos ativos"`; `"advocacia"` → `"Clientes ativos"` (no sentido de processos/casos em andamento).
 
-- [ ] **Step 1:** Teste schema: aplicar 0012 com `createTestDb()`; leads antigos ficam com `campaign_id` da campanha criada; `PRAGMA foreign_key_check` vazio.
-- [ ] **Step 2:** Teste `profiles.test.ts`: os exemplos acima; override vence o perfil; chave desconhecida devolve a própria chave (nunca vazio).
-- [ ] **Step 3:** FAIL → implementar (migration, `lib.rs`, demo, tipos, aba em Configurações com seletor de área e tabela editável de rótulos) → PASS.
-- [ ] **Step 4:** Commit `feat(config): perfil de área com rótulos editáveis e migration 0012`.
+- [x] **Step 1:** Teste schema: aplicar 0012 com `createTestDb()`; leads antigos ficam com `campaign_id` da campanha criada; `PRAGMA foreign_key_check` vazio.
+- [x] **Step 2:** Teste `profiles.test.ts`: os exemplos acima; override vence o perfil; chave desconhecida devolve a própria chave (nunca vazio).
+- [x] **Step 3:** FAIL → implementar (migration, `lib.rs`, demo, tipos, aba em Configurações com seletor de área e tabela editável de rótulos) → PASS.
+- [x] **Step 4:** Commit `feat(config): perfil de área com rótulos editáveis e migration 0012`.
 
 ### Task 3: Componentes base — `EditableTable`, `CalendarView`, cards e abas
 

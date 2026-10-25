@@ -249,7 +249,7 @@ describe("telas do CRM", () => {
     await testDb().execute("INSERT INTO leads (id, company_id, name, status, estimated_revenue, owner_id) VALUES (?,?,?,?,?,?)", ["lead-1", companyId, "Pet Shop Amigo", "interessado", 4800, USER]);
     const [lead] = await testDb().select<Lead[]>("SELECT * FROM leads WHERE id=?", ["lead-1"]);
     await renderAt("/leads", "/leads", <LeadsPanel leads={[lead!]} packages={[]} loading={false} />);
-    await click([...container.querySelectorAll("tr")].find((row) => row.textContent?.includes("Pet Shop Amigo")));
+    await click(container.querySelector("[aria-label='Detalhes de Pet Shop Amigo']"));
     await until(() => !!button("Converter em oportunidade"), "botão de conversão");
     await click(button("Converter em oportunidade"));
     await until(() => !!container.querySelector("[data-testid=outra-rota]"), "navegou para o funil");

@@ -253,7 +253,8 @@ export function EditableTable<T extends { id: string }>({
             : `${hidden} linhas alteradas estão fora da lista atual (busca ou filtro) e também serão salvas.`}
         </p>
       )}
-      <div className="overflow-x-auto">
+      {/* relative: o "Ações" sr-only (position: absolute) fica preso à rolagem da tabela, não alarga a página. */}
+      <div className="relative overflow-x-auto">
         <table className="w-full text-sm" aria-label={label} aria-busy={loading || busy === "refreshing" ? true : undefined}>
           <thead className="bg-muted/30">
             <tr>

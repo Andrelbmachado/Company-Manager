@@ -7,6 +7,8 @@
  * sem sombras difusas, brilho nem translucidez. Nenhuma cor de destaque: o "primário" é cinza claro no escuro e
  * quase preto no claro. Cor só onde é estado (sucesso, erro, alerta: destructive e as tags status-*).
  * A sidebar é mais escura que o fundo nos dois temas. Escuro é o padrão (getTheme()).
+ * Exceção: a paleta de séries dos gráficos (--chart-1..6, LineAreaChart) para distinguir uma linha da outra; cada tom
+ * tem contraste >= 3:1 sobre o card do próprio tema (mais escuro no claro, mais claro no escuro).
  * Tokens em HSL (padrão shadcn). Fontes: Public Sans (interface) e Bricolage Grotesque (títulos e valores).
  */
 @layer base {
@@ -41,6 +43,13 @@
     --sidebar-accent-foreground: 0 0% 9%;
     --sidebar-border: 0 0% 86%;
     --sidebar-ring: 0 0% 9%;
+    /* Séries dos gráficos: azul, laranja, verde, roxo, rosa e ciano. */
+    --chart-1: 211 100% 45%;
+    --chart-2: 28 100% 45%;
+    --chart-3: 142 70% 35%;
+    --chart-4: 271 70% 52%;
+    --chart-5: 340 80% 50%;
+    --chart-6: 188 85% 34%;
   }
 
   .dark {
@@ -72,6 +81,12 @@
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 0 0% 70%;
+    --chart-1: 211 100% 62%;
+    --chart-2: 32 100% 58%;
+    --chart-3: 142 62% 52%;
+    --chart-4: 275 85% 70%;
+    --chart-5: 345 95% 66%;
+    --chart-6: 187 75% 52%;
   }
 }
 

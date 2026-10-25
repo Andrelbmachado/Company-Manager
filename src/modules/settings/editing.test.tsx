@@ -79,6 +79,30 @@ describe("Auditoria sem painel lateral", () => {
     noDialog();
   });
 
+  it("ordena pelo cabeçalho (Usuário pelo nome, Sistema incluído) e filtra por coluna, com período na Data/hora", async () => {
+    await insertTestCompany(testDb());
+    const log = (id: string, user: string | null, action: string, at: string) =>
+      testDb().execute("INSERT INTO audit_logs (id, company_id, user_id, entity_type, entity_id, action, created_at) VALUES (?,?,?,?,?,?,?)", [id, C, user, "invoice", `inv-${id}`, action, at]);
+    await log("a1", "test-user-financeiro", "invoice.cancelled", "2026-03-01 10:00:00");
+    await log("a2", "test-user-admin", "user.created", "2026-03-02 10:00:00");
+    await log("a3", null, "backup.created", "2026-01-15 03:00:00");
+    page = await renderPage(<AuditPage />, { companyId: C, role: "auditor" });
+    await until(() => page!.container.querySelectorAll("tbody tr").length === 3, "três eventos");
+    const actions = () => [...page!.container.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent);
+    expect(actions()).toEqual(["user.created", "invoice.cancelled", "backup.created"]);
+
+    await click(page.container.querySelector("th [data-sort-key='user']"));
+    expect(actions()).toEqual(["backup.created", "user.created", "invoice.cancelled"]);
+
+    await click(page.button("Filtrar"));
+    await typeInto(field("Usuário: contém"), "financeiro");
+    expect(actions()).toEqual(["invoice.cancelled"]);
+    await typeInto(field("Usuário: contém"), "");
+    expect((field("Data/hora: de") as HTMLInputElement).type).toBe("date");
+    await typeInto(field("Data/hora: até"), "2026-02-28");
+    expect(actions()).toEqual(["backup.created"]);
+  });
+
   it("o título vem do rótulo da área (Configurações)", async () => {
     await insertTestCompany(testDb());
     await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.audit": "Histórico de ações" } });

@@ -12,13 +12,27 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { cn, todayIso } from "@/lib/utils";
 import { fetchEmployees } from "@/lib/hr/queries";
 import { decideTimeEntry, fetchTimeEntries, formatMinutes, timeBankByEmployee, timeBankSummary } from "@/lib/hr/timebank";
 import { saveTimeEntryRows, timeEntryCalendarItems, timeEntryRows, type TimeEntryRow } from "@/lib/hr/tableEdits";
 import { ViewSwitch, type ListOrCalendar } from "../components/ViewSwitch";
 import { ErrorAlert, INPUT, Panel, TH, balanceTone, errorMessage } from "../components/hrUi";
-import type { Role } from "@/types";
+import type { Employee, Role } from "@/types";
+
+type BalanceRow = { employee: Employee; summary: ReturnType<typeof timeBankSummary> };
+
+/** Horas (não minutos) para ordenar e para a faixa do filtro: "Saldo máx. 0", "Jornada mín. 6". */
+const hours = (minutes: number) => minutes / 60;
+const BALANCE_COLUMNS: SortFilterColumn<BalanceRow>[] = [
+  { key: "employee", header: "Colaborador", kind: "text", sortValue: (row) => row.employee.name },
+  { key: "daily", header: "Jornada", kind: "number", sortValue: (row) => hours(Number(row.employee.daily_minutes) || 480) },
+  { key: "credits", header: "Créditos", kind: "number", sortValue: (row) => hours(row.summary.credits) },
+  { key: "debits", header: "Compensações", kind: "number", sortValue: (row) => hours(row.summary.debits) },
+  { key: "balance", header: "Saldo", kind: "number", sortValue: (row) => hours(row.summary.balance) },
+  { key: "pending", header: "Em análise", kind: "number", sortValue: (row) => (row.summary.pendingCount ? hours(row.summary.pending) : null) },
+];
 
 const STATUSES = [
   { value: "pendente", label: "Pendente" },
@@ -51,9 +65,14 @@ export default function TimeBankPage() {
   const pending = entries.filter((entry) => entry.status === "pendente");
   const month = today.slice(0, 7);
   const monthCredits = entries.filter((entry) => entry.status === "aprovada" && entry.minutes > 0 && entry.entry_date.startsWith(month)).reduce((sum, entry) => sum + entry.minutes, 0);
-  const rows = employees
-    .filter((employee) => employee.status !== "desligado" || summaries.has(employee.id))
-    .map((employee) => ({ employee, summary: summaries.get(employee.id) ?? timeBankSummary([]) }));
+  const rows = useMemo<BalanceRow[]>(
+    () =>
+      employees
+        .filter((employee) => employee.status !== "desligado" || summaries.has(employee.id))
+        .map((employee) => ({ employee, summary: summaries.get(employee.id) ?? timeBankSummary([]) })),
+    [employees, summaries],
+  );
+  const balances = useSortFilter(rows, BALANCE_COLUMNS);
   const negative = rows.filter((row) => row.summary.balance < 0).length;
   const shown = timeEntryRows(entries.filter((entry) => (employeeFilter === "todos" || entry.employee_id === employeeFilter) && (!onlyPending || entry.status === "pendente")));
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: employee.status === "desligado" ? `${employee.name} (desligado)` : employee.name }));
@@ -137,13 +156,20 @@ export default function TimeBankPage() {
         <p className="text-xs text-muted-foreground">Lançado pelo RH já entra aprovado no saldo. Só lançamento em análise pode ser corrigido; para mudar um aprovado, lance um ajuste.</p>
       </section>
 
-      <Panel title="Saldo por colaborador">
+      <Panel title="Saldo por colaborador" actions={rows.length > 0 ? <TableFilterButton view={balances} /> : undefined}>
+        <TableFilterBar view={balances} />
         {rows.length === 0 ? <EmptyState title="Nenhum colaborador cadastrado" description="Cadastre os colaboradores em Gestão de RH para controlar o banco de horas." /> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-muted"><tr>{["Colaborador", "Jornada", "Créditos", "Compensações", "Saldo", "Em análise"].map((h) => <th key={h} className={TH}>{h}</th>)}</tr></thead>
+              <thead className="bg-muted">
+                <tr>
+                  {BALANCE_COLUMNS.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={balances.sort} onSort={balances.toggleSort} className={cn(TH, "text-sm")} />
+                  ))}
+                </tr>
+              </thead>
               <tbody className="divide-y">
-                {rows.map(({ employee, summary }) => (
+                {balances.rows.map(({ employee, summary }) => (
                   <tr key={employee.id}>
                     <td className="px-4 py-3">
                       <Link to={`/hr/manage/colaboradores/${employee.id}`} className="font-medium hover:underline">{employee.name}</Link>
@@ -156,6 +182,7 @@ export default function TimeBankPage() {
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{summary.pendingCount ? `${formatMinutes(summary.pending)} (${summary.pendingCount})` : "—"}</td>
                   </tr>
                 ))}
+                {!balances.rows.length && <NoFilterMatchRow colSpan={BALANCE_COLUMNS.length} />}
               </tbody>
             </table>
           </div>

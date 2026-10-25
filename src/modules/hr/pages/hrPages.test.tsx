@@ -9,7 +9,7 @@ import { SessionContext } from "@/hooks/useSession";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { todayIso } from "@/lib/utils";
-import { addTimeEntry } from "@/lib/hr/timebank";
+import { addTimeEntry, decideTimeEntry } from "@/lib/hr/timebank";
 import { saveEmployee, emptyEmployeeInput } from "@/lib/hr/employees";
 import { startTermination } from "@/lib/hr/employment";
 import type { Employee, HrTask, HrTimeEntry, Role, Session } from "@/types";
@@ -163,6 +163,35 @@ describe("Banco de horas da equipe (RH)", () => {
     const rows = await db.select<HrTimeEntry[]>("SELECT * FROM hr_time_entries WHERE company_id=? AND employee_id=? ORDER BY minutes", [C, ana]);
     expect(rows.map((row) => [row.minutes, row.status])).toEqual([[-30, "aprovada"], [90, "aprovada"]]);
     await waitFor(() => has("+1h00"), "saldo atualizado");
+  });
+});
+
+describe("Saldo por colaborador", () => {
+  it("ordena pelo saldo (negativo antes) e filtra o colaborador e o saldo em horas", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    const ana = await newEmployee("Ana Lima");
+    const bruno = await newEmployee("Bruno Reis");
+    for (const [employeeId, minutes] of [[ana, -60], [bruno, 150]] as const) {
+      const id = await addTimeEntry(db, C, { employeeId, date: todayIso(), minutes, reason: "Ajuste" }, "test-user-rh", todayIso());
+      await decideTimeEntry(db, C, id, true, "test-user-rh");
+    }
+    await render("rh", "/hr/manage/banco-de-horas", "/hr/manage/banco-de-horas", <TimeBankPage />);
+    const panel = () => container.querySelector<HTMLElement>("section[aria-label='Saldo por colaborador']")!;
+    const people = () => [...panel().querySelectorAll("tbody tr")].map((row) => row.querySelector("a")?.textContent);
+    await waitFor(() => people().length === 2 && has("+2h30"), "saldos");
+
+    await click(panel().querySelector<HTMLElement>("th [data-sort-key='balance']")!);
+    expect(people()).toEqual(["Ana Lima", "Bruno Reis"]);
+    await click(panel().querySelector<HTMLElement>("th [data-sort-key='balance']")!);
+    expect(people()).toEqual(["Bruno Reis", "Ana Lima"]);
+
+    await click(panel().querySelector<HTMLElement>("button[aria-label='Filtrar']")!);
+    await setCell("Colaborador: contém", "bru");
+    expect(people()).toEqual(["Bruno Reis"]);
+    await setCell("Colaborador: contém", "");
+    await setCell("Saldo: máximo", "0");
+    expect(people()).toEqual(["Ana Lima"]);
   });
 });
 

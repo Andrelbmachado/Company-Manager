@@ -59,10 +59,20 @@ describe("WorkOrdersPage — edição direto na tabela", () => {
     expect((await order("id='wo-1'")).closed_at).toBeTruthy();
   });
 
-  it("aba Calendário mostra o prazo da OS em andamento", async () => {
+  it("aba Calendário mostra o prazo da OS em andamento; voltar para a Lista não perde o que foi digitado", async () => {
     await open();
-    await click(page!.container.querySelector("#os-tab-calendario") ?? findButton(page!.container, "Calendário"));
-    await until(() => page!.container.querySelector("[data-editable-table]") === null && page!.text().includes("OS-0007"), "prazo no calendário");
+    await click(findButton(table(), "Editar"));
+    await type(cell("Mão de obra (linha 1)"), "250,00");
+    await click(page!.container.querySelector("#tab-os-calendario"));
+    await until(() => (page!.container.querySelector("#painel-os-calendario")?.textContent ?? "").includes("OS-0007"), "prazo no calendário");
+    expect(table().closest("[hidden]")).not.toBeNull();
+
+    await click(page!.container.querySelector("#tab-os-lista"));
+    expect(table().closest("[hidden]")).toBeNull();
+    expect(page!.container.querySelector("#painel-os-calendario")).toBeNull();
+    expect(cell("Mão de obra (linha 1)")?.value).toBe("250,00");
+    await click(findButton(table(), "Salvar"));
+    await until(async () => (await order("id='wo-1'")).labor_cost === 250, "mão de obra gravada");
   });
 
   it("auditor vê Editar e Adicionar desabilitados com o motivo", async () => {

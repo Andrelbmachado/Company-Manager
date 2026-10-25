@@ -61,10 +61,19 @@ describe("CustodyPage — edição direto na tabela", () => {
     expect((await custody("cu-1")).returned_at).toBeTruthy();
   });
 
-  it("aba Calendário mostra a devolução prevista", async () => {
+  it("aba Calendário mostra a devolução prevista; voltar para a Lista não perde a linha nova digitada", async () => {
     await open();
-    await click(page!.container.querySelector("#custodia-tab-calendario") ?? findButton(page!.container, "Calendário"));
-    await until(() => page!.text().includes("Alicate · Teste tecnico") || page!.text().includes("Alicate ·"), "devolução no calendário");
+    await click(findButton(table(), "Adicionar"));
+    await choose(cell("Item (nova linha)"), "item-2");
+    await click(page!.container.querySelector("#tab-custodia-calendario"));
+    await until(() => (page!.container.querySelector("#painel-custodia-calendario")?.textContent ?? "").includes("Alicate ·"), "devolução no calendário");
+    expect(table().closest("[hidden]")).not.toBeNull();
+
+    await click(page!.container.querySelector("#tab-custodia-lista"));
+    expect(table().closest("[hidden]")).toBeNull();
+    expect(cell("Item (nova linha)")?.value).toBe("item-2");
+    await click(findButton(table(), "Salvar"));
+    await until(async () => (await testDb().select<Custody[]>("SELECT * FROM custodies WHERE item_id='item-2'")).length === 1, "custódia gravada");
   });
 
   it("técnico (só consulta/solicita) vê Editar e Adicionar desabilitados com o motivo", async () => {

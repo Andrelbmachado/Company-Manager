@@ -127,7 +127,8 @@ export default function CustodyPage() {
 
       <TabList tabs={TABS} value={tab} onChange={setTab} label="Visualização da custódia" idPrefix="custodia" />
 
-      {tab === "lista" ? (
+      {/* A lista fica montada (escondida) com o Calendário aberto: trocar de aba não perde o que foi digitado na tabela. */}
+      <div hidden={tab !== "lista"}>
         <TabPanel idPrefix="custodia" id="lista">
           <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por item, responsável ou OS..." onFilterClick={() => setShowFilters((visible) => !visible)} filterActive={statusFilter !== "all"} />
           {showFilters && (
@@ -161,7 +162,8 @@ export default function CustodyPage() {
             }
           />
         </TabPanel>
-      ) : (
+      </div>
+      {tab === "calendario" && (
         <TabPanel idPrefix="custodia" id="calendario">
           <CalendarView
             label="Devoluções previstas"

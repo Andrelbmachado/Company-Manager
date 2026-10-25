@@ -99,7 +99,8 @@ export default function WorkOrdersPage() {
 
       <TabList tabs={TABS} value={tab} onChange={setTab} label="Visualização das ordens de serviço" idPrefix="os" />
 
-      {tab === "lista" ? (
+      {/* A lista fica montada (escondida) com o Calendário aberto: trocar de aba não perde o que foi digitado na tabela. */}
+      <div hidden={tab !== "lista"}>
         <TabPanel idPrefix="os" id="lista">
           <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, cliente ou técnico..." onFilterClick={() => setShowFilters((visible) => !visible)} filterActive={statusFilter !== "abertas"} />
           {showFilters && (
@@ -125,7 +126,8 @@ export default function WorkOrdersPage() {
             emptyMessage={orders.length === 0 ? "Nenhuma ordem de serviço." : "Nenhuma ordem de serviço neste filtro."}
           />
         </TabPanel>
-      ) : (
+      </div>
+      {tab === "calendario" && (
         <TabPanel idPrefix="os" id="calendario">
           <CalendarView
             label="Prazos das ordens de serviço"

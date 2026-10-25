@@ -73,7 +73,8 @@ export async function saveRecurringChanges(db: FinanceDb, ctx: EditContext, chan
     const take = <K extends keyof RecurringRow>(key: K): RecurringRow[K] | undefined => (has(values, key) ? values[key] : base?.[key]);
     const kind = (take("kind") ?? "pagar") as RecurringKind;
     const party = take("party") ?? null;
-    const label = String(take("description") ?? "").trim() || "Linha nova";
+    const description = String(take("description") ?? "").trim();
+    const label = description || "Linha nova";
     let partyId: string | null = null;
     if (party) {
       const [type, id] = String(party).split(":");
@@ -91,7 +92,7 @@ export async function saveRecurringChanges(db: FinanceDb, ctx: EditContext, chan
     if (!RECURRING_FREQUENCIES.includes(frequency)) throw rowError(label, "frequência inválida.");
     const amount = Number(take("amount"));
     if (!Number.isFinite(amount) || amount <= 0) throw rowError(label, "informe um valor maior que zero.");
-    if (label === "Linha nova") throw rowError(label, "informe a descrição.");
+    if (!description) throw rowError(label, "informe a descrição.");
     const startDate = String(take("start_date") ?? "");
     if (!isIsoDay(startDate)) throw rowError(label, "informe a data de início.");
     const endDate = take("end_date") ?? null;
@@ -100,7 +101,7 @@ export async function saveRecurringChanges(db: FinanceDb, ctx: EditContext, chan
     if (day != null && (!Number.isInteger(Number(day)) || Number(day) < 1 || Number(day) > 31)) throw rowError(label, "dia do vencimento deve ser de 1 a 31.");
     return {
       kind,
-      description: label,
+      description,
       amount,
       frequency,
       dayOfMonth: day == null ? null : Number(day),

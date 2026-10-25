@@ -24,9 +24,17 @@ describe("resposta do assistente", () => {
     const ask = vi.fn();
     const api = vi.fn();
     const result = await requestReply(input({ provider: { kind: "none", reason: "Configure o assistente." } }), { ask, api });
-    expect(result).toEqual({ text: "Configure o assistente." });
+    expect(result).toEqual({ text: "Configure o assistente.", claudeSessionId: null });
     expect(ask).not.toHaveBeenCalled();
     expect(api).not.toHaveBeenCalled();
+  });
+
+  it("resposta que não veio do Claude Code tira a sessão dele da conversa (a sessão não tem esta troca)", async () => {
+    const api = vi.fn().mockResolvedValue("Resposta da API");
+    const viaApi = await requestReply(input({ provider: { kind: "api" }, claudeSessionId: UUID }), { ask: vi.fn(), api });
+    expect(viaApi).toEqual({ text: "Resposta da API", claudeSessionId: null });
+    const none = await requestReply(input({ provider: { kind: "none", reason: "Configure." }, claudeSessionId: UUID }), { ask: vi.fn(), api });
+    expect(none.claudeSessionId).toBeNull();
   });
 
   it("API: manda o histórico e os arquivos para a API configurada", async () => {
@@ -37,7 +45,7 @@ describe("resposta do assistente", () => {
       { author: "user" as const, text: "Resuma" },
     ];
     const result = await requestReply(input({ provider: { kind: "api" }, history }), { ask: vi.fn(), api });
-    expect(result).toEqual({ text: "Resposta da API" });
+    expect(result).toEqual({ text: "Resposta da API", claudeSessionId: null });
     expect(api).toHaveBeenCalledWith(API, "Comercial", [
       { role: "user", content: "Oi" },
       { role: "assistant", content: "Olá" },
@@ -86,7 +94,8 @@ describe("resposta do assistente", () => {
   it("sessão que o Claude Code não acha mais (outro Mac, backup): recomeça com o histórico e devolve a sessão nova", async () => {
     const ask = vi
       .fn()
-      .mockRejectedValueOnce(new Error(`No conversation found with session ID: ${UUID}`))
+      // Texto como o Rust devolve (friendly_error em claude_code.rs mantém o original do `claude`).
+      .mockRejectedValueOnce(new Error(`O Claude Code devolveu um erro: No conversation found with session ID: ${UUID}`))
       .mockResolvedValueOnce({ text: "Recomeçado.", session_id: NEW_UUID });
     const history = [
       { author: "user" as const, text: "Antes" },

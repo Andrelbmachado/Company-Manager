@@ -120,7 +120,7 @@ export default function AssistantPage() {
           apiConfig: getAssistantApiConfig(userId),
         });
         reply = result.text;
-        if (result.claudeSessionId && result.claudeSessionId !== claudeSessionId) await setClaudeSession(db, id, result.claudeSessionId);
+        if (result.claudeSessionId !== claudeSessionId) await setClaudeSession(db, id, result.claudeSessionId);
       } catch (error) {
         reply = error instanceof Error ? error.message : "Não foi possível consultar o assistente.";
       }

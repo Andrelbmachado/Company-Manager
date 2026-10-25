@@ -18,8 +18,11 @@ export interface ReplyInput {
 
 export interface ReplyResult {
   text: string;
-  /** Sessão do Claude Code a guardar na conversa; ausente quando a resposta não veio do Claude Code. */
-  claudeSessionId?: string;
+  /**
+   * Sessão do Claude Code que a conversa guarda depois desta resposta. null quando a resposta não veio dele: a sessão
+   * antiga não tem esta troca, e a próxima pergunta pelo Claude Code recomeça levando o histórico.
+   */
+  claudeSessionId: string | null;
 }
 
 export interface ReplyDeps {
@@ -42,11 +45,11 @@ function isMissingSession(error: unknown): boolean {
 
 export async function requestReply(input: ReplyInput, deps: ReplyDeps = {}): Promise<ReplyResult> {
   const { provider } = input;
-  if (provider.kind === "none") return { text: provider.reason };
+  if (provider.kind === "none") return { text: provider.reason, claudeSessionId: null };
   if (provider.kind === "api") {
     const api = deps.api ?? requestAssistantReply;
     const messages = input.history.map((message) => ({ role: message.author, content: message.text }));
-    return { text: await api(input.apiConfig, input.area, messages, input.files) };
+    return { text: await api(input.apiConfig, input.area, messages, input.files), claudeSessionId: null };
   }
 
   const ask = deps.ask ?? ((request: ClaudeCodeAsk) => askClaudeCode(request));

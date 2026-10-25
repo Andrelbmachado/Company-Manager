@@ -123,7 +123,7 @@ export interface WinOptions {
 /**
  * Ganha a oportunidade: garante o cliente (o da oportunidade, o do lead, um que já existe com o mesmo documento/e-mail/
  * telefone, ou um novo), fecha a oportunidade (ganho, 100%), fecha o lead (indicação concedida), registra a atividade e,
- * havendo proposta aceita, gera o pedido de venda em rascunho com os itens dela. Ganhar de novo reaproveita o pedido.
+ * havendo proposta aceita com itens, gera o pedido de venda em rascunho com eles. Ganhar de novo reaproveita o pedido.
  */
 export async function winOpportunity(db: DatabaseLike, oppId: string, userId: string, options: WinOptions = {}): Promise<{ customerId: string; salesOrderId: string | null }> {
   const opp = await requireOpportunity(db, oppId);
@@ -216,13 +216,15 @@ export async function winOpportunity(db: DatabaseLike, oppId: string, userId: st
  * Pedido de venda em rascunho com os itens da proposta, pela regra de Vendas (createSalesOrder de src/lib/erp/orders.ts):
  * número PV, tabela de preço válida (a do cliente, senão a padrão), totais em centavos e itens com quantidades
  * entregue/faturada zeradas. Os preços combinados na proposta são mantidos; produto que saiu do catálogo (inativo ou
- * excluído) vira linha avulsa com a mesma descrição e preço, para o ganho não falhar.
+ * excluído) vira linha avulsa com a mesma descrição e preço, para o ganho não falhar. Proposta sem itens (as antigas, só
+ * com items_json) não gera pedido: devolve null, a oportunidade fica ganha e o pedido é lançado à mão em Vendas.
  */
-async function createDraftSalesOrder(db: DatabaseLike, companyId: string, userId: string, source: { opp: Opportunity; proposal: Proposal; customerId: string }): Promise<string> {
+async function createDraftSalesOrder(db: DatabaseLike, companyId: string, userId: string, source: { opp: Opportunity; proposal: Proposal; customerId: string }): Promise<string | null> {
   const { opp, proposal, customerId } = source;
   const items = (await db.select<ProposalItem[]>("SELECT * FROM proposal_items WHERE company_id=? AND proposal_id=? AND deleted_at IS NULL ORDER BY position", [companyId, proposal.id]))
     .filter((row) => !row.deleted_at)
     .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0));
+  if (items.length === 0) return null;
   const activeProducts = new Set(
     (await db.select<Pick<Product, "id" | "active" | "deleted_at">[]>("SELECT * FROM products WHERE company_id=? AND deleted_at IS NULL", [companyId]))
       .filter((row) => !row.deleted_at && Number(row.active ?? 1) !== 0)

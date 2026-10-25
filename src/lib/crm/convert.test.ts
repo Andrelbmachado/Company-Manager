@@ -204,6 +204,31 @@ describe("winOpportunity", () => {
     expect(proposal.decided_at).toBeTruthy();
   });
 
+  it("proposta aceita sem itens (antiga, só com items_json): ganha sem pedido e registra a atividade", async () => {
+    const { db, companyId, seller } = await setup();
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-1", companyId, "NorteLog"]);
+    await db.execute("INSERT INTO opportunities (id, company_id, customer_id, title, value, stage, owner_id) VALUES (?,?,?,?,?,?,?)", ["opp-1", companyId, "cust-1", "Contrato de suporte", 36000, "negociacao", seller]);
+    await db.execute("INSERT INTO proposals (id, company_id, opportunity_id, customer_id, value, items_json, status) VALUES (?,?,?,?,?,?,?)", [
+      "prop-1",
+      companyId,
+      "opp-1",
+      "cust-1",
+      36000,
+      JSON.stringify([{ item: "Suporte mensal 12x", qty: 12, unit: 3000 }]),
+      "aceita",
+    ]);
+    // Item excluído não conta.
+    await db.execute("INSERT INTO proposal_items (id, company_id, proposal_id, description, qty, unit_price, total, deleted_at) VALUES (?,?,?,?,?,?,?,?)", ["pi-1", companyId, "prop-1", "Suporte", 1, 36000, 36000, "2026-01-01T00:00:00.000Z"]);
+
+    const result = await winOpportunity(db, "opp-1", seller);
+
+    expect(result).toEqual({ customerId: "cust-1", salesOrderId: null });
+    expect(await db.select("SELECT count(*) AS n FROM sales_orders")).toEqual([{ n: 0 }]);
+    expect(await one(db, "SELECT stage, status FROM opportunities WHERE id=?", ["opp-1"])).toEqual({ stage: "ganho", status: "won" });
+    const activities = await db.select<Row[]>("SELECT * FROM crm_activities WHERE entity_type='opportunity' AND entity_id=?", ["opp-1"]);
+    expect(activities.map((row) => row.subject)).toEqual(["Oportunidade ganha"]);
+  });
+
   it("sem lead nem cliente: cria o cliente com o nome informado", async () => {
     const { db, companyId, seller } = await setup();
     await db.execute("INSERT INTO opportunities (id, company_id, title, value) VALUES (?,?,?,?)", ["opp-1", companyId, "Contrato de suporte", 1200]);

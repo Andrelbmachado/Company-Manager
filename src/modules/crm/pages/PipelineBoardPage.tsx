@@ -11,8 +11,8 @@ import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import type { Opportunity } from "@/types";
 import { daysFromToday, initialsOf, localDay } from "../components/format";
 import { errorText } from "../components/Modal";
-import { OpportunityDrawer, useMoveStage } from "../components/OpportunityDrawer";
-import { OpportunityFormDialog } from "../components/OpportunityFormDialog";
+import { OpportunityForm } from "../components/OpportunityForm";
+import { OpportunityPanel, useMoveStage } from "../components/OpportunityPanel";
 import { LoseDialog, WinDialog } from "../components/OutcomeDialogs";
 import { BTN_PRIMARY, BTN_SECONDARY, SELECT } from "../components/ui";
 import { crmKeys, useCompanyUsers, useCrmSession, useCustomerMap, useOpportunities } from "../components/useCrm";
@@ -20,7 +20,10 @@ import { crmKeys, useCompanyUsers, useCrmSession, useCustomerMap, useOpportuniti
 /** Dias para trás que as colunas Ganho e Perdido mostram (o resto fica na lista de oportunidades). */
 const CLOSED_WINDOW_DAYS = 30;
 
-/** Funil de vendas: quadro por etapa, com arrastar entre colunas, totais e valor ponderado. */
+/**
+ * Funil de vendas: quadro por etapa, com arrastar entre colunas, totais e valor ponderado. "Adicionar" de uma coluna e os
+ * detalhes do cartão abrem na própria página, acima do quadro; soltar em Ganho/Perdido pede a confirmação do fechamento.
+ */
 export default function PipelineBoardPage() {
   const { companyId, userId, can } = useCrmSession();
   const qc = useQueryClient();
@@ -122,6 +125,9 @@ export default function PipelineBoardPage() {
 
       {move.error && <p role="alert" className="text-sm text-destructive">Não foi possível mover: {errorText(move.error)}</p>}
 
+      {creating && <OpportunityForm key={creating} defaults={{ stage: creating }} onClose={() => setCreating(null)} onSaved={(id) => open(id)} />}
+      {selected && <OpportunityPanel key={selected} opportunityId={selected} onClose={() => open(null)} />}
+
       {isLoading ? (
         <div className="h-72 animate-pulse rounded-xl bg-muted/30" />
       ) : (
@@ -221,8 +227,6 @@ export default function PipelineBoardPage() {
         </div>
       )}
 
-      {selected && <OpportunityDrawer opportunityId={selected} onClose={() => open(null)} />}
-      {creating && <OpportunityFormDialog defaults={{ stage: creating }} onClose={() => setCreating(null)} />}
       {winning && <WinDialog opportunity={winning} onClose={() => setWinning(null)} />}
       {losing && <LoseDialog opportunity={losing} onClose={() => setLosing(null)} />}
     </div>

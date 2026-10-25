@@ -1,19 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Kanban, Plus, Target } from "lucide-react";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { Kanban } from "lucide-react";
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { fold, isStage, OPPORTUNITY_STAGES, pipelineSummary, STAGE_LABELS } from "@/lib/crm/queries";
-import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import type { SavedView } from "@/types";
-import { OpportunityDrawer } from "../components/OpportunityDrawer";
-import { OpportunityFormDialog } from "../components/OpportunityFormDialog";
+import { OpportunitiesTable } from "../components/OpportunitiesTable";
 import { SavedViewsBar } from "../components/SavedViewsBar";
-import { BTN_PRIMARY, BTN_SECONDARY, CARD, LINK, SELECT, TD, TH } from "../components/ui";
+import { BTN_SECONDARY, SELECT } from "../components/ui";
 import { useCompanyUsers, useCrmSession, useCustomerMap, useInvalidateCrm, useOpportunities } from "../components/useCrm";
 
 interface OpportunityFilters {
@@ -37,18 +34,19 @@ function parseFilters(view: SavedView | null): OpportunityFilters {
   }
 }
 
-/** Lista de oportunidades (todas as etapas), com filtros salvos e importação/exportação. O quadro fica em /crm/funil. */
+/**
+ * Lista de oportunidades (todas as etapas) numa tabela editável, com filtros salvos e importação/exportação. Os detalhes
+ * (?oportunidade=) abrem num painel abaixo da tabela. O quadro fica em /crm/funil.
+ */
 export default function OpportunitiesPage() {
-  const { userId, role, can } = useCrmSession();
+  const { userId, role } = useCrmSession();
   const invalidate = useInvalidateCrm();
   const [params, setParams] = useSearchParams();
   const { data: opportunities = [], isLoading } = useOpportunities();
   const { map: customers } = useCustomerMap();
-  const { data: users = [], names } = useCompanyUsers();
+  const { data: users = [] } = useCompanyUsers();
   const [filters, setFilters] = useState<OpportunityFilters>({ status: "open" });
-  const [creating, setCreating] = useState(false);
   const selected = params.get("oportunidade");
-  const today = todayIso();
   const set = (patch: Partial<OpportunityFilters>) => setFilters((current) => ({ ...current, ...patch }));
 
   const filtered = useMemo(() => {
@@ -84,7 +82,6 @@ export default function OpportunitiesPage() {
           <>
             <Link to="/crm/funil" className={BTN_SECONDARY}><Kanban size={14} /> Funil</Link>
             <ImportExportButtons entity="opportunities" onImported={() => invalidate("opportunities")} />
-            {can("create", "opportunities") && <button type="button" onClick={() => setCreating(true)} className={BTN_PRIMARY}><Plus size={14} /> Nova oportunidade</button>}
           </>
         }
       />
@@ -118,51 +115,13 @@ export default function OpportunitiesPage() {
         {hasFilters && <button type="button" onClick={() => setFilters({})} className="text-sm text-muted-foreground hover:text-foreground">Limpar filtros</button>}
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-lg bg-muted/30" />)}</div>
-      ) : filtered.length === 0 ? (
-        <EmptyState icon={Target} title={opportunities.length ? "Nenhuma oportunidade com esses filtros" : "Nenhuma oportunidade"} description={opportunities.length ? "Ajuste os filtros." : "Crie uma oportunidade ou converta um lead da prospecção."} />
-      ) : (
-        <div className={cn(CARD, "overflow-x-auto")}>
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className={TH}>Oportunidade</th>
-                <th className={TH}>Cliente</th>
-                <th className={TH}>Etapa</th>
-                <th className={cn(TH, "text-right")}>Valor</th>
-                <th className={cn(TH, "text-right")}>Prob.</th>
-                <th className={TH}>Fechamento</th>
-                <th className={TH}>Responsável</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((opp) => {
-                const customer = opp.customer_id ? customers.get(opp.customer_id) : null;
-                const late = opp.status === "open" && opp.expected_close_date && opp.expected_close_date.slice(0, 10) < today;
-                return (
-                  <tr key={opp.id} onClick={() => open(opp.id)} className="cursor-pointer hover:bg-muted/20">
-                    <td className={TD}>
-                      <button type="button" className={LINK} onClick={(event) => { event.stopPropagation(); open(opp.id); }}>{opp.title}</button>
-                    </td>
-                    <td className={TD}>{customer ? <Link to={`/crm/clientes/${customer.id}`} onClick={(event) => event.stopPropagation()} className={LINK}>{customer.name}</Link> : <span className="text-muted-foreground">—</span>}</td>
-                    <td className={TD}><StatusBadge status={opp.stage} /></td>
-                    <td className={cn(TD, "text-right tabular-nums")}>{formatCurrency(Number(opp.value ?? 0))}</td>
-                    <td className={cn(TD, "text-right tabular-nums")}>{opp.probability}%</td>
-                    <td className={cn(TD, "whitespace-nowrap", late ? "font-semibold text-destructive" : "text-muted-foreground")}>
-                      {opp.status === "open" ? formatDay(opp.expected_close_date) : formatDay(opp.closed_at)}
-                    </td>
-                    <td className={cn(TD, "text-muted-foreground")}>{opp.owner_id ? names.get(opp.owner_id) ?? "—" : "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {selected && <OpportunityDrawer opportunityId={selected} onClose={() => open(null)} />}
-      {creating && <OpportunityFormDialog onClose={() => setCreating(false)} onSaved={(id) => open(id)} />}
+      <OpportunitiesTable
+        opportunities={filtered}
+        loading={isLoading}
+        selectedId={selected}
+        onSelect={open}
+        emptyMessage={opportunities.length ? "Nenhuma oportunidade com esses filtros: ajuste os filtros." : undefined}
+      />
     </div>
   );
 }

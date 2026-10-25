@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { FilePlus2, ThumbsDown, Trash2, Trophy } from "lucide-react";
-import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
+import { FilePlus2, Pencil, ThumbsDown, Trash2, Trophy } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { confirmAction } from "@/lib/confirm";
 import { getDb } from "@/lib/db/client";
 import { moveOpportunityStage } from "@/lib/crm/convert";
 import { displayProposalStatus } from "@/lib/crm/proposals";
@@ -12,8 +12,9 @@ import { formatSequence } from "@/lib/db/sequence";
 import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import type { Opportunity } from "@/types";
 import { ActivityTimeline } from "./Activities";
-import { ConfirmDialog, errorText } from "./Modal";
-import { OpportunityFormDialog } from "./OpportunityFormDialog";
+import { InfoGrid as DetailGrid, InfoItem as DetailItem, InlinePanel } from "@/modules/catalog/components/inline";
+import { errorText } from "./Modal";
+import { OpportunityForm } from "./OpportunityForm";
 import { LoseDialog, WinDialog } from "./OutcomeDialogs";
 import { BTN_DANGER, BTN_PRIMARY, BTN_SECONDARY, LINK, SELECT } from "./ui";
 import { useAudit, useCompanyUsers, useContacts, useCrmSession, useCustomerMap, useInvalidateCrm, useOpportunities, useProposals } from "./useCrm";
@@ -35,7 +36,12 @@ export function useMoveStage() {
   });
 }
 
-export function OpportunityDrawer({ opportunityId, onClose }: { opportunityId: string; onClose: () => void }) {
+/**
+ * Detalhes da oportunidade na própria página (lista, funil, ficha do cliente): etapa, Ganhar/Perder, propostas, linha do
+ * tempo e "Editar oportunidade", que troca os dados pelo formulário no mesmo painel. Ganhar e Perder continuam
+ * pedindo confirmação (cliente, proposta, motivo) antes de fechar.
+ */
+export function OpportunityPanel({ opportunityId, onClose }: { opportunityId: string; onClose: () => void }) {
   const { companyId, can } = useCrmSession();
   const invalidate = useInvalidateCrm();
   const audit = useAudit();
@@ -45,7 +51,8 @@ export function OpportunityDrawer({ opportunityId, onClose }: { opportunityId: s
   const { names } = useCompanyUsers();
   const { data: contacts = [] } = useContacts(opportunity?.customer_id ?? undefined);
   const { data: allProposals = [] } = useProposals(can("view", "proposals"));
-  const [dialog, setDialog] = useState<"edit" | "win" | "lose" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"win" | "lose" | null>(null);
+  const [editing, setEditing] = useState(false);
   const move = useMoveStage();
   const remove = useMutation({
     mutationFn: async (target: Opportunity) => {
@@ -60,9 +67,9 @@ export function OpportunityDrawer({ opportunityId, onClose }: { opportunityId: s
 
   if (!opportunity) {
     return (
-      <DetailDrawer title={isLoading ? "Carregando…" : "Oportunidade não encontrada"} subtitle="Oportunidade" onClose={onClose}>
+      <InlinePanel title={isLoading ? "Carregando…" : "Oportunidade não encontrada"} subtitle="Oportunidade" onClose={onClose}>
         {isLoading ? <div className="h-40 animate-pulse rounded-lg bg-muted/30" /> : <p className="text-sm text-muted-foreground">Ela pode ter sido excluída.</p>}
-      </DetailDrawer>
+      </InlinePanel>
     );
   }
 
@@ -75,8 +82,14 @@ export function OpportunityDrawer({ opportunityId, onClose }: { opportunityId: s
   const late = open && opportunity.expected_close_date && opportunity.expected_close_date.slice(0, 10) < today;
 
   return (
-    <DetailDrawer title={opportunity.title} subtitle={`Oportunidade · ${STAGE_LABELS[opportunity.stage]}`} onClose={onClose} onEdit={canEdit ? () => setDialog("edit") : undefined}>
+    <InlinePanel
+      title={opportunity.title}
+      subtitle={`Oportunidade · ${STAGE_LABELS[opportunity.stage]}`}
+      onClose={onClose}
+      actions={canEdit && !editing ? <button type="button" onClick={() => setEditing(true)} className={BTN_SECONDARY}><Pencil size={14} /> Editar oportunidade</button> : undefined}
+    >
       <div className="space-y-6">
+        {editing && <OpportunityForm key={opportunity.id} opportunity={opportunity} onClose={() => setEditing(false)} />}
         {canEdit && (
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-sm">
@@ -155,26 +168,23 @@ export function OpportunityDrawer({ opportunityId, onClose }: { opportunityId: s
 
         {can("delete", "opportunities") && (
           <div className="border-t pt-4">
-            <button type="button" onClick={() => setDialog("delete")} className={BTN_DANGER}><Trash2 size={14} /> Excluir oportunidade</button>
+            <button
+              type="button"
+              disabled={remove.isPending}
+              onClick={async () => {
+                if (await confirmAction(`Excluir ${opportunity.title}? As propostas e atividades ligadas continuam no histórico.`, { title: "Excluir oportunidade", okLabel: "Excluir" })) remove.mutate(opportunity);
+              }}
+              className={BTN_DANGER}
+            >
+              <Trash2 size={14} /> Excluir oportunidade
+            </button>
+            {remove.error && <p role="alert" className="mt-2 text-sm text-destructive">{errorText(remove.error)}</p>}
           </div>
         )}
       </div>
 
-      {dialog === "edit" && <OpportunityFormDialog opportunity={opportunity} onClose={() => setDialog(null)} />}
       {dialog === "win" && <WinDialog opportunity={opportunity} onClose={() => setDialog(null)} />}
       {dialog === "lose" && <LoseDialog opportunity={opportunity} onClose={() => setDialog(null)} />}
-      {dialog === "delete" && (
-        <ConfirmDialog
-          title="Excluir oportunidade"
-          message={<>Excluir <strong>{opportunity.title}</strong>? As propostas e atividades ligadas continuam no histórico.</>}
-          confirmLabel="Excluir"
-          danger
-          busy={remove.isPending}
-          error={errorText(remove.error)}
-          onConfirm={() => remove.mutate(opportunity)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-    </DetailDrawer>
+    </InlinePanel>
   );
 }

@@ -137,12 +137,13 @@ describe("telas do CRM", () => {
 
     await click([...container.querySelectorAll("[role=tab]")].find((tab) => tab.textContent === "Contatos"));
     await until(() => text().includes("Nenhum contato"), "aba de contatos");
-    await click(button("Novo contato"));
-    const inputs = dialog("Novo contato")!.querySelectorAll("input");
-    await type(inputs[0], "Ana Souza");
-    await type(inputs[1], "Gerente");
-    await click(button("Salvar", dialog("Novo contato")!));
-    await until(() => text().includes("Ana Souza"), "contato na lista");
+    // Contato novo direto na tabela (Adicionar → linha nova → Salvar), sem diálogo.
+    await click(button("Adicionar"));
+    expect(dialog("Novo contato")).toBeNull();
+    await type(container.querySelector('input[aria-label="Nome (nova linha)"]'), "Ana Souza");
+    await type(container.querySelector('input[aria-label="Cargo (nova linha)"]'), "Gerente");
+    await click(button("Salvar"));
+    await until(() => text().includes("Ana Souza") && !container.querySelector("tr[data-new]"), "contato na lista");
     expect(await one<Row>("SELECT * FROM contacts WHERE customer_id=?", ["cust-1"])).toMatchObject({ name: "Ana Souza", role: "Gerente", is_primary: 1 });
   });
 

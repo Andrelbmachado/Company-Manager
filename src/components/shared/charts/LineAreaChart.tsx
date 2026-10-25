@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,20 @@ export const CHART_MARGIN = { top: 12, right: 16, bottom: 4, left: 8 } as const;
 
 /** Respiro (px) entre a borda da área do gráfico e o primeiro/último ponto: o último mês não encosta na borda. */
 export const X_PADDING = 24;
+
+/** Em gráfico estreito, o respiro de cada lado fica em no máximo esta fração da área de plotagem. */
+const EDGE_SHARE = 0.1;
+
+/**
+ * Eixo vertical e respiro para a largura do gráfico. Um respiro fixo maior que a área de plotagem inverte o eixo
+ * horizontal (dezembro à esquerda), então ele encolhe com a largura; e o eixo vertical sai quando ocuparia mais
+ * espaço que os dados (a dica continua com os valores).
+ */
+export function chartLayout(chartWidth: number, yAxisWidth: number): { yAxisWidth: number; xPadding: number } {
+  const free = Math.max(0, chartWidth - CHART_MARGIN.left - CHART_MARGIN.right);
+  const axis = free - yAxisWidth >= yAxisWidth ? yAxisWidth : 0;
+  return { yAxisWidth: axis, xPadding: Math.min(X_PADDING, Math.floor((free - axis) * EDGE_SHARE)) };
+}
 
 const FORECAST_DASH = "6 5";
 const AXIS_TICK = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
@@ -89,92 +103,102 @@ export function LineAreaChart({
   const uid = useId().replace(/[^A-Za-z0-9_-]/g, "");
   const gradientId = (index: number) => `line-area-${uid}-${index}`;
 
-  const chart = (
-    <ComposedChart data={data} margin={{ ...CHART_MARGIN }} width={width} height={height}>
-      <defs>
-        {series.map((item, index) => {
-          const color = colorOf(item, index);
-          return (
-            <linearGradient key={item.key} id={gradientId(index)} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={item.dashed ? 0.14 : 0.28} />
-              <stop offset="55%" stopColor={color} stopOpacity={item.dashed ? 0.04 : 0.08} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          );
-        })}
-      </defs>
-      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-      <XAxis
-        dataKey={xKey}
-        tick={AXIS_TICK}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-        tickLine={false}
-        padding={{ left: X_PADDING, right: X_PADDING }}
-        minTickGap={minTickGap}
-      />
-      <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={yAxisWidth} tickFormatter={formatAxis} />
-      {zeroLine && <ReferenceLine y={0} stroke="hsl(var(--border))" />}
-      <Tooltip
-        cursor={{ stroke: "hsl(var(--border))" }}
-        formatter={(value, name) => [typeof value === "number" ? formatValue(value) : "—", name]}
-        labelFormatter={formatLabel ? (label) => formatLabel(String(label)) : undefined}
-        contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-        labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-        itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-      />
-      {series.map((item, index) => (
-        <Area
-          key={`area-${item.key}`}
-          type="linear"
-          dataKey={item.key}
-          name={item.label}
-          stroke="none"
-          fill={`url(#${gradientId(index)})`}
-          fillOpacity={1}
-          baseValue="dataMin"
-          dot={false}
-          activeDot={false}
-          tooltipType="none"
-          legendType="none"
-          connectNulls={false}
-          isAnimationActive={false}
+  const draw = (chartWidth: number, chartHeight: number, style?: CSSProperties) => {
+    const layout = chartLayout(chartWidth, yAxisWidth);
+    return (
+      <ComposedChart data={data} margin={{ ...CHART_MARGIN }} width={chartWidth} height={chartHeight} style={style}>
+        <defs>
+          {series.map((item, index) => {
+            const color = colorOf(item, index);
+            return (
+              <linearGradient key={item.key} id={gradientId(index)} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={item.dashed ? 0.14 : 0.28} />
+                <stop offset="55%" stopColor={color} stopOpacity={item.dashed ? 0.04 : 0.08} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            );
+          })}
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+        <XAxis
+          dataKey={xKey}
+          tick={AXIS_TICK}
+          axisLine={{ stroke: "hsl(var(--border))" }}
+          tickLine={false}
+          padding={{ left: layout.xPadding, right: layout.xPadding }}
+          minTickGap={minTickGap}
         />
-      ))}
-      {children}
-      {series.map((item, index) => {
-        const color = colorOf(item, index);
-        return (
-          <Line
-            key={`line-${item.key}`}
+        <YAxis hide={!layout.yAxisWidth} tick={AXIS_TICK} axisLine={false} tickLine={false} width={yAxisWidth} tickFormatter={formatAxis} />
+        {zeroLine && <ReferenceLine y={0} stroke="hsl(var(--border))" />}
+        <Tooltip
+          cursor={{ stroke: "hsl(var(--border))" }}
+          formatter={(value, name) => [typeof value === "number" ? formatValue(value) : "—", name]}
+          labelFormatter={formatLabel ? (label) => formatLabel(String(label)) : undefined}
+          contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+          labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+        />
+        {series.map((item, index) => (
+          <Area
+            key={`area-${item.key}`}
             type="linear"
             dataKey={item.key}
             name={item.label}
-            stroke={color}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray={item.dashed ? FORECAST_DASH : undefined}
-            dot={item.dots ? { r: 2.5, fill: color, stroke: color } : false}
-            activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+            stroke="none"
+            fill={`url(#${gradientId(index)})`}
+            fillOpacity={1}
+            baseValue="dataMin"
+            dot={false}
+            activeDot={false}
+            tooltipType="none"
+            legendType="none"
             connectNulls={false}
             isAnimationActive={false}
           />
-        );
-      })}
-    </ComposedChart>
-  );
+        ))}
+        {children}
+        {series.map((item, index) => {
+          const color = colorOf(item, index);
+          return (
+            <Line
+              key={`line-${item.key}`}
+              type="linear"
+              dataKey={item.key}
+              name={item.label}
+              stroke={color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={item.dashed ? FORECAST_DASH : undefined}
+              dot={item.dots ? { r: 2.5, fill: color, stroke: color } : false}
+              activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          );
+        })}
+      </ComposedChart>
+    );
+  };
 
   return (
     <div className={cn("w-full", className)} role={ariaLabel ? "img" : undefined} aria-label={ariaLabel}>
       {width && height ? (
-        chart
+        draw(width, height)
       ) : (
         <ResponsiveContainer width="100%" height="100%">
-          {chart}
+          <Measured draw={draw} />
         </ResponsiveContainer>
       )}
     </div>
   );
+}
+
+/** Recebe do ResponsiveContainer (cloneElement) a largura e a altura medidas: o respiro e o eixo dependem delas. */
+function Measured({ width, height, draw }: { width?: number; height?: number; draw: (width: number, height: number, style: CSSProperties) => ReactElement }) {
+  if (!width || !height) return null;
+  // O mesmo estilo que o ResponsiveContainer daria ao gráfico: acompanha o contêiner que encolhe até a próxima medição.
+  return draw(width, height, { width: "100%", height: "100%", maxWidth: width, maxHeight: height });
 }
 
 /** Legenda das séries com a mesma cor (e o mesmo tracejado) das linhas. `children` entra antes, para itens extras. */

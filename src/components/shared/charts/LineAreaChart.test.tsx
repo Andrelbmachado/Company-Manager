@@ -7,7 +7,7 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Bar } from "recharts";
-import { pathXs } from "@/test/charts";
+import { pathXs, stubChartSize } from "@/test/charts";
 import { CHART_MARGIN, CHART_PALETTE_SIZE, ChartLegend, LineAreaChart, X_PADDING, seriesColor, type LineAreaSeries } from "./LineAreaChart";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -137,6 +137,47 @@ describe("LineAreaChart", () => {
     expect(xs[xs.length - 1]).toBeCloseTo(plotRight - X_PADDING, 0);
     // O ponto destacado (raio 4) do último mês cabe inteiro dentro do SVG.
     expect(xs[xs.length - 1] + 4).toBeLessThan(WIDTH - 8);
+  });
+
+  const expectInOrder = (xs: number[]) => {
+    expect(xs).toHaveLength(DATA.length);
+    for (let index = 1; index < xs.length; index++) expect(xs[index]).toBeGreaterThan(xs[index - 1]);
+  };
+
+  it("em gráfico estreito o eixo não se inverte: sem espaço para o eixo vertical, ele sai e o primeiro mês continua à esquerda", () => {
+    // 150 px com eixo de 84 px: sobram 42 px, menos que o respiro fixo dos dois lados (o eixo virava do avesso).
+    const narrow = 150;
+    const view = mount(<LineAreaChart data={DATA} xKey="mes" series={SERIES} width={narrow} height={HEIGHT} yAxisWidth={84} />);
+    const xs = pathXs(view.querySelector(".recharts-line-curve")!.getAttribute("d"));
+    expectInOrder(xs);
+    expect(view.querySelector(".recharts-yAxis")).toBeNull();
+    expect(xs[0]).toBeGreaterThan(CHART_MARGIN.left);
+    expect(xs[xs.length - 1]).toBeLessThan(narrow - CHART_MARGIN.right);
+  });
+
+  it("em largura média o respiro encolhe: os pontos ocupam a maior parte da área e não encostam nas bordas", () => {
+    const medium = 260;
+    const view = mount(<LineAreaChart data={DATA} xKey="mes" series={SERIES} width={medium} height={HEIGHT} yAxisWidth={84} />);
+    const xs = pathXs(view.querySelector(".recharts-line-curve")!.getAttribute("d"));
+    expectInOrder(xs);
+    expect(view.querySelector(".recharts-yAxis")).not.toBeNull();
+    const plotLeft = CHART_MARGIN.left + 84;
+    const plotRight = medium - CHART_MARGIN.right;
+    expect(xs[0]).toBeGreaterThan(plotLeft);
+    expect(xs[xs.length - 1]).toBeLessThan(plotRight);
+    expect(xs[xs.length - 1] - xs[0]).toBeGreaterThanOrEqual(0.8 * (plotRight - plotLeft) - 1);
+  });
+
+  it("no contêiner responsivo o respiro e o eixo seguem a largura medida", () => {
+    const restore = stubChartSize(150, 200);
+    try {
+      const view = mount(<LineAreaChart data={DATA} xKey="mes" series={SERIES} yAxisWidth={84} className="h-72" />);
+      const xs = pathXs(view.querySelector(".recharts-line-curve")?.getAttribute("d"));
+      expectInOrder(xs);
+      expect(view.querySelector(".recharts-yAxis")).toBeNull();
+    } finally {
+      restore();
+    }
   });
 
   it("desenha elementos extras (barras) entre as áreas e as linhas", () => {

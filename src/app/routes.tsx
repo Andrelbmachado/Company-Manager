@@ -108,7 +108,8 @@ export function AppRoutes() {
           <Route path="/documents/*" element={<RequireModule module="documents"><DocumentsPage /></RequireModule>} />
           <Route path="/settings/*" element={<RequireModule module="settings"><SettingsPage /></RequireModule>} />
           <Route path="/audit/*" element={<RequireModule module="audit"><AuditPage /></RequireModule>} />
-          <Route path="/assistant/*" element={<RequireModule module="assistant"><AssistantPage /></RequireModule>} />
+          {/* Conversa do assistente: sem id = nova conversa (criada na primeira pergunta). */}
+          <Route path="/assistant/:conversationId?" element={<RequireModule module="assistant"><AssistantPage /></RequireModule>} />
           <Route path="/catalog/*" element={<RequireModule module="catalog"><CatalogPage /></RequireModule>} />
           <Route path="/sales/*" element={<RequireModule module="sales"><SalesPage /></RequireModule>} />
           <Route path="/purchasing/*" element={<RequireModule module="purchasing"><PurchasingPage /></RequireModule>} />

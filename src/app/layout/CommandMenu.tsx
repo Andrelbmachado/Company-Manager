@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRequiredSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
 import { SUBPAGES, canOpenSubpage, isDetailPage, sectionOf } from "../subpages";
 import { Command } from "cmdk";
+import { useModalFocus } from "@/components/shared/useModalFocus";
 import {
   LayoutDashboard,
   Users,
@@ -55,7 +55,7 @@ const COMMANDS = [
   { module: "imports", label: "Importar dados (planilhas)", path: "/imports", icon: FileUp },
   { module: "audit", label: "Auditoria", path: "/audit", icon: ShieldCheck },
   { module: "settings", label: "Configurações", path: "/settings", icon: Settings },
-  { module: "assistant", label: "Assistente IA", path: "/assistant", icon: Sparkles },
+  { module: "assistant", label: "Assistente de IA (nova conversa)", path: "/assistant", icon: Sparkles },
 ];
 
 const MODULE_ICONS = new Map(COMMANDS.map((cmd) => [cmd.module, cmd.icon]));
@@ -72,56 +72,41 @@ function subpageCommands(role: Role) {
 
 interface CommandMenuProps {
   open: boolean;
-  onOpen: () => void;
   onClose: () => void;
 }
 
-export function CommandMenu({ open, onOpen, onClose }: CommandMenuProps) {
+/** Busca (módulos e páginas que o papel abre). Aberta pelo botão Buscar da sidebar ou por ⌘K / Ctrl+K. */
+export function CommandMenu({ open, onClose }: CommandMenuProps) {
+  if (!open) return null;
+  return <CommandPalette onClose={onClose} />;
+}
+
+function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const session = useRequiredSession();
-  const [search, setSearch] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const panel = useModalFocus<HTMLDivElement>(onClose);
   const role = session.membership.role as Role;
   const allowed = new Set(visibleModules(role));
   const commands = [...COMMANDS.filter((cmd) => allowed.has(cmd.module)), ...subpageCommands(role)];
 
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-    else setSearch("");
-  }, [open]);
-
-  useEffect(() => {
-    function closeOnOutsideClick(event: PointerEvent) {
-      if (open && !rootRef.current?.contains(event.target as Node)) onClose();
-    }
-    window.addEventListener("pointerdown", closeOnOutsideClick);
-    return () => window.removeEventListener("pointerdown", closeOnOutsideClick);
-  }, [onClose, open]);
-
   return (
-    <div ref={rootRef} className="relative w-[32rem] max-w-[50vw]">
-      <Command shouldFilter className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground">
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 transition-colors focus-within:bg-muted hover:bg-muted">
-          <Search size={14} className="shrink-0 text-muted-foreground" />
-          <Command.Input
-            ref={inputRef}
-            value={search}
-            onFocus={onOpen}
-            onValueChange={(value) => {
-              setSearch(value);
-              onOpen();
-            }}
-            placeholder="Buscar..."
-            className="flex h-9 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
-          />
-          <kbd className="rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">
-            ⌘K
-          </kbd>
-        </div>
-        {open && (
-          <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border bg-popover shadow-2xl">
-          <Command.List className="max-h-72 overflow-y-auto p-2">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 px-4 pt-[14vh]"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div ref={panel} role="dialog" aria-modal="true" aria-label="Buscar" className="w-full max-w-xl overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl">
+        <Command shouldFilter className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground">
+          <div className="flex items-center gap-2 border-b px-4">
+            <Search size={16} className="shrink-0 text-muted-foreground" />
+            <Command.Input
+              placeholder="Buscar módulos e páginas..."
+              className="flex h-12 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <kbd className="rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">esc</kbd>
+          </div>
+          <Command.List className="max-h-80 overflow-y-auto p-2">
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
               Nenhum resultado encontrado.
             </Command.Empty>
@@ -136,7 +121,7 @@ export function CommandMenu({ open, onOpen, onClose }: CommandMenuProps) {
                       navigate(cmd.path);
                       onClose();
                     }}
-                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-3 text-sm hover:bg-accent data-[selected]:bg-accent"
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-3 text-sm hover:bg-accent data-[selected=true]:bg-accent"
                   >
                     <Icon size={15} className="text-muted-foreground" />
                     {cmd.label}
@@ -145,14 +130,13 @@ export function CommandMenu({ open, onOpen, onClose }: CommandMenuProps) {
               })}
             </Command.Group>
           </Command.List>
-          <div className="border-t px-3 py-2 text-[10px] text-muted-foreground flex gap-4">
+          <div className="flex gap-4 border-t px-3 py-2 text-[10px] text-muted-foreground">
             <span>↑↓ navegar</span>
             <span>↵ selecionar</span>
             <span>esc fechar</span>
           </div>
-          </div>
-        )}
-      </Command>
+        </Command>
+      </div>
     </div>
   );
 }

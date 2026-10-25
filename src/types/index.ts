@@ -1238,6 +1238,29 @@ export interface HrTimeEntry {
   deleted_at?: string | null;
 }
 
+// ── Assistente de IA (0012) ────────────────────────────────────────
+
+export type AssistantMessageAuthor = "user" | "assistant";
+
+/** Conversa do assistente: de uma pessoa, numa empresa. Timestamps ISO com milissegundos, gravados pelo app. */
+export interface AssistantConversation {
+  id: string;
+  company_id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface AssistantMessage {
+  id: string;
+  conversation_id: string;
+  author: AssistantMessageAuthor;
+  text: string;
+  created_at: string;
+}
+
 // ── Backup (comandos Tauri em src-tauri/src/backup.rs) ─────────────
 
 /** Arquivo de backup (.cmbackup: banco + pasta files/), devolvido por backup_db e list_backups. */

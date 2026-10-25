@@ -84,6 +84,12 @@ pub fn run() {
             sql: include_str!("../migrations/0011_crm_hr_extras.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 12,
+            description: "redesign_modular",
+            sql: include_str!("../migrations/0012_redesign_modular.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

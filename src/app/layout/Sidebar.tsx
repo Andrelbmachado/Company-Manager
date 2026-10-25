@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
 import { activeNavPath } from "../subpages";
+import { AccountMenu } from "./AccountMenu";
+import { AssistantLauncher } from "./AssistantLauncher";
+import { SidebarSearch } from "./SidebarSearch";
 import type { Role } from "@/types";
 import {
   LayoutDashboard,
@@ -24,7 +27,6 @@ import {
   Building2,
   PanelLeftClose,
   PanelLeftOpen,
-  Sparkles,
   ShoppingCart,
   Tags,
   Truck,
@@ -69,7 +71,8 @@ const DEFAULT_WIDTH = 269;
 const MIN_WIDTH = 230;
 const COLLAPSED_WIDTH = 68;
 
-export function Sidebar() {
+/** Sidebar: logo, busca, Assistente de IA, navegação por grupo e, no rodapé, o botão da conta (não há top bar). */
+export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const session = useRequiredSession();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
@@ -133,10 +136,21 @@ export function Sidebar() {
   return (
     <aside
       style={{ width: collapsed ? COLLAPSED_WIDTH : width }}
-      className={cn("relative flex h-full shrink-0 flex-col border-r bg-sidebar select-none", !resizing && "transition-[width] duration-200")}
+      className={cn("relative flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar select-none", !resizing && "transition-[width] duration-200")}
     >
+      {/* Alça de redimensionar: primeira no DOM (posição absoluta), para o botão da conta ser o último da sidebar. */}
+      {!collapsed && (
+        <button
+          type="button"
+          aria-label="Redimensionar sidebar"
+          title="Arraste para redimensionar"
+          onPointerDown={() => setResizing(true)}
+          className={cn("absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize transition-colors hover:bg-primary/40", resizing && "bg-primary/50")}
+        />
+      )}
+
       {/* Logo */}
-      <div className={cn("flex h-[4.2rem] shrink-0 items-center gap-2.5 border-b", collapsed ? "justify-center px-2.5" : "px-3.5")}>
+      <div className={cn("flex h-[4.2rem] shrink-0 items-center gap-2.5", collapsed ? "justify-center px-2.5" : "px-3.5")}>
         <div className={cn("h-8 w-8 items-center justify-center rounded-lg bg-primary", collapsed ? "hidden" : "flex")}>
           <Building2 size={17} className="text-primary-foreground" />
         </div>
@@ -153,8 +167,14 @@ export function Sidebar() {
         </button>
       </div>
 
+      {/* Busca e Assistente de IA, acima da navegação */}
+      <div className="space-y-1 px-2.5 pb-2">
+        <SidebarSearch collapsed={collapsed} onOpen={onSearch} />
+        {assistantVisible && <AssistantLauncher collapsed={collapsed} />}
+      </div>
+
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2.5 py-4">
+      <nav aria-label="Módulos" className="flex-1 overflow-y-auto px-2.5 py-3">
         {Object.entries(groups).map(([group, items]) => (
           <div key={group} className="mb-5 space-y-1">
             <p className={cn("px-2.5 pb-1.5 text-xs font-semibold text-muted-foreground", collapsed && "hidden")}>
@@ -185,33 +205,10 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {assistantVisible && (
-        <div className="border-t p-2.5">
-          <NavLink
-            to="/assistant"
-            title={collapsed ? "Assistente IA" : undefined}
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[0.95rem] transition-colors",
-              collapsed && "justify-center px-0",
-              location.pathname.startsWith("/assistant")
-                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-            )}
-          >
-            <Sparkles size={18} className="shrink-0" />
-            {!collapsed && "Assistente IA"}
-          </NavLink>
-        </div>
-      )}
-      {!collapsed && (
-        <button
-          type="button"
-          aria-label="Redimensionar sidebar"
-          title="Arraste para redimensionar"
-          onPointerDown={() => setResizing(true)}
-          className={cn("absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize transition-colors hover:bg-primary/50", resizing && "bg-primary/60")}
-        />
-      )}
+      {/* Conta (no lugar onde ficava o assistente) */}
+      <div className="border-t border-sidebar-border p-2.5">
+        <AccountMenu collapsed={collapsed} />
+      </div>
     </aside>
   );
 }

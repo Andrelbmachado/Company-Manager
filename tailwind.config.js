@@ -17,7 +17,8 @@ export default {
         display: ['"Bricolage Grotesque Variable"', '"Public Sans Variable"', "ui-sans-serif", "sans-serif"],
       },
       colors: {
-        // Tags de status: fundo sólido e texto com contraste >= 4,5 (amarelo usa texto escuro).
+        // Tags de status: fundo sólido e texto com contraste >= 4,5 (amarelo usa texto escuro). São a única cor do
+        // tema monocromático (estado); neutral é cinza puro, como o resto da interface.
         status: {
           danger: "#D92D20",
           success: "#15803D",
@@ -26,7 +27,7 @@ export default {
           info: "#2B59E0",
           violet: "#6D3FD6",
           orange: "#C2410C",
-          neutral: "#475066",
+          neutral: "#525252",
         },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

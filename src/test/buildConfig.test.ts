@@ -118,3 +118,22 @@ describe("empacotamento DMG (macOS)", () => {
     expect(detected).toBe(declared === "true");
   });
 });
+
+describe("plugins do Tauri", () => {
+  // Um plugin no Cargo.toml (ou com permissão na capability) que não é registrado no lib.rs compila, mas a chamada do
+  // front falha só no app desktop (ex.: a agenda por link iCal sem o plugin-http: "sem permissão para acessar a internet").
+  const libRs = read("src-tauri/src/lib.rs");
+  const registered = new Set([...libRs.matchAll(/\.plugin\(\s*tauri_plugin_([a-z_]+)::/g)].map((match) => match[1].replace(/_/g, "-")));
+
+  it("todo tauri-plugin-* do Cargo.toml é registrado com .plugin(...) no lib.rs", () => {
+    const crates = [...read("src-tauri/Cargo.toml").matchAll(/^tauri-plugin-([a-z-]+)\s*=/gm)].map((match) => match[1]);
+    expect(crates).toContain("http");
+    expect(crates.filter((name) => !registered.has(name))).toEqual([]);
+  });
+
+  it("toda permissão de plugin da capability padrão tem o plugin registrado", () => {
+    const capability = JSON.parse(read("src-tauri/capabilities/default.json")) as { permissions: (string | { identifier: string })[] };
+    const prefixes = new Set(capability.permissions.map((entry) => (typeof entry === "string" ? entry : entry.identifier).split(":")[0]).filter((prefix) => prefix !== "core"));
+    expect([...prefixes].filter((prefix) => !registered.has(prefix))).toEqual([]);
+  });
+});

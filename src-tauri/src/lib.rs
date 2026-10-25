@@ -101,6 +101,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        // Agendas por link iCal (src/lib/calendar/fetcher.ts): o pedido sai do Rust, sem o CORS do webview.
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             // Antes do front-end abrir o banco: bancos do protótipo têm outro checksum na migration 1 (ver legacy_db.rs).
             use tauri::Manager;

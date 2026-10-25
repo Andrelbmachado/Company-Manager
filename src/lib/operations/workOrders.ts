@@ -3,7 +3,7 @@
 // demo; junções em TypeScript. A permissão (`work_orders`) é conferida aqui também, não só nos botões.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
-import { CALENDAR_LATE, CALENDAR_ON_TIME, dayOf } from "@/lib/inventory/custody";
+import { CALENDAR_LATE, dayOf } from "@/lib/inventory/custody";
 import { assertCanSaveRows, type Actor } from "@/lib/inventory/permission";
 import { instant, userNames } from "@/lib/inventory/queries";
 import { roundMoney } from "@/lib/money";
@@ -222,7 +222,7 @@ export async function saveWorkOrderRows(
 }
 
 /** Agenda de prazos: OS em andamento com prazo (dia inteiro); atrasada em vermelho. */
-export function workOrderCalendarItems(rows: readonly WorkOrderView[], now = new Date()): { id: string; title: string; start: string; allDay: true; color: string; sourceLabel: string }[] {
+export function workOrderCalendarItems(rows: readonly WorkOrderView[], now = new Date()): { id: string; title: string; start: string; allDay: true; color?: string; sourceLabel: string }[] {
   const today = todayIso(now);
   return rows
     .filter((row) => !isClosedWorkOrder(row.status) && row.sla_due_at)
@@ -233,7 +233,7 @@ export function workOrderCalendarItems(rows: readonly WorkOrderView[], now = new
         title: `${row.number} · ${row.customer_name ?? "sem cliente"}`,
         start,
         allDay: true as const,
-        color: start < today ? CALENDAR_LATE : CALENDAR_ON_TIME,
+        color: start < today ? CALENDAR_LATE : undefined,
         sourceLabel: start < today ? "Prazo vencido" : "Prazo da OS",
       };
     })

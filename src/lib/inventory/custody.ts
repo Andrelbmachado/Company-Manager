@@ -181,11 +181,14 @@ export function dayOf(value: string): string {
   return value.slice(0, 10);
 }
 
-export const CALENDAR_LATE = "#dc2626";
-export const CALENDAR_ON_TIME = "#2563eb";
+/**
+ * Cor do item atrasado na agenda: estado de erro, pelo token do tema (tema monocromático, cor só onde é estado). O que
+ * está no prazo fica sem cor (a neutra do calendário).
+ */
+export const CALENDAR_LATE = "hsl(var(--destructive))";
 
 /** Agenda de devoluções: o que está em custódia com devolução prevista (dia inteiro); atrasado em vermelho. */
-export function custodyCalendarItems(rows: readonly CustodyView[], now = new Date()): { id: string; title: string; start: string; allDay: true; color: string; sourceLabel: string }[] {
+export function custodyCalendarItems(rows: readonly CustodyView[], now = new Date()): { id: string; title: string; start: string; allDay: true; color?: string; sourceLabel: string }[] {
   const today = todayIso(now);
   return rows
     .filter((row) => row.status === "em_custodia" && row.due_back_at)
@@ -196,7 +199,7 @@ export function custodyCalendarItems(rows: readonly CustodyView[], now = new Dat
         title: `${row.item_name ?? "Peça"} · ${row.holder_name ?? "sem responsável"}`,
         start,
         allDay: true as const,
-        color: start < today ? CALENDAR_LATE : CALENDAR_ON_TIME,
+        color: start < today ? CALENDAR_LATE : undefined,
         sourceLabel: start < today ? "Devolução atrasada" : "Devolução prevista",
       };
     })

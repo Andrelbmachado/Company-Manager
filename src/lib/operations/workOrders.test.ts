@@ -110,6 +110,8 @@ describe("workOrderCalendarItems", () => {
       ["a", "2026-10-20", "OS-0001 · Padaria Sol"],
       ["b", "2026-10-28", "OS-0002 · Padaria Sol"],
     ]);
-    expect(items[0].color).not.toBe(items[1].color);
+    // Tema monocromático: só a atrasada tem cor (estado de erro, pelo token); o resto fica na cor neutra do calendário.
+    expect(items.map((item) => item.color)).toStrictEqual(["hsl(var(--destructive))", undefined]);
+    expect(items.map((item) => item.sourceLabel)).toEqual(["Prazo vencido", "Prazo da OS"]);
   });
 });

@@ -84,6 +84,8 @@ describe("custodyCalendarItems", () => {
       ["a", "2026-10-20", true, "Cabo · Ana"],
       ["b", "2026-10-30", true, "Cabo · Ana"],
     ]);
-    expect(items[0].color).not.toBe(items[1].color);
+    // Tema monocromático: só o atrasado tem cor (estado de erro, pelo token); o resto fica na cor neutra do calendário.
+    expect(items.map((item) => item.color)).toStrictEqual(["hsl(var(--destructive))", undefined]);
+    expect(items.map((item) => item.sourceLabel)).toEqual(["Devolução atrasada", "Devolução prevista"]);
   });
 });

@@ -16,8 +16,8 @@
         "title": "Company Manager",
         "width": 1280,
         "height": 800,
-        "minWidth": 1024,
-        "minHeight": 600,
+        "minWidth": 240,
+        "minHeight": 200,
         "resizable": true,
         "fullscreen": false,
         "dragDropEnabled": false

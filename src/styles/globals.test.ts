@@ -88,3 +88,17 @@ describe("janela travada: só a área de conteúdo rola", () => {
   });
 });
 
+describe("janela pequena (até 1/5 da largura e 1/3 da altura da tela)", () => {
+  it("item de grid não alarga a coluna além do espaço (texto cortado com reticências e tabelas rolam por dentro)", () => {
+    expect(rule(css, ".grid > *, .inline-grid > *")).toMatch(/min-width:\s*0/);
+  });
+
+  it("o respiro da área de conteúdo é uma variável que diminui em janela estreita", () => {
+    const content = rule(css, ".app-content");
+    expect(content).toMatch(/--content-pad:\s*1\.5rem/);
+    expect(content).toMatch(/padding:\s*var\(--content-pad\)/);
+    const narrow = css.match(/@media\s*\(max-width:\s*(\d+)px\)\s*\{\s*\.app-content\s*\{([^}]*)\}/);
+    expect(Number(narrow?.[1])).toBeLessThan(900);
+    expect(narrow?.[2]).toMatch(/--content-pad:\s*0\.75rem/);
+  });
+});

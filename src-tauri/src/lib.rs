@@ -1,5 +1,6 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod window_size;
 mod auth;
 mod backup;
 mod legacy_db;
@@ -104,6 +105,8 @@ pub fn run() {
         // Agendas por link iCal (src/lib/calendar/fetcher.ts): o pedido sai do Rust, sem o CORS do webview.
         .plugin(tauri_plugin_http::init())
         .setup(|app| {
+            // Mínimo da janela = 1/5 da largura e 1/3 da altura do monitor atual (window_size.rs).
+            window_size::apply_to_main_window(app);
             // Antes do front-end abrir o banco: bancos do protótipo têm outro checksum na migration 1 (ver legacy_db.rs).
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
@@ -116,6 +119,7 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_window_event(window_size::on_window_event)
         .invoke_handler(tauri::generate_handler![
             greet,
             restart_app,

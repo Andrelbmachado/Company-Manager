@@ -47,7 +47,8 @@ export function AppShell() {
       <Sidebar onSearch={() => setCmdOpen(true)} />
 
       <main className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="min-h-full p-6">
+        {/* .app-content (globals.css): respiro de 24 px que cai para 12 px em janela estreita. */}
+        <div className="app-content min-h-full">
           <ModuleNav />
           <Suspense fallback={<PageLoading />}>
             <Outlet />

@@ -193,4 +193,11 @@ describe("AppShell", () => {
     for (const title of groupTitles) expect(title.parentElement!.classList.contains("relative")).toBe(true);
   });
 
+  it("o conteúdo usa o respiro variável (.app-content), que encolhe em janela estreita", async () => {
+    await openShell();
+    const content = document.querySelector("main")!.firstElementChild!;
+    expect(content.classList.contains("app-content")).toBe(true);
+    expect(content.className).not.toMatch(/(^|\s)p-\d/);
+    expect(content.querySelector("[data-testid=conteudo]")).not.toBeNull();
+  });
 });

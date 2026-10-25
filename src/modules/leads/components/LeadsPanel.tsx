@@ -130,7 +130,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         const wa = whatsappUrl(lead.whatsapp);
         if (!wa) return <span className="text-muted-foreground">—</span>;
         return (
-          <button type="button" title="Abrir WhatsApp" aria-label={`Abrir WhatsApp de ${lead.name}`} onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300">
+          <button type="button" title="Abrir WhatsApp" aria-label={`Abrir WhatsApp de ${lead.name}`} onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 text-primary-text hover:underline">
             <MessageCircle size={15} /> {lead.whatsapp}
           </button>
         );
@@ -219,7 +219,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
               <InfoItem label="Status" value={<LeadStatusBadge status={selected.status} />} />
               <InfoItem label="Prioridade" value={selected.priority_rank ? `#${selected.priority_rank} (dia ${selected.outreach_day} · ${formatIsoDate(selected.outreach_date)})` : null} />
               <InfoItem label="Telefone" value={selected.phone && (telUrl(selected.phone) ? <button type="button" className="text-primary-text hover:underline" onClick={() => void openExternal(telUrl(selected.phone)!)}>{selected.phone}</button> : selected.phone)} />
-              <InfoItem label="WhatsApp" value={selected.whatsapp ? <button type="button" className="text-emerald-700 hover:underline dark:text-emerald-400" onClick={() => void openExternal(whatsappUrl(selected.whatsapp)!)}>{selected.whatsapp}</button> : "Sem celular"} />
+              <InfoItem label="WhatsApp" value={selected.whatsapp ? (whatsappUrl(selected.whatsapp) ? <button type="button" className="text-primary-text hover:underline" onClick={() => void openExternal(whatsappUrl(selected.whatsapp)!)}>{selected.whatsapp}</button> : selected.whatsapp) : "Sem celular"} />
               <InfoItem label="Nota no Google" value={formatRating(selected.google_rating, selected.google_reviews)} />
               <InfoItem label="Sem site" value={selected.sem_site ? "Sim" : "Não"} />
               <InfoItem label="Último contato" value={selected.last_contact_at ? formatDateTime(selected.last_contact_at) : null} />

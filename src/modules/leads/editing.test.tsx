@@ -34,4 +34,15 @@ describe("Prospecção: edição direto na tabela", () => {
     expectNoDialog("detalhes do lead");
     expect(page.text()).toContain("Programa de indicação");
   });
+
+  it("link do WhatsApp (tabela e detalhes) segue o tema monocromático, sem verde fixo", async () => {
+    await testDb().execute("UPDATE leads SET whatsapp=? WHERE id=?", ["(15) 99999-0000", "lead-1"]);
+    page = await renderPage(<LeadsPage />, { companyId, role: "ceo", path: "/leads" });
+    await until(() => Boolean(page!.container.querySelector("[aria-label='Abrir WhatsApp de Pet Shop Amigo']")), "link do WhatsApp na tabela");
+    await click(page.container.querySelector("[aria-label='Detalhes de Pet Shop Amigo']"));
+    await until(() => Boolean(page!.container.querySelector("[aria-label='Detalhes: Pet Shop Amigo']")), "detalhes do lead na página");
+    const links = [...page.container.querySelectorAll("button")].filter((button) => button.textContent?.includes("(15) 99999-0000"));
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link.className).not.toMatch(/emerald|green-\d/);
+  });
 });

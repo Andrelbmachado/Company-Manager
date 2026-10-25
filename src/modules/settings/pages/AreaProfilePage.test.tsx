@@ -1,7 +1,7 @@
 // Configurações > Área da empresa: seletor de área e tabela de rótulos editável no próprio lugar (sem modal).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
-import { insertTestCompany } from "@/test/sqlite";
+import { insertTestCompany, type TestDb } from "@/test/sqlite";
 import { choose, click, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { confirmAction } from "@/lib/confirm";
 import { loadAreaLabels } from "@/lib/labels/store";
@@ -91,6 +91,29 @@ describe("AreaProfilePage", () => {
     expect(input("module.calendar")?.value).toBe("");
     await click(page!.button("Salvar"));
     await until(async () => Object.keys((await loadAreaLabels(testDb(), COMPANY)).overrides).length === 0, "sobrescritas apagadas");
+  });
+
+  it("sem conseguir ler os rótulos, Editar e o seletor ficam desativados (Salvar não grava a tabela vazia por cima); Atualizar tenta de novo", async () => {
+    await setCompanySetting(testDb(), COMPANY, "company.labels", { "module.calendar": "Agenda" });
+    const db = testDb();
+    const realSelect = db.select.bind(db);
+    db.select = (async (sql: string, binds?: unknown[]) => {
+      if (/from settings/i.test(sql)) throw new Error("banco ocupado");
+      return realSelect(sql, binds);
+    }) as TestDb["select"];
+
+    const view = await renderPage(<AreaProfilePage />, { companyId: COMPANY, role: "ceo", path: "/settings/area" });
+    page = view;
+    await until(() => document.querySelector("[role=alert]") !== null, "aviso de leitura com erro");
+    expect(view.button("Editar")?.disabled).toBe(true);
+    expect(areaSelect()?.disabled).toBe(true);
+
+    db.select = realSelect;
+    await click(view.button("Atualizar"));
+    await until(() => row("module.calendar")?.textContent?.includes("Agenda") ?? false, "rótulos lidos de novo");
+    expect(view.button("Editar")?.disabled).toBe(false);
+    expect(areaSelect()?.disabled).toBe(false);
+    expect((await loadAreaLabels(db, COMPANY)).overrides).toEqual({ "module.calendar": "Agenda" });
   });
 
   it("quem não edita Configurações vê tudo, mas o seletor e o Editar ficam desativados com dica", async () => {

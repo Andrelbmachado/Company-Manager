@@ -34,6 +34,8 @@ export default function AreaProfilePage() {
 
   const profile: AreaProfile = settings.data?.profile ?? "ti";
   const overrides = settings.data?.overrides ?? {};
+  // Sem o que está gravado (carregando ou erro de leitura) não se edita: Salvar gravaria a tabela vazia por cima.
+  const loaded = settings.data !== undefined;
   const editing = drafts !== null;
   const dirty = editing && LABEL_DEFS.some((def) => (drafts[def.key] ?? "").trim() !== (overrides[def.key] ?? ""));
 
@@ -93,7 +95,7 @@ export default function AreaProfilePage() {
           <select
             aria-label="Área da empresa"
             value={profile}
-            disabled={!canEdit || save.isPending || settings.isLoading}
+            disabled={!canEdit || save.isPending || !loaded}
             title={canEdit ? undefined : NO_PERMISSION}
             onChange={(event) => save.mutate({ profile: event.target.value as AreaProfile })}
             className={cn(INPUT, "font-normal disabled:cursor-not-allowed disabled:opacity-60")}
@@ -122,7 +124,7 @@ export default function AreaProfilePage() {
                 </button>
               </>
             ) : (
-              <button type="button" className={BUTTON} disabled={!canEdit || settings.isLoading} title={canEdit ? undefined : NO_PERMISSION} onClick={startEditing}>
+              <button type="button" className={BUTTON} disabled={!canEdit || !loaded} title={canEdit ? undefined : NO_PERMISSION} onClick={startEditing}>
                 <Pencil size={14} /> Editar
               </button>
             )}

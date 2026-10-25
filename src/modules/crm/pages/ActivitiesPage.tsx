@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { CalendarCheck, Plus } from "lucide-react";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { CalendarView, type CalendarItem } from "@/components/shared/CalendarView";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
@@ -9,8 +8,10 @@ import { ACTIVITY_KIND_LABELS, ACTIVITY_KINDS, activityState, type ActivityState
 import { fold } from "@/lib/crm/queries";
 import { cn } from "@/lib/utils";
 import type { CrmActivity } from "@/types";
-import { ActivityFormDialog, ActivityItem, useActivityActions } from "../components/Activities";
-import { BTN_PRIMARY, CARD, SELECT } from "../components/ui";
+import { ViewSwitch, type ListOrCalendar } from "@/modules/catalog/components/inline";
+import { ActivitiesTable } from "../components/Activities";
+import { ENTITY_LABELS, entityHref } from "../components/format";
+import { SELECT } from "../components/ui";
 import { useActivities, useCompanyUsers, useCrmSession, useEntityNames } from "../components/useCrm";
 
 type StateFilter = "" | "abertas" | ActivityState;
@@ -25,20 +26,23 @@ const STATE_OPTIONS: { value: StateFilter; label: string }[] = [
 
 const MANAGERS = new Set(["ceo", "admin", "gerente"]);
 
-/** Agenda do CRM: ligações, reuniões, e-mails, tarefas e notas de todos os registros, com os atrasados em destaque. */
+/**
+ * Agenda do CRM: ligações, reuniões, e-mails, tarefas e notas de todos os registros, numa tabela editável (os atrasados
+ * em destaque) ou no calendário pelo prazo; clicar no calendário abre o registro da atividade.
+ */
 export default function ActivitiesPage() {
-  const { userId, role, can } = useCrmSession();
+  const { userId, role } = useCrmSession();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const { data: activities = [], isLoading } = useActivities();
-  const { data: users = [], names } = useCompanyUsers();
+  const { data: users = [] } = useCompanyUsers();
   const entityNames = useEntityNames();
-  const { handlers, dialogs } = useActivityActions();
   const initialState = params.get("estado");
   const [state, setState] = useState<StateFilter>(STATE_OPTIONS.some((option) => option.value === initialState) ? (initialState as StateFilter) : "abertas");
   const [kind, setKind] = useState("");
   const [owner, setOwner] = useState(MANAGERS.has(role) ? "" : "me");
   const [search, setSearch] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [view, setView] = useState<ListOrCalendar>("lista");
 
   const mine = useMemo(() => {
     const ownerId = owner === "me" ? userId : owner;
@@ -72,12 +76,21 @@ export default function ActivitiesPage() {
     return state === "feita" || state === "" ? list : [...list].sort(pendingFirst);
   }, [mine, state, kind, search, entityNames]);
 
+  const calendarItems: CalendarItem[] = filtered
+    .filter((activity) => activity.due_at)
+    .map((activity) => ({
+      id: activity.id,
+      title: `${activity.subject ?? ACTIVITY_KIND_LABELS[activity.kind]}${entityNames.name(activity.entity_type, activity.entity_id) ? ` · ${entityNames.name(activity.entity_type, activity.entity_id)}` : ""}`,
+      start: activity.due_at!,
+      sourceLabel: `${ACTIVITY_KIND_LABELS[activity.kind]} · ${ENTITY_LABELS[activity.entity_type]}${activity.done_at ? " (feita)" : ""}`,
+    }));
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Atividades"
         description="Ligações, reuniões, e-mails e tarefas com clientes"
-        actions={can("create", "crm_activities") ? <button type="button" onClick={() => setCreating(true)} className={BTN_PRIMARY}><Plus size={14} /> Nova atividade</button> : undefined}
+        actions={<ViewSwitch value={view} onChange={setView} label="Ver atividades em" />}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -102,28 +115,25 @@ export default function ActivitiesPage() {
         </select>
       </PageToolbar>
 
-      {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse rounded-lg bg-muted/30" />)}</div>
-      ) : filtered.length === 0 ? (
-        <EmptyState icon={CalendarCheck} title={activities.length ? "Nenhuma atividade com esses filtros" : "Nenhuma atividade"} description={state === "atrasada" ? "Nenhum follow-up atrasado. Tudo em dia." : "Registre ligações, reuniões e próximos passos nas fichas dos clientes ou aqui."} />
+      {view === "calendario" ? (
+        <CalendarView
+          items={calendarItems}
+          label="Agenda do CRM"
+          onSelect={(item) => {
+            const activity = filtered.find((row) => row.id === item.id);
+            const href = activity ? entityHref(activity.entity_type, activity.entity_id, activity.customer_id) : null;
+            if (href) navigate(href);
+          }}
+        />
       ) : (
-        <ul className={cn(CARD, "divide-y px-5")}>
-          {filtered.map((activity) => (
-            <ActivityItem
-              key={activity.id}
-              activity={activity}
-              showEntity
-              userName={activity.user_id ? names.get(activity.user_id) : null}
-              entityName={entityNames.name(activity.entity_type, activity.entity_id)}
-              customerName={entityNames.customer(activity.customer_id)}
-              {...handlers(activity)}
-            />
-          ))}
-        </ul>
+        <ActivitiesTable
+          activities={filtered}
+          loading={isLoading}
+          showEntity
+          title="Atividades"
+          emptyMessage={activities.length ? (state === "atrasada" ? "Nenhum follow-up atrasado. Tudo em dia." : "Nenhuma atividade com esses filtros.") : undefined}
+        />
       )}
-
-      {creating && <ActivityFormDialog onClose={() => setCreating(false)} />}
-      {dialogs}
     </div>
   );
 }

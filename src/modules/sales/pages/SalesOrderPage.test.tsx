@@ -1,13 +1,15 @@
-// Pedido de venda pela tela: preço da tabela do cliente, salvar e confirmar, faturar em parcelas e entregar com baixa.
+// Pedido de venda pela tela: preço da tabela do cliente, salvar e confirmar, faturar em parcelas e entregar com baixa
+// (faturar, entregar e cancelar em painéis na própria página), itens editados na tabela do pedido.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { seedTradeFixture, type TradeFixture } from "@/lib/erp/tradeFixtures";
-import { buttonIn, choose, click, dialog, field, mountPage, typeInto, until, type Mounted } from "@/modules/catalog/testHarness";
+import { buttonIn, choose, click, field, mountPage, typeInto, until, type Mounted } from "@/modules/catalog/testHarness";
 import type { Invoice, Receivable, SalesOrder, StockBalance } from "@/types";
 import SalesOrderPage from "./SalesOrderPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
+vi.mock("@/lib/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
 
 const testDb = useTestDb();
 let fx: TradeFixture;
@@ -22,6 +24,11 @@ afterEach(() => page?.unmount());
 
 const text = () => page.container.textContent ?? "";
 const open = (role: "ceo" | "comercial", path: string) => mountPage({ companyId: fx.companyId, role, path, routes: [{ path: "/sales/pedidos/:id", element: <SalesOrderPage /> }] });
+const panel = (label: string) => {
+  const found = page.container.querySelector<HTMLElement>(`[aria-label="${label}"]`);
+  if (!found) throw new Error(`painel "${label}" não aberto`);
+  return found;
+};
 const order = async () => (await testDb().select<SalesOrder[]>("SELECT * FROM sales_orders WHERE company_id = ?", [fx.companyId]))[0];
 
 describe("SalesOrderPage", () => {
@@ -43,10 +50,11 @@ describe("SalesOrderPage", () => {
 
     await until(() => Boolean(buttonIn(page.container, "Faturar")), "botão Faturar");
     await click(buttonIn(page.container, "Faturar"));
-    const invoiceDialog = dialog("Faturar pedido PV-00001");
-    await typeInto(field(invoiceDialog, "Parcelas"), "2");
-    await until(() => (dialog("Faturar pedido PV-00001").textContent ?? "").includes("2/2"), "prévia das parcelas");
-    await click(buttonIn(invoiceDialog, "Emitir fatura"));
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    const invoicePanel = panel("Faturar pedido PV-00001");
+    await typeInto(field(invoicePanel, "Parcelas"), "2");
+    await until(() => (panel("Faturar pedido PV-00001").textContent ?? "").includes("2/2"), "prévia das parcelas");
+    await click(buttonIn(invoicePanel, "Emitir fatura"));
     await until(async () => (await testDb().select<Invoice[]>("SELECT * FROM invoices WHERE company_id = ?", [fx.companyId])).length === 1, "fatura gravada");
     const receivables = await testDb().select<Receivable[]>("SELECT * FROM receivables WHERE company_id = ? ORDER BY installment_number", [fx.companyId]);
     expect(receivables.map((row) => row.amount)).toEqual([2700, 2700]);
@@ -54,9 +62,9 @@ describe("SalesOrderPage", () => {
 
     await until(() => Boolean(buttonIn(page.container, "Entregar")), "botão Entregar");
     await click(buttonIn(page.container, "Entregar"));
-    const deliverDialog = dialog("Entregar pedido PV-00001");
-    expect(field<HTMLSelectElement>(deliverDialog, "Local de saída").value).toBe(fx.locationId);
-    await click(buttonIn(deliverDialog, "Confirmar entrega"));
+    const deliverPanel = panel("Entregar pedido PV-00001");
+    expect(field<HTMLSelectElement>(deliverPanel, "Local de saída").value).toBe(fx.locationId);
+    await click(buttonIn(deliverPanel, "Confirmar entrega"));
     await until(async () => (await order()).status === "entregue", "pedido entregue");
     const [balance] = await testDb().select<StockBalance[]>("SELECT * FROM stock_balances WHERE item_id = ? AND location_id = ?", [fx.items.switch, fx.locationId]);
     expect(balance.quantity).toBe(8);
@@ -87,11 +95,27 @@ describe("SalesOrderPage", () => {
     expect(buttonIn(page.container, "Faturar")).toBeUndefined();
 
     await click(buttonIn(page.container, "Cancelar"));
-    const cancelDialog = dialog("Cancelar pedido PV-00001?");
-    expect(buttonIn(cancelDialog, "Cancelar pedido")?.disabled).toBe(true);
-    await typeInto(field(cancelDialog, "Motivo").closest("label")!.querySelector("textarea"), "Cliente desistiu");
-    await click(buttonIn(cancelDialog, "Cancelar pedido"));
+    const cancelPanel = panel("Cancelar pedido PV-00001");
+    expect(buttonIn(cancelPanel, "Cancelar pedido")?.disabled).toBe(true);
+    await typeInto(field(cancelPanel, "Motivo"), "Cliente desistiu");
+    await click(buttonIn(cancelPanel, "Cancelar pedido"));
     await until(async () => (await order()).status === "cancelado", "cancelado");
     expect((await order()).cancel_reason).toBe("Cliente desistiu");
+  });
+});
+
+describe("itens do pedido na tabela", () => {
+  it("rascunho criado pela lista recebe itens na tabela do pedido e o total é recalculado", async () => {
+    const { createSalesOrder } = await import("@/lib/erp/orders");
+    const id = await createSalesOrder(testDb(), { companyId: fx.companyId, customerId: fx.customerId, items: [{ productId: fx.products.mouse, qty: 1 }] });
+    page = await open("ceo", `/sales/pedidos/${id}`);
+    await until(() => text().includes("Pedido PV-00001") && text().includes("Mouse USB"), "pedido aberto");
+    const items = page.container.querySelector<HTMLElement>("[data-editable-table='sales_orders']")!;
+    await click(buttonIn(items, "Adicionar"));
+    await choose(items.querySelector("select[aria-label='Produto (nova linha)']"), fx.products.switch);
+    await typeInto(items.querySelector("input[aria-label='Qtd. (nova linha)']"), "2");
+    await click(buttonIn(items, "Salvar"));
+    await until(async () => Number((await order()).total) === 80 + 5400, "total com o switch (preço da tabela Revenda)");
+    expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 });

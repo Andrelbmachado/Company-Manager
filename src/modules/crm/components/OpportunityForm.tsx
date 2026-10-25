@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CrudDialog, type CrudField } from "@/components/shared/CrudDialog";
 import { getDb } from "@/lib/db/client";
 import { OPEN_STAGES, saveOpportunity, STAGE_LABELS, STAGE_PROBABILITY, type Stage } from "@/lib/crm/queries";
 import type { Opportunity } from "@/types";
 import { moneyInput } from "./format";
+import { InlineForm, type InlineField } from "./InlineForm";
 import { errorText } from "./Modal";
 import { useAudit, useCompanyUsers, useContacts, useCrmSession, useCustomers, useInvalidateCrm } from "./useCrm";
 
-interface OpportunityFormDialogProps {
+interface OpportunityFormProps {
   opportunity?: Opportunity | null;
   /** Valores iniciais de uma oportunidade nova (ex.: o cliente da ficha, a etapa da coluna do funil). */
   defaults?: { customer_id?: string | null; stage?: Stage };
@@ -16,7 +16,8 @@ interface OpportunityFormDialogProps {
   onSaved?: (id: string) => void;
 }
 
-export function OpportunityFormDialog({ opportunity, defaults, onClose, onSaved }: OpportunityFormDialogProps) {
+/** Criar ou editar a oportunidade na própria página (painel de detalhes, "Adicionar" de uma coluna do funil). */
+export function OpportunityForm({ opportunity, defaults, onClose, onSaved }: OpportunityFormProps) {
   const { companyId, userId } = useCrmSession();
   const invalidate = useInvalidateCrm();
   const audit = useAudit();
@@ -71,7 +72,7 @@ export function OpportunityFormDialog({ opportunity, defaults, onClose, onSaved 
     },
   });
 
-  const fields: CrudField[] = [
+  const fields: InlineField[] = [
     { key: "title", label: "Título", required: true, placeholder: "Ex.: Site institucional + manutenção" },
     { key: "customer_id", label: "Cliente", type: "select", options: [{ value: "", label: "Sem cliente (definido ao ganhar)" }, ...customers.map((customer) => ({ value: customer.id, label: customer.name }))] },
     ...(values.customer_id
@@ -87,8 +88,8 @@ export function OpportunityFormDialog({ opportunity, defaults, onClose, onSaved 
   ];
 
   return (
-    <CrudDialog
-      title={opportunity ? "Editar oportunidade" : "Nova oportunidade"}
+    <InlineForm
+      title={opportunity ? `Editar oportunidade ${opportunity.title}` : defaults?.stage ? `Nova oportunidade em ${STAGE_LABELS[defaults.stage]}` : "Nova oportunidade"}
       fields={fields}
       values={values}
       onChange={(key, value) =>
@@ -100,11 +101,11 @@ export function OpportunityFormDialog({ opportunity, defaults, onClose, onSaved 
           ...(key === "customer_id" ? { contact_id: "" } : {}),
         }))
       }
-      onClose={onClose}
+      onCancel={onClose}
       onSubmit={() => mutation.mutate()}
       busy={mutation.isPending}
     >
-      {mutation.error && <p role="alert" className="mt-4 text-sm text-destructive">{errorText(mutation.error)}</p>}
-    </CrudDialog>
+      {mutation.error && <p role="alert" className="text-sm text-destructive">{errorText(mutation.error)}</p>}
+    </InlineForm>
   );
 }

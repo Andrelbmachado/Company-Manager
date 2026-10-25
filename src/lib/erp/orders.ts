@@ -224,6 +224,8 @@ export async function updateSalesOrder(db: DatabaseLike, orderId: string, input:
 export async function confirmSalesOrder(db: DatabaseLike, orderId: string, options: ActionOptions = {}): Promise<void> {
   const order = await loadSalesOrder(db, orderId, options.companyId);
   if (order.status !== "rascunho") fail("Só um pedido em rascunho pode ser confirmado.");
+  // O rascunho criado pela lista de pedidos nasce sem itens: confirmar vazio geraria entrega e fatura sem nada.
+  if ((await loadSalesOrderItems(db, order.company_id, orderId)).length === 0) fail("Inclua ao menos um item antes de confirmar o pedido.");
   const now = nowIso();
   await claimStatus(db, "sales_orders", order.company_id, orderId, "rascunho", { status: "confirmado", confirmed_at: now, updated_at: now }, "O pedido mudou enquanto você confirmava; recarregue a página.");
 }

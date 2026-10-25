@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CrudDialog, type CrudField } from "@/components/shared/CrudDialog";
 import { getDb } from "@/lib/db/client";
 import { saveCustomer, type CustomerInput } from "@/lib/crm/queries";
 import type { Customer } from "@/types";
 import { moneyInput } from "./format";
+import { InlineForm, type InlineField } from "./InlineForm";
 import { errorText } from "./Modal";
 import { useAudit, useCompanyUsers, useCrmSession, useInvalidateCrm, usePriceLists } from "./useCrm";
 
@@ -60,15 +60,15 @@ function initialValues(customer: Customer | null | undefined, userId: string): R
   };
 }
 
-interface CustomerFormDialogProps {
+interface CustomerFormProps {
   customer?: Customer | null;
   onClose: () => void;
   /** Depois de salvar, no lugar de onClose. */
   onSaved?: (id: string) => void;
 }
 
-/** Cadastro completo do cliente (criar e editar). */
-export function CustomerFormDialog({ customer, onClose, onSaved }: CustomerFormDialogProps) {
+/** Cadastro completo do cliente (criar e editar), na própria página: no lugar do bloco Cadastro da ficha ou em /nova. */
+export function CustomerForm({ customer, onClose, onSaved }: CustomerFormProps) {
   const { companyId, userId } = useCrmSession();
   const invalidate = useInvalidateCrm();
   const audit = useAudit();
@@ -113,13 +113,13 @@ export function CustomerFormDialog({ customer, onClose, onSaved }: CustomerFormD
     },
     onSuccess: (id) => {
       invalidate("customers");
-      // Com onSaved quem chamou decide o que acontece (ex.: abrir a ficha nova); sem ele, o diálogo fecha.
+      // Com onSaved quem chamou decide o que acontece (ex.: abrir a ficha nova); sem ele, o formulário fecha.
       if (onSaved) onSaved(id);
       else onClose();
     },
   });
 
-  const fields: CrudField[] = [
+  const fields: InlineField[] = [
     { key: "name", label: "Nome / razão social", required: true },
     { key: "type", label: "Tipo", type: "select", options: [{ value: "PJ", label: "Pessoa jurídica" }, { value: "PF", label: "Pessoa física" }] },
     { key: "trade_name", label: "Nome fantasia" },
@@ -145,17 +145,17 @@ export function CustomerFormDialog({ customer, onClose, onSaved }: CustomerFormD
   ];
 
   return (
-    <CrudDialog
-      title={customer ? "Editar cliente" : "Novo cliente"}
+    <InlineForm
+      title={customer ? `Editar cadastro de ${customer.name}` : "Novo cliente"}
       fields={fields}
       values={values}
       onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
-      onClose={onClose}
+      onCancel={onClose}
       onSubmit={() => mutation.mutate()}
       busy={mutation.isPending}
       submitLabel={customer ? "Salvar" : "Cadastrar"}
     >
-      {mutation.error && <p role="alert" className="mt-4 text-sm text-destructive">{errorText(mutation.error)}</p>}
-    </CrudDialog>
+      {mutation.error && <p role="alert" className="text-sm text-destructive">{errorText(mutation.error)}</p>}
+    </InlineForm>
   );
 }

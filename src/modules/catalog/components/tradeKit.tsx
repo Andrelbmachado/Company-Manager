@@ -138,7 +138,7 @@ export function useGoodsReceipts(companyId: string, enabled = true) {
   return useQuery({ queryKey: ["goods_receipts", companyId], enabled, queryFn: () => companyRows<GoodsReceipt>("SELECT * FROM goods_receipts WHERE company_id=? AND deleted_at IS NULL ORDER BY number DESC", companyId) });
 }
 
-const TRADE_QUERY_ROOTS = [
+export const TRADE_QUERY_ROOTS = [
   "products",
   "price-lists",
   "price-list-items",

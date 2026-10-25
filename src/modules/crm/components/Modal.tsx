@@ -13,7 +13,7 @@ interface ModalProps {
   size?: "md" | "lg" | "xl";
 }
 
-/** Modal acessível (foco preso, Esc fecha) para formulários que não cabem no CrudDialog. */
+/** Modal acessível (foco preso, Esc fecha) para confirmações do CRM (ganhar/perder, mesclar, PDF). Edição não usa modal. */
 export function Modal({ title, description, onClose, children, footer, size = "md" }: ModalProps) {
   const panel = useModalFocus<HTMLDivElement>(onClose);
   return (

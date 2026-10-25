@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Ban, Receipt } from "lucide-react";
-import { CrudDialog } from "@/components/shared/CrudDialog";
-import { DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -17,9 +15,10 @@ import { activeRowsBy, documentById, errorMessage } from "@/lib/erp/tradeDb";
 import { emit } from "@/lib/events/bus";
 import { sumMoney } from "@/lib/money";
 import { formatCurrency, formatDay, todayIso } from "@/lib/utils";
+import { InfoGrid as DetailGrid, InfoItem as DetailItem, InlinePanel } from "@/modules/catalog/components/inline";
 import { DocumentItemsTable } from "@/modules/catalog/components/DocumentItemsTable";
 import { TotalsSummary } from "@/modules/catalog/components/LineItemsEditor";
-import { BUTTON, DANGER, ErrorNote, LoadingRows, PRIMARY, Section, TD, TH, invalidateTrade, paymentMethodLabel, useCustomers, useReceivables, useSalesOrders } from "@/modules/catalog/components/tradeKit";
+import { BUTTON, DANGER, ErrorNote, Field, INPUT, LoadingRows, PRIMARY, Section, TD, TH, invalidateTrade, paymentMethodLabel, useCustomers, useReceivables, useSalesOrders } from "@/modules/catalog/components/tradeKit";
 import type { Invoice, InvoiceItem } from "@/types";
 
 function BackLink() {
@@ -37,7 +36,7 @@ export default function InvoicePage() {
         <EmptyState
           icon={Receipt}
           title="Faturas nascem dos pedidos de venda"
-          description="Abra um pedido confirmado e use o botão Faturar: a fatura copia os itens e gera as parcelas em contas a receber."
+          description="Abra um pedido confirmado e use Faturar (ou Adicionar na lista de faturas): a fatura copia os itens e gera as parcelas em contas a receber."
           action={<button type="button" className={PRIMARY} onClick={() => navigate("/sales")}>Ver pedidos de venda</button>}
         />
       </div>
@@ -116,6 +115,20 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
         }
       />
 
+      {confirmCancel && (
+        <InlinePanel title={`Cancelar fatura ${label}?`} label={`Cancelar fatura ${label}`} onClose={() => setConfirmCancel(false)}>
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); cancel.mutate(label); }}>
+            <Field label="Motivo" className="max-w-xl"><textarea rows={2} required className={`${INPUT} h-auto py-2`} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+            <p className="text-xs text-muted-foreground">As parcelas em contas a receber são canceladas e o pedido pode ser faturado de novo. Só dá para cancelar se nenhuma parcela foi recebida.</p>
+            <ErrorNote error={cancel.error} />
+            <div className="flex gap-2">
+              <button type="submit" className={DANGER} disabled={cancel.isPending || !reason.trim()}><Ban size={14} /> Cancelar fatura</button>
+              <button type="button" className={BUTTON} onClick={() => setConfirmCancel(false)}>Fechar</button>
+            </div>
+          </form>
+        </InlinePanel>
+      )}
+
       <div className="grid gap-5 rounded-xl border bg-card p-5 lg:grid-cols-[1fr_auto]">
         <DetailGrid>
           <DetailItem label="Status" value={<StatusBadge status={status} />} />
@@ -181,21 +194,6 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
         <FileAttachments entityType="invoice" entityId={invoiceId} canEdit={canCancel} />
       </Section>
 
-      {confirmCancel && (
-        <CrudDialog
-          title={`Cancelar fatura ${label}?`}
-          fields={[{ key: "reason", label: "Motivo", type: "textarea", required: true }]}
-          values={{ reason }}
-          onChange={(_key, value) => setReason(value)}
-          onClose={() => setConfirmCancel(false)}
-          onSubmit={() => cancel.mutate(label)}
-          busy={cancel.isPending}
-          submitLabel="Cancelar fatura"
-        >
-          <p className="mt-3 text-xs text-muted-foreground">As parcelas em contas a receber são canceladas e o pedido pode ser faturado de novo. Só dá para cancelar se nenhuma parcela foi recebida.</p>
-          <ErrorNote error={cancel.error} className="mt-3" />
-        </CrudDialog>
-      )}
     </div>
   );
 }

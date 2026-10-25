@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, FilePlus2, Pencil, Plus, Star, Target, Trash2, UserRound } from "lucide-react";
-import { DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, FilePlus2, Pencil, Target, UserRound } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -12,23 +11,26 @@ import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { getDb } from "@/lib/db/client";
 import { activityState } from "@/lib/crm/activities";
 import { displayProposalStatus } from "@/lib/crm/proposals";
-import { customerFinance, deleteContact, fetchCustomer, pipelineSummary, setPrimaryContact, STAGE_LABELS } from "@/lib/crm/queries";
-import { formatSequence } from "@/lib/db/sequence";
+import { customerFinance, fetchCustomer, pipelineSummary } from "@/lib/crm/queries";
 import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
-import type { Contact } from "@/types";
+import { InfoGrid as DetailGrid, InfoItem as DetailItem } from "@/modules/catalog/components/inline";
 import { ActivityTimeline } from "../components/Activities";
-import { ContactFormDialog } from "../components/ContactFormDialog";
-import { CustomerFormDialog, formatAddress } from "../components/CustomerFormDialog";
-import { ConfirmDialog, errorText } from "../components/Modal";
-import { OpportunityDrawer } from "../components/OpportunityDrawer";
-import { OpportunityFormDialog } from "../components/OpportunityFormDialog";
+import { ContactsTable } from "../components/ContactsTable";
+import { CustomerForm, formatAddress } from "../components/CustomerForm";
+import { errorText } from "../components/Modal";
+import { OpportunitiesTable } from "../components/OpportunitiesTable";
+import { OpportunityForm } from "../components/OpportunityForm";
+import { ProposalsTable } from "../components/ProposalsTable";
 import { TagEditor } from "../components/Tags";
-import { BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY, CARD, LINK, TD, TH } from "../components/ui";
-import { useActivities, useAudit, useCompanyUsers, useContacts, useCrmSession, useInvalidateCrm, useOpportunities, usePriceLists, useProposals } from "../components/useCrm";
+import { BTN_PRIMARY, BTN_SECONDARY, CARD, LINK } from "../components/ui";
+import { useActivities, useCompanyUsers, useContacts, useCrmSession, useOpportunities, usePriceLists, useProposals } from "../components/useCrm";
 
 type TabId = "resumo" | "contatos" | "oportunidades" | "propostas" | "atividades" | "documentos" | "financeiro";
 
-/** Ficha do cliente. :id = "nova" abre o cadastro de um cliente novo. */
+/**
+ * Ficha do cliente. :id = "nova" abre o cadastro de um cliente novo. O cadastro é editado no próprio lugar ("Editar
+ * cadastro" troca o bloco pelo formulário) e as abas Contatos, Oportunidades, Propostas e Atividades são tabelas editáveis.
+ */
 export default function CustomerDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -46,7 +48,7 @@ export default function CustomerDetailPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Novo cliente" description="Preencha o cadastro; depois você completa contatos, oportunidades e documentos na ficha." />
-        <CustomerFormDialog onClose={() => navigate("/crm")} onSaved={(newId) => navigate(`/crm/clientes/${newId}`, { replace: true })} />
+        <CustomerForm onClose={() => navigate("/crm")} onSaved={(newId) => navigate(`/crm/clientes/${newId}`, { replace: true })} />
       </div>
     );
   }
@@ -129,9 +131,9 @@ function CustomerRecord({ id }: { id: string }) {
           actions={
             <>
               <StatusBadge status={customer.status} />
-              {can("create", "opportunities") && <button type="button" onClick={() => setNewOpportunity(true)} className={BTN_SECONDARY}><Target size={14} /> Nova oportunidade</button>}
+              {can("create", "opportunities") && <button type="button" onClick={() => { setNewOpportunity(true); setTab("oportunidades"); }} className={BTN_SECONDARY}><Target size={14} /> Nova oportunidade</button>}
               {can("create", "proposals") && <Link to={`/crm/propostas/nova?cliente=${customer.id}`} className={BTN_SECONDARY}><FilePlus2 size={14} /> Nova proposta</Link>}
-              {can("edit", "customers") && <button type="button" onClick={() => setEditing(true)} className={BTN_PRIMARY}><Pencil size={14} /> Editar</button>}
+              {can("edit", "customers") && !editing && <button type="button" onClick={() => { setEditing(true); setTab("resumo"); }} className={BTN_PRIMARY}><Pencil size={14} /> Editar cadastro</button>}
             </>
           }
         />
@@ -144,6 +146,9 @@ function CustomerRecord({ id }: { id: string }) {
         {tab === "resumo" && (
           <>
             <SummaryTab customerId={customer.id} />
+            {editing ? (
+              <CustomerForm customer={customer} onClose={() => setEditing(false)} />
+            ) : (
             <section className={cn(CARD, "p-5")} aria-label="Cadastro">
               <h2 className="mb-4 font-semibold">Cadastro</h2>
               <DetailGrid>
@@ -162,18 +167,17 @@ function CustomerRecord({ id }: { id: string }) {
               </DetailGrid>
               {customer.notes && <div className="mt-4"><DetailItem label="Observações" value={<span className="whitespace-pre-line">{customer.notes}</span>} /></div>}
             </section>
+            )}
           </>
         )}
         {tab === "contatos" && <ContactsTab customerId={customer.id} />}
-        {tab === "oportunidades" && <OpportunitiesTab customerId={customer.id} />}
+        {tab === "oportunidades" && <OpportunitiesTab customerId={customer.id} creating={newOpportunity} onCreatingChange={setNewOpportunity} />}
         {tab === "propostas" && <ProposalsTab customerId={customer.id} />}
         {tab === "atividades" && <ActivityTimeline filter={{ customerId: customer.id }} entity={{ type: "customer", id: customer.id, customerId: customer.id }} showEntity title="Linha do tempo do cliente" />}
         {tab === "documentos" && <FileAttachments entityType="customer" entityId={customer.id} canEdit={can("attach", "customers")} />}
         {tab === "financeiro" && <FinanceTab customerId={customer.id} creditLimit={customer.credit_limit ?? null} paymentTerms={customer.payment_terms ?? null} />}
       </TabPanel>
 
-      {editing && <CustomerFormDialog customer={customer} onClose={() => setEditing(false)} />}
-      {newOpportunity && <OpportunityFormDialog defaults={{ customer_id: customer.id }} onClose={() => setNewOpportunity(false)} onSaved={() => setTab("oportunidades")} />}
     </div>
   );
 }
@@ -208,138 +212,18 @@ function SummaryTab({ customerId }: { customerId: string }) {
 }
 
 function ContactsTab({ customerId }: { customerId: string }) {
-  const { companyId, can } = useCrmSession();
-  const invalidate = useInvalidateCrm();
-  const audit = useAudit();
   const { data: contacts = [], isLoading } = useContacts(customerId);
-  const [editing, setEditing] = useState<Contact | "new" | null>(null);
-  const [removing, setRemoving] = useState<Contact | null>(null);
-  const canEdit = can("edit", "customers");
-  const primary = useMutation({
-    mutationFn: async (contact: Contact) => setPrimaryContact(await getDb(), companyId, contact.id),
-    onSuccess: () => invalidate("contacts"),
-  });
-  const remove = useMutation({
-    mutationFn: async (contact: Contact) => {
-      await deleteContact(await getDb(), companyId, contact.id);
-      await audit("contact.deleted", "contact", contact.id, `Contato excluído: ${contact.name}`);
-    },
-    onSuccess: () => {
-      invalidate("contacts");
-      setRemoving(null);
-    },
-  });
-
-  return (
-    <section className="space-y-3" aria-label="Contatos">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Contatos</h2>
-        {canEdit && <button type="button" onClick={() => setEditing("new")} className={BTN_SECONDARY}><Plus size={14} /> Novo contato</button>}
-      </div>
-      {isLoading ? (
-        <div className="h-24 animate-pulse rounded-lg bg-muted/30" />
-      ) : contacts.length === 0 ? (
-        <EmptyState icon={UserRound} title="Nenhum contato" description="Cadastre as pessoas com quem você fala neste cliente." className="py-8" />
-      ) : (
-        <div className={cn(CARD, "overflow-x-auto")}>
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className={TH}>Nome</th>
-                <th className={TH}>Cargo</th>
-                <th className={TH}>E-mail</th>
-                <th className={TH}>Telefone / WhatsApp</th>
-                <th className={TH}><span className="sr-only">Ações</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {contacts.map((contact) => (
-                <tr key={contact.id}>
-                  <td className={TD}>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      {Number(contact.is_primary) === 1 && <Star size={13} className="fill-current text-status-warning" aria-label="Contato principal" />}
-                      {contact.name}
-                    </span>
-                    {contact.notes && <p className="text-xs text-muted-foreground">{contact.notes}</p>}
-                  </td>
-                  <td className={cn(TD, "text-muted-foreground")}>{contact.role ?? "—"}</td>
-                  <td className={cn(TD, "text-muted-foreground")}>{contact.email ? <a href={`mailto:${contact.email}`} className={LINK}>{contact.email}</a> : "—"}</td>
-                  <td className={cn(TD, "text-muted-foreground")}>{[contact.phone, contact.whatsapp && contact.whatsapp !== contact.phone ? `WhatsApp ${contact.whatsapp}` : null].filter(Boolean).join(" · ") || "—"}</td>
-                  <td className={cn(TD, "whitespace-nowrap text-right")}>
-                    {canEdit && Number(contact.is_primary) !== 1 && <button type="button" onClick={() => primary.mutate(contact)} className={BTN_GHOST}>Tornar principal</button>}
-                    {canEdit && <button type="button" onClick={() => setEditing(contact)} className={BTN_GHOST} aria-label={`Editar ${contact.name}`}><Pencil size={12} /></button>}
-                    {canEdit && <button type="button" onClick={() => setRemoving(contact)} className={BTN_GHOST} aria-label={`Excluir ${contact.name}`}><Trash2 size={12} /></button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {editing && <ContactFormDialog contact={editing === "new" ? null : editing} customerId={customerId} onClose={() => setEditing(null)} />}
-      {removing && (
-        <ConfirmDialog
-          title="Excluir contato"
-          message={`Excluir ${removing.name}?`}
-          confirmLabel="Excluir"
-          danger
-          busy={remove.isPending}
-          error={errorText(remove.error)}
-          onConfirm={() => remove.mutate(removing)}
-          onClose={() => setRemoving(null)}
-        />
-      )}
-    </section>
-  );
+  return <ContactsTable contacts={contacts} loading={isLoading} customerId={customerId} />;
 }
 
-function OpportunitiesTab({ customerId }: { customerId: string }) {
-  const { can } = useCrmSession();
+function OpportunitiesTab({ customerId, creating, onCreatingChange }: { customerId: string; creating: boolean; onCreatingChange: (next: boolean) => void }) {
   const { data: opportunities = [], isLoading } = useOpportunities();
-  const { names } = useCompanyUsers();
   const [selected, setSelected] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const own = opportunities.filter((opp) => opp.customer_id === customerId);
   return (
-    <section className="space-y-3" aria-label="Oportunidades">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Oportunidades</h2>
-        {can("create", "opportunities") && <button type="button" onClick={() => setCreating(true)} className={BTN_SECONDARY}><Plus size={14} /> Nova oportunidade</button>}
-      </div>
-      {isLoading ? (
-        <div className="h-24 animate-pulse rounded-lg bg-muted/30" />
-      ) : own.length === 0 ? (
-        <EmptyState icon={Target} title="Nenhuma oportunidade" className="py-8" />
-      ) : (
-        <div className={cn(CARD, "overflow-x-auto")}>
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className={TH}>Oportunidade</th>
-                <th className={TH}>Etapa</th>
-                <th className={cn(TH, "text-right")}>Valor</th>
-                <th className={cn(TH, "text-right")}>Prob.</th>
-                <th className={TH}>Fechamento</th>
-                <th className={TH}>Responsável</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {own.map((opp) => (
-                <tr key={opp.id} onClick={() => setSelected(opp.id)} className="cursor-pointer hover:bg-muted/20">
-                  <td className={TD}><button type="button" className={LINK} onClick={(event) => { event.stopPropagation(); setSelected(opp.id); }}>{opp.title}</button></td>
-                  <td className={TD}><StatusBadge status={opp.stage} /></td>
-                  <td className={cn(TD, "text-right tabular-nums")}>{formatCurrency(Number(opp.value ?? 0))}</td>
-                  <td className={cn(TD, "text-right tabular-nums")}>{opp.probability}%</td>
-                  <td className={cn(TD, "text-muted-foreground")}>{opp.status === "open" ? formatDay(opp.expected_close_date) : `${STAGE_LABELS[opp.stage]} em ${formatDay(opp.closed_at)}`}</td>
-                  <td className={cn(TD, "text-muted-foreground")}>{opp.owner_id ? names.get(opp.owner_id) ?? "—" : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {selected && <OpportunityDrawer opportunityId={selected} onClose={() => setSelected(null)} />}
-      {creating && <OpportunityFormDialog defaults={{ customer_id: customerId }} onClose={() => setCreating(false)} />}
+    <section className="space-y-4" aria-label="Oportunidades">
+      {creating && <OpportunityForm defaults={{ customer_id: customerId }} onClose={() => onCreatingChange(false)} onSaved={(id) => setSelected(id)} />}
+      <OpportunitiesTable opportunities={own} loading={isLoading} customerId={customerId} selectedId={selected} onSelect={setSelected} emptyMessage="Nenhuma oportunidade deste cliente. Use Adicionar para abrir uma." />
     </section>
   );
 }
@@ -348,43 +232,14 @@ function ProposalsTab({ customerId }: { customerId: string }) {
   const { can } = useCrmSession();
   const { data: proposals = [], isLoading } = useProposals();
   const own = proposals.filter((proposal) => proposal.customer_id === customerId);
-  const today = todayIso();
   return (
     <section className="space-y-3" aria-label="Propostas">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Propostas</h2>
-        {can("create", "proposals") && <Link to={`/crm/propostas/nova?cliente=${customerId}`} className={BTN_SECONDARY}><FilePlus2 size={14} /> Nova proposta</Link>}
-      </div>
-      {isLoading ? (
-        <div className="h-24 animate-pulse rounded-lg bg-muted/30" />
-      ) : own.length === 0 ? (
-        <EmptyState icon={FilePlus2} title="Nenhuma proposta" className="py-8" />
-      ) : (
-        <div className={cn(CARD, "overflow-x-auto")}>
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className={TH}>Número</th>
-                <th className={TH}>Título</th>
-                <th className={TH}>Situação</th>
-                <th className={cn(TH, "text-right")}>Total</th>
-                <th className={TH}>Validade</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {own.map((proposal) => (
-                <tr key={proposal.id}>
-                  <td className={cn(TD, "whitespace-nowrap")}><Link to={`/crm/propostas/${proposal.id}`} className={LINK}>{formatSequence("proposals", proposal.number)}</Link></td>
-                  <td className={TD}>{proposal.title ?? "—"}{Number(proposal.version ?? 1) > 1 && <span className="ml-1 text-xs text-muted-foreground">v{proposal.version}</span>}</td>
-                  <td className={TD}><StatusBadge status={displayProposalStatus(proposal, today)} /></td>
-                  <td className={cn(TD, "text-right tabular-nums")}>{formatCurrency(Number(proposal.value ?? 0))}</td>
-                  <td className={cn(TD, "text-muted-foreground")}>{formatDay(proposal.valid_until)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {can("create", "proposals") && (
+        <div className="flex justify-end">
+          <Link to={`/crm/propostas/nova?cliente=${customerId}`} className={BTN_SECONDARY}><FilePlus2 size={14} /> Proposta com itens do catálogo</Link>
         </div>
       )}
+      <ProposalsTable proposals={own} loading={isLoading} customerId={customerId} emptyMessage="Nenhuma proposta deste cliente. Use Adicionar para criar o rascunho." />
     </section>
   );
 }

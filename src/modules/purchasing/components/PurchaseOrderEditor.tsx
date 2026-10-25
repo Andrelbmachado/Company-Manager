@@ -1,5 +1,6 @@
-// Formulário do pedido de compra (novo ou rascunho): fornecedor, datas, local de entrada, condições e itens. Os itens
-// podem ser produtos do catálogo, itens de estoque sem produto ou linhas avulsas; o preço sugerido é o custo atual.
+// Formulário do pedido de compra novo: fornecedor, datas, local de entrada, condições e itens (o pedido gravado é
+// editado no próprio lugar, na tela do pedido). Os itens podem ser produtos do catálogo, itens de estoque sem produto
+// ou linhas avulsas; o preço sugerido é o custo atual.
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Save } from "lucide-react";
@@ -7,9 +8,8 @@ import type { PurchaseOrderInput } from "@/lib/erp/receiving";
 import { fail, isTrue } from "@/lib/erp/tradeDb";
 import { orderTotals } from "@/lib/money";
 import { todayIso } from "@/lib/utils";
-import { LineItemsEditor, TotalsSummary, newLine, type EditableLine, type LineOption } from "@/modules/catalog/components/LineItemsEditor";
+import { LineItemsEditor, TotalsSummary, type EditableLine, type LineOption } from "@/modules/catalog/components/LineItemsEditor";
 import { BUTTON, ErrorNote, Field, INPUT, PRIMARY, byId, num, useInventoryItems, useLocations, useProducts, useSuppliers } from "@/modules/catalog/components/tradeKit";
-import type { PurchaseOrder, PurchaseOrderItem } from "@/types";
 
 export interface PurchaseOrderForm {
   supplierId: string;
@@ -25,34 +25,6 @@ export interface PurchaseOrderForm {
 
 export function emptyPurchaseOrderForm(supplierId = ""): PurchaseOrderForm {
   return { supplierId, orderDate: todayIso(), expectedDate: "", locationId: "", paymentTerms: "", installments: "1", discount: "", shipping: "", notes: "" };
-}
-
-export function purchaseOrderFormFrom(order: PurchaseOrder): PurchaseOrderForm {
-  return {
-    supplierId: order.supplier_id ?? "",
-    orderDate: order.order_date?.slice(0, 10) ?? todayIso(),
-    expectedDate: order.expected_date?.slice(0, 10) ?? "",
-    locationId: order.location_id ?? "",
-    paymentTerms: order.payment_terms ?? "",
-    installments: String(order.installments ?? 1),
-    discount: Number(order.discount) ? String(order.discount) : "",
-    shipping: Number(order.shipping) ? String(order.shipping) : "",
-    notes: order.notes ?? "",
-  };
-}
-
-export function purchaseLinesFrom(items: readonly PurchaseOrderItem[]): EditableLine[] {
-  if (items.length === 0) return [newLine()];
-  return items.map((item) => newLine({
-    ref: item.product_id ? `p:${item.product_id}` : item.inventory_item_id ? `i:${item.inventory_item_id}` : "",
-    description: item.description,
-    unit: item.unit,
-    qty: String(item.qty),
-    unitPrice: String(item.unit_price),
-    discount: Number(item.discount) ? String(item.discount) : "",
-    taxRate: Number(item.tax_rate) ? String(item.tax_rate) : "",
-    manualPrice: true,
-  }));
 }
 
 function isBlank(line: EditableLine): boolean {

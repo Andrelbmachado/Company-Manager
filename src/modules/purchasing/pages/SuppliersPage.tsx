@@ -1,71 +1,31 @@
+// Fornecedores editados na própria tabela (documento, contato, condição, avaliação e endereço em colunas). A ficha abre
+// abaixo da lista, no próprio lugar, com os pedidos de compra do fornecedor; exclusão com confirmação em dois passos.
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Factory, Plus, Star, Trash2, Truck } from "lucide-react";
-import { CrudDialog, type CrudField } from "@/components/shared/CrudDialog";
-import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { FileText, Star, Trash2, Truck } from "lucide-react";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { usePermission } from "@/hooks/usePermission";
-import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
 import { formatSequence } from "@/lib/db/sequence";
-import { ADDRESS_FIELDS, deleteSupplier, formatAddress, saveSupplier, supplierAddress, type SupplierAddress } from "@/lib/erp/suppliers";
+import { deleteSupplier, formatAddress, supplierAddress } from "@/lib/erp/suppliers";
 import { emit } from "@/lib/events/bus";
+import { useLabel } from "@/lib/labels/useLabel";
 import { sumMoney } from "@/lib/money";
 import { formatCurrency, formatDay } from "@/lib/utils";
-import { DANGER, ErrorNote, LoadingRows, PRIMARY, TD, TH, invalidateTrade, num, usePurchaseOrders, useSuppliers } from "@/modules/catalog/components/tradeKit";
-import type { Supplier } from "@/types";
-
-const EMPTY_FORM: Record<string, string> = {
-  name: "", tradeName: "", document: "", email: "", phone: "", contactName: "", category: "", terms: "", rating: "", website: "", stateRegistration: "", notes: "",
-  logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", uf: "", cep: "",
-};
-
-const ADDRESS_LABELS: Record<keyof SupplierAddress, string> = {
-  logradouro: "Logradouro", numero: "Número", complemento: "Complemento", bairro: "Bairro", cidade: "Cidade", uf: "UF", cep: "CEP",
-};
-
-const FIELDS: CrudField[] = [
-  { key: "name", label: "Razão social / nome", required: true },
-  { key: "tradeName", label: "Nome fantasia" },
-  { key: "document", label: "CNPJ / CPF", placeholder: "00.000.000/0001-00" },
-  { key: "stateRegistration", label: "Inscrição estadual" },
-  { key: "contactName", label: "Contato" },
-  { key: "email", label: "E-mail", type: "email" },
-  { key: "phone", label: "Telefone" },
-  { key: "website", label: "Site" },
-  { key: "category", label: "Categoria", placeholder: "Ex.: Eletrônicos, Serviços" },
-  { key: "terms", label: "Condição de pagamento", placeholder: "Ex.: 28 dias" },
-  { key: "rating", label: "Avaliação", type: "select", options: [{ value: "", label: "Sem avaliação" }, ...[1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `${value} de 5` }))] },
-  ...ADDRESS_FIELDS.map((field) => ({ key: field, label: ADDRESS_LABELS[field] })),
-  { key: "notes", label: "Observações", type: "textarea" },
-];
+import { BUTTON, ErrorNote, PRIMARY, invalidateTrade, usePurchaseOrders, useSuppliers } from "@/modules/catalog/components/tradeKit";
+import { ConfirmButton } from "@/modules/finance/components/financeShared";
+import { InfoGrid, InfoItem, InlinePanel } from "@/modules/finance/components/inline";
+import { useEditContext } from "@/modules/finance/data/useEditContext";
+import type { PurchaseOrder, Supplier } from "@/types";
+import { saveSupplierChanges, supplierRow, type SupplierRow } from "../data/supplierEditing";
 
 const OPEN_PO = new Set(["rascunho", "aprovado", "enviado", "recebido_parcial"]);
-
-function formFor(supplier: Supplier): Record<string, string> {
-  const address = supplierAddress(supplier);
-  return {
-    ...EMPTY_FORM,
-    name: supplier.name,
-    tradeName: supplier.trade_name ?? "",
-    document: supplier.document ?? "",
-    email: supplier.email ?? "",
-    phone: supplier.phone ?? "",
-    contactName: supplier.contact_name ?? "",
-    category: supplier.category ?? "",
-    terms: supplier.terms ?? "",
-    rating: supplier.rating ? String(supplier.rating) : "",
-    website: supplier.website ?? "",
-    stateRegistration: supplier.state_registration ?? "",
-    notes: supplier.notes ?? "",
-    ...Object.fromEntries(ADDRESS_FIELDS.map((field) => [field, address[field] ?? ""])),
-  };
-}
+const RATING_OPTIONS = [1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `${value} de 5` }));
 
 function Rating({ value }: { value: number | null | undefined }) {
   if (!value) return <span className="text-muted-foreground">—</span>;
@@ -76,24 +36,44 @@ function Rating({ value }: { value: number | null | undefined }) {
   );
 }
 
+const COLUMNS: EditableColumn<SupplierRow>[] = [
+  { key: "name", header: "Razão social / nome", kind: "text", required: true, width: 220, render: (row) => <span className="font-medium">{row.name}</span> },
+  { key: "trade_name", header: "Nome fantasia", kind: "text" },
+  { key: "document", header: "CNPJ / CPF", kind: "text", placeholder: "00.000.000/0001-00", width: 170 },
+  { key: "state_registration", header: "Inscrição estadual", kind: "text" },
+  { key: "contact_name", header: "Contato", kind: "text" },
+  { key: "email", header: "E-mail", kind: "email", width: 200 },
+  { key: "phone", header: "Telefone", kind: "phone" },
+  { key: "website", header: "Site", kind: "text" },
+  { key: "category", header: "Categoria", kind: "text", placeholder: "Ex.: Eletrônicos" },
+  { key: "terms", header: "Condição de pagamento", kind: "text", placeholder: "Ex.: 28 dias" },
+  { key: "rating", header: "Avaliação", kind: "select", options: RATING_OPTIONS, placeholder: "Sem avaliação", render: (row) => <Rating value={row.rating ? Number(row.rating) : null} /> },
+  { key: "logradouro", header: "Logradouro", kind: "text", width: 200 },
+  { key: "numero", header: "Número", kind: "text", width: 90 },
+  { key: "complemento", header: "Complemento", kind: "text" },
+  { key: "bairro", header: "Bairro", kind: "text" },
+  { key: "cidade", header: "Cidade", kind: "text" },
+  { key: "uf", header: "UF", kind: "text", width: 70 },
+  { key: "cep", header: "CEP", kind: "text", width: 110 },
+  { key: "notes", header: "Observações", kind: "text", width: 200 },
+];
+const ORDERS_COLUMN: EditableColumn<SupplierRow> = { key: "open_orders", header: "Pedidos em aberto", kind: "number", readOnly: true, render: (row) => (row.open_orders ? String(row.open_orders) : <span className="text-muted-foreground">—</span>) };
+
 export default function SuppliersPage() {
-  const session = useRequiredSession();
-  const companyId = session.company.id;
+  const ctx = useEditContext();
+  const companyId = ctx.companyId;
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const canCreate = usePermission("create", "suppliers");
-  const canEdit = usePermission("edit", "suppliers");
+  const title = useLabel("module.suppliers");
   const canDelete = usePermission("delete", "suppliers");
   const canCreateOrder = usePermission("create", "purchase_orders");
   const canSeeOrders = usePermission("view", "purchase_orders");
   const [search, setSearch] = useState("");
-  const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; supplier: Supplier } | null>(null);
-  const [form, setForm] = useState<Record<string, string>>(EMPTY_FORM);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const { data: suppliers = [], isLoading } = useSuppliers(companyId);
+  const suppliersQuery = useSuppliers(companyId);
   const { data: orders = [] } = usePurchaseOrders(companyId, canSeeOrders);
+  const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -103,199 +83,114 @@ export default function SuppliersPage() {
       [supplier.name, supplier.trade_name, supplier.email, supplier.category, supplier.contact_name].some((value) => value?.toLowerCase().includes(term)) ||
       (digits.length >= 3 && (supplier.document ?? "").replace(/\D/g, "").includes(digits)));
   }, [suppliers, search]);
+  const openOrders = (id: string) => orders.filter((order) => order.supplier_id === id && OPEN_PO.has(order.status)).length;
+  const rows = filtered.map((supplier) => supplierRow(supplier, openOrders(supplier.id)));
+  const columns = canSeeOrders ? [...COLUMNS, ORDERS_COLUMN] : COLUMNS;
 
   const selected = suppliers.find((supplier) => supplier.id === selectedId) ?? null;
-  const selectedOrders = selected ? orders.filter((order) => order.supplier_id === selected.id) : [];
 
-  const save = useMutation({
-    mutationFn: async () => {
-      const db = await getDb();
-      const editing = dialog?.mode === "edit" ? dialog.supplier : null;
-      const id = await saveSupplier(db, companyId, {
-        name: form.name,
-        tradeName: form.tradeName,
-        document: form.document,
-        email: form.email,
-        phone: form.phone,
-        contactName: form.contactName,
-        category: form.category,
-        terms: form.terms,
-        rating: form.rating ? num(form.rating, Number.NaN) : null,
-        website: form.website,
-        stateRegistration: form.stateRegistration,
-        notes: form.notes,
-        address: Object.fromEntries(ADDRESS_FIELDS.map((field) => [field, form[field]])),
-      }, editing?.id);
-      await emit({ type: editing ? "supplier.updated" : "supplier.created", companyId, actorId: session.user.id, entityType: "supplier", entityId: id, title: `${editing ? "Fornecedor atualizado" : "Fornecedor cadastrado"}: ${form.name.trim()}`, module: "purchasing" });
-      return id;
-    },
-    onSuccess: (id) => {
-      invalidateTrade(qc);
-      void qc.invalidateQueries({ queryKey: ["supplier-options"] });
-      setDialog(null);
-      setSelectedId(id);
-    },
-  });
+  async function save(changes: EditableTableChanges<SupplierRow>) {
+    await saveSupplierChanges(await getDb(), ctx, changes);
+    invalidateTrade(qc);
+    void qc.invalidateQueries({ queryKey: ["supplier-options"] });
+  }
 
   const remove = useMutation({
     mutationFn: async (supplier: Supplier) => {
       await deleteSupplier(await getDb(), companyId, supplier.id);
-      await emit({ type: "supplier.deleted", companyId, actorId: session.user.id, entityType: "supplier", entityId: supplier.id, title: `Fornecedor excluído: ${supplier.name}`, module: "purchasing" });
+      await emit({ type: "supplier.deleted", companyId, actorId: ctx.userId, entityType: "supplier", entityId: supplier.id, title: `Fornecedor excluído: ${supplier.name}`, module: "purchasing" });
+      return supplier;
     },
-    onSuccess: () => {
+    onSuccess: (supplier) => {
       invalidateTrade(qc);
       void qc.invalidateQueries({ queryKey: ["supplier-options"] });
-      setConfirmDelete(false);
-      setSelectedId(null);
+      if (selectedId === supplier.id) setSelectedId(null);
     },
   });
 
-  function openCreate() {
-    save.reset();
-    setForm(EMPTY_FORM);
-    setDialog({ mode: "create" });
-  }
-
-  function openEdit(supplier: Supplier) {
-    save.reset();
-    setForm(formFor(supplier));
-    setDialog({ mode: "edit", supplier });
-  }
-
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Fornecedores"
-        description="Cadastro de fornecedores de produtos e serviços, com documento, contato e condição de pagamento."
-        actions={
-          <>
-            <ImportExportButtons entity="suppliers" onImported={() => invalidateTrade(qc)} />
-            {canCreate && <button type="button" onClick={openCreate} className={PRIMARY}><Plus size={14} /> Novo fornecedor</button>}
-          </>
-        }
-      />
+      <PageHeader title={title} />
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, CNPJ, categoria..." />
+      <ErrorNote error={remove.error} />
 
-      {isLoading ? <LoadingRows /> : filtered.length === 0 ? (
-        <EmptyState icon={Factory} title={suppliers.length ? "Nenhum fornecedor encontrado" : "Nenhum fornecedor cadastrado"} description={suppliers.length ? "Tente outro termo de busca." : "Cadastre os fornecedores para usar nos pedidos de compra."} />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className={TH}>Fornecedor</th>
-                <th className={TH}>CNPJ / CPF</th>
-                <th className={TH}>Contato</th>
-                <th className={TH}>Categoria</th>
-                <th className={TH}>Condição</th>
-                <th className={TH}>Avaliação</th>
-                {canSeeOrders && <th className={`${TH} text-right`}>Pedidos em aberto</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((supplier) => {
-                const open = orders.filter((order) => order.supplier_id === supplier.id && OPEN_PO.has(order.status)).length;
-                return (
-                  <tr key={supplier.id} className="cursor-pointer transition-colors hover:bg-muted/20" onClick={() => setSelectedId(supplier.id)}>
-                    <td className={TD}>
-                      <button type="button" className="text-left font-medium hover:underline" onClick={(event) => { event.stopPropagation(); setSelectedId(supplier.id); }}>{supplier.name}</button>
-                      {supplier.trade_name && <p className="text-xs text-muted-foreground">{supplier.trade_name}</p>}
-                    </td>
-                    <td className={`${TD} tabular-nums text-muted-foreground`}>{supplier.document ?? "—"}</td>
-                    <td className={`${TD} text-muted-foreground`}>
-                      {supplier.contact_name ?? supplier.email ?? "—"}
-                      {supplier.phone && <p className="text-xs">{supplier.phone}</p>}
-                    </td>
-                    <td className={`${TD} text-muted-foreground`}>{supplier.category ?? "—"}</td>
-                    <td className={`${TD} text-muted-foreground`}>{supplier.terms ?? "—"}</td>
-                    <td className={TD}><Rating value={supplier.rating} /></td>
-                    {canSeeOrders && <td className={`${TD} text-right tabular-nums`}>{open || "—"}</td>}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <EditableTable<SupplierRow>
+        resource="suppliers"
+        label="Fornecedores"
+        rows={rows}
+        columns={columns}
+        loading={suppliersQuery.isLoading}
+        onSave={save}
+        onRefresh={() => qc.invalidateQueries({ queryKey: ["suppliers", companyId] })}
+        emptyMessage={suppliers.length ? "Nenhum fornecedor encontrado. Tente outro termo de busca." : "Nenhum fornecedor cadastrado. Adicione os fornecedores para usar nos pedidos de compra."}
+        actions={<ImportExportButtons entity="suppliers" onImported={() => invalidateTrade(qc)} />}
+        rowActions={(row) => {
+          const supplier = suppliers.find((candidate) => candidate.id === row.id);
+          return (
+            <span className="flex justify-end gap-1.5">
+              <button type="button" className={BUTTON} onClick={() => { remove.reset(); setSelectedId(row.id); }} aria-label={`Ficha de ${row.name}`}>
+                <FileText size={14} aria-hidden="true" /> Ficha
+              </button>
+              {canDelete && supplier && (
+                <ConfirmButton label="" ariaLabel={`Excluir ${row.name}`} confirmLabel="Confirmar exclusão" icon={<Trash2 size={14} aria-hidden="true" />} busy={remove.isPending} onConfirm={() => remove.mutate(supplier)} />
+              )}
+            </span>
+          );
+        }}
+      />
+      <p className="text-sm text-muted-foreground">Fornecedor excluído aparece como "Fornecedor removido" nos pedidos e recebimentos antigos. Não dá para excluir com pedido de compra em andamento.</p>
 
       {selected && (
-        <DetailDrawer title={selected.name} subtitle="Fornecedor" onClose={() => setSelectedId(null)} onEdit={canEdit ? () => openEdit(selected) : undefined}>
-          <div className="space-y-6">
-            <DetailGrid>
-              <DetailItem label="Nome fantasia" value={selected.trade_name} />
-              <DetailItem label="CNPJ / CPF" value={selected.document} />
-              <DetailItem label="Inscrição estadual" value={selected.state_registration} />
-              <DetailItem label="Categoria" value={selected.category} />
-              <DetailItem label="Contato" value={selected.contact_name} />
-              <DetailItem label="E-mail" value={selected.email ? <a className="hover:underline" href={`mailto:${selected.email}`}>{selected.email}</a> : null} />
-              <DetailItem label="Telefone" value={selected.phone} />
-              <DetailItem label="Site" value={selected.website} />
-              <DetailItem label="Condição de pagamento" value={selected.terms} />
-              <DetailItem label="Avaliação" value={<Rating value={selected.rating} />} />
-            </DetailGrid>
-            <DetailItem label="Endereço" value={formatAddress(supplierAddress(selected))} />
-            {selected.notes && <DetailItem label="Observações" value={<p className="whitespace-pre-wrap">{selected.notes}</p>} />}
+        <InlinePanel key={selected.id} title={selected.name} subtitle="Fornecedor" onClose={() => setSelectedId(null)}>
+          <InfoGrid>
+            <InfoItem label="Nome fantasia" value={selected.trade_name} />
+            <InfoItem label="CNPJ / CPF" value={selected.document} />
+            <InfoItem label="Contato" value={selected.contact_name} />
+            <InfoItem label="E-mail" value={selected.email ? <a className="hover:underline" href={`mailto:${selected.email}`}>{selected.email}</a> : null} />
+            <InfoItem label="Telefone" value={selected.phone} />
+            <InfoItem label="Condição de pagamento" value={selected.terms} />
+            <InfoItem label="Avaliação" value={<Rating value={selected.rating} />} />
+            <InfoItem label="Endereço" value={formatAddress(supplierAddress(selected))} />
+          </InfoGrid>
+          {selected.notes && <p className="whitespace-pre-wrap text-sm">{selected.notes}</p>}
 
-            {canSeeOrders && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Pedidos de compra</h3>
-                  {canCreateOrder && (
-                    <button type="button" className={PRIMARY} onClick={() => navigate(`/purchasing/pedidos/nova?fornecedor=${encodeURIComponent(selected.id)}`)}>
-                      <Truck size={14} /> Novo pedido
-                    </button>
-                  )}
-                </div>
-                {selectedOrders.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum pedido de compra deste fornecedor.</p> : (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedOrders.length} pedido(s), {formatCurrency(sumMoney(selectedOrders.filter((order) => order.status !== "cancelado").map((order) => Number(order.total))))} fora os cancelados.
-                    </p>
-                    <ul className="divide-y rounded-lg border">
-                      {selectedOrders.slice(0, 8).map((order) => (
-                        <li key={order.id}>
-                          <Link to={`/purchasing/pedidos/${order.id}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-muted/30">
-                            <span className="font-medium">{formatSequence("purchase_orders", order.number)}</span>
-                            <span className="text-muted-foreground">{formatDay(order.order_date)}</span>
-                            <StatusBadge status={order.status} />
-                            <span className="tabular-nums">{formatCurrency(Number(order.total))}</span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-            )}
-
-            {canDelete && (
-              <div className="border-t pt-4">
-                <button type="button" className={DANGER} onClick={() => { remove.reset(); setConfirmDelete(true); }}><Trash2 size={14} /> Excluir fornecedor</button>
-              </div>
-            )}
-          </div>
-        </DetailDrawer>
+          {canSeeOrders && <SupplierOrders supplier={selected} orders={orders} canCreateOrder={canCreateOrder} onNewOrder={() => navigate(`/purchasing/pedidos/nova?fornecedor=${encodeURIComponent(selected.id)}`)} />}
+        </InlinePanel>
       )}
+    </div>
+  );
+}
 
-      {dialog && (
-        <CrudDialog
-          title={dialog.mode === "edit" ? "Editar fornecedor" : "Novo fornecedor"}
-          fields={FIELDS}
-          values={form}
-          onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
-          onClose={() => setDialog(null)}
-          onSubmit={() => save.mutate()}
-          busy={save.isPending}
-        >
-          <ErrorNote error={save.error} className="mt-4" />
-        </CrudDialog>
-      )}
-
-      {confirmDelete && selected && (
-        <CrudDialog title="Excluir fornecedor?" fields={[]} values={{}} onChange={() => undefined} onClose={() => setConfirmDelete(false)} onSubmit={() => remove.mutate(selected)} busy={remove.isPending} submitLabel="Excluir">
-          <p className="text-sm text-muted-foreground">"{selected.name}" sai da lista de fornecedores; nos pedidos e recebimentos antigos ele aparece como "Fornecedor removido". Não dá para excluir com pedido de compra em andamento.</p>
-          <ErrorNote error={remove.error} className="mt-3" />
-        </CrudDialog>
+function SupplierOrders({ supplier, orders, canCreateOrder, onNewOrder }: { supplier: Supplier; orders: readonly PurchaseOrder[]; canCreateOrder: boolean; onNewOrder: () => void }) {
+  const own = orders.filter((order) => order.supplier_id === supplier.id);
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Pedidos de compra</h3>
+        {canCreateOrder && (
+          <button type="button" className={PRIMARY} onClick={onNewOrder}>
+            <Truck size={14} aria-hidden="true" /> Novo pedido
+          </button>
+        )}
+      </div>
+      {own.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum pedido de compra deste fornecedor.</p> : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {own.length} pedido(s), {formatCurrency(sumMoney(own.filter((order) => order.status !== "cancelado").map((order) => Number(order.total))))} fora os cancelados.
+          </p>
+          <ul className="divide-y rounded-lg border">
+            {own.slice(0, 8).map((order) => (
+              <li key={order.id}>
+                <Link to={`/purchasing/pedidos/${order.id}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-muted/30">
+                  <span className="font-medium">{formatSequence("purchase_orders", order.number)}</span>
+                  <span className="text-muted-foreground">{formatDay(order.order_date)}</span>
+                  <StatusBadge status={order.status} />
+                  <span className="tabular-nums">{formatCurrency(Number(order.total))}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

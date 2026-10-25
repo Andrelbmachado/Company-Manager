@@ -1,254 +1,136 @@
-// Contas bancárias e caixas: cadastro, conta padrão, saldo realizado (saldo inicial + baixas + extrato conciliado) e o
-// último saldo informado no extrato, para conferir. Regras em lib/erp/financeSetup e lib/erp/cashflow.
-import { useState } from "react";
+// Contas bancárias e caixas: cadastro editável na própria tabela, conta padrão, saldo realizado (saldo inicial +
+// baixas + extrato conciliado) e o último saldo informado no extrato, para conferir. Regras em
+// lib/erp/financeSetup e lib/erp/cashflow.
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Landmark, ListChecks, Plus, Trash2 } from "lucide-react";
+import { ListChecks, Trash2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { accountBalances, type AccountBalance } from "@/lib/erp/cashflow";
-import { isTrue, parseMoneyInput } from "@/lib/erp/financeCommon";
-import { BANK_ACCOUNT_KINDS, deleteBankAccount, saveBankAccount } from "@/lib/erp/financeSetup";
+import { BANK_ACCOUNT_KINDS, deleteBankAccount } from "@/lib/erp/financeSetup";
 import { sumMoney, toCents } from "@/lib/money";
-import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
+import { formatCurrency, todayIso } from "@/lib/utils";
 import { usePermission } from "@/hooks/usePermission";
-import { useRequiredSession } from "@/hooks/useSession";
-import { CrudDialog } from "@/components/shared/CrudDialog";
-import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import type { BankAccount, BankAccountKind } from "@/types";
-import { BANK_ACCOUNT_KIND_LABELS, ConfirmButton, ErrorNote, Money, errorMessage, invalidateFinance, primaryButton, secondaryButton, td, th, useFinanceLookups } from "../components/financeShared";
-
-const YES_NO = [
-  { value: "1", label: "Sim" },
-  { value: "0", label: "Não" },
-];
-
-const formFrom = (account: BankAccount | null): Record<string, string> => ({
-  name: account?.name ?? "",
-  kind: account?.kind ?? "corrente",
-  bank_code: account?.bank_code ?? "",
-  bank_name: account?.bank_name ?? "",
-  agency: account?.agency ?? "",
-  account_number: account?.account_number ?? "",
-  pix_key: account?.pix_key ?? "",
-  opening_balance: account ? String(account.opening_balance ?? 0) : "",
-  opening_date: account?.opening_date?.slice(0, 10) ?? "",
-  is_default: account ? (isTrue(account.is_default) ? "1" : "0") : "0",
-  active: account ? (isTrue(account.active) ? "1" : "0") : "1",
-  notes: account?.notes ?? "",
-});
+import { bankAccountRow, saveBankAccountChanges, type BankAccountRow } from "../data/bankAccountEditing";
+import { useEditContext } from "../data/useEditContext";
+import { BANK_ACCOUNT_KIND_LABELS, ConfirmButton, ErrorNote, Money, errorMessage, invalidateFinance, secondaryButton, useFinanceLookups } from "../components/financeShared";
 
 const hasDifference = (balance: AccountBalance) => balance.statementBalance != null && toCents(balance.statementBalance) !== toCents(balance.balance);
 
+const KIND_OPTIONS = BANK_ACCOUNT_KINDS.map((kind) => ({ value: kind, label: BANK_ACCOUNT_KIND_LABELS[kind] }));
+
+function columns(balanceOf: (id: string) => AccountBalance | undefined): EditableColumn<BankAccountRow>[] {
+  return [
+    { key: "name", header: "Nome", kind: "text", required: true, placeholder: "Ex.: Itaú PJ, Caixa da loja", width: 200 },
+    { key: "kind", header: "Tipo", kind: "select", options: KIND_OPTIONS },
+    { key: "bank_code", header: "Código do banco", kind: "text", placeholder: "341" },
+    { key: "bank_name", header: "Banco", kind: "text" },
+    { key: "agency", header: "Agência", kind: "text" },
+    { key: "account_number", header: "Conta", kind: "text" },
+    { key: "pix_key", header: "Chave Pix", kind: "text" },
+    { key: "opening_balance", header: "Saldo inicial", kind: "money" },
+    { key: "opening_date", header: "Data do saldo inicial", kind: "date" },
+    { key: "is_default", header: "Padrão", kind: "bool" },
+    { key: "active", header: "Ativa", kind: "bool" },
+    { key: "inflow", header: "Entradas", kind: "money", readOnly: true },
+    { key: "outflow", header: "Saídas", kind: "money", readOnly: true },
+    { key: "balance", header: "Saldo", kind: "money", readOnly: true, render: (row) => <Money value={row.balance} className="font-medium" /> },
+    {
+      key: "statement",
+      header: "Extrato",
+      kind: "money",
+      readOnly: true,
+      render: (row) => {
+        const balance = balanceOf(row.id);
+        if (!balance || balance.statementBalance == null) return <span className="text-muted-foreground">—</span>;
+        return (
+          <span className="inline-flex flex-col items-end gap-0.5">
+            <Money value={balance.statementBalance} />
+            {hasDifference(balance) && <span className="rounded bg-status-warning px-1.5 text-xs font-medium text-status-warning-ink">Diferença</span>}
+          </span>
+        );
+      },
+    },
+    { key: "notes", header: "Observações", kind: "text", width: 200 },
+  ];
+}
+
 export default function BankAccountsPage() {
-  const session = useRequiredSession();
-  const companyId = session.company.id;
+  const ctx = useEditContext();
+  const companyId = ctx.companyId;
   const qc = useQueryClient();
   const navigate = useNavigate();
   const today = todayIso();
-  const canCreate = usePermission("create", "bank");
-  const canEdit = usePermission("edit", "bank");
   const canDelete = usePermission("delete", "bank");
   const lookups = useFinanceLookups(companyId);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ account: BankAccount | null } | null>(null);
-  const [form, setForm] = useState<Record<string, string>>(formFrom(null));
 
   const { data: balances = [], error } = useQuery({
     queryKey: ["bank_accounts", companyId, "balances", today],
     queryFn: async () => accountBalances(await getDb(), companyId, today),
   });
   const accounts = lookups.bankAccounts;
-  const balanceOf = (id: string) => balances.find((item) => item.accountId === id);
+  const balanceOf = useMemo(() => {
+    const map = new Map(balances.map((item) => [item.accountId, item]));
+    return (id: string) => map.get(id);
+  }, [balances]);
   const active = balances.filter((item) => item.active);
   const differences = active.filter(hasDifference);
-  const selected = selectedId ? (accounts.find((account) => account.id === selectedId) ?? null) : null;
+  const rows = accounts.map((account) => bankAccountRow(account, balanceOf(account.id)));
+  const tableColumns = useMemo(() => columns(balanceOf), [balanceOf]);
 
-  const openForm = (account: BankAccount | null) => {
-    // A primeira conta já nasce como padrão (é a que as baixas e a conciliação sugerem).
-    setForm(account ? formFrom(account) : { ...formFrom(null), is_default: accounts.length === 0 ? "1" : "0" });
-    setEditing({ account });
-  };
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const opening = form.opening_balance.trim() ? parseMoneyInput(form.opening_balance) : 0;
-      if (!Number.isFinite(opening)) throw new Error("Saldo inicial inválido: use só números (ex.: 1.500,00).");
-      return saveBankAccount(
-        await getDb(),
-        companyId,
-        {
-          name: form.name,
-          kind: form.kind as BankAccountKind,
-          bankCode: form.bank_code,
-          bankName: form.bank_name,
-          agency: form.agency,
-          accountNumber: form.account_number,
-          pixKey: form.pix_key,
-          openingBalance: opening,
-          openingDate: form.opening_date || null,
-          isDefault: form.is_default === "1",
-          active: form.active === "1",
-          notes: form.notes,
-        },
-        editing?.account?.id,
-      );
-    },
-    onSuccess: async (id) => {
-      invalidateFinance(qc, companyId);
-      await emit({ type: editing?.account ? "finance.bank_account.updated" : "finance.bank_account.created", companyId, actorId: session.user.id, entityType: "bank_account", entityId: id, module: "finance", title: `Conta bancária ${editing?.account ? "editada" : "criada"}: ${form.name.trim()}` });
-      setEditing(null);
-    },
-  });
+  async function save(changes: EditableTableChanges<BankAccountRow>) {
+    await saveBankAccountChanges(await getDb(), ctx, changes);
+    invalidateFinance(qc, companyId);
+  }
 
   const remove = useMutation({
-    mutationFn: async (account: BankAccount) => {
-      await deleteBankAccount(await getDb(), companyId, account.id);
-      return account;
+    mutationFn: async (row: BankAccountRow) => {
+      await deleteBankAccount(await getDb(), companyId, row.id);
+      return row;
     },
-    onSuccess: async (account) => {
+    onSuccess: async (row) => {
       invalidateFinance(qc, companyId);
-      await emit({ type: "finance.bank_account.deleted", companyId, actorId: session.user.id, entityType: "bank_account", entityId: account.id, module: "finance", title: `Conta bancária excluída: ${account.name}` });
-      setSelectedId(null);
+      await emit({ type: "finance.bank_account.deleted", companyId, actorId: ctx.userId, entityType: "bank_account", entityId: row.id, module: "finance", title: `Conta bancária excluída: ${row.name}` });
     },
   });
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Contas bancárias"
-        description="Contas, caixas e cartões da empresa, com o saldo realizado e o último saldo do extrato."
-        actions={
-          <>
-            {canCreate && (
-              <button type="button" onClick={() => openForm(null)} className={primaryButton}>
-                <Plus size={14} aria-hidden="true" /> Nova conta bancária
-              </button>
-            )}
-          </>
-        }
-      />
+      <PageHeader title="Contas bancárias" />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <KpiCard title="Saldo em contas" value={formatCurrency(sumMoney(active.map((item) => item.balance)))} />
         <KpiCard title="Contas ativas" value={String(active.length)} />
-        <KpiCard
-          title="Diferença com o extrato"
-          value={String(differences.length)}
-        />
+        <KpiCard title="Diferença com o extrato" value={String(differences.length)} />
       </div>
-      <ErrorNote message={error ? errorMessage(error) : null} />
+      <ErrorNote message={error ? errorMessage(error) : remove.error ? errorMessage(remove.error) : null} />
 
-      {accounts.length === 0 ? (
-        <EmptyState icon={Landmark} title="Nenhuma conta bancária" description="Cadastre as contas e o caixa da empresa para ver saldos, fluxo de caixa e conciliar extratos." />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className={th}>Conta</th>
-                <th className={th}>Tipo</th>
-                <th className={th}>Banco</th>
-                <th className={cn(th, "text-right")}>Saldo</th>
-                <th className={cn(th, "text-right")}>Extrato</th>
-                <th className={th}>Status</th>
-                <th className={th}><span className="sr-only">Ações</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {accounts.map((account) => {
-                const balance = balanceOf(account.id);
-                return (
-                  <tr key={account.id} onClick={() => setSelectedId(account.id)} className="cursor-pointer hover:bg-muted/20">
-                    <td className={td}>
-                      <span className="font-medium">{account.name}</span>
-                      {isTrue(account.is_default) && <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary-text">Padrão</span>}
-                    </td>
-                    <td className={td}>{BANK_ACCOUNT_KIND_LABELS[account.kind] ?? account.kind}</td>
-                    <td className={td}>{[account.bank_name, account.agency && `ag. ${account.agency}`, account.account_number && `c/c ${account.account_number}`].filter(Boolean).join(" · ") || "—"}</td>
-                    <td className={cn(td, "text-right font-medium")}><Money value={balance?.balance ?? 0} /></td>
-                    <td className={cn(td, "text-right")}>
-                      {balance?.statementBalance != null ? (
-                        <span className={cn(hasDifference(balance) && "text-amber-700 dark:text-amber-400")}>
-                          <Money value={balance.statementBalance} />
-                          <span className="block text-xs text-muted-foreground">em {formatDay(balance.statementDate)}</span>
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className={td}><StatusBadge status={isTrue(account.active) ? "active" : "inactive"} /></td>
-                    <td className={cn(td, "text-right")}>
-                      <button type="button" onClick={(event) => { event.stopPropagation(); navigate(`/finance/conciliacao?conta=${account.id}`); }} className={secondaryButton} aria-label={`Conciliar ${account.name}`}>
-                        <ListChecks size={14} aria-hidden="true" /> Conciliar
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {selected && (
-        <DetailDrawer title={selected.name} subtitle="Conta bancária" onClose={() => setSelectedId(null)} onEdit={canEdit ? () => openForm(selected) : undefined}>
-          <div className="space-y-6">
-            <DetailGrid>
-              <DetailItem label="Tipo" value={BANK_ACCOUNT_KIND_LABELS[selected.kind] ?? selected.kind} />
-              <DetailItem label="Status" value={<StatusBadge status={isTrue(selected.active) ? "active" : "inactive"} />} />
-              <DetailItem label="Banco" value={[selected.bank_code, selected.bank_name].filter(Boolean).join(" · ")} />
-              <DetailItem label="Agência e conta" value={[selected.agency, selected.account_number].filter(Boolean).join(" / ")} />
-              <DetailItem label="Chave Pix" value={selected.pix_key} />
-              <DetailItem label="Conta padrão" value={isTrue(selected.is_default) ? "Sim" : "Não"} />
-              <DetailItem label="Saldo inicial" value={`${formatCurrency(Number(selected.opening_balance ?? 0))}${selected.opening_date ? ` em ${formatDay(selected.opening_date)}` : ""}`} />
-              <DetailItem label="Entradas realizadas" value={formatCurrency(balanceOf(selected.id)?.inflow ?? 0)} />
-              <DetailItem label="Saídas realizadas" value={formatCurrency(balanceOf(selected.id)?.outflow ?? 0)} />
-              <DetailItem label="Saldo atual" value={formatCurrency(balanceOf(selected.id)?.balance ?? 0)} />
-            </DetailGrid>
-            {selected.notes && <p className="whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm">{selected.notes}</p>}
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => navigate(`/finance/conciliacao?conta=${selected.id}`)} className={secondaryButton}>
-                <ListChecks size={14} aria-hidden="true" /> Conciliar extrato
-              </button>
-              {canDelete && <ConfirmButton label="Excluir" confirmLabel="Confirmar exclusão" icon={<Trash2 size={14} aria-hidden="true" />} busy={remove.isPending} onConfirm={() => remove.mutate(selected)} />}
-            </div>
-            <ErrorNote message={remove.error ? errorMessage(remove.error) : null} />
-          </div>
-        </DetailDrawer>
-      )}
-
-      {editing && (
-        <CrudDialog
-          title={editing.account ? "Editar conta bancária" : "Nova conta bancária"}
-          fields={[
-            { key: "name", label: "Nome", required: true, placeholder: "Ex.: Itaú PJ, Caixa da loja" },
-            { key: "kind", label: "Tipo", type: "select", options: BANK_ACCOUNT_KINDS.map((kind) => ({ value: kind, label: BANK_ACCOUNT_KIND_LABELS[kind] })) },
-            { key: "bank_code", label: "Código do banco", placeholder: "341" },
-            { key: "bank_name", label: "Banco" },
-            { key: "agency", label: "Agência" },
-            { key: "account_number", label: "Conta" },
-            { key: "pix_key", label: "Chave Pix" },
-            { key: "opening_balance", label: "Saldo inicial", placeholder: "0,00" },
-            { key: "opening_date", label: "Data do saldo inicial", type: "date" },
-            { key: "is_default", label: "Conta padrão", type: "select", options: YES_NO },
-            { key: "active", label: "Ativa", type: "select", options: YES_NO },
-            { key: "notes", label: "Observações", type: "textarea" },
-          ]}
-          values={form}
-          onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
-          onClose={() => setEditing(null)}
-          onSubmit={() => save.mutate()}
-          busy={save.isPending}
-        >
-          <p className="mt-4 text-sm text-muted-foreground">O saldo inicial vale a partir da data informada; movimentos anteriores a ela não entram no saldo.</p>
-          <ErrorNote message={save.error ? errorMessage(save.error) : null} />
-        </CrudDialog>
-      )}
+      <EditableTable<BankAccountRow>
+        resource="bank"
+        label="Contas bancárias"
+        rows={rows}
+        columns={tableColumns}
+        // A primeira conta já nasce como padrão (é a que as baixas e a conciliação sugerem).
+        newRow={() => ({ kind: "corrente", opening_balance: 0, is_default: accounts.length === 0 ? 1 : 0, active: 1 })}
+        onSave={save}
+        onRefresh={() => qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] })}
+        emptyMessage="Nenhuma conta bancária. Adicione as contas e o caixa da empresa para ver saldos, fluxo de caixa e conciliar extratos."
+        rowActions={(row) => (
+          <span className="flex justify-end gap-1.5">
+            <button type="button" onClick={() => navigate(`/finance/conciliacao?conta=${row.id}`)} className={secondaryButton} aria-label={`Conciliar ${row.name}`}>
+              <ListChecks size={14} aria-hidden="true" /> Conciliar
+            </button>
+            {canDelete && (
+              <ConfirmButton label="" ariaLabel={`Excluir ${row.name}`} confirmLabel="Confirmar exclusão" icon={<Trash2 size={14} aria-hidden="true" />} busy={remove.isPending} onConfirm={() => remove.mutate(row)} />
+            )}
+          </span>
+        )}
+      />
+      <p className="text-sm text-muted-foreground">O saldo inicial vale a partir da data informada; movimentos anteriores a ela não entram no saldo. Conta com movimento não se exclui: desmarque Ativa.</p>
     </div>
   );
 }

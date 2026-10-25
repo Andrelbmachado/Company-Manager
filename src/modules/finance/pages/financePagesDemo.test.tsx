@@ -1,10 +1,11 @@
 // As telas do financeiro também rodam no banco demo do navegador (SQL só por padrões de texto): cada página abre com
-// dados de exemplo sem erro na tela, e a baixa pela lista funciona lá.
+// dados de exemplo sem erro na tela, e a baixa e a edição na própria tabela funcionam lá.
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoDb } from "@/lib/db/demo";
 import { addBankAccount, addBankTransaction, addCategory, addPayable, addReceivable, addRecurring, insertRow } from "@/test/financeFixtures";
-import { click, dialog, findButton, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
+import { click, findButton, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
+import { editCell, saveTable, startEditing, tableOf } from "../testing/tableActions";
 import { todayIso } from "@/lib/utils";
 import BankAccountsPage from "./BankAccountsPage";
 import CashflowPage from "./CashflowPage";
@@ -16,6 +17,7 @@ import RecurringEntriesPage from "./RecurringEntriesPage";
 
 const demo = vi.hoisted(() => ({ db: null as ReturnType<typeof import("@/lib/db/demo").createDemoDb> | null }));
 vi.mock("@/lib/db/client", () => ({ getDb: async () => demo.db, isTauriRuntime: () => false }));
+vi.mock("@/lib/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
 
 const C = "empresa-telas-demo";
 let page: RenderedPage | null = null;
@@ -39,6 +41,7 @@ beforeEach(async () => {
 afterEach(() => {
   page?.unmount();
   page = null;
+  document.body.innerHTML = "";
 });
 
 const PAGES: [string, () => ReactElement, string, string?][] = [
@@ -47,7 +50,7 @@ const PAGES: [string, () => ReactElement, string, string?][] = [
   ["DrePage", () => <DrePage />, "3.1 · Vendas"],
   ["BankAccountsPage", () => <BankAccountsPage />, "Banco Demo"],
   ["ReconciliationPage", () => <ReconciliationPage />, "TARIFA", "/finance/conciliacao?conta=banco"],
-  ["FinanceCategoriesPage", () => <FinanceCategoriesPage />, "4.1 · Aluguel"],
+  ["FinanceCategoriesPage", () => <FinanceCategoriesPage />, "Aluguel"],
   ["RecurringEntriesPage", () => <RecurringEntriesPage />, "Internet"],
 ];
 
@@ -65,9 +68,23 @@ describe("telas do financeiro no banco demo", () => {
     await click(view.button("A pagar"));
     await until(() => view.text().includes("Aluguel da sala"), "conta a pagar");
     await click(view.button("Baixar Aluguel da sala"));
-    const settle = dialog("Registrar pagamento")!;
+    const settle = document.querySelector<HTMLElement>('form[aria-label="Registrar pagamento"]')!;
     await type(settle.querySelector("input"), "200");
     await click(findButton(settle, "Confirmar pagamento"));
     await until(async () => (await demo.db!.select<{ status: string }[]>("SELECT * FROM payables WHERE company_id=? AND id=?", [C, "p1"]))[0].status === "paga_parcial", "baixa no demo");
+  });
+
+  it("edição na própria tabela grava no demo", async () => {
+    page = await renderPage(<FinancePage />, { companyId: C });
+    const view = page;
+    await click(view.button("A pagar"));
+    await until(() => view.text().includes("Aluguel da sala"), "conta a pagar");
+    const table = tableOf(view.container, "payables");
+    await startEditing(table);
+    await editCell(table, "p1", "amount", "1.350,75");
+    await editCell(table, "p1", "document_number", "NF-77");
+    await saveTable(table);
+    await until(async () => Number((await demo.db!.select<{ amount: number }[]>("SELECT * FROM payables WHERE company_id=? AND id=?", [C, "p1"]))[0].amount) === 1350.75, "edição no demo");
+    expect((await demo.db!.select<{ document_number: string }[]>("SELECT * FROM payables WHERE company_id=? AND id=?", [C, "p1"]))[0].document_number).toBe("NF-77");
   });
 });

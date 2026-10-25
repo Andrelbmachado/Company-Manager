@@ -108,10 +108,13 @@ function ProjectsHub({ db, panel }: { db: DatabaseLike; panel: ReactNode }) {
           key={id}
           type="button"
           aria-pressed={view === id}
+          aria-label={text}
+          title={text}
           onClick={() => setView(id)}
           className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1 text-sm font-medium transition-colors", view === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
         >
-          <Icon size={14} aria-hidden="true" /> {text}
+          {/* Abaixo de 640 px só o ícone (como a alternância Lista/Calendário do RH): o nome fica no aria-label e no title. */}
+          <Icon size={14} aria-hidden="true" /> <span className="hidden sm:inline">{text}</span>
         </button>
       ))}
     </div>

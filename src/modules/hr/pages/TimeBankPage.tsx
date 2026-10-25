@@ -118,12 +118,12 @@ export default function TimeBankPage() {
 
       <section aria-label="Lançamentos" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <button type="button" aria-pressed={!onlyPending} onClick={() => setOnlyPending(false)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", !onlyPending ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>Todos</button>
             <button type="button" aria-pressed={onlyPending} onClick={() => setOnlyPending(true)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", onlyPending ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>Aguardando aprovação ({pending.length})</button>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex min-w-0 max-w-full items-center gap-2 text-sm">
               <span className="text-muted-foreground">Colaborador</span>
-              <select value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)} className={cn(INPUT, "w-56")}>
+              <select value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)} className={cn(INPUT, "w-56 min-w-0")}>
                 <option value="todos">Todos</option>
                 {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
               </select>

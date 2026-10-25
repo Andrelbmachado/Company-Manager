@@ -91,9 +91,9 @@ export default function ImportHistoryPage() {
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar pelo arquivo ou cadastro...">
         {batches.length > 0 && <TableFilterButton view={view} />}
         {entityKeys.length > 1 && (
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex min-w-0 max-w-full items-center gap-2 text-sm">
             <span className="text-muted-foreground">Cadastro</span>
-            <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+            <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm">
               <option value="">Todos</option>
               {entityKeys.map((key) => (
                 <option key={key} value={key}>{entityLabel(key)}</option>

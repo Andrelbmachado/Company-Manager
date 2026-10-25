@@ -166,7 +166,7 @@ export default function EmploymentCyclePage() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-2" role="group" aria-label="Mostrar processos">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Mostrar processos">
           {(["andamento", "concluidos"] as const).map((value) => (
             <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", filter === value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
               {value === "andamento" ? `Em andamento (${open.length})` : `Concluídos (${finished.length})`}

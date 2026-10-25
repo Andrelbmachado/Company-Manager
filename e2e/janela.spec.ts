@@ -85,6 +85,46 @@ test.describe("janela mínima (1/5 × 1/3 da tela)", () => {
   });
 });
 
+test.describe("largura mínima do app (240 px, o piso do tauri.conf.json)", () => {
+  test.use({ viewport: { width: 240, height: 318 } });
+
+  test("nenhuma tela dos módulos (e das abas) estoura a largura da área de conteúdo", async ({ page }) => {
+    test.setTimeout(300_000);
+    const errors = watchErrors(page);
+    await quickLogin(page);
+    const modules = page.locator('aside nav[aria-label="Módulos"]');
+    const routes = await modules.locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+    const visited = new Set<string>();
+    const overflowing: string[] = [];
+
+    // Visita a rota pelo link (navegação do app, sem recarregar) e depois as abas dela, inclusive as abas das abas.
+    async function visit(route: string, link: Locator) {
+      visited.add(route);
+      await link.click();
+      await page.waitForLoadState("networkidle");
+      await expect(page.locator("main [data-page-loading]")).toHaveCount(0);
+      // O que é largo (tabela, abas) rola no próprio contêiner; o conteúdo da tela não ganha rolagem lateral.
+      const width = await page.evaluate(() => {
+        const main = document.querySelector("main")!;
+        return { scroll: main.scrollWidth, client: main.clientWidth };
+      });
+      if (width.scroll > width.client + 1) overflowing.push(`${route} (${width.scroll} > ${width.client})`);
+      const tabs = await page.locator("main nav a:visible").evaluateAll((links) => links.map((item) => item.getAttribute("href") ?? ""));
+      for (const tab of tabs) {
+        if (!tab || visited.has(tab)) continue;
+        await visit(tab, page.locator(`main nav a[href="${tab}"]`).first());
+      }
+    }
+
+    for (const route of routes) {
+      if (route && !visited.has(route)) await visit(route, modules.locator(`a[href="${route}"]`).first());
+    }
+    expect(visited.size).toBeGreaterThan(30);
+    expect(overflowing).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+});
+
 test("impressão: a folha do relatório passa de uma página (a janela travada não corta o PDF)", async ({ page }) => {
   await quickLogin(page);
   // Mesma função dos botões PDF dos relatórios, com 200 linhas; window.print vira nada para gerar o PDF aqui.

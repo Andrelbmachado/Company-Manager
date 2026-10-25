@@ -122,7 +122,7 @@ export default function InventoryCountsPage() {
       <PageHeader title="Inventário" />
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, local ou observação...">
-        <div role="group" aria-label="Filtrar por situação" className="flex gap-1">
+        <div role="group" aria-label="Filtrar por situação" className="flex flex-wrap gap-1">
           {STATUS_FILTERS.map((option) => (
             <button
               key={option.value}

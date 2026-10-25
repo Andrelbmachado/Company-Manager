@@ -78,27 +78,31 @@ export function BalanceChart({ points, today, labels, loading, error }: BalanceC
             formatAxis={axisMoney}
             formatLabel={(label) => `${MONTH_NAMES[MONTHS.indexOf(label)] ?? label} de ${year}`}
           />
-          <table className="sr-only">
-            <caption>{`${labels.title} de ${year}, por mês`}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Mês</th>
-                <th scope="col">{labels.realized}</th>
-                <th scope="col">{labels.accumulated}</th>
-                <th scope="col">{labels.forecast}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((point, index) => (
-                <tr key={point.month}>
-                  <th scope="row">{MONTH_NAMES[index]}</th>
-                  <td>{point.realizado == null ? "—" : money(point.realizado)}</td>
-                  <td>{point.acumulado == null ? "—" : money(point.acumulado)}</td>
-                  <td>{money(point.previsto)}</td>
+          {/* A <table> não encolhe para o 1 px do sr-only (fica na largura do conteúdo e dava rolagem lateral na janela
+              estreita); o div em volta é que corta e some da tela. */}
+          <div className="sr-only">
+            <table className="sr-only">
+              <caption>{`${labels.title} de ${year}, por mês`}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Mês</th>
+                  <th scope="col">{labels.realized}</th>
+                  <th scope="col">{labels.accumulated}</th>
+                  <th scope="col">{labels.forecast}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {points.map((point, index) => (
+                  <tr key={point.month}>
+                    <th scope="row">{MONTH_NAMES[index]}</th>
+                    <td>{point.realizado == null ? "—" : money(point.realizado)}</td>
+                    <td>{point.acumulado == null ? "—" : money(point.acumulado)}</td>
+                    <td>{money(point.previsto)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>

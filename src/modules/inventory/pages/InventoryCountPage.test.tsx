@@ -1,80 +1,85 @@
-// /inventory/inventarios/nova: só quem tem `create` em inventory abre contagem (a rota só exige `view`).
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { SessionContext } from "@/hooks/useSession";
+// Folha da contagem na tabela editável: o contado é lançado em Editar (sem modal), item novo entra por Adicionar,
+// concluir não vale com a tabela em edição, perfil que só consulta vê os botões desabilitados; /nova volta para a lista.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buttonIn, choose, click, mountPage, typeInto, until, type Mounted } from "@/modules/catalog/testHarness";
+import { openInventoryCount } from "@/lib/inventory/counts";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import type { Role, Session } from "@/types";
+import type { InventoryCountItem, Role } from "@/types";
 import InventoryCountPage from "./InventoryCountPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+vi.mock("@/lib/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
 
 const testDb = useTestDb();
+let mounted: Mounted | null = null;
+let companyId: string;
+let countId: string;
 
-let root: Root | null = null;
-let container: HTMLDivElement;
+beforeEach(async () => {
+  const db = testDb();
+  ({ companyId } = await insertTestCompany(db, { roles: ["estoquista", "gerente"] }));
+  await db.execute("INSERT INTO stock_locations (id, company_id, name) VALUES ('loc-1', ?, 'Depósito')", [companyId]);
+  await db.execute("INSERT INTO inventory_items (id, company_id, name, unit) VALUES ('item-1', ?, 'Cabo Cat6', 'cx')", [companyId]);
+  await db.execute("INSERT INTO inventory_items (id, company_id, name, unit) VALUES ('item-2', ?, 'Switch', 'un')", [companyId]);
+  await db.execute("INSERT INTO stock_balances (id, company_id, item_id, location_id, quantity) VALUES ('b1', ?, 'item-1', 'loc-1', 10)", [companyId]);
+  ({ id: countId } = await openInventoryCount(db, { companyId, locationId: "loc-1" }));
+});
 
 afterEach(() => {
-  if (root) act(() => root!.unmount());
-  root = null;
+  mounted?.unmount();
+  mounted = null;
   document.body.innerHTML = "";
 });
 
-function sessionFor(role: Role, companyId: string): Session {
-  return {
-    user: { id: `test-user-${role}`, name: `Teste ${role}`, email: `${role}@teste.local` },
-    membership: { id: `test-member-${companyId}-${role}`, company_id: companyId, user_id: `test-user-${role}`, role, scope: "setor" },
-    company: { id: companyId, name: "Empresa de Teste" },
-  } as unknown as Session;
+async function open(role: Role, path = `/inventory/inventarios/${countId}`) {
+  mounted = await mountPage({
+    companyId,
+    role,
+    path,
+    routes: [
+      { path: "/inventory/inventarios", element: <p>lista de contagens</p> },
+      { path: "/inventory/inventarios/:id", element: <InventoryCountPage /> },
+    ],
+  });
+  return mounted;
 }
 
-async function openAs(role: Role) {
-  const db = testDb();
-  const { companyId } = await insertTestCompany(db, { roles: [role] });
-  await db.execute("INSERT INTO stock_locations (id, company_id, name) VALUES ('loc-1', ?, 'Depósito')", [companyId]);
-  container = document.createElement("div");
-  document.body.appendChild(container);
-  root = createRoot(container);
-  await act(async () => {
-    root!.render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <SessionContext.Provider value={{ session: sessionFor(role, companyId), setSession: () => undefined }}>
-          <MemoryRouter initialEntries={["/inventory/inventarios/nova"]}>
-            <Routes>
-              <Route path="/inventory/inventarios/:id" element={<InventoryCountPage />} />
-            </Routes>
-          </MemoryRouter>
-        </SessionContext.Provider>
-      </QueryClientProvider>,
-    );
-  });
-  for (let attempt = 0; attempt < 100; attempt++) {
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    });
-    if (container.querySelector("h1")) break;
-  }
-}
+const table = () => mounted!.container.querySelector<HTMLElement>("[data-editable-table]")!;
+const cell = (label: string) => mounted!.container.querySelector(`[aria-label="${label}"]`);
+const lines = async () => testDb().select<InventoryCountItem[]>("SELECT * FROM inventory_count_items WHERE count_id=? AND deleted_at IS NULL ORDER BY item_id", [countId]);
 
-const openButton = () => [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Abrir contagem"));
-
-describe("InventoryCountPage em /inventory/inventarios/nova", () => {
-  it.each<Role>(["gerente", "auditor", "tecnico"])("%s (só consulta o estoque) não vê o formulário de abrir contagem", async (role) => {
-    await openAs(role);
-    expect(container.querySelector("h1")?.textContent).toBe("Nova contagem de inventário");
-    expect(openButton()).toBeUndefined();
-    expect(container.querySelector("#new-count-location")).toBeNull();
-    expect(container.textContent).toContain("não abre contagem");
+describe("InventoryCountPage", () => {
+  it("/inventory/inventarios/nova volta para a lista (abrir contagem é Adicionar na tabela)", async () => {
+    await open("estoquista", "/inventory/inventarios/nova");
+    await until(() => mounted!.path() === "/inventory/inventarios", "voltar para a lista");
   });
 
-  it("estoquista abre a contagem no local escolhido", async () => {
-    await openAs("estoquista");
-    expect(openButton()).toBeDefined();
-    expect(container.querySelector("#new-count-location")).not.toBeNull();
+  it("lança o contado em Editar e inclui item por Adicionar, sem modal; concluir com a tabela em edição é recusado", async () => {
+    await testDb().execute("UPDATE inventory_count_items SET counted_qty=10 WHERE count_id=?", [countId]);
+    await open("estoquista");
+    await until(() => table() !== null && mounted!.container.querySelector("tr[data-row-key]") !== null, "folha carregada");
+    await click(buttonIn(table(), "Editar"));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await typeInto(cell("Contado (linha 1)"), "8,5");
+    await click(buttonIn(mounted!.container, "Concluir e ajustar estoque"));
+    expect(mounted!.container.textContent).toContain("Salve ou cancele as alterações da tabela");
+    await click(buttonIn(table(), "Adicionar"));
+    await choose(cell("Item (nova linha)"), "item-2");
+    await typeInto(cell("Contado (nova linha)"), "1");
+    await click(buttonIn(table(), "Salvar"));
+    await until(async () => (await lines()).length === 2, "item incluído");
+    expect((await lines()).map((line) => [line.item_id, line.counted_qty])).toEqual([
+      ["item-1", 8.5],
+      ["item-2", 1],
+    ]);
+  });
+
+  it("gerente (só consulta o estoque) vê Editar e Adicionar desabilitados e não conclui", async () => {
+    await open("gerente");
+    await until(() => mounted!.container.querySelector("tr[data-row-key]") !== null, "folha carregada");
+    expect(buttonIn(table(), "Editar")!.disabled).toBe(true);
+    expect(buttonIn(table(), "Adicionar")!.disabled).toBe(true);
+    expect(buttonIn(mounted!.container, "Concluir e ajustar estoque")).toBeUndefined();
   });
 });

@@ -1,43 +1,143 @@
+// Ordens de serviço editadas direto na tabela (Editar / Adicionar / Atualizar). Número vazio na OS nova = próximo
+// OS-NNNN livre; concluída ou cancelada marca o encerramento. A aba Calendário mostra os prazos das OS em andamento.
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
-import { getDb } from "@/lib/db/client";
-import { usePermission } from "@/hooks/usePermission";
-import { useRequiredSession } from "@/hooks/useSession";
-import { CrudDialog } from "@/components/shared/CrudDialog";
-import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { CalendarView } from "@/components/shared/CalendarView";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PageToolbar } from "@/components/shared/PageToolbar";
+import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { Plus, Wrench } from "lucide-react";
-import type { WorkOrder } from "@/types";
+import { TabList, TabPanel } from "@/components/shared/Tabs";
+import { useRequiredSession } from "@/hooks/useSession";
+import { fetchCompanyUsers } from "@/lib/crm/queries";
+import { getDb } from "@/lib/db/client";
+import { dayOf } from "@/lib/inventory/custody";
+import { useLabel } from "@/lib/labels/useLabel";
+import { sumMoney } from "@/lib/money";
+import { isClosedWorkOrder, listWorkOrders, saveWorkOrderRows, WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES, workOrderCalendarItems, type WorkOrderView } from "@/lib/operations/workOrders";
+import { formatCurrency, formatDateTime, todayIso } from "@/lib/utils";
+import { emitSafely, normalizeSearch, useActor } from "@/modules/inventory/components/inventoryUi";
 
-const STATUSES = ["aberta", "atribuida", "aguardando_peca", "em_execucao", "concluida", "cancelada"];
-const PRIORITIES = ["baixa", "media", "alta", "urgente"];
-const EMPTY = { number: "", status: "aberta", priority: "media", labor_cost: "0", materials_cost: "0" };
+const TABS = [
+  { id: "lista", label: "Lista" },
+  { id: "calendario", label: "Calendário" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
+
+const SELECT = "h-8 rounded-md border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring";
 
 export default function WorkOrdersPage() {
   const session = useRequiredSession();
+  const companyId = session.company.id;
+  const title = useLabel("module.operations");
+  const actor = useActor();
   const qc = useQueryClient();
-  const canCreate = usePermission("create", "work_orders");
-  const canEdit = usePermission("edit", "work_orders");
-  const [selected, setSelected] = useState<WorkOrder | null>(null);
-  const [form, setForm] = useState<Record<string, string>>(EMPTY);
-  const [dialog, setDialog] = useState<"create" | "edit" | null>(null);
-  const { data: orders = [], isLoading } = useQuery({ queryKey: ["work-orders", session.company.id], queryFn: async () => (await getDb()).select<WorkOrder[]>("SELECT * FROM work_orders WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at DESC", [session.company.id]) });
-  const saveMutation = useMutation({ mutationFn: async () => {
-    const db = await getDb();
-    if (dialog === "edit" && selected) await db.execute("UPDATE work_orders SET number=?, status=?, priority=?, labor_cost=?, materials_cost=?, updated_at=datetime('now') WHERE id=?", [form.number, form.status, form.priority, Number(form.labor_cost), Number(form.materials_cost), selected.id]);
-    else {
-      const count = await db.select<[{ n: number }]>("SELECT COUNT(*) as n FROM work_orders WHERE company_id=?", [session.company.id]);
-      await db.execute("INSERT INTO work_orders (id, company_id, number, technician_id, status, priority, labor_cost, materials_cost) VALUES (?,?,?,?,?,?,?,?)", [uuidv4(), session.company.id, form.number || `OS-${String(count[0].n + 1).padStart(4, "0")}`, session.user.id, form.status, form.priority, Number(form.labor_cost), Number(form.materials_cost)]);
-    }
-  }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders", session.company.id] }); setSelected((item) => dialog === "edit" && item ? { ...item, ...form, status: form.status as WorkOrder["status"], priority: form.priority as WorkOrder["priority"], labor_cost: Number(form.labor_cost), materials_cost: Number(form.materials_cost) } : item); setDialog(null); setForm(EMPTY); } });
-  return <div className="space-y-6">
-    <PageHeader title="Ordens de Servico" description="Gestao de OS" actions={canCreate ? <button onClick={() => { setForm(EMPTY); setDialog("create"); }} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus size={14} /> Nova OS</button> : undefined} />
-    {isLoading ? <div className="h-32 animate-pulse rounded-xl bg-muted/30" /> : orders.length === 0 ? <EmptyState icon={Wrench} title="Nenhuma ordem de servico" /> : <div className="overflow-hidden rounded-xl border"><table className="w-full text-sm"><thead className="bg-muted/30"><tr><th className="px-4 py-3 text-left">Numero</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Prioridade</th><th className="px-4 py-3 text-left">Aberta em</th><th className="px-4 py-3 text-left">Custo total</th></tr></thead><tbody className="divide-y">{orders.map((order) => <tr key={order.id} onClick={() => setSelected(order)} className="cursor-pointer hover:bg-muted/20"><td className="px-4 py-3 font-medium">{order.number}</td><td className="px-4 py-3"><StatusBadge status={order.status} /></td><td className="px-4 py-3"><StatusBadge status={order.priority} /></td><td className="px-4 py-3 text-muted-foreground">{formatDateTime(order.opened_at)}</td><td className="px-4 py-3 text-muted-foreground">{formatCurrency(order.labor_cost + order.materials_cost)}</td></tr>)}</tbody></table></div>}
-    {selected && <DetailDrawer title={selected.number} subtitle="Ordem de servico" onClose={() => setSelected(null)} onEdit={canEdit ? () => { setForm({ number: selected.number, status: selected.status, priority: selected.priority, labor_cost: String(selected.labor_cost), materials_cost: String(selected.materials_cost) }); setDialog("edit"); } : undefined}><DetailGrid><DetailItem label="Status" value={<StatusBadge status={selected.status} />} /><DetailItem label="Prioridade" value={<StatusBadge status={selected.priority} />} /><DetailItem label="Abertura" value={formatDateTime(selected.opened_at)} /><DetailItem label="Custo de mao de obra" value={formatCurrency(selected.labor_cost)} /><DetailItem label="Custo de materiais" value={formatCurrency(selected.materials_cost)} /><DetailItem label="Custo total" value={formatCurrency(selected.labor_cost + selected.materials_cost)} /></DetailGrid></DetailDrawer>}
-    {dialog && <CrudDialog title={dialog === "edit" ? "Editar OS" : "Nova OS"} fields={[{ key: "number", label: "Numero (automatico se vazio)" }, { key: "status", label: "Status", type: "select", options: STATUSES.map((status) => ({ value: status, label: status })) }, { key: "priority", label: "Prioridade", type: "select", options: PRIORITIES.map((priority) => ({ value: priority, label: priority })) }, { key: "labor_cost", label: "Custo de mao de obra", type: "number" }, { key: "materials_cost", label: "Custo de materiais", type: "number" }]} values={form} onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} onClose={() => setDialog(null)} onSubmit={() => saveMutation.mutate()} busy={saveMutation.isPending} />}
-  </div>;
+  const [tab, setTab] = useState<Tab>("lista");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("abertas");
+  const [showFilters, setShowFilters] = useState(false);
+
+  const ordersQuery = useQuery({
+    queryKey: ["work-orders", companyId],
+    queryFn: async () => listWorkOrders(await getDb(), companyId),
+  });
+  const { data: customers = [] } = useQuery({
+    queryKey: ["work-order-customers", companyId],
+    queryFn: async () => (await getDb()).select<{ id: string; name: string }[]>("SELECT * FROM customers WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [companyId]),
+  });
+  const { data: users = [] } = useQuery({
+    queryKey: ["company-users", companyId],
+    queryFn: async () => fetchCompanyUsers(await getDb(), companyId),
+  });
+  const orders = ordersQuery.data ?? [];
+  const query = normalizeSearch(search);
+  const filtered = orders.filter((order) => {
+    if (statusFilter === "abertas" && isClosedWorkOrder(order.status)) return false;
+    if (statusFilter !== "abertas" && statusFilter !== "all" && order.status !== statusFilter) return false;
+    return !query || [order.number, order.customer_name, order.technician_name].some((value) => normalizeSearch(value ?? "").includes(query));
+  });
+  const today = todayIso();
+  const active = orders.filter((order) => !isClosedWorkOrder(order.status));
+  const overdue = active.filter((order) => order.sla_due_at && dayOf(order.sla_due_at) < today);
+
+  const columns: EditableColumn<WorkOrderView>[] = [
+    { key: "number", header: "Número", kind: "text", placeholder: "automático", width: 120, render: (row) => <span className="font-medium">{row.number}</span> },
+    { key: "customer_id", header: "Cliente", kind: "select", options: customers.map((customer) => ({ value: customer.id, label: customer.name })), render: (row) => row.customer_name ?? "—" },
+    { key: "technician_id", header: "Técnico", kind: "select", options: users.map((user) => ({ value: user.id, label: user.name })), render: (row) => row.technician_name ?? "—" },
+    { key: "status", header: "Status", kind: "select", required: true, options: WORK_ORDER_STATUSES, render: (row) => <StatusBadge status={row.status} /> },
+    { key: "priority", header: "Prioridade", kind: "select", required: true, options: WORK_ORDER_PRIORITIES, render: (row) => <StatusBadge status={row.priority} /> },
+    { key: "sla_due_at", header: "Prazo", kind: "date" },
+    { key: "opened_at", header: "Aberta em", kind: "text", readOnly: true, render: (row) => <span className="text-muted-foreground">{formatDateTime(row.opened_at)}</span> },
+    { key: "labor_cost", header: "Mão de obra", kind: "money" },
+    { key: "materials_cost", header: "Materiais", kind: "money" },
+    { key: "total_cost", header: "Custo total", kind: "money", readOnly: true },
+  ];
+
+  async function save(changes: EditableTableChanges<WorkOrderView>) {
+    const result = await saveWorkOrderRows(await getDb(), companyId, actor, changes);
+    void qc.invalidateQueries({ queryKey: ["work-orders", companyId] });
+    void qc.invalidateQueries({ queryKey: ["work-order-options", companyId] });
+    void qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
+    await emitSafely([
+      ...result.created.map((id) => ({ type: "work_order.created", companyId, actorId: actor.userId, entityType: "work_order", entityId: id, title: "Ordem de serviço aberta", module: "operations" })),
+      ...result.updated.map((id) => ({ type: "work_order.updated", companyId, actorId: actor.userId, entityType: "work_order", entityId: id, title: "Ordem de serviço alterada", module: "operations", newValue: changes.updated.find((row) => row.id === id) })),
+    ]);
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title={title} description="Gestão de OS: cliente, técnico, prazo e custos" />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Em andamento" value={active.length} />
+        <StatCard title="Prazo vencido" value={overdue.length} />
+        <StatCard title="Concluídas" value={orders.filter((order) => order.status === "concluida").length} />
+        <StatCard title="Custo das OS em andamento" value={formatCurrency(sumMoney(active.map((order) => order.total_cost)))} />
+      </div>
+
+      <TabList tabs={TABS} value={tab} onChange={setTab} label="Visualização das ordens de serviço" idPrefix="os" />
+
+      {tab === "lista" ? (
+        <TabPanel idPrefix="os" id="lista">
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, cliente ou técnico..." onFilterClick={() => setShowFilters((visible) => !visible)} filterActive={statusFilter !== "abertas"} />
+          {showFilters && (
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-4 py-3">
+              <label className="text-sm font-medium" htmlFor="wo-status-filter">Status</label>
+              <select id="wo-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={SELECT}>
+                <option value="abertas">Em andamento</option>
+                <option value="all">Todas</option>
+                {WORK_ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+            </div>
+          )}
+          <EditableTable
+            resource="work_orders"
+            label="Ordens de serviço"
+            title="Ordens de serviço"
+            rows={filtered}
+            columns={columns}
+            loading={ordersQuery.isLoading}
+            onSave={save}
+            onRefresh={() => ordersQuery.refetch()}
+            newRow={() => ({ id: uuidv4(), status: "aberta" as const, priority: "media" as const, labor_cost: 0, materials_cost: 0, total_cost: 0 })}
+            emptyMessage={orders.length === 0 ? "Nenhuma ordem de serviço." : "Nenhuma ordem de serviço neste filtro."}
+          />
+        </TabPanel>
+      ) : (
+        <TabPanel idPrefix="os" id="calendario">
+          <CalendarView
+            label="Prazos das ordens de serviço"
+            items={workOrderCalendarItems(orders)}
+            onSelect={(item) => {
+              setSearch(orders.find((order) => order.id === item.id)?.number ?? "");
+              setStatusFilter("all");
+              setTab("lista");
+            }}
+          />
+        </TabPanel>
+      )}
+    </div>
+  );
 }

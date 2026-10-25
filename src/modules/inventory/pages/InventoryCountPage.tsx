@@ -1,24 +1,29 @@
-import { useState, type KeyboardEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+// Folha de uma contagem de inventário. Aberta: tabela editável (Editar = contado e observação de cada item; Adicionar =
+// incluir item com o contado). Concluir só com a tabela fora do modo edição (nada de rascunho esquecido). Concluída ou
+// cancelada: tabela só de leitura com o ajuste de cada item.
+import { useRef, useState } from "react";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Plus, Printer, Trash2, XCircle } from "lucide-react";
-import { getDb } from "@/lib/db/client";
-import { formatSequence } from "@/lib/db/sequence";
-import { useRequiredSession } from "@/hooks/useSession";
-import { usePermission } from "@/hooks/usePermission";
-import { emit } from "@/lib/events/bus";
-import { addCountItem, cancelInventoryCount, finishInventoryCount, loadInventoryCount, removeCountItem, setCountedQuantity, setCountItemNote, type InventoryCountLine } from "@/lib/inventory/counts";
-import { loadStockSnapshot } from "@/lib/inventory/queries";
-import { formatQty, roundQty } from "@/lib/inventory/stock";
-import { lineTotal, sumMoney } from "@/lib/money";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Printer, Trash2, XCircle } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { NewCountForm } from "../components/NewCountForm";
-import { BUTTON_OUTLINE, BUTTON_PRIMARY, ErrorBanner, errorText, INPUT, inventoryKeys, normalizeSearch, parseDecimal, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
+import { usePermission } from "@/hooks/usePermission";
+import { useRequiredSession } from "@/hooks/useSession";
 import { confirmAction } from "@/lib/confirm";
+import { getDb } from "@/lib/db/client";
+import { formatSequence } from "@/lib/db/sequence";
+import { saveCountLineRows } from "@/lib/inventory/countRows";
+import { cancelInventoryCount, finishInventoryCount, loadInventoryCount, removeCountItem, type InventoryCountLine } from "@/lib/inventory/counts";
+import { assertCan } from "@/lib/inventory/permission";
+import { loadStockSnapshot } from "@/lib/inventory/queries";
+import { formatQty, roundQty } from "@/lib/inventory/stock";
+import { lineTotal, sumMoney } from "@/lib/money";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { BUTTON_OUTLINE, BUTTON_PRIMARY, emitSafely, ErrorBanner, errorText, inventoryKeys, normalizeSearch, TableSkeleton, useActor, useInvalidateInventory } from "../components/inventoryUi";
 
 type View = "todos" | "pendentes" | "divergentes";
 
@@ -27,28 +32,25 @@ function signed(value: number, unit?: string): string {
   return `${value > 0 ? "+" : "−"}${formatQty(Math.abs(value), unit)}`;
 }
 
+export interface CountSheetRow {
+  id: string;
+  item_id: string;
+  item_name: string;
+  sku: string | null;
+  unit: string;
+  /** Saldo que vale para o ajuste: o de agora (aberta) ou o gravado na conclusão. */
+  system_qty: number;
+  expected_qty: number;
+  counted_qty: number | null;
+  difference: number | null;
+  notes: string | null;
+  adjustment_movement_id: string | null;
+}
+
 export default function InventoryCountPage() {
   const { id = "" } = useParams();
-  const session = useRequiredSession();
-  // A rota só exige `view`: abrir contagem pede `create` em inventory, como o botão "Nova contagem" da lista.
-  const canCreate = usePermission("create", "inventory");
-  if (id === "nova") {
-    return (
-      <div className="space-y-6">
-        <BackLink />
-        <PageHeader title="Nova contagem de inventário" description={canCreate ? "Escolha o local a contar." : undefined} />
-        {canCreate ? (
-          <NewCountForm companyId={session.company.id} userId={session.user.id} />
-        ) : (
-          <EmptyState
-            icon={ClipboardCheck}
-            title="Sem permissão para abrir contagem"
-            description="Seu perfil consulta o estoque, mas não abre contagem de inventário. Peça a quem cuida do estoque."
-          />
-        )}
-      </div>
-    );
-  }
+  // Rota antiga do formulário "Nova contagem": abrir contagem agora é Adicionar na tabela da lista.
+  if (id === "nova") return <Navigate to="/inventory/inventarios" replace />;
   return <CountSheet countId={id} />;
 }
 
@@ -63,20 +65,19 @@ function BackLink() {
 function CountSheet({ countId }: { countId: string }) {
   const session = useRequiredSession();
   const companyId = session.company.id;
+  const actor = useActor();
   const invalidate = useInvalidateInventory(companyId);
   const canEdit = usePermission("edit", "inventory");
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<Set<string>>(new Set());
+  const sheet = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("todos");
   const [search, setSearch] = useState("");
-  const [newItemId, setNewItemId] = useState("");
 
-  const { data: detail, isLoading, refetch } = useQuery({
+  const detailQuery = useQuery({
     queryKey: inventoryKeys.count(companyId, countId),
     queryFn: async () => loadInventoryCount(await getDb(), companyId, countId),
   });
+  const detail = detailQuery.data;
   const { data: snapshot } = useQuery({
     queryKey: inventoryKeys.snapshot(companyId),
     queryFn: async () => loadStockSnapshot(await getDb(), companyId),
@@ -88,79 +89,24 @@ function CountSheet({ countId }: { countId: string }) {
   const open = count?.status === "aberta";
   const editable = open && canEdit;
   const label = count ? formatSequence("inventory_counts", count.number) : "";
-  /** Saldo do sistema que vale para o ajuste: o de agora (aberta) ou o gravado na conclusão. */
   const systemQty = (line: InventoryCountLine) => (open ? line.current_qty : Number(line.expected_qty));
   const difference = (line: InventoryCountLine) => (line.counted_qty == null ? null : roundQty(Number(line.counted_qty) - systemQty(line)));
 
-  /** Grava uma linha; o rascunho do campo só some depois de a contagem ser relida (sem piscar o valor antigo). */
-  async function withSaving(lineId: string, task: () => Promise<unknown>, clearDraft?: () => void) {
-    setSaving((current) => new Set(current).add(lineId));
-    setError(null);
-    try {
-      await task();
-      await refetch();
-      clearDraft?.();
-      invalidate();
-    } catch (caught) {
-      setError(errorText(caught));
-    } finally {
-      setSaving((current) => {
-        const next = new Set(current);
-        next.delete(lineId);
-        return next;
-      });
-    }
-  }
-
-  function commitCount(line: InventoryCountLine) {
-    const draft = drafts[line.id];
-    if (draft === undefined) return;
-    const trimmed = draft.trim();
-    const value = trimmed === "" ? null : parseDecimal(trimmed);
-    const current = line.counted_qty == null ? null : Number(line.counted_qty);
-    if (value === current) {
-      setDrafts(({ [line.id]: _omit, ...rest }) => rest);
-      return;
-    }
-    void withSaving(
-      line.id,
-      async () => setCountedQuantity(await getDb(), { companyId, countItemId: line.id, countedQty: value }),
-      () => setDrafts(({ [line.id]: _omit, ...rest }) => rest),
-    );
-  }
-
-  function commitNote(line: InventoryCountLine) {
-    const draft = noteDrafts[line.id];
-    if (draft === undefined || draft.trim() === (line.notes ?? "")) return;
-    void withSaving(
-      line.id,
-      // Só a observação: reenviar a quantidade desta tela poderia desfazer uma contagem gravada logo antes.
-      async () => setCountItemNote(await getDb(), { companyId, countItemId: line.id, notes: draft }),
-      () => setNoteDrafts(({ [line.id]: _omit, ...rest }) => rest),
-    );
-  }
-
-  function onCountKey(event: KeyboardEvent<HTMLInputElement>, index: number) {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    // Enter grava e vai para o próximo item (contagem rápida pelo teclado).
-    const next = document.getElementById(`count-qty-${index + 1}`);
-    if (next) next.focus();
-    else event.currentTarget.blur();
-  }
-
   const finish = useMutation({
     mutationFn: async () => {
-      const result = await finishInventoryCount(await getDb(), { companyId, countId, userId: session.user.id });
-      await emit({
-        type: "stock.count_finished",
-        companyId,
-        actorId: session.user.id,
-        entityType: "inventory_count",
-        entityId: countId,
-        title: `Contagem ${label} concluída: ${result.movementIds.length} ${result.movementIds.length === 1 ? "ajuste" : "ajustes"} em ${count?.location_name ?? "local"}`,
-        module: "inventory",
-      });
+      assertCan(actor, "edit", "inventory", "contagens de inventário");
+      const result = await finishInventoryCount(await getDb(), { companyId, countId, userId: actor.userId });
+      await emitSafely([
+        {
+          type: "stock.count_finished",
+          companyId,
+          actorId: actor.userId,
+          entityType: "inventory_count",
+          entityId: countId,
+          title: `Contagem ${label} concluída: ${result.movementIds.length} ${result.movementIds.length === 1 ? "ajuste" : "ajustes"} em ${count?.location_name ?? "local"}`,
+          module: "inventory",
+        },
+      ]);
     },
     onSuccess: () => invalidate(),
     onError: (caught) => {
@@ -171,25 +117,15 @@ function CountSheet({ countId }: { countId: string }) {
 
   const cancel = useMutation({
     mutationFn: async () => {
+      assertCan(actor, "edit", "inventory", "contagens de inventário");
       await cancelInventoryCount(await getDb(), { companyId, countId });
-      await emit({ type: "stock.count_cancelled", companyId, actorId: session.user.id, entityType: "inventory_count", entityId: countId, title: `Contagem ${label} cancelada`, module: "inventory" });
+      await emitSafely([{ type: "stock.count_cancelled", companyId, actorId: actor.userId, entityType: "inventory_count", entityId: countId, title: `Contagem ${label} cancelada`, module: "inventory" }]);
     },
     onSuccess: () => invalidate(),
     onError: (caught) => setError(errorText(caught)),
   });
 
-  const addItem = useMutation({
-    mutationFn: async () => {
-      await addCountItem(await getDb(), { companyId, countId, itemId: newItemId });
-    },
-    onSuccess: () => {
-      setNewItemId("");
-      invalidate();
-    },
-    onError: (caught) => setError(errorText(caught)),
-  });
-
-  if (isLoading) {
+  if (detailQuery.isLoading) {
     return (
       <div className="space-y-6">
         <BackLink />
@@ -213,20 +149,102 @@ function CountSheet({ countId }: { countId: string }) {
   const divergent = counted.filter((line) => difference(line) !== 0);
   const missingUnits = divergent.reduce((sum, line) => sum + Math.min(0, difference(line) ?? 0), 0);
   const extraUnits = divergent.reduce((sum, line) => sum + Math.max(0, difference(line) ?? 0), 0);
-  const differenceValue = sumMoney(divergent.map((line) => {
-    const diff = difference(line) ?? 0;
-    return (diff < 0 ? -1 : 1) * lineTotal(Math.abs(diff), line.cost);
-  }));
+  const differenceValue = sumMoney(
+    divergent.map((line) => {
+      const diff = difference(line) ?? 0;
+      return (diff < 0 ? -1 : 1) * lineTotal(Math.abs(diff), line.cost);
+    }),
+  );
   const query = normalizeSearch(search);
   const shown = lines.filter((line) => {
     if (view === "pendentes" && line.counted_qty != null) return false;
     if (view === "divergentes" && !(line.counted_qty != null && difference(line) !== 0)) return false;
     return !query || [line.item_name, line.sku].some((value) => normalizeSearch(value ?? "").includes(query));
   });
+  const rows: CountSheetRow[] = shown.map((line) => ({
+    id: line.id,
+    item_id: line.item_id,
+    item_name: line.item_name,
+    sku: line.sku,
+    unit: line.unit,
+    system_qty: systemQty(line),
+    expected_qty: Number(line.expected_qty),
+    counted_qty: line.counted_qty == null ? null : Number(line.counted_qty),
+    difference: difference(line),
+    notes: line.notes ?? null,
+    adjustment_movement_id: line.adjustment_movement_id ?? null,
+  }));
   const inCount = new Set(lines.map((line) => line.item_id));
-  const addable = (snapshot?.items ?? []).filter((item) => !inCount.has(item.id));
+  const itemOptions = [
+    ...lines.map((line) => ({ value: line.item_id, label: line.sku ? `${line.item_name} (${line.sku})` : line.item_name })),
+    ...(snapshot?.items ?? []).filter((item) => !inCount.has(item.id)).map((item) => ({ value: item.id, label: item.sku ? `${item.name} (${item.sku})` : item.name })),
+  ];
+
+  const diffClass = (diff: number | null) => (diff == null || diff === 0 ? "text-muted-foreground" : diff < 0 ? "text-status-danger dark:text-red-400" : "text-emerald-700 dark:text-emerald-400");
+  const columns: EditableColumn<CountSheetRow>[] = [
+    {
+      key: "item_id",
+      header: "Item",
+      kind: "select",
+      required: true,
+      options: itemOptions,
+      render: (row) => (
+        <span>
+          <span className="block font-medium">{row.item_name}</span>
+          <span className="block text-xs text-muted-foreground">{[row.sku, row.unit].filter(Boolean).join(" · ")}</span>
+        </span>
+      ),
+    },
+    {
+      key: "system_qty",
+      header: open ? "Saldo no sistema" : "Saldo do sistema",
+      kind: "number",
+      readOnly: true,
+      render: (row) => (
+        <span>
+          {formatQty(row.system_qty, row.unit)}
+          {open && roundQty(row.expected_qty) !== row.system_qty && (
+            <span className="block whitespace-nowrap text-xs text-muted-foreground" title="O saldo mudou depois que a contagem foi aberta. O ajuste usa o saldo do momento da conclusão.">
+              na abertura: {formatQty(row.expected_qty)}
+            </span>
+          )}
+        </span>
+      ),
+    },
+    { key: "counted_qty", header: "Contado", kind: "number", placeholder: "—", render: (row) => (row.counted_qty == null ? "—" : formatQty(row.counted_qty, row.unit)) },
+    { key: "difference", header: "Diferença", kind: "number", readOnly: true, render: (row) => <span className={`font-medium ${diffClass(row.difference)}`}>{row.difference == null ? "—" : signed(row.difference, row.unit)}</span> },
+    { key: "notes", header: "Observação", kind: "text", placeholder: "Opcional" },
+  ];
+
+  async function save(changes: EditableTableChanges<CountSheetRow>) {
+    const pick = (row: Partial<CountSheetRow>) => ({
+      ...("item_id" in row ? { item_id: row.item_id ?? null } : {}),
+      ...("counted_qty" in row ? { counted_qty: row.counted_qty ?? null } : {}),
+      ...("notes" in row ? { notes: row.notes ?? null } : {}),
+    });
+    await saveCountLineRows(await getDb(), companyId, actor, countId, {
+      updated: changes.updated.map((row) => ({ ...pick(row), id: row.id })),
+      created: changes.created.map((row) => ({ ...pick(row), id: row.id })),
+    });
+    invalidate();
+  }
+
+  async function removeLine(row: CountSheetRow) {
+    setError(null);
+    try {
+      assertCan(actor, "edit", "inventory", "contagens de inventário");
+      await removeCountItem(await getDb(), { companyId, countItemId: row.id });
+      invalidate();
+    } catch (caught) {
+      setError(errorText(caught));
+    }
+  }
 
   async function confirmFinish() {
+    if (sheet.current?.querySelector("[data-editing]")) {
+      setError("Salve ou cancele as alterações da tabela antes de concluir a contagem.");
+      return;
+    }
     const summary =
       divergent.length === 0
         ? "Nenhum item tem diferença: o estoque não muda."
@@ -235,7 +253,7 @@ function CountSheet({ countId }: { countId: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={sheet}>
       <BackLink />
       <PageHeader
         title={`Contagem ${label}`}
@@ -248,10 +266,23 @@ function CountSheet({ countId }: { countId: string }) {
             </button>
             {editable && (
               <>
-                <button type="button" onClick={async () => { if (await confirmAction(`Cancelar a contagem ${label}? O estoque não muda.`, { title: "Cancelar contagem", okLabel: "Cancelar contagem", cancelLabel: "Voltar" })) cancel.mutate(); }} disabled={cancel.isPending || finish.isPending} className={BUTTON_OUTLINE}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (await confirmAction(`Cancelar a contagem ${label}? O estoque não muda.`, { title: "Cancelar contagem", okLabel: "Cancelar contagem", cancelLabel: "Voltar" })) cancel.mutate();
+                  }}
+                  disabled={cancel.isPending || finish.isPending}
+                  className={BUTTON_OUTLINE}
+                >
                   <XCircle size={14} /> Cancelar contagem
                 </button>
-                <button type="button" onClick={confirmFinish} disabled={pending > 0 || lines.length === 0 || finish.isPending || saving.size > 0} title={pending > 0 ? (pending === 1 ? "Falta 1 item sem contagem" : `Faltam ${pending} itens sem contagem`) : undefined} className={BUTTON_PRIMARY}>
+                <button
+                  type="button"
+                  onClick={() => void confirmFinish()}
+                  disabled={pending > 0 || lines.length === 0 || finish.isPending}
+                  title={pending > 0 ? (pending === 1 ? "Falta 1 item sem contagem" : `Faltam ${pending} itens sem contagem`) : undefined}
+                  className={BUTTON_PRIMARY}
+                >
                   {finish.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Concluir e ajustar estoque
                 </button>
               </>
@@ -264,7 +295,7 @@ function CountSheet({ countId }: { countId: string }) {
       <ErrorBanner message={error} onClose={() => setError(null)} />
       {editable && pending > 0 && (
         <p className="text-sm text-muted-foreground print:hidden">
-          Faltam <strong className="text-foreground">{pending}</strong> {pending === 1 ? "item" : "itens"} sem contagem. Digite a quantidade encontrada (0 se não achou) e tecle Enter para ir ao próximo; a conclusão ajusta pelo saldo do momento.
+          Faltam <strong className="text-foreground">{pending}</strong> {pending === 1 ? "item" : "itens"} sem contagem. Use Editar, digite a quantidade encontrada (0 se não achou) e salve; a conclusão ajusta pelo saldo do momento.
         </p>
       )}
 
@@ -293,125 +324,71 @@ function CountSheet({ countId }: { countId: string }) {
         </label>
       </div>
 
-      {lines.length === 0 ? (
-        <EmptyState icon={ClipboardCheck} title="Nenhum item nesta contagem" description={editable ? "Adicione os itens que vão ser contados neste local." : undefined} />
+      {open ? (
+        <EditableTable
+          resource="inventory"
+          label={`Itens da contagem ${label}`}
+          title="Itens da contagem"
+          rows={rows}
+          columns={columns}
+          loading={detailQuery.isFetching && !detail}
+          onSave={save}
+          onRefresh={() => detailQuery.refetch()}
+          newRow={() => ({ id: uuidv4(), item_id: "", counted_qty: null })}
+          emptyMessage={lines.length === 0 ? "Nenhum item nesta contagem. Use Adicionar para incluir os itens a contar." : "Nenhum item neste filtro."}
+          rowActions={
+            editable
+              ? (row) => (
+                  <button type="button" onClick={() => void removeLine(row)} aria-label={`Retirar ${row.item_name} da contagem`} title="Retirar da contagem" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted print:hidden">
+                    <Trash2 size={15} />
+                  </button>
+                )
+              : undefined
+          }
+        />
       ) : (
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="whitespace-nowrap bg-muted/30">
-              <tr>
-                <th className="min-w-[12rem] px-4 py-3 text-left font-medium text-muted-foreground">Item</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">{open ? "Saldo no sistema" : "Saldo do sistema"}</th>
-                <th className="w-36 px-4 py-3 text-left font-medium text-muted-foreground">Contado</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Diferença</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Observação</th>
-                {!open && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ajuste</th>}
-                {editable && <th className="w-12 px-4 py-3 print:hidden" />}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {shown.map((line, index) => {
-                const diff = difference(line);
-                const draft = drafts[line.id];
-                const busy = saving.has(line.id);
-                const snapshotDiffers = open && roundQty(Number(line.expected_qty)) !== line.current_qty;
-                return (
-                  <tr key={line.id} className="align-top">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{line.item_name}</p>
-                      <p className="text-xs text-muted-foreground">{[line.sku, line.unit].filter(Boolean).join(" · ")}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {formatQty(systemQty(line), line.unit)}
-                      {snapshotDiffers && (
-                        <p className="whitespace-nowrap text-xs text-muted-foreground" title="O saldo mudou depois que a contagem foi aberta (entrada, saída ou transferência). O ajuste usa o saldo do momento da conclusão.">
-                          na abertura: {formatQty(Number(line.expected_qty))}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {editable ? (
-                        <div className="flex items-center gap-2">
-                          <label className="sr-only" htmlFor={`count-qty-${index}`}>Quantidade contada de {line.item_name}</label>
-                          <input
-                            id={`count-qty-${index}`}
-                            value={draft ?? (line.counted_qty == null ? "" : String(line.counted_qty).replace(".", ","))}
-                            onChange={(event) => setDrafts((current) => ({ ...current, [line.id]: event.target.value }))}
-                            onBlur={() => commitCount(line)}
-                            onKeyDown={(event) => onCountKey(event, index)}
-                            inputMode="decimal"
-                            placeholder="—"
-                            className={`${INPUT} text-right tabular-nums`}
-                          />
-                          {busy && <Loader2 size={14} className="shrink-0 animate-spin text-muted-foreground" aria-label="Gravando" />}
-                        </div>
-                      ) : (
-                        <span className="tabular-nums">{line.counted_qty == null ? "—" : formatQty(Number(line.counted_qty), line.unit)}</span>
-                      )}
-                    </td>
-                    <td className={`px-4 py-3 text-right font-medium tabular-nums ${diff == null || diff === 0 ? "text-muted-foreground" : diff < 0 ? "text-status-danger dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"}`}>
-                      {diff == null ? "—" : signed(diff, line.unit)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {editable ? (
-                        <>
-                          <label className="sr-only" htmlFor={`count-note-${line.id}`}>Observação de {line.item_name}</label>
-                          <input
-                            id={`count-note-${line.id}`}
-                            value={noteDrafts[line.id] ?? line.notes ?? ""}
-                            onChange={(event) => setNoteDrafts((current) => ({ ...current, [line.id]: event.target.value }))}
-                            onBlur={() => commitNote(line)}
-                            placeholder="Opcional"
-                            className={INPUT}
-                          />
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">{line.notes ?? "—"}</span>
-                      )}
-                    </td>
-                    {!open && (
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {line.adjustment_movement_id ? (
-                          <Link to={`/inventory/movimentacoes?item=${encodeURIComponent(line.item_id)}`} className="text-primary-text hover:underline">Ajustado</Link>
-                        ) : count.status === "concluida" ? "Sem diferença" : "—"}
-                      </td>
-                    )}
-                    {editable && (
-                      <td className="px-4 py-3 text-right print:hidden">
-                        <button
-                          type="button"
-                          onClick={() => void withSaving(line.id, async () => removeCountItem(await getDb(), { companyId, countItemId: line.id }))}
-                          aria-label={`Retirar ${line.item_name} da contagem`}
-                          title="Retirar da contagem"
-                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {shown.length === 0 && <p className="p-6 text-center text-sm text-muted-foreground">Nenhum item neste filtro.</p>}
-        </div>
+        <ClosedSheet rows={rows} concluded={count.status === "concluida"} diffClass={diffClass} />
       )}
+    </div>
+  );
+}
 
-      {editable && (
-        <div className="flex flex-wrap items-end gap-2 print:hidden">
-          <label className="space-y-1.5 text-sm font-medium" htmlFor="count-add-item">
-            Incluir item na contagem
-            <select id="count-add-item" value={newItemId} onChange={(event) => setNewItemId(event.target.value)} className={`${INPUT} w-72`}>
-              <option value="">{addable.length === 0 ? "Todos os itens já estão na contagem" : "Escolha o item"}</option>
-              {addable.map((item) => <option key={item.id} value={item.id}>{item.sku ? `${item.name} (${item.sku})` : item.name}</option>)}
-            </select>
-          </label>
-          <button type="button" onClick={() => addItem.mutate()} disabled={!newItemId || addItem.isPending} className={BUTTON_OUTLINE}>
-            <Plus size={14} /> Incluir
-          </button>
-        </div>
-      )}
+/** Contagem concluída ou cancelada: não muda mais, então a folha é só leitura. */
+function ClosedSheet({ rows, concluded, diffClass }: { rows: CountSheetRow[]; concluded: boolean; diffClass: (diff: number | null) => string }) {
+  if (rows.length === 0) return <EmptyState icon={ClipboardCheck} title="Nenhum item nesta contagem" />;
+  return (
+    <div className="overflow-x-auto rounded-xl border">
+      <table className="w-full text-sm" aria-label="Itens da contagem">
+        <thead className="whitespace-nowrap bg-muted/30">
+          <tr>
+            <th className="min-w-[12rem] px-4 py-3 text-left font-medium text-muted-foreground">Item</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Saldo do sistema</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Contado</th>
+            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Diferença</th>
+            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Observação</th>
+            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ajuste</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((row) => (
+            <tr key={row.id} className="align-top">
+              <td className="px-4 py-3">
+                <p className="font-medium">{row.item_name}</p>
+                <p className="text-xs text-muted-foreground">{[row.sku, row.unit].filter(Boolean).join(" · ")}</p>
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">{formatQty(row.system_qty, row.unit)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{row.counted_qty == null ? "—" : formatQty(row.counted_qty, row.unit)}</td>
+              <td className={`px-4 py-3 text-right font-medium tabular-nums ${diffClass(row.difference)}`}>{row.difference == null ? "—" : signed(row.difference, row.unit)}</td>
+              <td className="px-4 py-3 text-muted-foreground">{row.notes ?? "—"}</td>
+              <td className="px-4 py-3 text-muted-foreground">
+                {row.adjustment_movement_id ? (
+                  <Link to={`/inventory/movimentacoes?item=${encodeURIComponent(row.item_id)}`} className="text-primary-text hover:underline">Ajustado</Link>
+                ) : concluded ? "Sem diferença" : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

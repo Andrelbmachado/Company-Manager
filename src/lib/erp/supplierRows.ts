@@ -17,7 +17,7 @@ export interface SupplierTableRow extends Supplier, Record<keyof SupplierAddress
 }
 
 /** Linhas da tabela: endereço em colunas, pedidos em andamento contados. */
-export function toSupplierTableRows(suppliers: readonly Supplier[], orders: readonly { supplier_id: string; status: string }[]): SupplierTableRow[] {
+export function toSupplierTableRows(suppliers: readonly Supplier[], orders: readonly { supplier_id?: string | null; status: string }[]): SupplierTableRow[] {
   return suppliers.map((supplier) => {
     const address = supplierAddress(supplier);
     return {

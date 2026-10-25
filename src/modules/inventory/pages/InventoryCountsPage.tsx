@@ -1,19 +1,21 @@
+// Inventário: contagens na tabela editável. Adicionar abre uma contagem no local escolhido (com os itens que têm saldo
+// lá); Editar muda a observação. A folha de cada contagem (o contado item a item) abre pelo link da linha.
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Plus } from "lucide-react";
-import { getDb } from "@/lib/db/client";
-import { formatSequence } from "@/lib/db/sequence";
-import { useRequiredSession } from "@/hooks/useSession";
-import { usePermission } from "@/hooks/usePermission";
-import { listInventoryCounts } from "@/lib/inventory/counts";
-import { formatDateTime } from "@/lib/utils";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { v4 as uuidv4 } from "uuid";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { NewCountForm } from "../components/NewCountForm";
-import { BUTTON_PRIMARY, inventoryKeys, normalizeSearch, TableSkeleton } from "../components/inventoryUi";
+import { useRequiredSession } from "@/hooks/useSession";
+import { getDb } from "@/lib/db/client";
+import { formatSequence } from "@/lib/db/sequence";
+import { saveCountRows } from "@/lib/inventory/countRows";
+import { listInventoryCounts, type InventoryCountSummary } from "@/lib/inventory/counts";
+import { listLocationSummaries } from "@/lib/inventory/locations";
+import { formatDateTime } from "@/lib/utils";
+import { emitSafely, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory } from "../components/inventoryUi";
 
 const STATUS_FILTERS = [
   { value: "all", label: "Todas" },
@@ -22,19 +24,29 @@ const STATUS_FILTERS = [
   { value: "cancelada", label: "Canceladas" },
 ] as const;
 
+const STATUS_OPTIONS = [
+  { value: "aberta", label: "Aberta" },
+  { value: "concluida", label: "Concluída" },
+  { value: "cancelada", label: "Cancelada" },
+];
+
 export default function InventoryCountsPage() {
   const session = useRequiredSession();
   const companyId = session.company.id;
-  const navigate = useNavigate();
-  const canCreate = usePermission("create", "inventory");
-  const [showForm, setShowForm] = useState(false);
+  const actor = useActor();
+  const invalidate = useInvalidateInventory(companyId);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]["value"]>("all");
 
-  const { data: counts = [], isLoading } = useQuery({
+  const countsQuery = useQuery({
     queryKey: inventoryKeys.counts(companyId),
     queryFn: async () => listInventoryCounts(await getDb(), companyId),
   });
+  const { data: locations = [] } = useQuery({
+    queryKey: inventoryKeys.locations(companyId),
+    queryFn: async () => listLocationSummaries(await getDb(), companyId),
+  });
+  const counts = countsQuery.data ?? [];
   const query = normalizeSearch(search);
   const visible = counts.filter(
     (count) =>
@@ -42,21 +54,63 @@ export default function InventoryCountsPage() {
       (!query || [formatSequence("inventory_counts", count.number), count.location_name, count.notes].some((value) => normalizeSearch(value ?? "").includes(query))),
   );
 
+  const columns: EditableColumn<InventoryCountSummary>[] = [
+    {
+      key: "number",
+      header: "Número",
+      kind: "text",
+      readOnly: true,
+      render: (row) => (
+        <Link to={`/inventory/inventarios/${row.id}`} className="font-medium text-primary-text hover:underline">
+          {formatSequence("inventory_counts", row.number)}
+        </Link>
+      ),
+    },
+    {
+      key: "location_id",
+      header: "Local",
+      kind: "select",
+      required: true,
+      options: locations.map((location) => ({
+        value: location.id,
+        label: location.open_count_number ? `${location.name} (contagem ${formatSequence("inventory_counts", location.open_count_number)} aberta)` : location.name,
+      })),
+      render: (row) => row.location_name ?? "—",
+    },
+    { key: "status", header: "Situação", kind: "select", readOnly: true, options: STATUS_OPTIONS, render: (row) => <StatusBadge status={row.status} /> },
+    { key: "notes", header: "Observação", kind: "text", placeholder: "Ex.: contagem mensal das prateleiras" },
+    { key: "started_at", header: "Início", kind: "text", readOnly: true, render: (row) => (row.started_at ? formatDateTime(row.started_at) : "—") },
+    { key: "finished_at", header: "Conclusão", kind: "text", readOnly: true, render: (row) => (row.finished_at ? formatDateTime(row.finished_at) : "—") },
+    { key: "counted_count", header: "Contados", kind: "number", readOnly: true, render: (row) => `${row.counted_count}/${row.item_count}` },
+    {
+      key: "divergent_count",
+      header: "Com diferença",
+      kind: "number",
+      readOnly: true,
+      render: (row) => <span className={row.divergent_count > 0 ? "font-medium text-status-danger dark:text-red-400" : "text-muted-foreground"}>{row.divergent_count}</span>,
+    },
+  ];
+
+  async function save(changes: EditableTableChanges<InventoryCountSummary>) {
+    const result = await saveCountRows(await getDb(), companyId, actor, changes);
+    invalidate();
+    const names = new Map(locations.map((location) => [location.id, location.name]));
+    await emitSafely(
+      result.created.map(({ id, number }) => ({
+        type: "stock.count_opened",
+        companyId,
+        actorId: actor.userId,
+        entityType: "inventory_count",
+        entityId: id,
+        title: `Contagem ${formatSequence("inventory_counts", number)} aberta em ${names.get(String(changes.created.find((row) => row.id === id)?.location_id ?? "")) ?? "local"}`,
+        module: "inventory",
+      })),
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Inventário"
-        description="Contagens físicas por local. Ao concluir, as diferenças viram ajustes de estoque (falta e sobra)."
-        actions={
-          canCreate && !showForm ? (
-            <button type="button" onClick={() => setShowForm(true)} className={BUTTON_PRIMARY}>
-              <Plus size={14} /> Nova contagem
-            </button>
-          ) : undefined
-        }
-      />
-
-      {showForm && <NewCountForm companyId={companyId} userId={session.user.id} onCancel={() => setShowForm(false)} />}
+      <PageHeader title="Inventário" description="Contagens físicas por local. Ao concluir, as diferenças viram ajustes de estoque (falta e sobra)." />
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, local ou observação...">
         <div role="group" aria-label="Filtrar por situação" className="flex gap-1">
@@ -74,49 +128,24 @@ export default function InventoryCountsPage() {
         </div>
       </PageToolbar>
 
-      {isLoading ? (
-        <TableSkeleton />
-      ) : visible.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title={counts.length === 0 ? "Nenhuma contagem ainda" : "Nenhuma contagem encontrada"}
-          description={counts.length === 0 ? "Abra uma contagem para conferir o estoque físico de um local." : undefined}
-        />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="whitespace-nowrap bg-muted/30">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Número</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Local</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Situação</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Início</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Conclusão</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Contados</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Com diferença</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {visible.map((count) => (
-                <tr key={count.id} onClick={() => navigate(`/inventory/inventarios/${count.id}`)} className="cursor-pointer transition-colors hover:bg-muted/20">
-                  <td className="px-4 py-3 font-medium">
-                    <Link to={`/inventory/inventarios/${count.id}`} onClick={(event) => event.stopPropagation()} className="text-primary-text hover:underline">
-                      {formatSequence("inventory_counts", count.number)}
-                    </Link>
-                    {count.notes && <p className="text-xs font-normal text-muted-foreground">{count.notes}</p>}
-                  </td>
-                  <td className="px-4 py-3">{count.location_name ?? "—"}</td>
-                  <td className="px-4 py-3"><StatusBadge status={count.status} /></td>
-                  <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDateTime(count.started_at)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{count.finished_at ? formatDateTime(count.finished_at) : "—"}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{count.counted_count}/{count.item_count}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums ${count.divergent_count > 0 ? "font-medium text-status-danger dark:text-red-400" : "text-muted-foreground"}`}>{count.divergent_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <EditableTable
+        resource="inventory"
+        label="Contagens de inventário"
+        title="Contagens"
+        rows={visible}
+        columns={columns}
+        loading={countsQuery.isLoading}
+        onSave={save}
+        onRefresh={() => countsQuery.refetch()}
+        newRow={() => ({ id: uuidv4(), status: "aberta" as const, location_id: locations.find((location) => !location.open_count_id)?.id ?? "" })}
+        emptyMessage={counts.length === 0 ? "Nenhuma contagem ainda. Use Adicionar para abrir uma contagem num local." : "Nenhuma contagem encontrada."}
+        rowActions={(row) => (
+          <Link to={`/inventory/inventarios/${row.id}`} className="rounded-md px-2 py-1 text-xs text-primary-text hover:bg-muted">
+            {row.status === "aberta" ? "Contar" : "Ver folha"}
+          </Link>
+        )}
+      />
+      <p className="text-xs text-muted-foreground">A contagem entra com todos os itens que têm saldo no local e o saldo do sistema de cada um. Depois de contar, conclua na folha para ajustar o estoque.</p>
     </div>
   );
 }

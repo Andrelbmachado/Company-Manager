@@ -73,6 +73,18 @@ describe("saveInventoryItemRows", () => {
     expect((await item("item-4")).name).toBe("SSD 1 TB");
   });
 
+  it("fornecedor excluído depois não trava a edição dos outros campos do item; escolher o excluído continua recusado", async () => {
+    await db.execute("UPDATE suppliers SET deleted_at=datetime('now') WHERE id='sup-1'");
+    await saveInventoryItemRows(db, companyId, estoquista, { updated: [{ id: "item-1", min_stock: 7, name: "Cabo Cat6 azul" }], created: [] });
+    expect(await item("item-1")).toMatchObject({ name: "Cabo Cat6 azul", min_stock: 7, supplier_id: "sup-1" });
+    await expect(saveInventoryItemRows(db, companyId, estoquista, { updated: [{ id: "item-3", supplier_id: "sup-1" }], created: [] })).rejects.toThrow(/fornecedor não encontrado/);
+    await expect(saveInventoryItemRows(db, companyId, estoquista, { updated: [], created: [{ id: "novo-1", name: "Parafuso", supplier_id: "sup-1" }] })).rejects.toThrow(
+      /fornecedor não encontrado/,
+    );
+    expect((await item("item-3")).supplier_id).toBe("sup-2");
+    expect(await item("novo-1")).toBeUndefined();
+  });
+
   it("permissão na camada de dados: gerência e auditoria só consultam", async () => {
     for (const role of ["gerente", "auditor", "tecnico"] as const) {
       const actor = { role, userId: `test-user-${role}` };

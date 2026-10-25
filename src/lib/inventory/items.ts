@@ -52,12 +52,15 @@ function skuKey(sku: string | null | undefined): string {
   return (sku ?? "").trim().toLowerCase();
 }
 
-/** Valores completos e conferidos de um item (os da linha gravada com os campos alterados por cima). */
-function checkedValues(source: ItemRowPatch, supplierIds: ReadonlySet<string>, where: string): ItemValues {
+/**
+ * Valores completos e conferidos de um item (os da linha gravada com os campos alterados por cima). O fornecedor só é
+ * conferido quando é escolhido agora (`checkSupplier`): o item cujo fornecedor foi excluído depois continua editável.
+ */
+function checkedValues(source: ItemRowPatch, supplierIds: ReadonlySet<string>, where: string, checkSupplier: boolean): ItemValues {
   const name = text(source.name);
   if (!name) throw new StockError("valor_invalido", `${where}: informe o nome do item.`);
   const supplierId = text(source.supplier_id);
-  if (supplierId && !supplierIds.has(supplierId)) throw new StockError("valor_invalido", `${where}: fornecedor não encontrado (excluído ou de outra empresa).`);
+  if (checkSupplier && supplierId && !supplierIds.has(supplierId)) throw new StockError("valor_invalido", `${where}: fornecedor não encontrado (excluído ou de outra empresa).`);
   const minStock = roundQty(numberOf(source.min_stock, `${where}, estoque mínimo`) ?? 0);
   const max = numberOf(source.max_stock, `${where}, estoque máximo`);
   const maxStock = max == null ? null : roundQty(max);
@@ -94,14 +97,14 @@ export async function saveInventoryItemRows(db: DatabaseLike, companyId: string,
     const fields = ITEM_FIELDS.filter((field) => field in patch);
     if (fields.length === 0) continue;
     const merged: ItemRowPatch = { ...current, ...Object.fromEntries(fields.map((field) => [field, patch[field]])) };
-    plans.push({ kind: "update", id: current.id, values: checkedValues(merged, supplierIds, `"${current.name}"`), fields });
+    plans.push({ kind: "update", id: current.id, values: checkedValues(merged, supplierIds, `"${current.name}"`, fields.includes("supplier_id")), fields });
   }
 
   for (const [index, row] of changes.created.entries()) {
     const id = text(row.id) ?? uuidv4();
     // Linha nova já gravada numa tentativa anterior que falhou depois dela: não grava de novo.
     if (byId.has(id) || (await db.select<InventoryItem[]>("SELECT * FROM inventory_items WHERE company_id=? AND id=?", [companyId, id]))[0]) continue;
-    plans.push({ kind: "create", id, values: checkedValues(row, supplierIds, `Linha nova ${index + 1}`), fields: [...ITEM_FIELDS] });
+    plans.push({ kind: "create", id, values: checkedValues(row, supplierIds, `Linha nova ${index + 1}`, true), fields: [...ITEM_FIELDS] });
   }
 
   // SKU único entre os itens ativos, já com o que vai ser gravado (inclusive duas linhas novas com o mesmo SKU).

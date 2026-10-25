@@ -27,7 +27,7 @@ export const ASSISTANT_PROVIDERS: AssistantProvider[] = [
   },
   {
     id: "openai-compatible",
-    label: "API compativel com OpenAI",
+    label: "API compatível com OpenAI",
     endpoint: "http://localhost:11434/v1",
     models: ["llama3.2", "qwen2.5", "mistral", "gemma3"],
   },

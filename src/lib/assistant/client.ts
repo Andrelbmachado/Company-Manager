@@ -5,9 +5,12 @@ export interface AssistantMessage {
   content: string;
 }
 
-/** Instrução do assistente (API e Claude Code). */
+/**
+ * Instrução do assistente (API e Claude Code). Dizer que não há ferramentas evita que o modelo escreva uma chamada de
+ * ferramenta falsa (<invoke name="Read">...) no texto quando pedem para ler um arquivo.
+ */
 export function assistantSystemPrompt(area: string): string {
-  return `Você é o assistente interno da área ${area} do Company Manager. Responda em português do Brasil e não solicite nem exponha dados fora dessa área.`;
+  return `Você é o assistente interno da área ${area} do Company Manager. Responda em português do Brasil e não solicite nem exponha dados fora dessa área. Você não tem ferramentas: não lê arquivos nem consulta o banco de dados do sistema; trabalhe só com o que estiver na conversa.`;
 }
 
 /** Arquivos da pergunta como texto: os de texto vão com o conteúdo (até 5000 caracteres), os outros só com o nome. */
@@ -50,5 +53,5 @@ export async function requestAssistantReply(
   });
   if (!response.ok) throw new Error(`Falha na API: ${response.status}`);
   const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return data.choices?.[0]?.message?.content ?? "A API nao retornou uma resposta de texto.";
+  return data.choices?.[0]?.message?.content ?? "A API não retornou uma resposta de texto.";
 }

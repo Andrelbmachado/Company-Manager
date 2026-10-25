@@ -18,6 +18,9 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
+# Agendas por link iCal (src/lib/calendar/fetcher.ts): o pedido sai do Rust, sem o bloqueio de CORS do webview.
+# Travado na 2.6.1 no Cargo.lock: a 2.7+ exige tauri 2.12 (o app está no 2.11).
+tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }

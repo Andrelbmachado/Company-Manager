@@ -9,6 +9,10 @@
     "core:default",
     "core:webview:allow-print",
     "shell:allow-open",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }]
+    },
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-message",

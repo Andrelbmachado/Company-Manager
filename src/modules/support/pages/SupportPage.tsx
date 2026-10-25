@@ -5,25 +5,14 @@ import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
-import { hasFullTicketAccess, ROLE_LABELS } from "@/lib/permissions/rbac";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { CrudDialog } from "@/components/shared/CrudDialog";
+import { hasFullTicketAccess } from "@/lib/permissions/rbac";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatDateTime, initials } from "@/lib/utils";
-import {
-  ArrowLeft,
-  Building2,
-  CheckCircle2,
-  Clock3,
-  HeadphonesIcon,
-  Plus,
-  Pencil,
-  RotateCcw,
-  UserRound,
-  Wrench,
-} from "lucide-react";
+import { cn, formatDateTime } from "@/lib/utils";
+import { saveTicketChanges, TICKET_PRIORITY_OPTIONS, TICKET_STATUS_OPTIONS, type TicketFields } from "@/lib/support/tickets";
+import { ArrowLeft, Building2, CheckCircle2, HeadphonesIcon, Pencil, RotateCcw, Save, UserRound, Wrench, X } from "lucide-react";
 import type { Role, Ticket } from "@/types";
 
 interface TicketView extends Ticket {
@@ -49,22 +38,26 @@ const STATUS_FILTERS = [
   { value: "resolvido", label: "Resolvidos" },
 ];
 
+const INPUT = "flex h-9 w-full rounded-md border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring";
+const BUTTON = "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50";
+
+/** Suporte: tickets numa tabela editável (abrir e alterar no próprio lugar) e a ficha de cada ticket com a linha do tempo. */
 export default function SupportPage() {
   const session = useRequiredSession();
   const role = session.membership.role as Role;
+  const companyId = session.company.id;
   const qc = useQueryClient();
-  const canCreateTicket = usePermission("create", "tickets");
   const canEditTicket = usePermission("edit", "tickets");
   const canCreateWorkOrder = usePermission("create", "work_orders");
   const canViewAllTickets = hasFullTicketAccess(role);
   const [selectedTicket, setSelectedTicket] = useState<TicketView | null>(null);
-  const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState("");
   const [filter, setFilter] = useState("all");
   const [form, setForm] = useState({ subject: "", description: "", priority: "media" });
 
-  const { data: tickets = [], isLoading } = useQuery({
-    queryKey: ["tickets", session.company.id, session.user.id, canViewAllTickets],
+  const ticketsQuery = useQuery({
+    queryKey: ["tickets", companyId, session.user.id, canViewAllTickets],
     queryFn: async () => {
       const db = await getDb();
       return db.select<TicketView[]>(
@@ -74,13 +67,14 @@ export default function SupportPage() {
          LEFT JOIN users agent ON agent.id = t.agent_id
          WHERE t.company_id=? ${canViewAllTickets ? "" : "AND t.opened_by=?"} AND t.deleted_at IS NULL
          ORDER BY t.created_at DESC`,
-        canViewAllTickets ? [session.company.id] : [session.company.id, session.user.id]
+        canViewAllTickets ? [companyId] : [companyId, session.user.id]
       );
     },
   });
+  const tickets = ticketsQuery.data ?? [];
 
   const { data: timeline = [], isLoading: loadingTimeline } = useQuery({
-    queryKey: ["ticket-timeline", session.company.id, selectedTicket?.id],
+    queryKey: ["ticket-timeline", companyId, selectedTicket?.id],
     enabled: Boolean(selectedTicket),
     queryFn: async () => {
       const db = await getDb();
@@ -90,70 +84,71 @@ export default function SupportPage() {
          LEFT JOIN users u ON u.id = a.actor_id
          WHERE a.company_id=? AND a.entity_type='ticket' AND a.entity_id=?
          ORDER BY a.created_at ASC`,
-        [session.company.id, selectedTicket!.id]
+        [companyId, selectedTicket!.id]
       );
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const db = await getDb();
-      const id = uuidv4();
-      await db.execute(
-        "INSERT INTO tickets (id, company_id, subject, description, priority, opened_by, requester_area) VALUES (?,?,?,?,?,?,?)",
-        [id, session.company.id, form.subject, form.description || null, form.priority, session.user.id, ROLE_LABELS[role]]
-      );
-      await emit({
-        type: "ticket.created",
-        companyId: session.company.id,
-        actorId: session.user.id,
-        entityType: "ticket",
-        entityId: id,
-        title: `Ticket aberto por ${ROLE_LABELS[role]}`,
-        description: form.subject,
-        module: "support",
-      });
+  const refreshTickets = () => qc.invalidateQueries({ queryKey: ["tickets", companyId] });
+
+  /** Grava pela camada de dados (confere a permissão de novo) e registra cada ticket aberto ou alterado no histórico. */
+  async function persist(changes: { updated: (TicketFields & { id: string })[]; created: TicketFields[] }) {
+    const db = await getDb();
+    const result = await saveTicketChanges(db, companyId, { role, userId: session.user.id }, changes);
+    for (const [index, id] of result.created.entries()) {
+      await emit({ type: "ticket.created", companyId, actorId: session.user.id, entityType: "ticket", entityId: id, title: "Ticket aberto", description: changes.created[index].subject ?? undefined, module: "support" });
+    }
+    for (const fields of changes.updated) {
+      const status = fields.status ? TICKET_STATUS_OPTIONS.find((option) => option.value === fields.status)?.label : null;
+      await emit({ type: "ticket.updated", companyId, actorId: session.user.id, entityType: "ticket", entityId: fields.id, title: status ? `Status: ${status}` : "Ticket atualizado", module: "support", newValue: fields });
+    }
+  }
+
+  async function saveTable(changes: EditableTableChanges<TicketView>) {
+    await persist({
+      created: changes.created.map((row) => ({ subject: row.subject, description: row.description, priority: row.priority, status: row.status })),
+      updated: changes.updated.map(({ id, subject, description, priority, status }) => withoutUndefined({ id, subject, description, priority, status })),
+    });
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: async (ticket: TicketView) => {
+      const fields: TicketFields & { id: string } = { id: ticket.id };
+      if (form.subject.trim() !== ticket.subject) fields.subject = form.subject;
+      if ((form.description.trim() || null) !== (ticket.description ?? null)) fields.description = form.description;
+      if (form.priority !== ticket.priority) fields.priority = form.priority as Ticket["priority"];
+      if (Object.keys(fields).length > 1) await persist({ created: [], updated: [fields] });
+      return { ...ticket, subject: form.subject.trim(), description: form.description.trim() || null, priority: form.priority as Ticket["priority"] };
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tickets", session.company.id] });
-      setShowForm(false);
-      setForm({ subject: "", description: "", priority: "media" });
+    onSuccess: (ticket) => {
+      setSelectedTicket(ticket);
+      setEditing(false);
+      setEditError("");
+      void refreshTickets();
+      void qc.invalidateQueries({ queryKey: ["ticket-timeline", companyId, ticket.id] });
     },
+    onError: (error) => setEditError(error instanceof Error ? error.message : String(error)),
   });
 
   const convertToWOMutation = useMutation({
     mutationFn: async (ticket: TicketView) => {
       const db = await getDb();
       const woId = uuidv4();
-      const woCount = await db.select<[{ n: number }]>(
-        "SELECT COUNT(*) as n FROM work_orders WHERE company_id=?",
-        [session.company.id]
-      );
+      const woCount = await db.select<[{ n: number }]>("SELECT COUNT(*) as n FROM work_orders WHERE company_id=?", [companyId]);
       const number = `OS-${String(woCount[0].n + 1).padStart(4, "0")}`;
       await db.execute(
         "INSERT INTO work_orders (id, company_id, number, customer_id, ticket_id, technician_id, priority) VALUES (?,?,?,?,?,?,?)",
-        [woId, session.company.id, number, ticket.customer_id ?? null, ticket.id, session.user.id, ticket.priority]
+        [woId, companyId, number, ticket.customer_id ?? null, ticket.id, session.user.id, ticket.priority]
       );
-      await db.execute(
-        "UPDATE tickets SET work_order_id=?, status='resolvido', updated_at=datetime('now') WHERE id=?",
-        [woId, ticket.id]
-      );
-      await emit({
-        type: "ticket.converted_to_work_order",
-        companyId: session.company.id,
-        actorId: session.user.id,
-        entityType: "ticket",
-        entityId: ticket.id,
-        title: `Ticket convertido em ${number}`,
-        module: "support",
-      });
+      await db.execute("UPDATE tickets SET work_order_id=?, status='resolvido', updated_at=datetime('now') WHERE id=?", [woId, ticket.id]);
+      await emit({ type: "ticket.converted_to_work_order", companyId, actorId: session.user.id, entityType: "ticket", entityId: ticket.id, title: `Ticket convertido em ${number}`, module: "support" });
       return { ...ticket, work_order_id: woId, status: "resolvido" as const };
     },
     onSuccess: (ticket) => {
       setSelectedTicket(ticket);
-      qc.invalidateQueries({ queryKey: ["tickets", session.company.id] });
-      qc.invalidateQueries({ queryKey: ["ticket-timeline", session.company.id, ticket.id] });
-      qc.invalidateQueries({ queryKey: ["work-orders", session.company.id] });
+      void refreshTickets();
+      void qc.invalidateQueries({ queryKey: ["ticket-timeline", companyId, ticket.id] });
+      void qc.invalidateQueries({ queryKey: ["work-orders", companyId] });
     },
   });
 
@@ -161,90 +156,106 @@ export default function SupportPage() {
     mutationFn: async (ticket: TicketView) => {
       const db = await getDb();
       await db.execute("UPDATE tickets SET status='aberto', updated_at=datetime('now') WHERE id=?", [ticket.id]);
-      await emit({
-        type: "ticket.reopened",
-        companyId: session.company.id,
-        actorId: session.user.id,
-        entityType: "ticket",
-        entityId: ticket.id,
-        title: `Ticket reaberto por ${session.user.name}`,
-        module: "support",
-      });
+      await emit({ type: "ticket.reopened", companyId, actorId: session.user.id, entityType: "ticket", entityId: ticket.id, title: `Ticket reaberto por ${session.user.name}`, module: "support" });
       return { ...ticket, status: "aberto" as const };
     },
     onSuccess: (ticket) => {
       setSelectedTicket(ticket);
-      qc.invalidateQueries({ queryKey: ["tickets", session.company.id] });
-      qc.invalidateQueries({ queryKey: ["ticket-timeline", session.company.id, ticket.id] });
-    },
-  });
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedTicket) return;
-      const db = await getDb();
-      await db.execute("UPDATE tickets SET subject=?, description=?, priority=?, status=?, updated_at=datetime('now') WHERE id=?", [form.subject, form.description || null, form.priority, selectedTicket.status, selectedTicket.id]);
-    },
-    onSuccess: () => {
-      setSelectedTicket((ticket) => ticket ? { ...ticket, subject: form.subject, description: form.description, priority: form.priority as Ticket["priority"] } : null);
-      qc.invalidateQueries({ queryKey: ["tickets", session.company.id] });
-      setEditing(false);
+      void refreshTickets();
+      void qc.invalidateQueries({ queryKey: ["ticket-timeline", companyId, ticket.id] });
     },
   });
 
   const filtered = filter === "all" ? tickets : tickets.filter((ticket) => ticket.status === filter);
 
+  const columns: EditableColumn<TicketView>[] = [
+    {
+      key: "subject",
+      header: "Assunto",
+      kind: "text",
+      required: true,
+      render: (ticket) => (
+        <button type="button" onClick={() => { setEditing(false); setSelectedTicket(ticket); }} className="text-left font-medium hover:underline">
+          {ticket.subject}
+        </button>
+      ),
+    },
+    { key: "priority", header: "Prioridade", kind: "select", options: TICKET_PRIORITY_OPTIONS, required: true, render: (ticket) => <StatusBadge status={ticket.priority} /> },
+    { key: "status", header: "Status", kind: "select", options: TICKET_STATUS_OPTIONS, required: true, render: (ticket) => <StatusBadge status={ticket.status} /> },
+    { key: "description", header: "Descrição", kind: "text", placeholder: "Detalhes (opcional)" },
+    { key: "requester_area", header: "Área", kind: "text", readOnly: true },
+    { key: "opener_name", header: "Aberto por", kind: "text", readOnly: true },
+    { key: "created_at", header: "Aberto em", kind: "text", readOnly: true, render: (ticket) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(ticket.created_at)}</span> },
+  ];
+
   if (selectedTicket) {
     const canReopen =
       ["resolvido", "fechado"].includes(selectedTicket.status) &&
-      (
-        selectedTicket.opened_by === session.user.id ||
-        selectedTicket.agent_id === session.user.id ||
-        timeline.some((activity) => activity.actor_id === session.user.id) ||
-        canViewAllTickets
-      );
+      (selectedTicket.opened_by === session.user.id || selectedTicket.agent_id === session.user.id || timeline.some((activity) => activity.actor_id === session.user.id) || canViewAllTickets);
 
     return (
       <div className="space-y-6">
-        <button onClick={() => setSelectedTicket(null)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={() => { setSelectedTicket(null); setEditing(false); }} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft size={15} />
           Voltar para tickets
         </button>
 
         <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-6">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="mb-3 flex items-center gap-2">
-              <StatusBadge status={selectedTicket.priority} />
+              {editing ? (
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  Prioridade
+                  <select aria-label="Prioridade" value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))} className={cn(INPUT, "h-8 w-36")}>
+                    {TICKET_PRIORITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <StatusBadge status={selectedTicket.priority} />
+              )}
               <StatusBadge status={selectedTicket.status} />
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">{selectedTicket.subject}</h1>
+            {editing ? (
+              <input aria-label="Assunto" value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} className={cn(INPUT, "h-10 max-w-xl text-lg font-semibold")} />
+            ) : (
+              <h1 className="text-2xl font-semibold tracking-tight">{selectedTicket.subject}</h1>
+            )}
             <p className="mt-1 text-sm text-muted-foreground">Aberto em {formatDateTime(selectedTicket.created_at)}</p>
           </div>
           <div className="flex gap-2">
-            {canEditTicket && (
-              <button onClick={() => { setForm({ subject: selectedTicket.subject, description: selectedTicket.description ?? "", priority: selectedTicket.priority }); setEditing(true); }} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">
-                <Pencil size={14} /> Editar
-              </button>
-            )}
-            {canReopen && (
-              <button
-                onClick={() => reopenMutation.mutate(selectedTicket)}
-                className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
-              >
-                <RotateCcw size={14} />
-                Reabrir ticket
-              </button>
-            )}
-            {canCreateWorkOrder && !selectedTicket.work_order_id && !["resolvido", "fechado"].includes(selectedTicket.status) && (
-              <button
-                onClick={() => convertToWOMutation.mutate(selectedTicket)}
-                className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                <Wrench size={14} />
-                Criar OS
-              </button>
+            {editing ? (
+              <>
+                <button type="button" onClick={() => { setEditing(false); setEditError(""); }} className={BUTTON}>
+                  <X size={14} /> Cancelar
+                </button>
+                <button type="button" disabled={updateMutation.isPending || !form.subject.trim()} onClick={() => updateMutation.mutate(selectedTicket)} className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  <Save size={14} /> Salvar
+                </button>
+              </>
+            ) : (
+              <>
+                {canEditTicket && (
+                  <button type="button" onClick={() => { setForm({ subject: selectedTicket.subject, description: selectedTicket.description ?? "", priority: selectedTicket.priority }); setEditError(""); setEditing(true); }} className={BUTTON}>
+                    <Pencil size={14} /> Editar
+                  </button>
+                )}
+                {canReopen && (
+                  <button type="button" onClick={() => reopenMutation.mutate(selectedTicket)} className={BUTTON}>
+                    <RotateCcw size={14} />
+                    Reabrir ticket
+                  </button>
+                )}
+                {canCreateWorkOrder && !selectedTicket.work_order_id && !["resolvido", "fechado"].includes(selectedTicket.status) && (
+                  <button type="button" onClick={() => convertToWOMutation.mutate(selectedTicket)} className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                    <Wrench size={14} />
+                    Criar OS
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
+        {editError && <p role="alert" className="text-sm font-medium text-destructive">{editError}</p>}
 
         <div className="grid gap-8 lg:grid-cols-[1fr_18rem]">
           <section>
@@ -275,17 +286,20 @@ export default function SupportPage() {
           </section>
 
           <aside className="space-y-5 border-l pl-6">
-            <Info label="Area solicitante" value={selectedTicket.requester_area ?? "Nao informada"} icon={Building2} />
-            <Info label="Aberto por" value={selectedTicket.opener_name ?? "Nao informado"} icon={UserRound} />
-            <Info label="Tecnico responsavel" value={selectedTicket.agent_name ?? "Aguardando atribuicao"} icon={Wrench} />
+            <Info label="Área solicitante" value={selectedTicket.requester_area ?? "Não informada"} icon={Building2} />
+            <Info label="Aberto por" value={selectedTicket.opener_name ?? "Não informado"} icon={UserRound} />
+            <Info label="Técnico responsável" value={selectedTicket.agent_name ?? "Aguardando atribuição"} icon={Wrench} />
             <Info label="Canal" value={selectedTicket.channel} icon={HeadphonesIcon} />
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Descricao</p>
-              <p className="mt-1 text-sm leading-relaxed">{selectedTicket.description ?? "Sem descricao adicional."}</p>
+              <p className="text-xs font-medium text-muted-foreground">Descrição</p>
+              {editing ? (
+                <textarea aria-label="Descrição" rows={5} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 flex w-full resize-y rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+              ) : (
+                <p className="mt-1 text-sm leading-relaxed">{selectedTicket.description ?? "Sem descrição adicional."}</p>
+              )}
             </div>
           </aside>
         </div>
-        {editing && <CrudDialog title="Editar ticket" fields={[{ key: "subject", label: "Assunto", required: true }, { key: "priority", label: "Prioridade", type: "select", options: ["baixa", "media", "alta", "urgente"].map((priority) => ({ value: priority, label: priority })) }, { key: "description", label: "Descricao", type: "textarea" }]} values={form} onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} onClose={() => setEditing(false)} onSubmit={() => updateMutation.mutate()} busy={updateMutation.isPending} />}
       </div>
     );
   }
@@ -295,26 +309,15 @@ export default function SupportPage() {
       <PageHeader
         title="Suporte"
         description="Tickets"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <ImportExportButtons entity="tickets" onImported={() => void qc.invalidateQueries({ queryKey: ["tickets", session.company.id] })} />
-            {canCreateTicket && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                <Plus size={14} />
-                Novo ticket
-              </button>
-            )}
-          </div>
-        }
+        actions={<ImportExportButtons entity="tickets" onImported={() => void refreshTickets()} />}
       />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por status">
         {STATUS_FILTERS.map((item) => (
           <button
             key={item.value}
+            type="button"
+            aria-pressed={filter === item.value}
             onClick={() => setFilter(item.value)}
             className={`rounded-full px-3 py-1 text-xs font-medium ${filter === item.value ? "bg-primary text-primary-foreground" : "border hover:bg-muted"}`}
           >
@@ -323,63 +326,25 @@ export default function SupportPage() {
         ))}
       </div>
 
-      {showForm && (
-        <div className="rounded-xl border bg-card p-5">
-          <h3 className="font-semibold">Novo ticket</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
-              Assunto
-              <input value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} className="flex h-9 w-full rounded-md border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring" />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              Prioridade
-              <select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))} className="flex h-9 w-full rounded-md border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring">
-                <option value="baixa">Baixa</option>
-                <option value="media">Media</option>
-                <option value="alta">Alta</option>
-                <option value="urgente">Urgente</option>
-              </select>
-            </label>
-            <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
-              Descricao
-              <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} className="flex w-full resize-none rounded-md border bg-background px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-ring" />
-            </label>
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <button onClick={() => setShowForm(false)} className="rounded-md border px-4 py-1.5 text-sm hover:bg-muted">Cancelar</button>
-            <button onClick={() => createMutation.mutate()} disabled={!form.subject || createMutation.isPending} className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50">Criar ticket</button>
-          </div>
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-lg bg-muted/30" />)}</div>
-      ) : filtered.length === 0 ? (
-        <EmptyState icon={HeadphonesIcon} title="Nenhum ticket encontrado" />
-      ) : (
-        <div className="divide-y rounded-xl border bg-card">
-          {filtered.map((ticket) => (
-            <button key={ticket.id} onClick={() => setSelectedTicket(ticket)} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-muted/30">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-                {initials(ticket.opener_name ?? ticket.requester_area ?? "TI")}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{ticket.subject}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {ticket.requester_area ?? "Area nao informada"} · {ticket.opener_name ?? "Solicitante"} · {formatDateTime(ticket.created_at)}
-                </p>
-              </div>
-              <div className="hidden items-center gap-2 sm:flex">
-                <StatusBadge status={ticket.priority} />
-                <StatusBadge status={ticket.status} />
-              </div>
-              <Clock3 size={15} className="text-muted-foreground" />
-            </button>
-          ))}
-        </div>
-      )}
+      <EditableTable<TicketView>
+        resource="tickets"
+        label="Tickets"
+        title="Tickets"
+        rows={filtered}
+        columns={columns}
+        loading={ticketsQuery.isLoading}
+        newRow={() => ({ priority: "media", status: "aberto" })}
+        onSave={saveTable}
+        onRefresh={() => ticketsQuery.refetch()}
+        emptyMessage={filter === "all" ? "Nenhum ticket. Use Adicionar para abrir um." : "Nenhum ticket com este status."}
+      />
     </div>
   );
+}
+
+/** Tira as chaves que a tabela não mandou (undefined), para gravar só o que mudou. */
+function withoutUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
 }
 
 function Info({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {

@@ -10,6 +10,7 @@ import { expectInlineEditing, expectNoDialog } from "@/test/inlineEditing";
 import { click, findButton, renderPage, until, type RenderedPage } from "@/test/pageHarness";
 import { createActivity } from "@/lib/crm/activities";
 import { saveProposal } from "@/lib/crm/proposals";
+import { saveAreaLabels } from "@/lib/labels/store";
 import ActivitiesPage from "./pages/ActivitiesPage";
 import ContactsPage from "./pages/ContactsPage";
 import CrmPage from "./pages/CrmPage";
@@ -96,6 +97,12 @@ describe("CRM: edição direto na tabela", () => {
     await click(findButton(page.container.querySelector("[aria-label='Detalhes: Site novo']")!, "Editar oportunidade"));
     await until(() => Boolean(page!.container.querySelector("form[aria-label='Editar oportunidade Site novo']")), "edição da oportunidade no painel");
     expectNoDialog("Editar oportunidade");
+  });
+
+  it("oportunidades: título da página vem do perfil da área (advocacia: Novos casos)", async () => {
+    await saveAreaLabels(testDb(), companyId, { role: "ceo", userId: USER }, { profile: "advocacia" });
+    page = await open("/opportunities", "/opportunities", <OpportunitiesPage />);
+    await until(() => page!.container.querySelector("h1")?.textContent === "Novos casos", "título do perfil advocacia");
   });
 
   it("funil: Adicionar e detalhes sem diálogo", async () => {

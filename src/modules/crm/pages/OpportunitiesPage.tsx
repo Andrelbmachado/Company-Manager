@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
 import { fold, isStage, OPPORTUNITY_STAGES, pipelineSummary, STAGE_LABELS } from "@/lib/crm/queries";
+import { useLabel } from "@/lib/labels/useLabel";
 import { formatCurrency } from "@/lib/utils";
 import type { SavedView } from "@/types";
 import { OpportunitiesTable } from "../components/OpportunitiesTable";
@@ -40,6 +41,7 @@ function parseFilters(view: SavedView | null): OpportunityFilters {
  */
 export default function OpportunitiesPage() {
   const { userId, role } = useCrmSession();
+  const title = useLabel("module.opportunities");
   const invalidate = useInvalidateCrm();
   const [params, setParams] = useSearchParams();
   const { data: opportunities = [], isLoading } = useOpportunities();
@@ -76,7 +78,7 @@ export default function OpportunitiesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Oportunidades"
+        title={title}
         description="Todas as oportunidades, abertas e fechadas"
         actions={
           <>

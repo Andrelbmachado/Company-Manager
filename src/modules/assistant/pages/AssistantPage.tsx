@@ -60,6 +60,9 @@ export default function AssistantPage() {
     enabled: Boolean(conversationId && conversation.data),
   });
   const notFound = Boolean(conversationId) && conversation.isSuccess && conversation.data === null;
+  // Conversa da URL só recebe pergunta depois de confirmado que é da pessoa (getConversation): appendMessage não
+  // confere o dono e o histórico inteiro vai para a API, então enviar antes disso gravaria e leria conversa alheia.
+  const ready = !conversationId || Boolean(conversation.data);
   const messages = conversationId ? messagesQuery.data ?? [] : [];
   const sending = sendingFor !== null && sendingFor === (conversationId ?? NEW_CONVERSATION);
   const busy = sendingFor !== null;
@@ -73,7 +76,7 @@ export default function AssistantPage() {
 
   async function submit(message = prompt) {
     const trimmed = message.trim();
-    if ((!trimmed && files.length === 0) || sendingRef.current || notFound) return;
+    if ((!trimmed && files.length === 0) || sendingRef.current || !ready) return;
     sendingRef.current = true;
     const localFiles = [...files];
     const question = trimmed || "Analise os arquivos anexados.";
@@ -164,7 +167,7 @@ export default function AssistantPage() {
                   key={suggestion}
                   type="button"
                   onClick={() => void submit(suggestion)}
-                  disabled={busy}
+                  disabled={busy || !ready}
                   className="rounded-xl border px-3 py-3 text-left text-xs leading-relaxed text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                 >
                   {suggestion}
@@ -249,7 +252,7 @@ export default function AssistantPage() {
               <button
                 type="button"
                 onClick={() => void submit()}
-                disabled={busy || (!prompt.trim() && files.length === 0)}
+                disabled={busy || !ready || (!prompt.trim() && files.length === 0)}
                 aria-label="Enviar"
                 title="Enviar"
                 className="rounded-xl bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"

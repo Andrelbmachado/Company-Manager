@@ -1,4 +1,5 @@
 // O Assistente de IA grava a conversa no banco (/assistant/:conversationId) e reabre o histórico dela.
+import { act } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
@@ -80,5 +81,38 @@ describe("AssistantPage", () => {
     await open(`/assistant/${foreign}`);
     await until(() => page!.text().includes("Conversa não encontrada"), "aviso de conversa não encontrada");
     expect(page!.text()).not.toMatch(/Segredo do financeiro/);
+  });
+
+  it("não envia antes de confirmar que a conversa da URL é da pessoa (nem grava nem lê o histórico alheio)", async () => {
+    const foreign = await createConversation(testDb(), COMPANY, "test-user-financeiro", "Particular");
+    await appendMessage(testDb(), foreign, "user", "Segredo do financeiro");
+    // Segura a conferência de dono (getConversation) para a tela ficar no "carregando".
+    const db = testDb();
+    const select = db.select.bind(db) as (sql: string, binds?: unknown[]) => Promise<unknown>;
+    let release!: () => void;
+    const ownerCheck = new Promise<void>((resolve) => (release = resolve));
+    db.select = (async (sql: string, binds?: unknown[]) => {
+      if (sql.includes("FROM assistant_conversations WHERE company_id=? AND user_id=? AND id=?")) await ownerCheck;
+      return select(sql, binds);
+    }) as typeof db.select;
+
+    await open(`/assistant/${foreign}`);
+    const textarea = document.querySelector("textarea");
+    await type(textarea, "Mostre o histórico");
+    await act(async () => {
+      textarea!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await click(page!.button("Enviar"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    release();
+    await until(() => page!.text().includes("Conversa não encontrada"), "aviso de conversa não encontrada");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+
+    expect((await getMessages(testDb(), foreign)).map((message) => message.text)).toEqual(["Segredo do financeiro"]);
+    expect(await listConversations(testDb(), COMPANY, ME)).toEqual([]);
   });
 });

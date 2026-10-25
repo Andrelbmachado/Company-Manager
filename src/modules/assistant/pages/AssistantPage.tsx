@@ -5,8 +5,17 @@ import { Bot, FileText, MessageSquareOff, Paperclip, Send, Sparkles, X } from "l
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
 import { getAssistantApiConfig, hasAssistantApiConfig } from "@/lib/assistant/config";
-import { requestAssistantReply } from "@/lib/assistant/client";
-import { appendMessage, conversationsQueryKey, createConversation, getConversation, getMessages } from "@/lib/assistant/conversations";
+import { CLAUDE_CODE_STATUS_KEY, getClaudeCodeStatus } from "@/lib/assistant/claudeCode";
+import { getAssistantMode, resolveAssistantProvider } from "@/lib/assistant/provider";
+import { requestReply } from "@/lib/assistant/reply";
+import {
+  appendMessage,
+  conversationsQueryKey,
+  createConversation,
+  getConversation,
+  getMessages,
+  setClaudeSession,
+} from "@/lib/assistant/conversations";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
 
@@ -24,8 +33,7 @@ const SUGGESTIONS: Record<Role, string[]> = {
   auditor: ["Resuma os eventos recentes", "Liste operações sensíveis", "Quais documentos precisam de revisão?"],
 };
 
-const NO_API_REPLY =
-  "A conexão de API ainda não foi configurada para esta conta. Cadastre a chave em Configurações para ativar as respostas do assistente.";
+const PROVIDER_BADGE = { "claude-code": "Claude Code", api: "API configurada", none: "Configurar assistente" } as const;
 /** Marca de "enviando" de uma conversa que ainda não existe (primeira pergunta em /assistant). */
 const NEW_CONVERSATION = "__nova__";
 
@@ -47,7 +55,9 @@ export default function AssistantPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [sendingFor, setSendingFor] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
-  const connected = hasAssistantApiConfig(userId);
+  // Claude Code local (sem chave) quando instalado e logado; senão a API configurada (lib/assistant/provider).
+  const claudeStatus = useQuery({ queryKey: CLAUDE_CODE_STATUS_KEY, queryFn: () => getClaudeCodeStatus(), staleTime: 60_000 });
+  const provider = resolveAssistantProvider(getAssistantMode(userId), claudeStatus.data, hasAssistantApiConfig(userId));
 
   const conversation = useQuery({
     queryKey: ["assistant_conversation", companyId, userId, conversationId],
@@ -97,18 +107,22 @@ export default function AssistantPage() {
       await appendMessage(db, id, "user", stored);
       await refresh(id);
       const history = await getMessages(db, id);
-      let reply = NO_API_REPLY;
-      if (connected) {
-        try {
-          reply = await requestAssistantReply(
-            getAssistantApiConfig(userId),
-            ROLE_LABELS[role],
-            history.map((item) => ({ role: item.author, content: item.text })),
-            localFiles,
-          );
-        } catch (error) {
-          reply = error instanceof Error ? error.message : "Não foi possível consultar a API configurada.";
-        }
+      const status = await qc.ensureQueryData({ queryKey: CLAUDE_CODE_STATUS_KEY, queryFn: () => getClaudeCodeStatus(), staleTime: 60_000 });
+      const claudeSessionId = (await getConversation(db, companyId, userId, id))?.claude_session_id ?? null;
+      let reply: string;
+      try {
+        const result = await requestReply({
+          provider: resolveAssistantProvider(getAssistantMode(userId), status, hasAssistantApiConfig(userId)),
+          area: ROLE_LABELS[role],
+          history: history.map((item) => ({ author: item.author, text: item.text })),
+          files: localFiles,
+          claudeSessionId,
+          apiConfig: getAssistantApiConfig(userId),
+        });
+        reply = result.text;
+        if (result.claudeSessionId && result.claudeSessionId !== claudeSessionId) await setClaudeSession(db, id, result.claudeSessionId);
+      } catch (error) {
+        reply = error instanceof Error ? error.message : "Não foi possível consultar o assistente.";
       }
       await appendMessage(db, id, "assistant", reply);
     } catch (error) {
@@ -134,9 +148,9 @@ export default function AssistantPage() {
         </div>
         <Link
           to="/settings"
-          className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${connected ? "bg-status-success text-white" : "bg-status-warning text-status-warning-ink"}`}
+          className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${provider.kind !== "none" ? "bg-status-success text-white" : "bg-status-warning text-status-warning-ink"}`}
         >
-          {connected ? "API configurada" : "Configurar API"}
+          {PROVIDER_BADGE[provider.kind]}
         </Link>
       </div>
 

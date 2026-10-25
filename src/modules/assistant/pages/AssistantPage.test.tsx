@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { click, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
-import { appendMessage, createConversation, getMessages, listConversations } from "@/lib/assistant/conversations";
+import { appendMessage, createConversation, getConversation, getMessages, listConversations } from "@/lib/assistant/conversations";
 import AssistantPage from "./AssistantPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
+const tauri = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: tauri.invoke }));
 
 const testDb = useTestDb();
 const COMPANY = "test-company";
@@ -23,6 +25,8 @@ beforeEach(async () => {
 afterEach(() => {
   page?.unmount();
   page = null;
+  delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  tauri.invoke.mockReset();
 });
 
 function Where() {
@@ -114,5 +118,37 @@ describe("AssistantPage", () => {
 
     expect((await getMessages(testDb(), foreign)).map((message) => message.text)).toEqual(["Segredo do financeiro"]);
     expect(await listConversations(testDb(), COMPANY, ME)).toEqual([]);
+  });
+
+  it("com o Claude Code instalado e logado, responde por ele (sem chave de API) e continua a mesma sessão", async () => {
+    const session = "b211ae63-4cce-4686-9792-92c42f2c0621";
+    (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    const asks: Record<string, unknown>[] = [];
+    tauri.invoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+      if (command === "claude_code_status") return { available: true, path: "/opt/homebrew/bin/claude", version: "2.1.310", logged_in: true, reason: null };
+      if (command === "claude_code_ask") {
+        asks.push(args!);
+        return { text: `Resposta ${asks.length} do Claude Code`, session_id: session };
+      }
+      throw new Error(`comando inesperado: ${command}`);
+    });
+
+    await open("/assistant");
+    await until(() => page!.text().includes("Claude Code"), "selo do Claude Code");
+    await type(document.querySelector("textarea"), "Quais propostas vencem esta semana?");
+    await click(page!.button("Enviar"));
+    await until(async () => (await listConversations(testDb(), COMPANY, ME)).length === 1, "conversa criada");
+    const [conversation] = await listConversations(testDb(), COMPANY, ME);
+    await until(async () => (await getMessages(testDb(), conversation.id)).length === 2, "resposta gravada");
+    expect((await getMessages(testDb(), conversation.id))[1].text).toBe("Resposta 1 do Claude Code");
+    await until(async () => (await getConversation(testDb(), COMPANY, ME, conversation.id))?.claude_session_id === session, "sessão guardada");
+    expect(asks[0]).toMatchObject({ prompt: "Quais propostas vencem esta semana?", sessionId: null });
+    expect(String(asks[0].systemPrompt)).toMatch(/Comercial/);
+
+    await until(() => page!.text().includes("Resposta 1 do Claude Code"), "resposta na tela");
+    await type(document.querySelector("textarea"), "E a maior delas?");
+    await click(page!.button("Enviar"));
+    await until(async () => (await getMessages(testDb(), conversation.id)).length === 4, "segunda resposta");
+    expect(asks[1]).toMatchObject({ prompt: "E a maior delas?", sessionId: session });
   });
 });

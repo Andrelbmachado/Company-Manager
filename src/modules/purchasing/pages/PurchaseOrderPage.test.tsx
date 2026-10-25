@@ -97,4 +97,13 @@ describe("PurchaseOrderPage", () => {
     expect((await order()).approved_by).toBe("test-user-gerente");
     expect(buttonIn(page.container, "Receber mercadoria")).toBeUndefined();
   });
+
+  it("pedido sem fornecedor (gerado pela reposição do estoque) mostra o fornecedor a definir, não removido", async () => {
+    const { createPurchaseOrder } = await import("@/lib/erp/receiving");
+    const id = await createPurchaseOrder(testDb(), { companyId: fx.companyId, supplierId: null, items: [{ productId: fx.products.mouse, qty: 2 }] });
+    page = await open("estoquista", `/purchasing/pedidos/${id}`);
+    await until(() => text().includes("Pedido de compra PC-00001"), "pedido aberto");
+    expect(text()).toContain("A definir");
+    expect(text()).not.toContain("Fornecedor removido");
+  });
 });

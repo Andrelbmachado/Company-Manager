@@ -291,7 +291,7 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
       <div className="grid gap-5 rounded-xl border bg-card p-5 lg:grid-cols-[1fr_auto]">
         <DetailGrid>
           <DetailItem label="Status" value={<StatusBadge status={order.status} />} />
-          <DetailItem label="Fornecedor" value={supplier?.name ?? "Fornecedor removido"} />
+          <DetailItem label="Fornecedor" value={order.supplier_id ? supplier?.name ?? "Fornecedor removido" : "A definir"} />
           <DetailItem label="Data do pedido" value={formatDay(order.order_date)} />
           <DetailItem label="Previsão de entrega" value={formatDay(order.expected_date)} />
           <DetailItem label="Local de entrada" value={order.location_id ? locationsById.get(order.location_id)?.name : "Escolher no recebimento"} />

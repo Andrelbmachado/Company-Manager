@@ -77,6 +77,9 @@ describe("rotas das subpáginas", () => {
     ["rh", "/hr/manage/banco-de-horas", "Banco de horas da equipe"],
     ["tecnico", "/hr/banco-de-horas", "Meu banco de horas"],
     ["admin", "/settings/backup", "Backup e restauração"],
+    // Registro do redesign (Tarefa 2): Calendário para todos os papéis e aba Área da empresa em Configurações.
+    ["auditor", "/calendar", "Calendário"],
+    ["rh", "/settings/area", "Área da empresa"],
   ])("%s abre %s", async (role, path, title) => {
     await openAs(role, path);
     const { heading, home } = await settled();

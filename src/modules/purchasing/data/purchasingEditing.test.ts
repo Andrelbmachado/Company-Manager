@@ -43,6 +43,13 @@ describe("savePurchaseOrderChanges", () => {
     await expect(savePurchaseOrderChanges(db, ctx, { updated: [], created: [{ supplier_id: fx.supplierId }] })).rejects.toThrow(/1º item/);
   });
 
+  it("trocar só o 1º item do rascunho mantém a quantidade; descrição e custo vêm do novo produto", async () => {
+    const { db, ctx, fx, orderId } = await setup();
+    await savePurchaseOrderChanges(db, ctx, { updated: [{ id: orderId, first_item: `p:${fx.products.switch}` }], created: [] });
+    expect((await items(ctx.companyId, orderId)).map((item) => [item.description, item.qty, item.unit_price])).toEqual([["Switch 24 portas", 2, 2000]]);
+    expect(await order(orderId)).toMatchObject({ total: 4000 });
+  });
+
   it("pedido aprovado só muda previsão e observações; nada é gravado se uma linha tem erro", async () => {
     const { db, ctx, orderId } = await setup("ceo");
     await approvePurchaseOrder(db, orderId, { companyId: ctx.companyId });
@@ -80,6 +87,15 @@ describe("savePurchaseItemChanges", () => {
     expect(lines.map((item) => item.description)).toEqual(["Mouse USB"]);
     expect((await order(orderId)).total).toBe(200);
     await expect(removePurchaseItem(db, ctx, orderId, lines[0].id)).rejects.toThrow(/ao menos um item/);
+  });
+
+  it("trocar só o produto do item mantém quantidade, desconto e imposto", async () => {
+    const { db, ctx, fx, orderId } = await setup();
+    const [mouse] = await items(ctx.companyId, orderId);
+    await savePurchaseItemChanges(db, ctx, orderId, { updated: [{ id: mouse.id, discount: 5, tax_rate: 10 }], created: [] });
+    const [edited] = await items(ctx.companyId, orderId);
+    await savePurchaseItemChanges(db, ctx, orderId, { updated: [{ id: edited.id, ref: `p:${fx.products.switch}` }], created: [] });
+    expect((await items(ctx.companyId, orderId)).map((item) => [item.description, item.qty, item.unit_price, item.discount, item.tax_rate])).toEqual([["Switch 24 portas", 2, 2000, 5, 10]]);
   });
 
   it("pedido aprovado não muda itens; papel sem permissão é barrado", async () => {

@@ -79,18 +79,20 @@ export interface LineValues {
 
 /**
  * Linha conferida no formato de entrada. Com `base` (item gravado), só muda o que veio em `values`; trocar o produto
- * volta descrição, unidade e custo aos do novo produto, a menos que tenham sido digitados. Custo vazio = custo atual.
+ * volta descrição, unidade e custo aos do novo produto, a menos que tenham sido digitados (quantidade, desconto e
+ * imposto ficam como estavam). Custo vazio = custo atual.
  */
 export function lineInput(label: string, values: LineValues, base?: PurchaseItemInput): PurchaseItemInput {
   const refChanged = !base || has(values, "ref");
   const ids = refChanged ? refIds(text(values.ref)) : { productId: base.productId ?? null, inventoryItemId: base.inventoryItemId ?? null };
-  const pick = <K extends keyof LineValues>(key: K, current: unknown): unknown => (has(values, key) ? values[key] : refChanged ? null : current);
-  const qty = Number(pick("qty", base?.qty));
-  const price = pick("unit_price", base?.unitPrice);
+  const keep = <K extends keyof LineValues>(key: K, current: unknown): unknown => (has(values, key) ? values[key] : current);
+  const fromProduct = <K extends keyof LineValues>(key: K, current: unknown): unknown => (has(values, key) ? values[key] : refChanged ? null : current);
+  const qty = Number(keep("qty", base?.qty));
+  const price = fromProduct("unit_price", base?.unitPrice);
   const unitPrice = price === null || price === undefined || price === "" ? null : Number(price);
-  const discount = Number(pick("discount", base?.discount) ?? 0);
-  const taxRate = Number(pick("tax_rate", base?.taxRate) ?? 0);
-  const description = text(pick("description", base?.description));
+  const discount = Number(keep("discount", base?.discount) ?? 0);
+  const taxRate = Number(keep("tax_rate", base?.taxRate) ?? 0);
+  const description = text(fromProduct("description", base?.description));
   if (!Number.isFinite(qty) || qty <= 0) throw rowError(label, "informe a quantidade (maior que zero).");
   if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) throw rowError(label, "o custo unitário não pode ser negativo.");
   if (!Number.isFinite(discount) || discount < 0) throw rowError(label, "o desconto não pode ser negativo.");
@@ -99,5 +101,5 @@ export function lineInput(label: string, values: LineValues, base?: PurchaseItem
     if (!description) throw rowError(label, "linha avulsa precisa de descrição (ou escolha o produto).");
     if (unitPrice === null) throw rowError(label, "linha avulsa precisa do custo unitário.");
   }
-  return { ...ids, description, unit: text(pick("unit", base?.unit)), qty, unitPrice, discount, taxRate };
+  return { ...ids, description, unit: text(fromProduct("unit", base?.unit)), qty, unitPrice, discount, taxRate };
 }

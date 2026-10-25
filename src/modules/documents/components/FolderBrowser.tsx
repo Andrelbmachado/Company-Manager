@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderPlus, Upload } from "lucide-react";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
@@ -14,6 +14,7 @@ import type { DocumentRow, Role } from "@/types";
 import { canSeeFolder, defaultRoot, foldName, visibleRoots } from "../access";
 import { saveDocumentMetadata } from "../metadata";
 import { DocumentPanel } from "./DocumentPanel";
+import { FolderIcon } from "./FolderIcon";
 
 interface FolderBrowserProps {
   role: Role;
@@ -25,6 +26,12 @@ interface FolderBrowserProps {
   canEdit: boolean;
   /** delete em documents: excluir documento ou versão. */
   canDelete: boolean;
+  /** Só na raiz: botões a mais na barra (ex.: Conectar nuvem). */
+  rootActions?: ReactNode;
+  /** Só na raiz: painel logo abaixo da barra (ex.: Conectar nuvem aberto). */
+  rootPanel?: ReactNode;
+  /** Só na raiz: itens a mais na grade, depois das pastas internas (ex.: pastas de nuvem conectadas); a busca filtra por `name`. */
+  rootTiles?: { key: string; name: string; element: ReactNode }[];
 }
 
 const split = (folder: string) => folder.split("/").filter(Boolean);
@@ -33,8 +40,9 @@ const startsWith = (values: string[], prefix: string[]) => prefix.every((value, 
 /**
  * Pastas (navegação) e os arquivos da pasta aberta numa EditableTable: nome e observação editáveis na própria linha,
  * Adicionar registra um documento só com os dados (o arquivo vem por Nova versão). Envio por botão ou arrastando.
+ * Na raiz, a tela pode pôr botões, um painel e itens a mais na grade (pastas de nuvem conectadas).
  */
-export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, canDelete }: FolderBrowserProps) {
+export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, canDelete, rootActions, rootPanel, rootTiles = [] }: FolderBrowserProps) {
   const qc = useQueryClient();
   const uploadInput = useRef<HTMLInputElement>(null);
   const [path, setPath] = useState<string[]>([]);
@@ -88,6 +96,8 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
     [visibleDocs, path, needle],
   );
 
+  const tiles = path.length === 0 ? rootTiles.filter((tile) => foldName(tile.name).includes(needle)) : [];
+
   const roots = visibleRoots(role);
   const canCreateFolder = canUpload && (path.length > 0 || roots === "*");
 
@@ -135,6 +145,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
   return (
     <div {...drop.bind} className={cn("relative space-y-4 rounded-lg", drop.isDragging && "ring-2 ring-primary/40")}>
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar nesta pasta e nas subpastas...">
+        {path.length === 0 && rootActions}
         {canCreateFolder && (
           <button type="button" onClick={() => setCreatingFolder(true)} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
             <FolderPlus size={14} aria-hidden="true" /> Nova pasta
@@ -172,6 +183,8 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         </form>
       )}
 
+      {path.length === 0 && rootPanel}
+
       <nav aria-label="Caminho da pasta" className="flex flex-wrap items-center gap-1 text-sm">
         <button type="button" onClick={() => openFolder([])} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Documentos /</button>
         {path.map((segment, index) => (
@@ -191,7 +204,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         <p role="alert" className="text-sm text-destructive">Não foi possível carregar os documentos.</p>
       ) : (
         <>
-          {folders.length > 0 && (
+          {(folders.length > 0 || tiles.length > 0) && (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
               {folders.map((folder) => (
                 <button key={folder} type="button" onClick={() => openFolder([...path, folder])} className="group min-h-[8rem] rounded-xl border border-transparent p-3 text-center transition-all hover:border-border hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -201,6 +214,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
                   </span>
                 </button>
               ))}
+              {tiles.map((tile) => <Fragment key={tile.key}>{tile.element}</Fragment>)}
             </div>
           )}
 
@@ -236,15 +250,5 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         </div>
       )}
     </div>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <span aria-hidden="true" className="relative block h-12 w-16 transition-transform group-hover:-translate-y-0.5">
-      <span className="absolute left-1 top-1 h-4 w-7 rounded-t-md bg-blue-400" />
-      <span className="absolute inset-x-0 bottom-0 h-10 rounded-md bg-gradient-to-b from-blue-300 to-blue-500 shadow-sm" />
-      <span className="absolute inset-x-1 bottom-1 h-8 rounded bg-gradient-to-b from-blue-200/80 to-blue-400/30" />
-    </span>
   );
 }

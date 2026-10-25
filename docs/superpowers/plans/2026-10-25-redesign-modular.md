@@ -172,8 +172,8 @@ Conexão sem login de terceiros: o botão **Conectar nuvem** abre o seletor de p
 - **Interfaces:** `detectCloudFolders(home: string, exists: (p: string) => boolean): { provider: string; path: string }[]`, `listCloudFolder(path): Promise<{ name: string; isDir: boolean; size: number; modified: string }[]>` (sem seguir links simbólicos para fora da pasta).
 - Ícone de pasta: chapado, 1 cor (ou 2 tons para a aba), sem gradiente/sombra/volume.
 
-- [ ] **Step 1:** Testes: `detectCloudFolders` acha iCloud e OneDrive com caminhos falsos; caminho com `..` ou link para fora da pasta conectada é recusado.
-- [ ] **Step 2:** FAIL → implementar → PASS. Commit `feat(documents): pastas de nuvem conectadas e ícones chapados`.
+- [x] **Step 1:** Testes: `detectCloudFolders` acha iCloud e OneDrive com caminhos falsos; caminho com `..` ou link para fora da pasta conectada é recusado.
+- [x] **Step 2:** FAIL → implementar → PASS. Commit `feat(documents): pastas de nuvem conectadas e ícones chapados`.
 
 ### Task 10: Modo demo e limpeza dos dados fictícios
 

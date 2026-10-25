@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema/acl/capability.json",
   "identifier": "default",
-  "description": "Default capability for Company Manager. Arquivos: ler, gravar, copiar, renomear e apagar só em $APPDATA (anexos, backup); ler também em Downloads e Documentos. Fora disso, só o caminho escolhido pela pessoa em dialog.open/save (o diálogo libera esse caminho).",
+  "description": "Default capability for Company Manager. Arquivos: ler, gravar, copiar, renomear e apagar só em $APPDATA (anexos, backup); ler também em Downloads e Documentos. Pastas de nuvem dos Documentos (iCloud Drive, ~/Library/CloudStorage do Google Drive/OneDrive/Dropbox e as pastas antigas ~/Google Drive, ~/OneDrive, ~/Dropbox): ler, listar, lstat e gravar arquivo novo (o app nunca sobrescreve nem apaga lá). Fora disso, só o caminho escolhido pela pessoa em dialog.open/save (o diálogo libera esse caminho).",
   "windows": [
     "main"
   ],
@@ -20,7 +20,7 @@
     "dialog:allow-confirm",
     {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs/**" }, { "path": "$HOME/Library/CloudStorage/**" }, { "path": "$HOME/Google Drive/**" }, { "path": "$HOME/OneDrive/**" }, { "path": "$HOME/Dropbox/**" }]
     },
     {
       "identifier": "fs:allow-read-text-file",
@@ -28,15 +28,19 @@
     },
     {
       "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT" }, { "path": "$DOCUMENT/**" }]
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs/**" }, { "path": "$HOME/Library/CloudStorage" }, { "path": "$HOME/Library/CloudStorage/**" }, { "path": "$HOME/Google Drive" }, { "path": "$HOME/Google Drive/**" }, { "path": "$HOME/OneDrive" }, { "path": "$HOME/OneDrive/**" }, { "path": "$HOME/Dropbox" }, { "path": "$HOME/Dropbox/**" }]
     },
     {
       "identifier": "fs:allow-stat",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs/**" }, { "path": "$HOME/Library/CloudStorage" }, { "path": "$HOME/Library/CloudStorage/**" }, { "path": "$HOME/Google Drive" }, { "path": "$HOME/Google Drive/**" }, { "path": "$HOME/OneDrive" }, { "path": "$HOME/OneDrive/**" }, { "path": "$HOME/Dropbox" }, { "path": "$HOME/Dropbox/**" }]
+    },
+    {
+      "identifier": "fs:allow-lstat",
+      "allow": [{ "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs/**" }, { "path": "$HOME/Library/CloudStorage" }, { "path": "$HOME/Library/CloudStorage/**" }, { "path": "$HOME/Google Drive" }, { "path": "$HOME/Google Drive/**" }, { "path": "$HOME/OneDrive" }, { "path": "$HOME/OneDrive/**" }, { "path": "$HOME/Dropbox" }, { "path": "$HOME/Dropbox/**" }]
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }]
+      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs/**" }, { "path": "$HOME/Library/CloudStorage" }, { "path": "$HOME/Library/CloudStorage/**" }, { "path": "$HOME/Google Drive" }, { "path": "$HOME/Google Drive/**" }, { "path": "$HOME/OneDrive" }, { "path": "$HOME/OneDrive/**" }, { "path": "$HOME/Dropbox" }, { "path": "$HOME/Dropbox/**" }]
     },
     {
       "identifier": "fs:allow-mkdir",
@@ -44,7 +48,7 @@
     },
     {
       "identifier": "fs:allow-write-file",
-      "allow": [{ "path": "$APPDATA/**" }]
+      "allow": [{ "path": "$APPDATA/**" }, { "path": "$HOME/Library/Mobile Documents/com~apple~CloudDocs/**" }, { "path": "$HOME/Library/CloudStorage/**" }, { "path": "$HOME/Google Drive/**" }, { "path": "$HOME/OneDrive/**" }, { "path": "$HOME/Dropbox/**" }]
     },
     {
       "identifier": "fs:allow-write-text-file",

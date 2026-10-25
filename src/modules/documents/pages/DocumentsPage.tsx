@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { useLabel } from "@/lib/labels/useLabel";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
+import { useLabel } from "@/lib/labels/useLabel";
 import type { Role } from "@/types";
 import { AttachmentsBrowser } from "../components/AttachmentsBrowser";
-import { FolderBrowser } from "../components/FolderBrowser";
+import { DocumentFolders } from "../components/DocumentFolders";
 
 const TABS = [
   { id: "pastas", label: "Pastas" },
@@ -16,15 +16,17 @@ type TabId = (typeof TABS)[number]["id"];
 
 /**
  * Documentos com arquivo de verdade (lib/files/store.ts): pastas por setor, envio múltiplo e arrastar, pré-visualização,
- * download, versões; e a consulta dos anexos enviados nas fichas dos registros.
+ * download, versões; pastas de nuvem conectadas (lib/files/cloudFolders.ts, só no desktop); e a consulta dos anexos
+ * enviados nas fichas dos registros.
  */
 export default function DocumentsPage() {
   const session = useRequiredSession();
-  const title = useLabel("module.documents");
   const role = session.membership.role as Role;
   const canUpload = usePermission("attach", "documents");
   const canEdit = usePermission("edit", "documents");
   const canDelete = usePermission("delete", "documents");
+  // Mesmo rótulo da sidebar e da busca (perfil de área, editável em Configurações > Área da empresa).
+  const title = useLabel("module.documents");
   const [tab, setTab] = useState<TabId>("pastas");
 
   return (
@@ -39,7 +41,7 @@ export default function DocumentsPage() {
       </div>
       <TabPanel idPrefix="documentos" id={tab}>
         {tab === "pastas" ? (
-          <FolderBrowser role={role} companyId={session.company.id} userId={session.user.id} canUpload={canUpload} canEdit={canEdit} canDelete={canDelete} />
+          <DocumentFolders role={role} companyId={session.company.id} userId={session.user.id} canUpload={canUpload} canEdit={canEdit} canDelete={canDelete} />
         ) : (
           <AttachmentsBrowser role={role} companyId={session.company.id} canDelete={canDelete} />
         )}

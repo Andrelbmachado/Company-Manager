@@ -86,6 +86,16 @@ describe("janela travada: só a área de conteúdo rola", () => {
   it("tabela sr-only respeita a largura de 1 px (sem layout fixo ela fica da largura do conteúdo e cria rolagem lateral)", () => {
     expect(rule(css, "table.sr-only")).toMatch(/table-layout:\s*fixed/);
   });
+
+  it("na impressão html, body e #root voltam a crescer: o relatório em PDF (#cm-print-root no body) não sai cortado na 1ª página", () => {
+    // Com height 100% e overflow hidden na impressão, o body vira uma página só e corta o resto da folha do relatório
+    // (src/lib/reports/export.ts): um relatório de 200 linhas saía com 50.
+    const print = css.match(/@media\s+print\s*\{([\s\S]*?)\n\}/)?.[1];
+    expect(print, "bloco @media print no globals.css").toBeDefined();
+    const reset = rule(print!, "html, body, #root");
+    expect(reset).toMatch(/height:\s*auto/);
+    expect(reset).toMatch(/overflow:\s*visible/);
+  });
 });
 
 describe("janela pequena (até 1/5 da largura e 1/3 da altura da tela)", () => {

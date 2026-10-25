@@ -170,6 +170,17 @@
   }
 }
 
+/*
+ * Impressão: com a janela travada (height 100% e overflow hidden, acima) o body teria a altura de uma página e cortaria
+ * o resto. A folha do relatório em PDF (#cm-print-root no body, src/lib/reports/export.ts) cresce por várias páginas.
+ */
+@media print {
+  html, body, #root {
+    height: auto;
+    overflow: visible;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

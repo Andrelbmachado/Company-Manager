@@ -83,7 +83,9 @@ export default function SuppliersPage() {
     ...(canSeeOrders ? [{ key: "open_orders" as const, header: "Pedidos em aberto", kind: "number" as const, readOnly: true, render: (row: SupplierTableRow) => row.open_orders || "—" }] : []),
   ];
 
+  // O nome vem primeiro também aqui: o Adicionar desta tabela cadastra um fornecedor e o nome é obrigatório.
   const detailColumns: EditableColumn<SupplierTableRow>[] = [
+    columns[0],
     { key: "state_registration", header: "Inscrição estadual", kind: "text" },
     { key: "website", header: "Site", kind: "text" },
     { key: "logradouro", header: "Logradouro", kind: "text" },
@@ -174,7 +176,16 @@ export default function SuppliersPage() {
             </button>
           </div>
 
-          <EditableTable resource="suppliers" label={`Dados complementares de ${selected.name}`} title="Endereço e dados complementares" rows={[selected]} columns={detailColumns} onSave={save} onRefresh={refresh} />
+          <EditableTable
+            resource="suppliers"
+            label={`Dados complementares de ${selected.name}`}
+            title="Endereço e dados complementares"
+            rows={[selected]}
+            columns={detailColumns}
+            onSave={save}
+            onRefresh={refresh}
+            newRow={() => ({ id: uuidv4() })}
+          />
 
           {canSeeOrders && (
             <div className="space-y-2">

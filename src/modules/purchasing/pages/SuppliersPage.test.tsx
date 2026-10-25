@@ -81,6 +81,21 @@ describe("SuppliersPage — edição direto na tabela", () => {
     await until(async () => JSON.parse((await suppliers())[0].address_json ?? "{}").bairro === "Centro", "endereço gravado");
   });
 
+  it("Adicionar na tabela da ficha não trava: tem o campo do nome e cadastra com o endereço", async () => {
+    await open();
+    await click(page!.container.querySelector('[aria-label="Ficha de Distribuidora Teste"]'));
+    const detail = () => page!.container.querySelector<HTMLElement>('section[aria-label="Ficha de Distribuidora Teste"] [data-editable-table]')!;
+    await until(() => !!detail(), "tabela da ficha");
+    await click(findButton(detail(), "Adicionar"));
+    await type(detail().querySelector('[aria-label="Razão social / nome (nova linha)"]'), "Filial Norte Ltda");
+    await type(detail().querySelector('[aria-label="Bairro (nova linha)"]'), "Industrial");
+    await click(findButton(detail(), "Salvar"));
+    await until(async () => (await suppliers()).length === 2, "fornecedor gravado pela ficha");
+    const saved = (await suppliers()).find((row) => row.name === "Filial Norte Ltda")!;
+    expect(JSON.parse(saved.address_json)).toEqual({ bairro: "Industrial" });
+    await until(() => !detail().hasAttribute("data-editing"), "tabela da ficha fora da edição");
+  });
+
   it("não exclui com pedido em andamento; gerência vê Editar/Adicionar desabilitados e sem excluir", async () => {
     await createPurchaseOrder(testDb(), { companyId: fx.companyId, supplierId: fx.supplierId, items: [{ productId: fx.products.mouse, qty: 1 }] });
     await open();

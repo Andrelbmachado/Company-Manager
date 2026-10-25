@@ -184,8 +184,8 @@ Conexão sem login de terceiros: o botão **Conectar nuvem** abre o seletor de p
 - Na primeira abertura depois da atualização, o banco do André fica com modo demo **desligado**: os dados fictícios atuais somem, leads ficam (pedido explícito dele).
 - **Interfaces:** `setDemoMode(db, companyId, on: boolean): Promise<{ inserted?: number; removed?: number }>`, `isDemoMode(db, companyId): Promise<boolean>`, `DEMO_EXCLUDED_TABLES = ["leads", "users", "memberships", "companies", "_sqlx_migrations"]`.
 
-- [ ] **Step 1:** Testes SQLite: ligar popula clientes, financeiro, estoque, projetos e RH; desligar remove todos eles e mantém 3 leads reais e um cliente criado pelo usuário (`id` uuid) durante o modo demo; ligar duas vezes não duplica; leads com id `dev-*` também ficam.
-- [ ] **Step 2:** FAIL → implementar → PASS. Commit `feat(settings): modo demonstração liga e desliga dados de exemplo sem tocar em leads`.
+- [x] **Step 1:** Testes SQLite: ligar popula clientes, financeiro, estoque, projetos e RH; desligar remove todos eles e mantém 3 leads reais e um cliente criado pelo usuário (`id` uuid) durante o modo demo; ligar duas vezes não duplica; leads com id `dev-*` também ficam.
+- [x] **Step 2:** FAIL → implementar → PASS. Commit `feat(settings): modo demonstração liga e desliga dados de exemplo sem tocar em leads`.
 
 ### Task 11: QA no app instalado
 

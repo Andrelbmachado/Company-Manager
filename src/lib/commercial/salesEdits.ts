@@ -8,6 +8,7 @@ import type { DatabaseLike } from "@/lib/db/demo";
 import { formatSequence, nextSequenceNumber } from "@/lib/db/sequence";
 import { invoiceSalesOrder, isSalesOrderEditable, loadSalesOrder, loadSalesOrderItems, updateSalesOrder, type SalesItemInput, type SalesOrderInput } from "@/lib/erp/orders";
 import { effectivePriceList } from "@/lib/erp/pricing";
+import { roundMoney } from "@/lib/money";
 import { activeRow, claimStatus, cleanText, documentById, insertRow, isIsoDay, nowIso, updateRow } from "@/lib/erp/tradeDb";
 import { todayIso } from "@/lib/utils";
 import type { Customer, Invoice, SalesOrder, SalesOrderItem } from "@/types";
@@ -250,6 +251,9 @@ export async function saveInvoiceRows(db: DatabaseLike, companyId: string, actor
     if (order.status === "rascunho") throw new Error(`${prefix}Confirme o pedido ${label(order.number)} antes de faturar.`);
     if (order.status === "cancelado") throw new Error(`${prefix}o pedido ${label(order.number)} está cancelado.`);
     if (order.status === "faturado" || order.invoiced_at) throw new Error(`${prefix}o pedido ${label(order.number)} já foi faturado.`);
+    // As mesmas recusas do invoiceSalesOrder, conferidas antes de faturar qualquer linha (sem fatura pela metade).
+    if ((await loadSalesOrderItems(db, companyId, orderId)).length === 0) throw new Error(`${prefix}o pedido ${label(order.number)} não tem itens.`);
+    if (!(roundMoney(Number(order.total)) > 0)) throw new Error(`${prefix}o pedido ${label(order.number)} está sem valor e não gera fatura.`);
     const issueDate = checkDay(row.issue_date, `${prefix}data de emissão`) ?? todayIso();
     const dueDate = checkDay(row.due_date, `${prefix}primeiro vencimento`);
     if (dueDate && dueDate < issueDate) throw new Error(`${prefix}o primeiro vencimento é antes da emissão.`);

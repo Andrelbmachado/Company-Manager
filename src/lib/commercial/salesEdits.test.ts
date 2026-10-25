@@ -88,6 +88,16 @@ describe("saveInvoiceRows", () => {
     await expect(saveInvoiceRows(db, fx.companyId, finance, { updated: [], created: [{ sales_order_id: draft }] })).rejects.toThrow(/Confirme/);
     expect(await db.select("SELECT id FROM invoices WHERE company_id=?", [fx.companyId])).toHaveLength(0);
   });
+
+  it("faturando vários pedidos, um sem valor recusa tudo antes de faturar o outro", async () => {
+    const { db, fx, finance } = await setup();
+    const good = await confirmedOrder(fx);
+    const free = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.customerId, userId: fx.userId, items: [{ description: "Brinde", qty: 1, unitPrice: 0 }] });
+    await confirmSalesOrder(db, free, { companyId: fx.companyId });
+    await expect(saveInvoiceRows(db, fx.companyId, finance, { updated: [], created: [{ sales_order_id: good }, { sales_order_id: free }] })).rejects.toThrow(/sem valor/);
+    expect(await db.select("SELECT id FROM invoices WHERE company_id=?", [fx.companyId])).toHaveLength(0);
+    expect(await one("SELECT status FROM sales_orders WHERE id=?", [good])).toEqual({ status: "confirmado" });
+  });
 });
 
 describe("saveSalesOrderItemRows e removeSalesOrderItem", () => {

@@ -268,6 +268,21 @@ describe("DashboardPage (resumo do topo e balanço anual)", () => {
     expect(container.querySelector("[data-chart='balance'] h2")?.textContent).toContain("Caixa do escritório");
   });
 
+  it("financeiro: os 3 cards do financeiro e o gráfico, sem trabalhos ativos (não vê projetos)", async () => {
+    const db = testDb();
+    await seedMonth(db);
+    await render("financeiro");
+    await settled();
+    await overviewLoaded();
+
+    expect(overviewCards()).toEqual([
+      { key: "result", title: "Dívida do mês", value: "R$ 1.500,00" },
+      { key: "payables_week", title: "A pagar na semana", value: "R$ 120,00" },
+      { key: "receivables_week", title: "A receber na semana", value: "R$ 300,00" },
+    ]);
+    expect(container.querySelectorAll("[data-chart='balance'] table tbody tr")).toHaveLength(12);
+  });
+
   it("gráficos da home são monocromáticos: as séries só usam os tokens cinza do tema (nada do vermelho de erro)", () => {
     for (const color of Object.values(SERIES_COLORS)) expect(color).toMatch(/^hsl\(var\(--(primary|foreground|muted-foreground)\)( \/ 0?\.\d+)?\)$/);
   });

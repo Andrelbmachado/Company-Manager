@@ -5,6 +5,7 @@ import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import { addBankAccount, addBankTransaction, addCategory, addPayable, addReceivable, addRecurring, addSettlement, insertRow } from "@/test/financeFixtures";
 import { setCompanySetting } from "@/lib/settings/companySettings";
 import { AREA_PROFILE_SETTING } from "@/lib/labels/store";
+import { runRecurring } from "@/lib/erp/recurring";
 import { activeWorkCount, annualBalance, loadDashboardOverview, monthResult, weekPayables, weekRange, weekReceivables } from "./finance";
 
 let db: TestDb;
@@ -214,6 +215,49 @@ describe("annualBalance", () => {
 
   it("ano inválido é recusado", async () => {
     await expect(annualBalance(db, companyId, 99, { today: TODAY })).rejects.toThrow(/Ano/);
+  });
+
+  it("a previsão não muda quando o runRecurring lança as competências (nem some nem conta duas vezes)", async () => {
+    // Semanal sem histórico, semanal com histórico, trimestral que só vence em novembro, mensal que vence depois de hoje e
+    // mensal atrasada desde julho (agosto e setembro ainda por lançar: entram em outubro, como a conta vencida).
+    await addRecurring(db, companyId, { id: "diarista", amount: 10, frequency: "semanal", start_date: "2026-09-02" });
+    await addRecurring(db, companyId, { id: "limpeza", amount: 7, frequency: "semanal", start_date: "2026-08-04", last_competence: "2026-09-29" });
+    await addRecurring(db, companyId, { id: "seguro", amount: 1000, frequency: "trimestral", day_of_month: 31, start_date: "2026-02-28" });
+    await addRecurring(db, companyId, { id: "licenca", kind: "receber", amount: 55, day_of_month: 28, start_date: "2026-01-01", last_competence: "2026-09" });
+    await addRecurring(db, companyId, { id: "atrasada", amount: 20, day_of_month: 5, start_date: "2026-01-01", last_competence: "2026-07" });
+    const before = [await annualBalance(db, companyId, 2026, { today: TODAY }), await annualBalance(db, companyId, 2027, { today: TODAY })];
+
+    expect((await runRecurring(db, companyId, TODAY)).created).toBeGreaterThan(0);
+    expect([await annualBalance(db, companyId, 2026, { today: TODAY }), await annualBalance(db, companyId, 2027, { today: TODAY })]).toEqual(before);
+    // Outubro: aberto e recorrências da massa (2.000 + 400 + 50 − 150 + 300), diarista 4 × −10, limpeza 4 × −7, licença +55
+    // e atrasada 3 × −20 (agosto, setembro e outubro).
+    expect(before[0][9].previsto).toBe(2000 + 400 + 50 - 150 + 300 - 40 - 28 + 55 - 3 * 20);
+    expect(before[0][10].previsto).toBe(900 - 100 + 300 - 40 - 28 - 1000 + 55 - 20);
+    // Agosto e setembro já fecharam: a previsão deles continua sendo o realizado.
+    expect(before[0][7].previsto).toBe(before[0][7].realizado);
+  });
+});
+
+describe("empresa", () => {
+  it("números de outra empresa nunca entram (contas, baixas, recorrências e projetos)", async () => {
+    const { companyId: other } = await insertTestCompany(db, { companyId: "outra-empresa", roles: ["admin"] });
+    await addReceivable(db, other, { id: "R-outra", amount: 100, due_date: "2026-10-22" });
+    await addPayable(db, other, { id: "P-outra", amount: 50, due_date: "2026-10-23" });
+    await addReceivable(db, other, { id: "R-outra-recebida", amount: 70, due_date: "2026-10-02", status: "recebida", received_amount: 70, received_at: "2026-10-02" });
+    await addSettlement(db, other, { id: "S-outra", receivable_id: "R-outra-recebida", amount: 70, paid_at: "2026-10-02" });
+    await addRecurring(db, other, { id: "rec-outra", amount: 900, start_date: "2026-01-01" });
+    await insertRow(db, "customers", { id: "c-outra", company_id: other, name: "Cliente da outra" });
+    await insertRow(db, "projects", { id: "p-outra", company_id: other, name: "Projeto da outra", status: "andamento", customer_id: "c-outra" });
+
+    expect(await monthResult(db, companyId, "2026-10")).toMatchObject({ income: 0, expense: 0, result: 0 });
+    expect(await weekReceivables(db, companyId, TODAY)).toMatchObject({ total: 0, count: 0 });
+    expect(await weekPayables(db, companyId, TODAY)).toMatchObject({ total: 0, count: 0 });
+    expect(await activeWorkCount(db, companyId, "ti")).toBe(0);
+    expect(await activeWorkCount(db, companyId, "advocacia")).toBe(0);
+    const points = await annualBalance(db, companyId, 2026, { today: TODAY });
+    expect(points.every((point) => point.previsto === 0 && (point.realizado ?? 0) === 0)).toBe(true);
+    // A outra empresa enxerga os próprios números.
+    expect((await weekReceivables(db, other, TODAY)).total).toBe(100);
   });
 });
 

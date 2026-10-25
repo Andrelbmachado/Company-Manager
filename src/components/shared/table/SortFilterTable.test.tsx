@@ -204,4 +204,32 @@ describe("tabela comum com useSortFilter", () => {
     await click(headerButton("Nome"));
     expect(order()).toEqual(["r-2", "r-4", "r-1"]);
   });
+
+  it("múltipla escolha com muitas opções vira lista suspensa compacta que resume o que foi marcado", async () => {
+    const people = ["Aline", "Bruno", "Camila", "Diego", "Elisa"].map((name, index) => ({ id: `p-${index}`, owner: name }));
+    const owner: SortFilterColumn<{ id: string; owner: string }> = { key: "owner", header: "Responsável", kind: "select" };
+    function Owners() {
+      const view = useSortFilter(people, [owner]);
+      return (
+        <>
+          <FilterBar rows={people} columns={[owner]} filters={view.filters} onChange={view.setFilter} onClear={view.clearFilters} />
+          <ul>{view.rows.map((row) => <li key={row.id} data-row-key={row.id}>{row.owner}</li>)}</ul>
+        </>
+      );
+    }
+    page = await renderPage(<Owners />, { companyId: "empresa-1", role: "ceo" });
+    const dropdown = document.querySelector<HTMLDetailsElement>("[data-filter-bar] details")!;
+    expect(dropdown).not.toBeNull();
+    const summary = dropdown.querySelector("summary")!;
+    expect(summary.textContent).toBe("Todos");
+    expect(summary.getAttribute("aria-label")).toBe("Responsável: Todos");
+    const box = (label: string) => [...dropdown.querySelectorAll("label")].find((item) => item.textContent === label)!.querySelector("input")!;
+    await click(box("Bruno"));
+    expect(summary.textContent).toBe("Bruno");
+    await click(box("Elisa"));
+    expect(summary.textContent).toBe("Bruno, Elisa");
+    await click(box("Aline"));
+    expect(summary.textContent).toBe("3 selecionados");
+    expect([...document.querySelectorAll("li")].map((item) => item.textContent)).toEqual(["Aline", "Bruno", "Elisa"]);
+  });
 });

@@ -4,8 +4,9 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { nextSequenceNumber } from "@/lib/db/sequence";
-import { lineTotal, orderTotals, roundMoney, toCents } from "@/lib/money";
-import type { Opportunity, Proposal, ProposalItem, ProposalStatus } from "@/types";
+import { lineTotal, orderTotals, toCents } from "@/lib/money";
+import { effectivePriceList, loadPriceListItems, resolveUnitPrice } from "@/lib/erp/pricing";
+import type { Opportunity, PriceList, PriceListItem, Proposal, ProposalItem, ProposalStatus } from "@/types";
 import { logActivity } from "./activities";
 import { clean, nowIso, parseMoneyInput, STAGE_PROBABILITY } from "./queries";
 
@@ -207,14 +208,27 @@ export function displayProposalStatus(proposal: Pick<Proposal, "status" | "valid
   return proposal.status;
 }
 
+type TierLike = Pick<PriceListItem, "product_id" | "price" | "min_qty"> & Partial<Pick<PriceListItem, "id" | "deleted_at">>;
+
 /**
- * Preço unitário do produto na tabela de preço do cliente: o item da tabela com a maior quantidade mínima atingida;
- * sem item na tabela, o preço do produto.
- * TODO(integração): usar src/lib/erp/pricing.ts (Tarefa 8) quando os branches se juntarem.
+ * Preço unitário do produto na tabela de preço: a faixa com a maior quantidade mínima atingida; sem faixa, o preço do
+ * produto. Mesma regra dos pedidos de venda (resolveUnitPrice de src/lib/erp/pricing.ts).
  */
-export function priceFor(productId: string, basePrice: number, qty: number, listItems: readonly { product_id: string; price: number; min_qty: number }[]): number {
-  const match = listItems
-    .filter((item) => item.product_id === productId && Number(item.min_qty ?? 1) <= qty)
-    .sort((a, b) => Number(b.min_qty ?? 1) - Number(a.min_qty ?? 1))[0];
-  return roundMoney(match ? Number(match.price) : basePrice);
+export function priceFor(productId: string, basePrice: number, qty: number, listItems: readonly TierLike[]): number {
+  const items = listItems.map((item) => ({ id: "", deleted_at: null, ...item }) as PriceListItem);
+  return resolveUnitPrice({ id: productId, price: basePrice }, items, qty).unitPrice;
+}
+
+/**
+ * Tabela de preço da proposta pela regra de Vendas (effectivePriceList): a do cliente se estiver valendo no dia,
+ * senão a padrão da empresa; nenhuma válida, preço do catálogo (`items` vazio).
+ */
+export async function proposalPriceList(
+  db: DatabaseLike,
+  companyId: string,
+  customerId: string | null | undefined,
+  day?: string,
+): Promise<{ list: PriceList | null; items: PriceListItem[] }> {
+  const list = await effectivePriceList(db, companyId, { customerId: customerId ?? null, day });
+  return { list, items: list ? await loadPriceListItems(db, companyId, list.id) : [] };
 }

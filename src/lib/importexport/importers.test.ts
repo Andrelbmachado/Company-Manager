@@ -228,6 +228,30 @@ describe("estoque", () => {
     expect(await count(db, "inventory_items", companyId)).toBe(0);
     expect(await count(db, "stock_balances", companyId)).toBe(0);
   });
+
+  it("a diferença passa pelo motor de estoque: saldo mexido por outra janela durante a gravação recusa e nada fica gravado", async () => {
+    const { db, companyId, userId } = await sqliteCompany();
+    const main = uuidv4();
+    await insert(db, "stock_locations", { id: main, company_id: companyId, name: "Depósito principal" });
+    await run("inventory", MAPPING, [{ Item: "Papel A4", SKU: "PAP-A4", Qtd: "40", Local: "Depósito principal", Custo: "24,90" }], db, companyId, userId);
+    let raced = false;
+    const racing: DatabaseLike = {
+      select: (sql, binds) => db.select(sql, binds),
+      execute: async (sql, binds) => {
+        if (!raced && /^\s*UPDATE stock_balances/i.test(sql)) {
+          raced = true;
+          // Uma venda de 2 unidades em outra janela, entre a leitura do saldo e a gravação da recontagem.
+          await db.execute("UPDATE stock_balances SET quantity=38 WHERE company_id=? AND location_id=?", [companyId, main]);
+        }
+        return db.execute(sql, binds);
+      },
+    };
+    const result = await run("inventory", MAPPING, [{ Item: "Papel A4", SKU: "PAP-A4", Qtd: "25", Local: "Depósito principal", Custo: "" }], racing, companyId, userId);
+    expect(result.status).toBe("falhou");
+    expect(result.errors[0].message).toMatch(/saldo mudou/i);
+    expect((await db.select<Row[]>("SELECT quantity FROM stock_balances WHERE location_id=?", [main]))[0].quantity).toBe(38);
+    expect(await db.select<Row[]>("SELECT * FROM stock_movements WHERE ref_id=?", [result.batchId])).toEqual([]);
+  });
 });
 
 describe("contas a pagar e a receber", () => {

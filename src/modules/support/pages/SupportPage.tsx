@@ -8,6 +8,7 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { hasFullTicketAccess, ROLE_LABELS } from "@/lib/permissions/rbac";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { CrudDialog } from "@/components/shared/CrudDialog";
+import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime, initials } from "@/lib/utils";
@@ -294,15 +295,20 @@ export default function SupportPage() {
       <PageHeader
         title="Suporte"
         description="Tickets"
-        actions={canCreateTicket ? (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus size={14} />
-            Novo ticket
-          </button>
-        ) : undefined}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportExportButtons entity="tickets" onImported={() => void qc.invalidateQueries({ queryKey: ["tickets", session.company.id] })} />
+            {canCreateTicket && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus size={14} />
+                Novo ticket
+              </button>
+            )}
+          </div>
+        }
       />
 
       <div className="flex flex-wrap gap-2">

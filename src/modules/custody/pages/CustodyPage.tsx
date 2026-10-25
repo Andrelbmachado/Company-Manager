@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/utils";
 import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Custody, InventoryItem } from "@/types";
+import { confirmAction } from "@/lib/confirm";
 
 interface CustodyView extends Custody {
   item_name?: string;
@@ -107,8 +108,8 @@ export default function CustodyPage() {
     qc.invalidateQueries({ queryKey: ["dashboard-kpis"] });
   }
 
-  function removeCustody(custody: CustodyView) {
-    if (window.confirm(`Remover o registro de custódia de "${custody.item_name ?? "peça sem nome"}"?`)) {
+  async function removeCustody(custody: CustodyView) {
+    if (await confirmAction(`Remover o registro de custódia de "${custody.item_name ?? "peça sem nome"}"?`, { title: "Remover custódia", okLabel: "Remover" })) {
       deleteMutation.mutate(custody.id);
     }
   }

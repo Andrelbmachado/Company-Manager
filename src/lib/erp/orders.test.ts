@@ -308,6 +308,23 @@ describe("entrega e baixa no estoque", () => {
     await expect(deliverSalesOrder(db, draft, { companyId: fx.companyId })).rejects.toThrow(/confirm/i);
   });
 
+  it("a saída passa pelo motor de estoque: item de estoque excluído é recusado e o que já saiu volta", async () => {
+    const { db, fx } = await setup();
+    const id = await createSalesOrder(db, {
+      companyId: fx.companyId,
+      customerId: fx.otherCustomerId,
+      locationId: fx.locationId,
+      items: [{ productId: fx.products.mouse, qty: 1 }, { productId: fx.products.switch, qty: 1 }],
+      confirm: true,
+    });
+    await db.execute("UPDATE inventory_items SET deleted_at=datetime('now') WHERE id=?", [fx.items.switch]);
+    await expect(deliverSalesOrder(db, id, { companyId: fx.companyId })).rejects.toThrow(/Item não encontrado no estoque/);
+    expect((await one<SalesOrder>("sales_orders", id)).status).toBe("confirmado");
+    expect(await all("SELECT * FROM stock_movements")).toEqual([]);
+    expect(await balance(fx.items.mouse, fx.locationId)).toBe(3);
+    expect(await balance(fx.items.switch, fx.locationId)).toBe(10);
+  });
+
   it("produto excluído do catálogo depois do pedido continua dando baixa no estoque e levando a categoria para a fatura", async () => {
     const { db, fx } = await setup();
     await db.execute("INSERT INTO finance_categories (id, company_id, code, name, kind, dre_group, position, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ["fx-cat-1-2", fx.companyId, "1.2", "Revenda de equipamentos", "receita", "receita", 3, 1]);

@@ -7,11 +7,14 @@
 // - Juros e multas das baixas e descontos (obtidos ou concedidos) vão para o resultado financeiro, no mês da baixa.
 // - Lançamento do extrato conciliado direto numa categoria (tarifa, rendimento) entra no mês do lançamento, com o
 //   sinal do extrato. Conciliado sem categoria e sem conta: "outros".
+// - Categoria excluída continua classificando os lançamentos antigos.
 // Totais: receita líquida = receita − deduções; lucro bruto = receita líquida − custos;
 // resultado operacional = lucro bruto − despesas; resultado = operacional + financeiro + outros.
+// É a única DRE do app: a tela do Financeiro (/finance/dre) e o relatório comparativo (/reports/dre, que monta as
+// colunas com `loadDreSource` + `dreFromSource`) usam esta mesma conta.
 import { fromCents, toCents } from "@/lib/money";
 import type { DreGroup, FinanceCategory } from "@/types";
-import { isIsoMonth, loadBankTransactions, loadCategories, loadEntries, loadSettlements, type FinanceDb } from "./financeCommon";
+import { isIsoMonth, loadBankTransactions, loadEntries, loadSettlements, type FinanceDb } from "./financeCommon";
 
 export const DRE_GROUPS: readonly DreGroup[] = ["receita", "deducao", "custo", "despesa", "financeiro", "outros"];
 
@@ -50,7 +53,7 @@ export interface DreResult {
   linhas: DreLine[];
 }
 
-interface Contribution {
+export interface Contribution {
   month: string;
   group: DreGroup;
   categoryId: string | null;
@@ -59,7 +62,8 @@ interface Contribution {
   cents: number;
 }
 
-interface DreData {
+/** Lançamentos da empresa já classificados por mês e linha da DRE (lido uma vez, serve para qualquer mês). */
+export interface DreSource {
   contributions: Contribution[];
   categories: Map<string, FinanceCategory>;
 }
@@ -78,8 +82,9 @@ export function categoryGroup(categories: Map<string, FinanceCategory>, category
   return kind === "receita" ? "receita" : "despesa";
 }
 
-async function loadDreData(db: FinanceDb, companyId: string): Promise<DreData> {
-  const categoryRows = await loadCategories(db, companyId);
+export async function loadDreSource(db: FinanceDb, companyId: string): Promise<DreSource> {
+  // Com as excluídas: categoria excluída continua classificando os lançamentos antigos.
+  const categoryRows = await db.select<FinanceCategory[]>("SELECT * FROM finance_categories WHERE company_id=?", [companyId]);
   const categories = new Map(categoryRows.map((category) => [category.id, category]));
   const entries = await loadEntries(db, companyId);
   const settlements = await loadSettlements(db, companyId);
@@ -123,7 +128,8 @@ async function loadDreData(db: FinanceDb, companyId: string): Promise<DreData> {
   return { contributions, categories };
 }
 
-function computeDre(data: DreData, month: string): DreResult {
+/** DRE de um mês a partir dos lançamentos já lidos (`loadDreSource`). */
+export function dreFromSource(data: DreSource, month: string): DreResult {
   const totals: Record<DreGroup, number> = { receita: 0, deducao: 0, custo: 0, despesa: 0, financeiro: 0, outros: 0 };
   const lines = new Map<string, { group: DreGroup; categoryId: string | null; name: string; code: string | null; cents: number }>();
 
@@ -177,12 +183,12 @@ function assertMonth(month: string): string {
 /** DRE de um mês ('YYYY-MM') por competência. */
 export async function dre(db: FinanceDb, companyId: string, month: string): Promise<DreResult> {
   assertMonth(month);
-  return computeDre(await loadDreData(db, companyId), month);
+  return dreFromSource(await loadDreSource(db, companyId), month);
 }
 
 /** DRE de vários meses lendo o banco uma vez só (comparativo). */
 export async function dreMonths(db: FinanceDb, companyId: string, months: readonly string[]): Promise<DreResult[]> {
   months.forEach(assertMonth);
-  const data = await loadDreData(db, companyId);
-  return months.map((month) => computeDre(data, month));
+  const data = await loadDreSource(db, companyId);
+  return months.map((month) => dreFromSource(data, month));
 }

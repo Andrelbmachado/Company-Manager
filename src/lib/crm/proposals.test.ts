@@ -1,7 +1,7 @@
 // Propostas: itens, totais, numeração, fluxo de status e preço da tabela do cliente (SQLite real).
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
-import { displayProposalStatus, fetchProposalItems, priceFor, saveProposal, setProposalStatus } from "./proposals";
+import { displayProposalStatus, fetchProposalItems, priceFor, proposalPriceList, saveProposal, setProposalStatus } from "./proposals";
 
 type Row = Record<string, unknown>;
 
@@ -150,5 +150,24 @@ describe("regras puras", () => {
     expect(priceFor("p1", 100, 12, list)).toBe(80);
     expect(priceFor("p3", 100, 12, list)).toBe(100);
     expect(priceFor("p1", 100, 12, [])).toBe(100);
+  });
+
+  it("tabela da proposta pela regra de Vendas: a do cliente se estiver valendo, senão a padrão da empresa", async () => {
+    const { db, companyId } = await setup();
+    await db.execute("INSERT INTO price_lists (id, company_id, name, is_default, active) VALUES (?,?,?,?,?)", ["pl-padrao", companyId, "Tabela padrão", 1, 1]);
+    await db.execute("INSERT INTO price_lists (id, company_id, name, is_default, active, valid_to) VALUES (?,?,?,?,?,?)", ["pl-vencida", companyId, "Promoção de setembro", 0, 1, "2026-09-30"]);
+    await db.execute("INSERT INTO price_list_items (id, company_id, price_list_id, product_id, price, min_qty) VALUES (?,?,?,?,?,?)", ["pli-1", companyId, "pl-padrao", "prod-1", 850, 1]);
+    await db.execute("INSERT INTO price_list_items (id, company_id, price_list_id, product_id, price, min_qty) VALUES (?,?,?,?,?,?)", ["pli-2", companyId, "pl-vencida", "prod-1", 700, 1]);
+
+    const noList = await proposalPriceList(db, companyId, "cust-1", "2026-10-25");
+    expect(noList.list?.id).toBe("pl-padrao");
+    expect(priceFor("prod-1", 899.9, 1, noList.items)).toBe(850);
+
+    await db.execute("UPDATE customers SET price_list_id='pl-vencida' WHERE id='cust-1'");
+    expect((await proposalPriceList(db, companyId, "cust-1", "2026-10-25")).list?.id).toBe("pl-padrao");
+    expect((await proposalPriceList(db, companyId, "cust-1", "2026-09-15")).list?.id).toBe("pl-vencida");
+
+    await db.execute("UPDATE price_lists SET active=0 WHERE id='pl-padrao'");
+    expect(await proposalPriceList(db, companyId, null, "2026-10-25")).toEqual({ list: null, items: [] });
   });
 });

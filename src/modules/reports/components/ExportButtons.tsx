@@ -17,7 +17,8 @@ const TITLES: Record<ExportFormat, string> = {
 
 /**
  * Exportar a tabela em tela (CSV, Excel e PDF pela impressão). Só aparece para quem tem `export` em relatórios.
- * TODO(integração): quando a Tarefa 5 (ImportExportButtons) estiver na main, avaliar usar o mesmo componente aqui.
+ * Não é o `ImportExportButtons`: aquele exporta o cadastro cru de uma entidade do registro de importação (e importa);
+ * este exporta a tabela calculada do relatório, com PDF. Os dois gravam pelo mesmo "Salvar como" (lib/files/saveAs).
  */
 export function ExportButtons({ table, disabled }: { table: ReportTable | null; disabled?: boolean }) {
   const session = useRequiredSession();

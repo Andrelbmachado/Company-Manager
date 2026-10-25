@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { getDb } from "@/lib/db/client";
-import { saveBlob } from "@/lib/crm/download";
+import { saveBlobAs } from "@/lib/files/saveAs";
 import { buildProposalPdf, loadProposalDocument, proposalFileName } from "@/lib/crm/proposalPdf";
 import { BTN_PRIMARY, BTN_SECONDARY } from "./ui";
 import { errorText, Modal } from "./Modal";
@@ -33,7 +33,7 @@ export function PdfPreviewDialog({ proposalId, onClose }: { proposalId: string; 
   }, [data]);
   const [saved, setSaved] = useState<string | null>(null);
   const save = useMutation({
-    mutationFn: async () => (data ? saveBlob(data.blob, data.fileName) : null),
+    mutationFn: async () => (data ? saveBlobAs(data.blob, data.fileName, { filters: [{ name: "PDF", extensions: ["pdf"] }] }) : null),
     onSuccess: (path) => setSaved(path),
   });
 

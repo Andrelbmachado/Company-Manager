@@ -1,10 +1,10 @@
 // Exportação dos relatórios: CSV (Excel em português), XLSX e PDF. O PDF sai pelo diálogo de impressão do sistema
 // ("Salvar como PDF" no macOS), com uma folha montada só com o relatório; assim não entra biblioteca de PDF no app.
-// No app desktop o arquivo vai para o caminho escolhido no diálogo Salvar; no navegador, é baixado.
-// TODO(integração): a Tarefa 5 (ImportExportButtons) também exporta CSV/XLSX; quando as duas estiverem na main, dá para
-// juntar toCsv/toXlsxBlob/saveReportFile num helper só de exportação.
+// No app desktop o arquivo vai para o caminho escolhido no diálogo Salvar; no navegador, é baixado (pelo "Salvar como"
+// único do app, src/lib/files/saveAs.ts). O CSV/XLSX daqui é de uma tabela calculada (com total, % e linhas de grupo);
+// o da importação (src/lib/importexport/export.ts) é o cadastro cru, no formato que volta pela importação.
 import writeXlsxFile, { type Cell, type SheetData } from "write-excel-file/universal";
-import { isTauriRuntime } from "@/lib/db/client";
+import { saveBlobAs } from "@/lib/files/saveAs";
 import { formatCurrency } from "@/lib/utils";
 import { dayLabel, type CellValue, type ColumnKind, type ReportColumn, type ReportRow, type ReportTable } from "./common";
 
@@ -193,38 +193,10 @@ export async function printReport(table: ReportTable, options: PrintOptions = {}
   }
 }
 
-/** Bytes do Blob; FileReader cobre WebViews (e o jsdom dos testes) sem Blob.arrayBuffer. */
-async function blobBytes(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === "function") return new Uint8Array(await blob.arrayBuffer());
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
 /** Grava o arquivo: no app, no caminho escolhido no diálogo Salvar (null = cancelou); no navegador, baixa (devolve o nome). */
 export async function saveReportFile(fileName: string, content: string | Blob, format: Exclude<ExportFormat, "pdf">): Promise<string | null> {
   const blob = typeof content === "string" ? new Blob([content], { type: MIME[format] }) : content;
-  if (isTauriRuntime()) {
-    const [{ save }, { writeFile }] = await Promise.all([import("@tauri-apps/plugin-dialog"), import("@tauri-apps/plugin-fs")]);
-    const path = await save({ defaultPath: fileName, filters: [{ name: FILTER_NAMES[format], extensions: [format] }] });
-    if (!path) return null;
-    const bytes = typeof content === "string" ? new TextEncoder().encode(content) : await blobBytes(blob);
-    await writeFile(path, bytes);
-    return path;
-  }
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return fileName;
+  return saveBlobAs(blob, fileName, { filters: [{ name: FILTER_NAMES[format], extensions: [format] }] });
 }
 
 /** Exporta a tabela no formato escolhido. CSV/XLSX: caminho gravado (null = cancelado). PDF: abre a impressão e devolve null. */

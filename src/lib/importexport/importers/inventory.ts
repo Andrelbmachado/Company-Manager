@@ -1,15 +1,17 @@
 // Estoque: cada linha é um item num local, com a quantidade contada. O item (inventory_items) é identificado pelo
 // SKU, depois pelo nome; o mesmo item pode vir em várias linhas, uma por local. A quantidade vira saldo
-// (stock_balances) e a diferença para o saldo anterior fica registrada como movimento de "ajuste", como na contagem
-// de inventário. Linha sem quantidade só cadastra/atualiza o item.
+// (stock_balances): a diferença para o saldo atual entra pelo motor de estoque (src/lib/inventory/stock.ts) como
+// "ajuste", como na contagem de inventário (sobra entra no local, falta sai), ligada ao lote. Linha sem quantidade só
+// cadastra/atualiza o item.
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import type { DatabaseLike } from "@/lib/db/demo";
+import { itemBalances, recordStockMovementUndoable, roundQty } from "@/lib/inventory/stock";
 import { locationRef, supplierField, supplierRef } from "../refs";
 import type { FieldDef, ImportEntity, RowIssue, UpsertContext } from "../registry";
 import { decimal, money, optionalText, requiredText } from "../schema";
 import { buildPlan, byAge, codeKey, diffColumns, keyOf, loadActive, loadRefs, stripEmpty, type PlannedRow, type TableEntitySpec } from "../tableEntity";
-import { insertRows, sqliteNow, updateRows, type Row, type RowUpdate } from "../write";
+import { insertRows, sqliteNow, updateRows, yieldToUi, type Row, type RowUpdate } from "../write";
 
 const fields: FieldDef[] = [
   { key: "name", label: "Item", kind: "text", required: true, aliases: ["nome", "produto", "descrição", "material"], example: "Papel A4 (resma)" },
@@ -133,8 +135,6 @@ async function planInventory(db: DatabaseLike, companyId: string, rows: Inventor
   return { issues, rows: accepted };
 }
 
-const balanceKey = (itemId: string, locationId: string) => `${itemId}@${locationId}`;
-
 export const entity: ImportEntity<InventoryImportRow> = {
   key: "inventory",
   label: "Estoque",
@@ -184,50 +184,14 @@ export const entity: ImportEntity<InventoryImportRow> = {
     const inserted = plan.rows.filter((item) => !item.existing).length;
     const updated = plan.rows.length - inserted;
 
-    // 2) saldos e movimentos de ajuste.
-    const balances = new Map<string, Row>();
-    for (const balance of await db.select<Row[]>("SELECT * FROM stock_balances WHERE company_id=?", [companyId])) {
-      balances.set(balanceKey(String(balance.item_id), String(balance.location_id)), balance);
-    }
     const costOf = (group: number) => {
       const cost = merged.get(group)?.columns.cost ?? merged.get(group)?.existing?.cost;
       return typeof cost === "number" ? cost : null;
     };
-    const balanceInserts: Row[] = [];
-    const balanceUpdates: RowUpdate[] = [];
-    const movements: Row[] = [];
-    for (const item of plan.rows) {
-      if (item.row.quantity === undefined || !item.locationId) continue;
-      const itemId = itemIdOf.get(item.group)!;
-      const current = balances.get(balanceKey(itemId, item.locationId));
-      const before = Number(current?.quantity ?? 0);
-      const difference = Math.round((item.row.quantity - before) * 1e6) / 1e6;
-      if (current) {
-        const change = diffColumns({ quantity: item.row.quantity }, current, now);
-        if (change) balanceUpdates.push({ id: String(current.id), ...change });
-      } else {
-        balanceInserts.push({ id: uuidv4(), company_id: companyId, item_id: itemId, location_id: item.locationId, quantity: item.row.quantity });
-      }
-      if (difference === 0) continue;
-      movements.push({
-        id: uuidv4(),
-        company_id: companyId,
-        item_id: itemId,
-        type: "ajuste",
-        quantity: Math.abs(difference),
-        // Sobra entra no local (to); falta sai do local (from), como na contagem de inventário.
-        from_location_id: difference < 0 ? item.locationId : null,
-        to_location_id: difference > 0 ? item.locationId : null,
-        unit_cost: costOf(item.group),
-        ref_type: "import",
-        ref_id: context.batchId ?? null,
-        user_id: userId,
-        note: difference < 0 ? "Importação de planilha: saída por ajuste" : "Importação de planilha: entrada por ajuste",
-      });
-    }
+    const counted = plan.rows.filter((item) => item.row.quantity !== undefined && item.locationId);
     if (context.dryRun) return { inserted, updated };
 
-    const total = itemInserts.length + itemUpdates.length + balanceInserts.length + balanceUpdates.length + movements.length;
+    const total = itemInserts.length + itemUpdates.length + counted.length;
     let done = 0;
     const progress = (count: number) => {
       done += count;
@@ -235,9 +199,36 @@ export const entity: ImportEntity<InventoryImportRow> = {
     };
     await insertRows(db, "inventory_items", itemInserts, context.journal, progress);
     await updateRows(db, "inventory_items", companyId, itemUpdates, context.journal, progress);
-    await insertRows(db, "stock_balances", balanceInserts.map(stripEmpty), context.journal, progress);
-    await updateRows(db, "stock_balances", companyId, balanceUpdates, context.journal, progress);
-    await insertRows(db, "stock_movements", movements.map(stripEmpty), context.journal, progress);
+
+    // 2) saldos: a diferença para o saldo de agora (lido logo antes de gravar) vira ajuste pelo motor de estoque, que
+    // recusa se outra janela mexer no saldo no meio do caminho (o diário desfaz a importação inteira).
+    for (const item of counted) {
+      const itemId = itemIdOf.get(item.group)!;
+      const locationId = item.locationId!;
+      const current = (await itemBalances(db, companyId, itemId)).find((balance) => balance.location_id === locationId);
+      const difference = roundQty(item.row.quantity! - Number(current?.quantity ?? 0));
+      if (difference === 0) {
+        // Contagem zero de um item que ainda não estava no local: registra o saldo zerado (sem movimento).
+        if (!current) await insertRows(db, "stock_balances", [{ id: uuidv4(), company_id: companyId, item_id: itemId, location_id: locationId, quantity: 0 }], context.journal);
+      } else {
+        const movement = await recordStockMovementUndoable(db, {
+          companyId,
+          itemId,
+          type: "ajuste",
+          quantity: Math.abs(difference),
+          fromLocationId: difference < 0 ? locationId : null,
+          toLocationId: difference > 0 ? locationId : null,
+          unitCost: costOf(item.group),
+          refType: "import",
+          refId: context.batchId ?? null,
+          userId,
+          note: difference < 0 ? "Importação de planilha: saída por ajuste" : "Importação de planilha: entrada por ajuste",
+        });
+        context.journal?.recordUndo(movement.undo);
+      }
+      progress(1);
+      await yieldToUi();
+    }
     return { inserted, updated };
   },
 

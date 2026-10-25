@@ -94,6 +94,26 @@ describe("DashboardPage (home por setor)", () => {
     expect(widgetText("hr.vacation")).toContain("30 dias");
   });
 
+  it("comercial: follow-ups vencidos são os do CRM (OverdueFollowUps), só os da pessoa e com Concluir na própria home", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    await db.execute("INSERT INTO crm_activities (id, company_id, entity_type, entity_id, kind, subject, due_at, user_id) VALUES (?,?,?,?,?,?,?,?)", ["a1", "test-company", "customer", "c1", "ligacao", "Ligar para a Clínica Vida", "2020-01-01T12:00:00.000Z", "test-user-comercial"]);
+    await db.execute("INSERT INTO crm_activities (id, company_id, entity_type, entity_id, kind, subject, due_at, user_id) VALUES (?,?,?,?,?,?,?,?)", ["a2", "test-company", "customer", "c1", "ligacao", "Follow-up de outra pessoa", "2020-01-01T12:00:00.000Z", "test-user-financeiro"]);
+    await render("comercial");
+    await settled();
+    for (let attempt = 0; attempt < 300 && !widgetText("crm.followups").includes("Clínica Vida"); attempt++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      });
+    }
+
+    const card = container.querySelector("[data-widget='crm.followups']");
+    expect(card?.querySelector("section[aria-label='Follow-ups atrasados']")).toBeTruthy();
+    expect(widgetText("crm.followups")).toContain("Ligar para a Clínica Vida");
+    expect(widgetText("crm.followups")).not.toContain("outra pessoa");
+    expect(Array.from(card?.querySelectorAll("button") ?? []).some((button) => button.textContent?.includes("Concluir"))).toBe(true);
+  });
+
   it("financeiro: vencidos e fluxo da semana; nada de CRM nem de RH da equipe", async () => {
     const db = testDb();
     await insertTestCompany(db);

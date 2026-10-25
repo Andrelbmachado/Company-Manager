@@ -18,6 +18,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { NewCountForm } from "../components/NewCountForm";
 import { BUTTON_OUTLINE, BUTTON_PRIMARY, ErrorBanner, errorText, INPUT, inventoryKeys, normalizeSearch, parseDecimal, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
+import { confirmAction } from "@/lib/confirm";
 
 type View = "todos" | "pendentes" | "divergentes";
 
@@ -225,12 +226,12 @@ function CountSheet({ countId }: { countId: string }) {
   const inCount = new Set(lines.map((line) => line.item_id));
   const addable = (snapshot?.items ?? []).filter((item) => !inCount.has(item.id));
 
-  function confirmFinish() {
+  async function confirmFinish() {
     const summary =
       divergent.length === 0
         ? "Nenhum item tem diferença: o estoque não muda."
         : `${divergent.length} ${divergent.length === 1 ? "item tem" : "itens têm"} diferença (falta de ${formatQty(Math.abs(missingUnits))}, sobra de ${formatQty(extraUnits)}). O estoque de ${count?.location_name ?? "local"} será ajustado.`;
-    if (window.confirm(`Concluir a contagem ${label}?\n\n${summary}\n\nDepois de concluída ela não pode ser alterada.`)) finish.mutate();
+    if (await confirmAction(`Concluir a contagem ${label}?\n\n${summary}\n\nDepois de concluída ela não pode ser alterada.`, { title: "Concluir contagem", okLabel: "Concluir e ajustar" })) finish.mutate();
   }
 
   return (
@@ -247,7 +248,7 @@ function CountSheet({ countId }: { countId: string }) {
             </button>
             {editable && (
               <>
-                <button type="button" onClick={() => { if (window.confirm(`Cancelar a contagem ${label}? O estoque não muda.`)) cancel.mutate(); }} disabled={cancel.isPending || finish.isPending} className={BUTTON_OUTLINE}>
+                <button type="button" onClick={async () => { if (await confirmAction(`Cancelar a contagem ${label}? O estoque não muda.`, { title: "Cancelar contagem", okLabel: "Cancelar contagem", cancelLabel: "Voltar" })) cancel.mutate(); }} disabled={cancel.isPending || finish.isPending} className={BUTTON_OUTLINE}>
                   <XCircle size={14} /> Cancelar contagem
                 </button>
                 <button type="button" onClick={confirmFinish} disabled={pending > 0 || lines.length === 0 || finish.isPending || saving.size > 0} title={pending > 0 ? (pending === 1 ? "Falta 1 item sem contagem" : `Faltam ${pending} itens sem contagem`) : undefined} className={BUTTON_PRIMARY}>

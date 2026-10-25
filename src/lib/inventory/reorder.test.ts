@@ -133,6 +133,18 @@ describe("createReorderPurchaseOrders", () => {
     expect(retry.number).toBe(2);
   });
 
+  it("grava pela regra das Compras (createPurchaseOrder): condição do fornecedor, categoria de custo padrão e observação", async () => {
+    await db.execute("UPDATE suppliers SET terms='28 dias' WHERE id='sup-1'");
+    await db.execute("INSERT INTO finance_categories (id, company_id, code, name, kind, dre_group, position, active) VALUES ('cat-custo', ?, '3.1', 'Custo das mercadorias', 'despesa', 'custo', 1, 1)", [C]);
+    const created = await createReorderPurchaseOrders(db, { companyId: C, userId: user, lines: [{ itemId: "item-2", qty: 2 }, { itemId: "item-4", qty: 1 }] });
+    const orders = await db.select<Row[]>("SELECT * FROM purchase_orders ORDER BY number");
+    expect(orders.map((row) => [row.supplier_id, row.payment_terms, row.category_id, row.notes])).toEqual([
+      ["sup-1", "28 dias", "cat-custo", "Gerado pela reposição de estoque."],
+      [null, null, "cat-custo", "Gerado pela reposição de estoque."],
+    ]);
+    expect(created.map((row) => [row.supplier_name, row.total])).toEqual([["NetPrime", 4361], [null, 520]]);
+  });
+
   it("recusa lista vazia, quantidade inválida e item inexistente sem gravar pedido", async () => {
     const attempts = [
       createReorderPurchaseOrders(db, { companyId: C, userId: user, lines: [] }),

@@ -385,8 +385,7 @@ export function ActivityTimeline({ filter, entity, showEntity, title = "Atividad
 
 /**
  * Follow-ups atrasados (pendentes com prazo vencido). `userId` = só os da pessoa; null = de todos.
- * TODO(integração): mostrar também no Dashboard do comercial (Tarefa 9, src/modules/dashboard) com
- * <OverdueFollowUps userId={session.user.id} limit={5} /> quando os branches se juntarem.
+ * Também é o widget "crm.followups" da home por setor (src/modules/dashboard/pages/DashboardPage.tsx).
  */
 export function OverdueFollowUps({ userId, limit = 6, className }: { userId: string | null; limit?: number; className?: string }) {
   const { companyId, can } = useCrmSession();

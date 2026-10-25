@@ -82,6 +82,19 @@ export interface TableEntitySpec<T> {
   exportExtra?: (row: Row) => Record<string, unknown>;
   /** Linhas da tabela que não entram na exportação. */
   exportFilter?: (row: Row) => boolean;
+  /**
+   * Regra que roda depois de gravar as linhas (fora da simulação), com o cadastro anterior de cada uma. O que ela
+   * gravar tem de ir para `context.journal` (updateRows/insertRows com o diário ou journal.recordUndo), para a falha no
+   * meio desfazer tudo. Ex.: readmissão de colaborador limpa o desligamento.
+   */
+  afterWrite?: (db: DatabaseLike, companyId: string, written: WrittenRow<T>[], context: UpsertContext) => Promise<void>;
+}
+
+/** Linha gravada pela importação: `existing` = cadastro como estava antes (null = linha nova). */
+export interface WrittenRow<T> {
+  id: string;
+  row: T;
+  existing: Row | null;
 }
 
 /** Texto comparável de uma chave: sem acento, caixa, pontuação nem espaços ("11.222.333/0001-81" = "11222333000181"). */
@@ -366,13 +379,17 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
       const now = sqliteNow();
       const inserts: Row[] = [];
       const updates: RowUpdate[] = [];
+      const written: WrittenRow<T>[] = [];
       for (const item of plan.planned) {
         const columnContext: ColumnContext = { refs: item.refs, existing: item.existing, userId, batchId: context.batchId };
         const columns = spec.toColumns(item.row, columnContext);
         if (!item.existing) {
-          inserts.push({ ...spec.insertDefaults?.(item.row, columnContext), ...stripEmpty(columns), id: uuidv4(), company_id: companyId });
+          const id = uuidv4();
+          inserts.push({ ...spec.insertDefaults?.(item.row, columnContext), ...stripEmpty(columns), id, company_id: companyId });
+          written.push({ id, row: item.row, existing: null });
           continue;
         }
+        written.push({ id: String(item.existing.id), row: item.row, existing: item.existing });
         const change = diffColumns(columns, item.existing, now);
         if (change) updates.push({ id: String(item.existing.id), ...change });
       }
@@ -387,6 +404,7 @@ export function defineTableEntity<T>(spec: TableEntitySpec<T>): ImportEntity<T> 
       };
       await insertRows(db, spec.table, inserts, context.journal, progress);
       await updateRows(db, spec.table, companyId, updates, context.journal, progress);
+      if (spec.afterWrite) await spec.afterWrite(db, companyId, written, context);
       return { inserted, updated };
     },
 

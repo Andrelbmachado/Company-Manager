@@ -4,11 +4,9 @@
 // se algo falhar no meio. SQL nos padrões do banco demo.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
-import { nextSequenceNumber } from "@/lib/db/sequence";
-import { orderTotals, lineTotal } from "@/lib/money";
+import { createSalesOrder } from "@/lib/erp/orders";
 import { referralStatusFor } from "@/lib/prospecting/referral";
-import { todayIso } from "@/lib/utils";
-import type { Customer, Lead, Opportunity, Proposal, ProposalItem } from "@/types";
+import type { Customer, Lead, Opportunity, Product, Proposal, ProposalItem } from "@/types";
 import { logActivity } from "./activities";
 import { normalizeDocument, normalizeEmail, normalizePhone } from "./dedupe";
 import { clean, nowIso, OPEN_STAGES, STAGE_LABELS, STAGE_PROBABILITY, type Stage } from "./queries";
@@ -215,64 +213,42 @@ export async function winOpportunity(db: DatabaseLike, oppId: string, userId: st
 }
 
 /**
- * Pedido de venda em rascunho com os itens da proposta (totais recalculados em centavos).
- * TODO(integração): trocar por createSalesOrder de src/lib/erp/orders.ts (Tarefa 8) quando os branches se juntarem.
+ * Pedido de venda em rascunho com os itens da proposta, pela regra de Vendas (createSalesOrder de src/lib/erp/orders.ts):
+ * número PV, tabela de preço válida (a do cliente, senão a padrão), totais em centavos e itens com quantidades
+ * entregue/faturada zeradas. Os preços combinados na proposta são mantidos; produto que saiu do catálogo (inativo ou
+ * excluído) vira linha avulsa com a mesma descrição e preço, para o ganho não falhar.
  */
 async function createDraftSalesOrder(db: DatabaseLike, companyId: string, userId: string, source: { opp: Opportunity; proposal: Proposal; customerId: string }): Promise<string> {
   const { opp, proposal, customerId } = source;
-  const items = (await db.select<ProposalItem[]>("SELECT * FROM proposal_items WHERE company_id=? AND proposal_id=? AND deleted_at IS NULL ORDER BY position", [companyId, proposal.id])).filter((row) => !row.deleted_at);
-  const totals = orderTotals(
-    items.map((item) => ({ qty: Number(item.qty), unit_price: Number(item.unit_price), discount: Number(item.discount ?? 0), tax_rate: Number(item.tax_rate ?? 0) })),
-    { discount: Number(proposal.discount ?? 0) },
+  const items = (await db.select<ProposalItem[]>("SELECT * FROM proposal_items WHERE company_id=? AND proposal_id=? AND deleted_at IS NULL ORDER BY position", [companyId, proposal.id]))
+    .filter((row) => !row.deleted_at)
+    .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0));
+  const activeProducts = new Set(
+    (await db.select<Pick<Product, "id" | "active" | "deleted_at">[]>("SELECT * FROM products WHERE company_id=? AND deleted_at IS NULL", [companyId]))
+      .filter((row) => !row.deleted_at && Number(row.active ?? 1) !== 0)
+      .map((row) => row.id),
   );
-  const customer = (await db.select<Customer[]>("SELECT * FROM customers WHERE company_id=? AND id=?", [companyId, customerId]))[0];
-  const id = uuidv4();
-  const number = await nextSequenceNumber(db, "sales_orders", companyId);
-  await db.execute(
-    "INSERT INTO sales_orders (id, company_id, number, customer_id, contact_id, opportunity_id, proposal_id, price_list_id, seller_id, status, order_date, payment_terms, subtotal, discount, shipping, tax_total, total, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [
-      id,
-      companyId,
-      number,
-      customerId,
-      proposal.contact_id ?? opp.contact_id ?? null,
-      opp.id,
-      proposal.id,
-      customer?.price_list_id ?? null,
-      opp.owner_id ?? userId,
-      "rascunho",
-      todayIso(),
-      clean(proposal.payment_terms),
-      totals.subtotal,
-      totals.discount,
-      totals.shipping,
-      totals.tax_total,
-      totals.total,
-      clean(proposal.notes),
-      userId,
-    ],
-  );
-  let position = 1;
-  for (const item of items) {
-    await db.execute(
-      "INSERT INTO sales_order_items (id, company_id, order_id, product_id, description, unit, qty, unit_price, discount, tax_rate, total, position) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-      [
-        uuidv4(),
-        companyId,
-        id,
-        item.product_id ?? null,
-        item.description,
-        item.unit || "un",
-        Number(item.qty),
-        Number(item.unit_price),
-        Number(item.discount ?? 0),
-        Number(item.tax_rate ?? 0),
-        lineTotal(Number(item.qty), Number(item.unit_price), Number(item.discount ?? 0)),
-        position++,
-      ],
-    );
-  }
-  return id;
+  return createSalesOrder(db, {
+    companyId,
+    customerId,
+    userId,
+    sellerId: opp.owner_id ?? userId,
+    contactId: proposal.contact_id ?? opp.contact_id ?? null,
+    opportunityId: opp.id,
+    proposalId: proposal.id,
+    paymentTerms: clean(proposal.payment_terms),
+    notes: clean(proposal.notes),
+    discount: Number(proposal.discount ?? 0),
+    items: items.map((item) => ({
+      productId: item.product_id && activeProducts.has(item.product_id) ? item.product_id : null,
+      description: item.description,
+      unit: item.unit || "un",
+      qty: Number(item.qty),
+      unitPrice: Number(item.unit_price),
+      discount: Number(item.discount ?? 0),
+      taxRate: Number(item.tax_rate ?? 0),
+    })),
+  });
 }
 
 /** Perde a oportunidade com o motivo (etapa Perdido, 0%) e registra a atividade. */

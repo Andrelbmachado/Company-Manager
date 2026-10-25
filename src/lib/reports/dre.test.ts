@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
+import { dreMonths } from "@/lib/erp/dre";
 import { buildDreReport, dreTable, loadDreData, type DreData } from "./dre";
 
 const C = "test-company";
@@ -92,7 +93,7 @@ describe("DRE comparativa", () => {
     expect(line("receita:none")).toMatchObject({ label: "Sem categoria", values: [500, 0, 0] });
   });
 
-  it("estrutura: receita bruta, deduções, receita líquida, custos, lucro bruto, despesas, financeiro, outros, resultado", () => {
+  it("estrutura: receita bruta, deduções, receita líquida, custos, lucro bruto, despesas, resultado operacional, financeiro, outros, resultado", () => {
     const report = buildDreReport(data, { endMonth: "2026-10", months: 3 });
     const totals = report.lines.filter((row) => row.kind !== "category").map((row) => [row.key, row.values, row.total]);
     expect(totals).toEqual([
@@ -102,6 +103,7 @@ describe("DRE comparativa", () => {
       ["custo", [0, 0, -400], -400],
       ["lucro_bruto", [500, 2000, 450], 2950],
       ["despesa", [0, -600, -870], -1470],
+      ["resultado_operacional", [500, 1400, -420], 1480],
       ["financeiro", [0, 0, -50], -50],
       ["outros", [0, 0, 300], 300],
       ["resultado", [500, 1400, -170], 1730],
@@ -127,5 +129,26 @@ describe("DRE comparativa", () => {
     expect(table.styles?.[0]).toBe("strong");
     expect(table.styles?.[1]).toBe("indent");
     expect(table.fileName).toBe("dre-2026-08-a-2026-10");
+  });
+
+  it("é a DRE do Financeiro (lib/erp/dre): juros e multas das baixas no resultado financeiro e mesmos totais da tela", async () => {
+    await db.execute("INSERT INTO finance_settlements (id, company_id, payable_id, amount, interest, fine, discount, paid_at) VALUES (?,?,?,?,?,?,?,?)", ["s1", C, "j", 600, 12, 3, 0, "2026-10-05"]);
+    const report = buildDreReport(await loadDreData(db, C), { endMonth: "2026-10", months: 3 });
+    const line = (key: string) => report.lines.find((row) => row.key === key);
+    expect(line("financeiro")?.values).toEqual([0, 0, -65]);
+    expect(line("financeiro:Juros e multas pagos")).toMatchObject({ kind: "category", label: "Juros e multas pagos", values: [0, 0, -15] });
+    const screen = await dreMonths(db, C, report.months);
+    expect(line("receita_liquida")?.values).toEqual(screen.map((month) => month.receitaLiquida));
+    expect(line("lucro_bruto")?.values).toEqual(screen.map((month) => month.lucroBruto));
+    expect(line("resultado_operacional")?.values).toEqual(screen.map((month) => month.resultadoOperacional));
+    expect(line("resultado")?.values).toEqual(screen.map((month) => month.resultado));
+  });
+
+  it("categoria excluída continua classificando os lançamentos antigos (na tela e no relatório)", async () => {
+    await db.execute("UPDATE finance_categories SET deleted_at='2026-10-20T00:00:00Z' WHERE id='cC'");
+    const report = buildDreReport(await loadDreData(db, C), { endMonth: "2026-10", months: 3 });
+    expect(report.lines.find((row) => row.key === "custo:cC")).toMatchObject({ label: "3.1 Custo das mercadorias", values: [0, 0, -400] });
+    const [october] = await dreMonths(db, C, ["2026-10"]);
+    expect(october.custos).toBe(400);
   });
 });

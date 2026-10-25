@@ -21,6 +21,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { StockMovementDialog, type ManualMovementKind } from "../components/StockMovementDialog";
 import { BUTTON_OUTLINE, BUTTON_PRIMARY, ErrorBanner, errorText, inventoryKeys, normalizeSearch, readItemNumbers, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
+import { confirmAction } from "@/lib/confirm";
 
 interface ItemCustody {
   id: string;
@@ -202,9 +203,9 @@ export default function InventoryPage() {
   const atReorderPoint = items.filter((item) => isAtReorderPoint(item.total, item.min_stock)).length;
   const filtersActive = categoryFilter !== "all" || locationFilter !== "all" || reorderOnly;
 
-  function removeItem(item: StockItemRow) {
+  async function removeItem(item: StockItemRow) {
     const warning = item.total > 0 ? ` Ele ainda tem ${formatQty(item.total, item.unit)} em estoque.` : "";
-    if (window.confirm(`Remover "${item.name}" do estoque?${warning}`)) deleteMutation.mutate(item.id);
+    if (await confirmAction(`Remover "${item.name}" do estoque?${warning}`, { title: "Remover item", okLabel: "Remover" })) deleteMutation.mutate(item.id);
   }
 
   function openMovement(kind: ManualMovementKind, itemId?: string, locationId?: string) {

@@ -2,12 +2,10 @@
 // posição (saldo de todos os locais + o que já está em pedido de compra aberto) chega nele ou abaixo, sugere comprar
 // até o estoque máximo (`max_stock`; sem máximo, o dobro do mínimo), em unidades inteiras.
 // SQL nos padrões do banco demo; somas e agrupamentos em TypeScript.
-import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
-import { lineTotal, orderTotals, roundMoney } from "@/lib/money";
-import { todayIso } from "@/lib/utils";
-import type { InventoryItem, Product, PurchaseOrder, PurchaseOrderItem, StockBalance, Supplier } from "@/types";
-import { insertWithNextNumber } from "./numbering";
+import { createPurchaseOrder } from "@/lib/erp/receiving";
+import { lineTotal, roundMoney } from "@/lib/money";
+import type { InventoryItem, PurchaseOrder, PurchaseOrderItem, StockBalance, Supplier } from "@/types";
 import { activeItem, activeLocation, roundQty, StockError, validQuantity } from "./stock";
 
 /** Pedidos de compra que ainda vão trazer mercadoria. */
@@ -121,21 +119,6 @@ export async function reorderSuggestions(db: DatabaseLike, companyId: string): P
   return suggestions.sort(bySupplierThenName);
 }
 
-/** Soft delete do pedido de compra e dos itens dele (desfaz um pedido gravado pela metade). */
-async function discardOrder(db: DatabaseLike, companyId: string, orderId: string): Promise<void> {
-  const steps = [
-    "UPDATE purchase_order_items SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND order_id=?",
-    "UPDATE purchase_orders SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE company_id=? AND id=?",
-  ];
-  for (const sql of steps) {
-    try {
-      await db.execute(sql, [companyId, orderId]);
-    } catch (error) {
-      console.error("[estoque] falha ao excluir o pedido de compra incompleto", error);
-    }
-  }
-}
-
 export interface ReorderOrderInput {
   companyId: string;
   userId?: string | null;
@@ -155,10 +138,10 @@ export interface CreatedPurchaseOrder {
 }
 
 /**
- * Gera pedidos de compra em **rascunho**, um por fornecedor do item (itens sem fornecedor vão num pedido sem fornecedor),
- * com o custo do item como preço. Quem compra revisa, aprova e envia na tela de Compras.
- * TODO(integração): quando o módulo de Compras (Tarefa 8, vendas/compras) tiver `createPurchaseOrder` em
- * src/lib/erp/orders.ts, gravar por ele para manter uma regra só de totais e numeração.
+ * Gera pedidos de compra em **rascunho**, um por fornecedor do item (itens sem fornecedor vão num pedido sem fornecedor,
+ * que só é aprovado depois de escolher um), com o custo do item como preço. Grava pelo `createPurchaseOrder` das Compras
+ * (mesma regra de totais, numeração, condição de pagamento e categoria de custo); quem compra revisa, aprova e envia na
+ * tela de Compras. Um pedido que falha no meio é desfeito por ela (soft delete; o número não volta).
  */
 export async function createReorderPurchaseOrders(db: DatabaseLike, input: ReorderOrderInput): Promise<CreatedPurchaseOrder[]> {
   const { companyId } = input;
@@ -170,10 +153,6 @@ export async function createReorderPurchaseOrders(db: DatabaseLike, input: Reord
   for (const itemId of quantities.keys()) items.push(await activeItem(db, companyId, itemId));
 
   const suppliers = await activeSuppliers(db, companyId);
-  const products = await db.select<Product[]>("SELECT * FROM products WHERE company_id=? AND deleted_at IS NULL", [companyId]);
-  const productOf = new Map<string, string>();
-  for (const product of products) if (product.inventory_item_id && !productOf.has(product.inventory_item_id)) productOf.set(product.inventory_item_id, product.id);
-
   const groups = new Map<string, { supplier: Supplier | null; items: InventoryItem[] }>();
   for (const item of items) {
     const supplier = item.supplier_id ? suppliers.get(item.supplier_id) ?? null : null;
@@ -188,51 +167,24 @@ export async function createReorderPurchaseOrders(db: DatabaseLike, input: Reord
 
   const created: CreatedPurchaseOrder[] = [];
   for (const group of ordered) {
-    const lines = [...group.items]
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-      .map((item) => {
-        const qty = quantities.get(item.id)!;
-        const unitPrice = purchaseUnitPrice(item);
-        return { item, qty, unit_price: unitPrice, total: lineTotal(qty, unitPrice) };
-      });
-    const totals = orderTotals(lines.map((line) => ({ qty: line.qty, unit_price: line.unit_price })));
-    const orderId = uuidv4();
-    const number = await insertWithNextNumber(db, "purchase_orders", companyId, (candidate) =>
-      db.execute(
-        `INSERT INTO purchase_orders (id, company_id, number, supplier_id, status, order_date, location_id, installments, subtotal, discount, shipping, tax_total, total, notes, created_by)
-         VALUES (?, ?, ?, ?, 'rascunho', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          orderId,
-          companyId,
-          candidate,
-          group.supplier?.id ?? null,
-          todayIso(),
-          location?.id ?? null,
-          totals.subtotal,
-          totals.discount,
-          totals.shipping,
-          totals.tax_total,
-          totals.total,
-          input.notes?.trim() || "Gerado pela reposição de estoque.",
-          input.userId ?? null,
-        ],
-      ),
-    );
-    try {
-      for (const [index, line] of lines.entries()) {
-        await db.execute(
-          `INSERT INTO purchase_order_items (id, company_id, order_id, product_id, inventory_item_id, description, unit, qty, unit_price, discount, tax_rate, total, received_qty, position)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?)`,
-          [uuidv4(), companyId, orderId, productOf.get(line.item.id) ?? null, line.item.id, line.item.name, line.item.unit || "un", line.qty, line.unit_price, line.total, index + 1],
-        );
-      }
-    } catch (error) {
-      // Sem transação (ver stock.ts): um pedido sem todos os itens ficaria com um total que não bate com eles, e os itens
-      // gravados passariam a contar como "em pedido". Exclui o pedido incompleto (soft delete; o número não volta).
-      await discardOrder(db, companyId, orderId);
-      throw error;
-    }
-    created.push({ id: orderId, number, supplier_id: group.supplier?.id ?? null, supplier_name: group.supplier?.name ?? null, total: totals.total, item_count: lines.length });
+    const lines = [...group.items].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    const orderId = await createPurchaseOrder(db, {
+      companyId,
+      supplierId: group.supplier?.id ?? null,
+      userId: input.userId ?? null,
+      locationId: location?.id ?? null,
+      items: lines.map((item) => ({ inventoryItemId: item.id, qty: quantities.get(item.id)!, unitPrice: purchaseUnitPrice(item) })),
+      notes: input.notes?.trim() || "Gerado pela reposição de estoque.",
+    });
+    const [order] = await db.select<PurchaseOrder[]>("SELECT * FROM purchase_orders WHERE company_id=? AND id=?", [companyId, orderId]);
+    created.push({
+      id: orderId,
+      number: Number(order?.number ?? 0),
+      supplier_id: group.supplier?.id ?? null,
+      supplier_name: group.supplier?.name ?? null,
+      total: Number(order?.total ?? 0),
+      item_count: lines.length,
+    });
   }
   return created;
 }

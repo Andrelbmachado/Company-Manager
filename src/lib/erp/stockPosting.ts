@@ -1,19 +1,13 @@
 // Movimentação de estoque das vendas (saída na entrega) e compras (entrada no recebimento, saída no estorno).
-// `quantity` é sempre positiva; o sentido vem dos locais (AGENTS.md §4): entrada = to_location_id, saída =
-// from_location_id. O saldo (stock_balances) é acertado aqui, lido de novo antes de cada gravação, e nunca fica negativo.
-import { v4 as uuidv4 } from "uuid";
+// Toda gravação passa pelo motor de estoque (src/lib/inventory/stock.ts, `recordStockMovementUndoable`): ele confere
+// item e local ativos, grava o saldo com compare-and-set (nunca negativo, nunca por cima de outra janela) e o custo em
+// centavos. Aqui ficam só a conferência de várias saídas de uma vez (antes de gravar) e a tradução do erro do motor.
 import type { DatabaseLike } from "@/lib/db/demo";
+import { formatQty, recordStockMovementUndoable, roundQty, StockError } from "@/lib/inventory/stock";
 import type { InventoryItem, StockBalance, StockLocation, StockMovementType } from "@/types";
-import { fail, insertRow, nowIso, updateRow } from "./tradeDb";
+import { fail } from "./tradeDb";
 
-/** Quantidade com 3 casas (evita 0,1 + 0,2 nas somas de saldo). */
-export function roundQty(value: number): number {
-  return Math.round(value * 1000) / 1000 || 0;
-}
-
-export function formatQty(value: number): string {
-  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 }).format(value);
-}
+export { formatQty, roundQty };
 
 /** Saldos da empresa (stock_balances não tem deleted_at). */
 export function companyBalances(db: DatabaseLike, companyId: string): Promise<StockBalance[]> {
@@ -74,55 +68,27 @@ export interface PostedMove {
   undo: () => Promise<void>;
 }
 
-/** Grava a movimentação e acerta os saldos de origem e destino. Recusa saída maior que o saldo do local. */
+/**
+ * Grava a movimentação pelo motor de estoque e devolve como desfazer. Erro de regra do estoque (saldo insuficiente,
+ * item ou local excluído, saldo mexido por outra janela) vira TradeRuleError com a mesma mensagem.
+ */
 export async function postStockMovement(db: DatabaseLike, companyId: string, move: StockMoveInput): Promise<PostedMove> {
-  const quantity = roundQty(move.quantity);
-  if (!(quantity > 0)) fail("A quantidade da movimentação deve ser maior que zero.");
-  const from = move.fromLocationId ?? null;
-  const to = move.toLocationId ?? null;
-  if (!from && !to) fail("A movimentação precisa de um local de origem ou de destino.");
-
-  const balances = await db.select<StockBalance[]>("SELECT * FROM stock_balances WHERE company_id=? AND item_id=?", [companyId, move.itemId]);
-  const fromRow = from ? balances.find((row) => row.location_id === from) : undefined;
-  if (from && Number(fromRow?.quantity ?? 0) + 1e-9 < quantity) fail("Saldo insuficiente no local de origem.");
-  const toRow = to ? balances.find((row) => row.location_id === to) : undefined;
-
-  const id = uuidv4();
-  const now = nowIso();
-  await insertRow(db, "stock_movements", {
-    id,
-    company_id: companyId,
-    item_id: move.itemId,
-    type: move.type,
-    quantity,
-    from_location_id: from,
-    to_location_id: to,
-    ref_type: move.refType ?? null,
-    ref_id: move.refId ?? null,
-    user_id: move.userId ?? null,
-    note: move.note ?? null,
-    unit_cost: move.unitCost ?? null,
-    created_at: now,
-  });
-  const restore: (() => Promise<void>)[] = [async () => void (await db.execute("DELETE FROM stock_movements WHERE company_id=? AND id=?", [companyId, id]))];
-  if (fromRow) {
-    await updateRow(db, "stock_balances", companyId, fromRow.id, { quantity: roundQty(Number(fromRow.quantity) - quantity), updated_at: now });
-    restore.push(() => updateRow(db, "stock_balances", companyId, fromRow.id, { quantity: Number(fromRow.quantity), updated_at: nowIso() }));
+  try {
+    return await recordStockMovementUndoable(db, {
+      companyId,
+      itemId: move.itemId,
+      type: move.type,
+      quantity: move.quantity,
+      fromLocationId: move.fromLocationId ?? null,
+      toLocationId: move.toLocationId ?? null,
+      unitCost: move.unitCost ?? null,
+      refType: move.refType ?? null,
+      refId: move.refId ?? null,
+      userId: move.userId ?? null,
+      note: move.note ?? null,
+    });
+  } catch (error) {
+    if (error instanceof StockError) fail(error.message);
+    throw error;
   }
-  if (to) {
-    if (toRow) {
-      await updateRow(db, "stock_balances", companyId, toRow.id, { quantity: roundQty(Number(toRow.quantity) + quantity), updated_at: now });
-      restore.push(() => updateRow(db, "stock_balances", companyId, toRow.id, { quantity: Number(toRow.quantity), updated_at: nowIso() }));
-    } else {
-      const balanceId = uuidv4();
-      await insertRow(db, "stock_balances", { id: balanceId, company_id: companyId, item_id: move.itemId, location_id: to, quantity, updated_at: now });
-      restore.push(() => updateRow(db, "stock_balances", companyId, balanceId, { quantity: 0, updated_at: nowIso() }));
-    }
-  }
-  return {
-    id,
-    undo: async () => {
-      for (const step of restore.reverse()) await step();
-    },
-  };
 }

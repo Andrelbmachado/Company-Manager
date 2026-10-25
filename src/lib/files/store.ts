@@ -4,8 +4,6 @@
 // → nova linha com version + 1 e parent_version_id = versão anterior. A versão atual é a ponta da corrente (a linha
 // ativa que nenhuma outra aponta como anterior). SQL só nos padrões do banco demo (documents é tabela "leniente" lá:
 // WHERE não entendido vira filtro por empresa em silêncio), com filtros finos e agrupamentos em TypeScript.
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
 import { v4 as uuidv4 } from "uuid";
 import { getDb, isTauriRuntime } from "@/lib/db/client";
 import type { DatabaseLike } from "@/lib/db/demo";
@@ -14,9 +12,11 @@ import type { DocumentRow } from "@/types";
 import { isValidCompanyId, isValidStorageKey, storageKeyFor, type FileBackend } from "./backend";
 import { demoFileBackend } from "./demoStore";
 import { fileTypeLabel, formatBytes, guessMime } from "./format";
+import { readBlobBytes, saveBlobAs } from "./saveAs";
 import { sha256Hex } from "./sha256";
 import { tauriFileBackend } from "./tauriStore";
 
+export { readBlobBytes } from "./saveAs";
 export { sha256Hex } from "./sha256";
 
 /** Limite padrão por arquivo. A empresa pode mudar em settings (`documents.max_file_mb`, número de MB). */
@@ -271,17 +271,6 @@ export async function getMaxFileBytes(companyId: string): Promise<number> {
 
 // ── Gravar ────────────────────────────────────────────────────────
 
-/** Bytes de um Blob/File (FileReader quando o ambiente não tem Blob.arrayBuffer, como o jsdom). */
-export async function readBlobBytes(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === "function") return new Uint8Array(await blob.arrayBuffer());
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler o arquivo."));
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
 /** Texto UTF-8 de um Blob (pré-visualização de .txt/.csv). */
 export async function readBlobText(blob: Blob): Promise<string> {
   return new TextDecoder("utf-8").decode(await readBlobBytes(blob));
@@ -453,27 +442,7 @@ export async function openFile(doc: DocumentRow): Promise<Blob> {
  */
 export async function downloadFile(doc: DocumentRow): Promise<boolean> {
   const blob = await openFile(doc);
-  const name = sanitizeFileName(doc.title);
-  if (isTauriRuntime()) {
-    const target = await save({ title: "Salvar arquivo", defaultPath: name });
-    if (!target) return false;
-    await writeFile(target, await readBlobBytes(blob));
-    return true;
-  }
-  const url = URL.createObjectURL(blob);
-  try {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = name;
-    link.rel = "noopener";
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  }
-  return true;
+  return (await saveBlobAs(blob, sanitizeFileName(doc.title), { title: "Salvar arquivo" })) !== null;
 }
 
 // ── Excluir, renomear, restaurar ──────────────────────────────────

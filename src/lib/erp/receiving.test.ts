@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { DatabaseLike } from "@/lib/db/demo";
 import { sumMoney } from "@/lib/money";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import type { GoodsReceipt, GoodsReceiptItem, InventoryItem, Payable, Product, PurchaseOrder, PurchaseOrderItem, StockBalance, StockMovement } from "@/types";
@@ -97,6 +98,18 @@ describe("pedido de compra", () => {
     expect(await one<PurchaseOrder>("purchase_orders", draft)).toMatchObject({ category_id: "fx-cat-4-1", cost_center_id: "fx-cc-1", total: 240 });
     await updatePurchaseOrder(db, draft, { ...base, categoryId: null, costCenterId: null, items: [{ inventoryItemId: fx.items.mouse, qty: 6, unitPrice: 40 }] });
     expect(await one<PurchaseOrder>("purchase_orders", draft)).toMatchObject({ category_id: fx.categories.custo, cost_center_id: null });
+  });
+
+  it("pedido sem fornecedor (gerado pela reposição do estoque) só é aprovado depois de escolher o fornecedor", async () => {
+    const { db, fx, manager } = await setup();
+    const items = [{ inventoryItemId: fx.items.mouse, qty: 5 }];
+    const draft = await createPurchaseOrder(db, { companyId: fx.companyId, supplierId: null, items });
+    expect(await one<PurchaseOrder>("purchase_orders", draft)).toMatchObject({ supplier_id: null, status: "rascunho", total: 200, category_id: fx.categories.custo });
+    await expect(approvePurchaseOrder(db, draft, { companyId: fx.companyId, userId: manager })).rejects.toThrow(/fornecedor/i);
+    expect((await one<PurchaseOrder>("purchase_orders", draft)).status).toBe("rascunho");
+    await updatePurchaseOrder(db, draft, { companyId: fx.companyId, supplierId: fx.supplierId, items });
+    await approvePurchaseOrder(db, draft, { companyId: fx.companyId, userId: manager });
+    expect(await one<PurchaseOrder>("purchase_orders", draft)).toMatchObject({ supplier_id: fx.supplierId, status: "aprovado" });
   });
 
   it("não recebe pedido em rascunho nem cancelado", async () => {
@@ -273,6 +286,31 @@ describe("recebimento", () => {
     await db.execute("UPDATE payables SET paid_amount=?, status=? WHERE id=?", [100, "paga_parcial", again.payableIds[0]]);
     await expect(reverseGoodsReceipt(db, again.receiptId, { companyId: fx.companyId })).rejects.toThrow(/paga/i);
     expect(await balance(fx.items.switch, fx.locationId)).toBe(12);
+  });
+
+  it("a entrada passa pelo motor de estoque: saldo mexido por outra janela no meio do recebimento recusa e desfaz tudo", async () => {
+    const { db, fx, manager } = await setup();
+    const id = await createPurchaseOrder(db, { companyId: fx.companyId, supplierId: fx.supplierId, items: [{ inventoryItemId: fx.items.switch, qty: 5, unitPrice: 2300 }] });
+    await approvePurchaseOrder(db, id, { companyId: fx.companyId, userId: manager });
+    const [line] = await lines(id);
+    let raced = false;
+    const racing: DatabaseLike = {
+      select: (sql, binds) => db.select(sql, binds),
+      execute: async (sql, binds) => {
+        if (!raced && /^\s*UPDATE stock_balances/i.test(sql)) {
+          raced = true;
+          await db.execute("UPDATE stock_balances SET quantity=? WHERE id=?", [11, "fx-bal-switch"]);
+        }
+        return db.execute(sql, binds);
+      },
+    };
+    await expect(receivePurchaseOrder(racing, id, [{ itemId: line.id, qty: 5, locationId: fx.locationId }], { companyId: fx.companyId })).rejects.toThrow(/saldo mudou/i);
+    expect(await balance(fx.items.switch, fx.locationId)).toBe(11);
+    expect(await all("SELECT * FROM stock_movements")).toEqual([]);
+    expect(await all("SELECT * FROM goods_receipts WHERE deleted_at IS NULL")).toEqual([]);
+    expect(await all("SELECT * FROM payables WHERE deleted_at IS NULL AND status <> 'cancelada'")).toEqual([]);
+    expect((await one<PurchaseOrder>("purchase_orders", id)).status).toBe("aprovado");
+    expect(Number((await lines(id))[0].received_qty)).toBe(0);
   });
 
   it("estorno sem saldo no local (já vendido) não grava nada", async () => {

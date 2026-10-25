@@ -1,17 +1,16 @@
-// DRE comparativa por mês (regime de competência): contas a receber somam, contas a pagar subtraem, agrupadas pelo
-// dre_group do plano de contas. Mês = competência; sem ela, emissão; sem ela, vencimento. Cancelada e excluída ficam fora.
-// TODO(integração): a Tarefa 8 cria a DRE do Financeiro (lib/erp/dre.ts); quando as duas estiverem na main, este
-// relatório pode reaproveitar aquela classificação para os números da tela de DRE e do relatório serem sempre iguais.
+// DRE comparativa por mês (regime de competência). Os números vêm da DRE do Financeiro (src/lib/erp/dre.ts, a única
+// regra de DRE do app): contas a receber somam e a pagar subtraem na competência (competência → emissão → vencimento →
+// criação), agrupadas pelo dre_group do plano de contas; juros, multas e descontos das baixas entram no resultado
+// financeiro no mês da baixa; extrato conciliado direto numa categoria entra no mês do lançamento. Cancelada e
+// excluída ficam fora. Aqui só se montam as colunas (um mês cada) e a análise vertical.
 import type { DatabaseLike } from "@/lib/db/demo";
+import { dreFromSource, loadDreSource, type DreResult, type DreSource } from "@/lib/erp/dre";
 import { sumMoney } from "@/lib/money";
 import type { DreGroup } from "@/types";
-import { addMonths, localDayOf, monthLabel, monthOf, monthsBetween, num, sharePercent, text, type DbRow, type ReportTable, type RowStyle } from "./common";
+import { addMonths, monthLabel, monthsBetween, sharePercent, type ReportTable, type RowStyle } from "./common";
 
-export interface DreData {
-  receivables: DbRow[];
-  payables: DbRow[];
-  categories: DbRow[];
-}
+/** Lançamentos já lidos e classificados (servem para qualquer período sem ler o banco de novo). */
+export type DreData = DreSource;
 
 export type DreLineKind = "group" | "category" | "subtotal";
 
@@ -31,122 +30,67 @@ export interface DreReport {
   lines: DreLine[];
 }
 
-const GROUPS: readonly { group: DreGroup; label: string }[] = [
-  { group: "receita", label: "Receita bruta" },
-  { group: "deducao", label: "(−) Deduções da receita" },
-  { group: "custo", label: "(−) Custos" },
-  { group: "despesa", label: "(−) Despesas operacionais" },
-  { group: "financeiro", label: "Resultado financeiro" },
-  { group: "outros", label: "Outras receitas e despesas" },
-];
-const DRE_GROUPS = new Set<string>(GROUPS.map((item) => item.group));
+const GROUP_LABELS: Record<DreGroup, string> = {
+  receita: "Receita bruta",
+  deducao: "(−) Deduções da receita",
+  custo: "(−) Custos",
+  despesa: "(−) Despesas operacionais",
+  financeiro: "Resultado financeiro",
+  outros: "Outras receitas e despesas",
+};
 
-export async function loadDreData(db: DatabaseLike, companyId: string): Promise<DreData> {
-  const [receivables, payables, categories] = await Promise.all([
-    db.select<DbRow[]>("SELECT * FROM receivables WHERE company_id=? AND deleted_at IS NULL", [companyId]),
-    db.select<DbRow[]>("SELECT * FROM payables WHERE company_id=? AND deleted_at IS NULL", [companyId]),
-    // Categoria excluída continua classificando os lançamentos antigos.
-    db.select<DbRow[]>("SELECT * FROM finance_categories WHERE company_id=?", [companyId]),
-  ]);
-  return { receivables, payables, categories };
-}
+/** Efeito de cada grupo no resultado do mês (receita positiva, custo/despesa negativos). */
+const GROUP_VALUE: Record<DreGroup, (month: DreResult) => number> = {
+  receita: (month) => month.receita,
+  deducao: (month) => -month.deducoes || 0,
+  custo: (month) => -month.custos || 0,
+  despesa: (month) => -month.despesas || 0,
+  financeiro: (month) => month.financeiro,
+  outros: (month) => month.outros,
+};
 
-/** Mês do lançamento: competência "YYYY-MM"; sem ela, mês da emissão, do vencimento ou da criação. */
-function entryMonth(row: DbRow): string | null {
-  const competence = text(row.competence);
-  if (competence && /^\d{4}-\d{2}/.test(competence)) return competence.slice(0, 7);
-  for (const field of ["issue_date", "due_date", "created_at"]) {
-    const day = localDayOf(text(row[field]));
-    if (day) return monthOf(day);
-  }
-  return null;
+export function loadDreData(db: DatabaseLike, companyId: string): Promise<DreData> {
+  return loadDreSource(db, companyId);
 }
 
 export function buildDreReport(data: DreData, options: { endMonth: string; months: number }): DreReport {
   const months = monthsBetween(addMonths(options.endMonth, -(Math.max(1, options.months) - 1)), options.endMonth);
-  const monthIndex = new Map(months.map((month, index) => [month, index]));
-  const categories = new Map(data.categories.map((category) => [String(category.id), category]));
+  const results = months.map((month) => dreFromSource(data, month));
 
-  /** dre_group da categoria; sem ele, o do pai (subindo); sem nenhum, o tipo da categoria. */
-  function groupOf(categoryId: string | null, side: "receber" | "pagar"): DreGroup {
-    const seen = new Set<string>();
-    let current = categoryId ? categories.get(categoryId) : undefined;
-    const kind = current ? String(current.kind) : null;
-    while (current && !seen.has(String(current.id))) {
-      seen.add(String(current.id));
-      const group = text(current.dre_group);
-      if (group && DRE_GROUPS.has(group)) return group as DreGroup;
-      current = text(current.parent_id) ? categories.get(String(current.parent_id)) : undefined;
+  // Detalhe por categoria (ou linha sem categoria: juros, descontos, "Sem categoria"), somado mês a mês.
+  const details = new Map<string, { group: DreGroup; label: string; code: string | null; name: string; values: number[] }>();
+  results.forEach((result, index) => {
+    for (const item of result.linhas) {
+      const id = item.categoryId ?? (item.name === "Sem categoria" ? "none" : item.name);
+      const key = `${item.group}:${id}`;
+      const detail = details.get(key) ?? { group: item.group, label: item.code ? `${item.code} ${item.name}` : item.name, code: item.code, name: item.name, values: months.map(() => 0) };
+      detail.values[index] = sumMoney([detail.values[index], item.value]);
+      details.set(key, detail);
     }
-    if (kind === "receita") return "receita";
-    if (kind === "despesa") return "despesa";
-    return side === "receber" ? "receita" : "despesa";
-  }
-
-  // grupo → categoria → valores por mês (centavos acumulados via sumMoney no fim)
-  const buckets = new Map<DreGroup, Map<string, number[][]>>();
-  const add = (row: DbRow, side: "receber" | "pagar") => {
-    if (row.status === "cancelada") return;
-    const month = entryMonth(row);
-    const index = month === null ? undefined : monthIndex.get(month);
-    if (index === undefined) return;
-    const categoryId = text(row.category_id);
-    const group = groupOf(categoryId, side);
-    const key = categoryId && categories.has(categoryId) ? categoryId : "none";
-    const byCategory = buckets.get(group) ?? new Map<string, number[][]>();
-    const perMonth = byCategory.get(key) ?? months.map(() => []);
-    perMonth[index].push(side === "receber" ? num(row.amount) : -num(row.amount));
-    byCategory.set(key, perMonth);
-    buckets.set(group, byCategory);
-  };
-  for (const row of data.receivables) add(row, "receber");
-  for (const row of data.payables) add(row, "pagar");
+  });
 
   const lines: DreLine[] = [];
-  const groupValues = new Map<DreGroup, number[]>();
   const line = (key: string, label: string, kind: DreLineKind, values: number[], group?: DreGroup): DreLine => ({ key, label, kind, group, values, total: sumMoney(values), share: 0 });
-  const sum = (...rows: number[][]) => months.map((_, index) => sumMoney(rows.map((values) => values[index])));
-
-  const categoryLabel = (key: string) => {
-    if (key === "none") return "Sem categoria";
-    const category = categories.get(key)!;
-    const code = text(category.code);
-    return code ? `${code} ${String(category.name)}` : String(category.name);
-  };
-  const categoryOrder = (key: string) => {
-    if (key === "none") return [1, ""] as const;
-    const category = categories.get(key)!;
-    return [0, `${text(category.code) ?? ""}\u0000${String(category.name)}`] as const;
+  const pushGroup = (group: DreGroup) => {
+    lines.push(line(group, GROUP_LABELS[group], "group", results.map(GROUP_VALUE[group]), group));
+    const rows = [...details.entries()]
+      .filter(([, detail]) => detail.group === group)
+      .sort(([, a], [, b]) => (a.code ?? "\uffff").localeCompare(b.code ?? "\uffff", "pt-BR", { numeric: true }) || a.name.localeCompare(b.name, "pt-BR"));
+    for (const [key, detail] of rows) lines.push(line(key, detail.label, "category", detail.values, group));
   };
 
-  const pushGroup = (group: DreGroup, label: string) => {
-    const byCategory = buckets.get(group) ?? new Map<string, number[][]>();
-    const details = [...byCategory.entries()]
-      .map(([key, perMonth]) => line(`${group}:${key}`, categoryLabel(key), "category", perMonth.map((values) => sumMoney(values)), group))
-      .sort((a, b) => {
-        const [aNone, aKey] = categoryOrder(a.key.slice(group.length + 1));
-        const [bNone, bKey] = categoryOrder(b.key.slice(group.length + 1));
-        return aNone - bNone || aKey.localeCompare(bKey, "pt-BR", { numeric: true });
-      });
-    const values = details.length ? sum(...details.map((detail) => detail.values)) : months.map(() => 0);
-    groupValues.set(group, values);
-    lines.push(line(group, label, "group", values, group), ...details);
-  };
+  pushGroup("receita");
+  pushGroup("deducao");
+  lines.push(line("receita_liquida", "Receita líquida", "subtotal", results.map((month) => month.receitaLiquida)));
+  pushGroup("custo");
+  lines.push(line("lucro_bruto", "Lucro bruto", "subtotal", results.map((month) => month.lucroBruto)));
+  pushGroup("despesa");
+  lines.push(line("resultado_operacional", "Resultado operacional", "subtotal", results.map((month) => month.resultadoOperacional)));
+  pushGroup("financeiro");
+  pushGroup("outros");
+  lines.push(line("resultado", "Resultado líquido", "subtotal", results.map((month) => month.resultado)));
 
-  const labelOf = new Map(GROUPS.map((item) => [item.group, item.label]));
-  pushGroup("receita", labelOf.get("receita")!);
-  pushGroup("deducao", labelOf.get("deducao")!);
-  const netRevenue = sum(groupValues.get("receita")!, groupValues.get("deducao")!);
-  lines.push(line("receita_liquida", "Receita líquida", "subtotal", netRevenue));
-  pushGroup("custo", labelOf.get("custo")!);
-  const grossProfit = sum(netRevenue, groupValues.get("custo")!);
-  lines.push(line("lucro_bruto", "Lucro bruto", "subtotal", grossProfit));
-  pushGroup("despesa", labelOf.get("despesa")!);
-  pushGroup("financeiro", labelOf.get("financeiro")!);
-  pushGroup("outros", labelOf.get("outros")!);
-  lines.push(line("resultado", "Resultado líquido", "subtotal", sum(grossProfit, groupValues.get("despesa")!, groupValues.get("financeiro")!, groupValues.get("outros")!)));
-
-  const grossRevenue = sumMoney(groupValues.get("receita")!);
+  const grossRevenue = sumMoney(results.map((month) => month.receita));
   for (const item of lines) item.share = sharePercent(item.total, grossRevenue);
   return { months, lines };
 }

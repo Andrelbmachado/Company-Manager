@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { BUTTON_PRIMARY, ErrorBanner, errorText, inventoryKeys, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
+import { confirmAction } from "@/lib/confirm";
 
 const EMPTY = { name: "", type: "deposito", address: "" };
 
@@ -151,9 +152,9 @@ export default function StockLocationsPage() {
                         {canDelete && (
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               setError(null);
-                              if (window.confirm(`Arquivar o local "${location.name}"? Ele some das listas; o histórico de movimentações continua.`)) archive.mutate(location);
+                              if (await confirmAction(`Arquivar o local "${location.name}"? Ele some das listas; o histórico de movimentações continua.`, { title: "Arquivar local", okLabel: "Arquivar" })) archive.mutate(location);
                             }}
                             disabled={archive.isPending}
                             aria-label={`Arquivar ${location.name}`}

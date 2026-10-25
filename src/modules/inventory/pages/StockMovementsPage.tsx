@@ -10,6 +10,7 @@ import { formatQty } from "@/lib/inventory/stock";
 import { lineTotal } from "@/lib/money";
 import { formatCurrency, formatDateTime, todayIso } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import type { StockMovementType } from "@/types";
@@ -92,14 +93,17 @@ export default function StockMovementsPage() {
         title="Movimentações"
         description="Entradas, saídas, transferências e ajustes de inventário, com a origem de cada lançamento."
         actions={
-          canCreate && locations.length > 0 ? (
-            <button type="button" onClick={() => setShowDialog(true)} className={BUTTON_PRIMARY}>
-              <Plus size={14} /> Nova movimentação
-            </button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Planilha de itens e saldos: a importação de quantidades vira ajustes nesta lista (motor de estoque). */}
+            <ImportExportButtons entity="inventory" onImported={() => invalidate()} />
+            {canCreate && locations.length > 0 && (
+              <button type="button" onClick={() => setShowDialog(true)} className={BUTTON_PRIMARY}>
+                <Plus size={14} /> Nova movimentação
+              </button>
+            )}
+          </div>
         }
       />
-      {/* TODO(integração): <ImportExportButtons entity="inventory" /> (Tarefa 5) para exportar o histórico. */}
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por item, observação ou pessoa..." onFilterClick={() => setShowFilters((value) => !value)} filterActive={filtersActive}>
         <span className="text-sm text-muted-foreground">{filtered.length} {filtered.length === 1 ? "movimentação" : "movimentações"}</span>

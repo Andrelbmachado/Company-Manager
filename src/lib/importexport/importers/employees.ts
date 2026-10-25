@@ -1,8 +1,13 @@
-// Colaboradores (Gestão de RH): identifica por CPF, depois e-mail, depois nome. Sem salário: remuneração é da Folha.
+// Colaboradores (Gestão de RH): entidade única de importação/exportação do RH (botões da Gestão de RH e tela de
+// importações). Identifica por CPF, depois e-mail (o cadastro que o Meu RH criou no primeiro acesso só tem e-mail),
+// depois nome. Célula vazia não apaga. Sem salário: remuneração é da Folha. Desligado que a planilha volta para outra
+// situação é readmissão, como na ficha (clearTermination): o desligamento e as tarefas de desligamento saem, senão
+// applyDueTerminations desligaria a pessoa de novo pela data antiga.
 import { z } from "zod";
 import type { FieldDef } from "../registry";
 import { decimal, integer, isoDate, oneOf, optionalText, requiredText } from "../schema";
 import { ADDRESS_FIELDS, addressColumn, addressExport, defineTableEntity, emailKey } from "../tableEntity";
+import { sqliteNow, updateRows, type Row } from "../write";
 
 const CONTRACTS = [
   { value: "clt", label: "CLT" },
@@ -113,6 +118,36 @@ export const entity = defineTableEntity<EmployeeImportRow>({
     address_json: addressColumn(row, existing),
     notes: row.notes,
   }),
+  insertDefaults: () => ({ status: "ativo", vacation_days_entitled: 30, daily_minutes: 480 }),
+  afterWrite: async (db, companyId, written, context) => {
+    const readmitted = written.filter(({ row, existing }) => existing?.status === "desligado" && !!row.status && row.status !== "desligado" && !row.termination_date);
+    if (readmitted.length === 0) return;
+    const now = sqliteNow();
+    await updateRows(
+      db,
+      "employees",
+      companyId,
+      readmitted
+        .filter(({ existing }) => existing!.termination_date != null || existing!.termination_reason != null)
+        .map(({ id, existing }) => ({
+          id,
+          values: { termination_date: null, termination_reason: null },
+          previous: { termination_date: existing!.termination_date ?? null, termination_reason: existing!.termination_reason ?? null },
+        })),
+      context.journal,
+    );
+    const ids = new Set(readmitted.map(({ id }) => id));
+    const exitTasks = (await db.select<Row[]>("SELECT * FROM hr_tasks WHERE company_id=? AND deleted_at IS NULL", [companyId])).filter(
+      (task) => !task.deleted_at && task.category === "desligamento" && ids.has(String(task.employee_id)),
+    );
+    await updateRows(
+      db,
+      "hr_tasks",
+      companyId,
+      exitTasks.map((task) => ({ id: String(task.id), values: { deleted_at: now, updated_at: now }, previous: { deleted_at: null, updated_at: task.updated_at ?? null } })),
+      context.journal,
+    );
+  },
   exportExtra: (row) => ({
     ...addressExport(row),
     daily_hours: typeof row.daily_minutes === "number" ? Math.round((row.daily_minutes / 60) * 100) / 100 : null,

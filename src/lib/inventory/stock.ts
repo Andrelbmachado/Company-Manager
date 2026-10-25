@@ -185,7 +185,11 @@ async function applyMovement(db: DatabaseLike, plan: PlannedMovement, undo: Undo
         if (/unique/i.test(String((error as Error)?.message ?? error))) throw new StockError("conflito", CONFLICT_MESSAGE);
         throw error;
       }
-      undo.push(() => setBalance(db, companyId, balanceId, quantity, 0));
+      // Saldo criado por esta operação: desfazer apaga a linha (só se ainda tiver a quantidade que ela gravou).
+      undo.push(async () => {
+        const result = await db.execute("DELETE FROM stock_balances WHERE company_id=? AND id=? AND quantity=?", [companyId, balanceId, quantity]);
+        if (rowsAffected(result) === 0) throw new StockError("conflito", CONFLICT_MESSAGE);
+      });
     }
   }
   await db.execute(
@@ -259,6 +263,20 @@ function plannedFrom(input: StockMovementInput, quantity: number, item: Inventor
  * saldo do local de origem. Devolve o id da movimentação.
  */
 export async function recordStockMovement(db: DatabaseLike, input: StockMovementInput): Promise<string> {
+  return (await recordStockMovementUndoable(db, input)).id;
+}
+
+export interface RecordedMovement {
+  id: string;
+  /** Desfaz a movimentação (saldos de volta e a linha removida). Só para voltar uma operação maior que falhou logo depois. */
+  undo: () => Promise<void>;
+}
+
+/**
+ * Igual a `recordStockMovement`, mas devolve também como desfazer: para quem grava outros registros junto com a
+ * movimentação (entrega de pedido de venda, recebimento e estorno de compra) e precisa voltar tudo se um deles falhar.
+ */
+export async function recordStockMovementUndoable(db: DatabaseLike, input: StockMovementInput): Promise<RecordedMovement> {
   const quantity = validQuantity(input.quantity);
   const fromId = input.fromLocationId || null;
   const toId = input.toLocationId || null;
@@ -277,7 +295,20 @@ export async function recordStockMovement(db: DatabaseLike, input: StockMovement
     await rollback(undo);
     throw error;
   }
-  return plan.id;
+  return { id: plan.id, undo: () => undoAll(undo) };
+}
+
+/** Desfaz todos os passos (em ordem inversa) e, se algum falhar, repassa o primeiro erro no fim. */
+async function undoAll(steps: Undo[]): Promise<void> {
+  let failure: unknown = null;
+  for (const step of [...steps].reverse()) {
+    try {
+      await step();
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure) throw failure;
 }
 
 export interface TransferLine {

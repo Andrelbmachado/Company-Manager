@@ -8,9 +8,13 @@ import { ensureMyEmployee } from "@/lib/hr/queries";
 import { applyDueTerminations } from "@/lib/hr/employment";
 import { todayIso } from "@/lib/utils";
 import { ROLE_HOME_INTRO, isHrWidget, isPersonalWidget, roleHome, type HomeWidget } from "@/lib/dashboard/roleHomes";
-import { loadHomeMetrics, type HomeContext } from "@/lib/dashboard/metrics";
+import { loadHomeMetrics, seesTeamFollowUps, type HomeContext } from "@/lib/dashboard/metrics";
+import { OverdueFollowUps } from "@/modules/crm/components/Activities";
 import { HomeChartCard, HomeKpiCard, HomeListCard, HomeShortcuts } from "../components/HomeWidgets";
 import type { Role } from "@/types";
+
+/** Widgets da home desenhados pelo próprio módulo (com as ações dele), em vez do cartão de lista genérico. */
+const MODULE_PANELS: ReadonlySet<string> = new Set(["crm.followups"]);
 
 /**
  * Home por setor: indicadores, pendências, gráfico e atalhos do papel (src/lib/dashboard/roleHomes.ts), mais o Meu RH.
@@ -24,7 +28,7 @@ export default function DashboardPage() {
   const companyId = session.company.id;
   const userId = session.user.id;
   const widgets = useMemo(() => roleHome(role), [role]);
-  const sectorData = useMemo(() => widgets.filter((widget) => widget.kind !== "shortcut" && !isHrWidget(widget)), [widgets]);
+  const sectorData = useMemo(() => widgets.filter((widget) => widget.kind !== "shortcut" && !isHrWidget(widget) && !MODULE_PANELS.has(widget.id)), [widgets]);
   const hrData = useMemo(() => widgets.filter((widget) => widget.kind !== "shortcut" && isHrWidget(widget)), [widgets]);
   const context = (): HomeContext => ({ companyId, userId, role, today: todayIso(), now: new Date() });
 
@@ -61,7 +65,12 @@ export default function DashboardPage() {
   const shortcuts = own.filter((widget) => widget.kind === "shortcut");
 
   const panel = (widget: HomeWidget) =>
-    widget.kind === "chart"
+    widget.id === "crm.followups" ? (
+      // Follow-ups vencidos do CRM com Concluir na própria home: os da pessoa, ou da equipe para quem gerencia.
+      <div key={widget.id} data-widget={widget.id}>
+        <OverdueFollowUps userId={seesTeamFollowUps(role) ? null : userId} limit={5} className="h-full" />
+      </div>
+    ) : widget.kind === "chart"
       ? <HomeChartCard key={widget.id} widget={widget} result={results[widget.id]} loading={loading} />
       : <HomeListCard key={widget.id} widget={widget} result={results[widget.id]} loading={loading} />;
 

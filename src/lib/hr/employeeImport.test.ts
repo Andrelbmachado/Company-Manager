@@ -1,114 +1,131 @@
-// Importação de colaboradores: validação da linha (zod) e gravação no SQLite real (atualiza por e-mail/CPF, não apaga).
+// @vitest-environment jsdom
+// Importação de colaboradores pela entidade única do registro (src/lib/importexport/importers/employees.ts), com as
+// regras do RH: mesma pessoa = mesmo CPF ou e-mail (inclusive o cadastro que o Meu RH criou no primeiro acesso), célula
+// vazia não apaga, sem salário e planilha que volta um desligado para Ativo é readmissão. SQLite real e banco demo.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createDemoDb, DEMO_COMPANY_ID, type DatabaseLike } from "@/lib/db/demo";
+import { registry } from "@/lib/importexport/registry";
+import { runImport } from "@/lib/importexport/runImport";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
-import { EMPLOYEE_IMPORT_FIELDS, employeeImportEntity, employeeImportSchema, employeeNaturalKey, upsertEmployees, type EmployeeImportRow } from "./employeeImport";
 import { emptyEmployeeInput, fetchEmployee, parseAddress, saveEmployee } from "./employees";
 import { applyDueTerminations, startTermination } from "./employment";
 import type { Employee, HrTask } from "@/types";
 
 const C = "test-company";
+const TODAY = "2026-10-24";
 let db: TestDb;
 
 beforeEach(async () => {
+  localStorage.clear();
   db = await createTestDb();
   await insertTestCompany(db, { companyId: C });
 });
 
 afterEach(() => db.close());
 
-const employees = () => db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [C]);
-const parse = (raw: Record<string, unknown>) => employeeImportSchema.parse(raw) as EmployeeImportRow;
+const MAPPING = {
+  name: "Nome",
+  email: "E-mail",
+  document: "CPF",
+  phone: "Telefone",
+  department: "Setor",
+  position: "Cargo",
+  contract_type: "Contrato",
+  status: "Situação",
+  endereco_bairro: "Bairro",
+  endereco_cidade: "Cidade",
+  endereco_uf: "UF",
+};
 
-describe("linha da planilha", () => {
-  it("aceita rótulos e chaves das listas, datas dd/mm/aaaa e números do Excel", () => {
-    const row = parse({ name: " Ana ", email: "ANA@X.COM", contract_type: "Estágio", status: "ativo", hire_date: "01/03/2024", vacation_days_entitled: "30", numero: 100, uf: "sp" });
-    expect(row).toMatchObject({ name: "Ana", email: "ana@x.com", contract_type: "estagio", status: "ativo", hire_date: "2024-03-01", vacation_days_entitled: 30, numero: "100", uf: "sp", document: null });
+const importEmployees = (target: DatabaseLike, companyId: string, rows: Record<string, string>[], mode: "all-or-nothing" | "skip-errors" = "all-or-nothing") =>
+  runImport("employees", MAPPING, rows, { db: target, companyId, userId: null, mode, dryRun: false });
+
+const employees = (target: DatabaseLike = db, companyId = C) =>
+  target.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [companyId]);
+
+describe("entidade de colaboradores", () => {
+  it("é a do registro: recurso de RH, sem salário e sem campo repetido", () => {
+    expect(registry.employees).toMatchObject({ key: "employees", resource: "hr_admin" });
+    const keys = registry.employees.fields.map((field) => field.key);
+    expect(keys.filter((key) => /sal[aá]rio|salary/i.test(key))).toEqual([]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("recusa CPF, CEP, UF, contrato e e-mail inválidos e linha sem nome", () => {
-    for (const raw of [{ name: "" }, { name: "A", document: "123" }, { name: "A", cep: "1803" }, { name: "A", uf: "São Paulo" }, { name: "A", contract_type: "freela" }, { name: "A", email: "x@" }]) {
-      expect(employeeImportSchema.safeParse(raw).success, JSON.stringify(raw)).toBe(false);
-    }
-  });
-
-  it("data dd/mm/aaaa (ou d/m/aaaa) e aaaa-mm-dd; recusa data invertida ou inexistente em vez de gravar 2024-31-12", () => {
-    expect(parse({ name: "A", hire_date: "29/02/2024", birth_date: "1/3/1990" })).toMatchObject({ hire_date: "2024-02-29", birth_date: "1990-03-01" });
-    expect(parse({ name: "A", hire_date: "2024-03-01" }).hire_date).toBe("2024-03-01");
-    for (const hire_date of ["12/31/2024", "31/02/2025", "29/02/2025", "2024-13-01", "2024-02-30", "00/01/2024", "abc"]) {
-      const result = employeeImportSchema.safeParse({ name: "A", hire_date });
-      expect(result.success, hire_date).toBe(false);
-      expect(result.error?.issues[0].message, hire_date).toMatch(/^Data inválida/);
-    }
-  });
-
-  it("dias de férias: número inteiro de 0 a 60, com mensagem em pt-BR", () => {
-    expect(parse({ name: "A", vacation_days_entitled: "20" }).vacation_days_entitled).toBe(20);
-    for (const vacation_days_entitled of ["trinta", "30 dias", "12,5", "-1", "61"]) {
-      const result = employeeImportSchema.safeParse({ name: "A", vacation_days_entitled });
-      expect(result.success, vacation_days_entitled).toBe(false);
-      expect(result.error?.issues[0].message, vacation_days_entitled).toMatch(/^Dias de férias/);
-    }
-  });
-
-  it("chave natural: e-mail, senão CPF, senão nome", () => {
-    expect(employeeNaturalKey({ name: "A", email: "a@x.com", document: "123.456.789-09" })).toBe("email:a@x.com");
-    expect(employeeNaturalKey({ name: "A", email: null, document: "123.456.789-09" })).toBe("cpf:12345678909");
-    expect(employeeNaturalKey({ name: " Ana ", email: null, document: null })).toBe("nome:ana");
-  });
-
-  it("entidade no formato do registro, com recurso de RH e sem salário", () => {
-    expect(employeeImportEntity).toMatchObject({ key: "employees", resource: "hr_admin" });
-    expect(EMPLOYEE_IMPORT_FIELDS.map((field) => field.key)).not.toContain("salary");
-    expect(new Set(EMPLOYEE_IMPORT_FIELDS.map((field) => field.key)).size).toBe(EMPLOYEE_IMPORT_FIELDS.length);
-  });
-});
-
-describe("gravação", () => {
   it("cria, depois atualiza pelo e-mail ou CPF só os campos preenchidos, sem duplicar", async () => {
-    const first = await upsertEmployees(db, C, [
-      parse({ name: "Ana Lima", email: "ana@x.com", department: "Comercial", cidade: "Sorocaba", uf: "sp" }),
-      parse({ name: "Bruno Reis", document: "123.456.789-09", position: "Técnico" }),
-      parse({ name: "Ana Lima", email: "ANA@x.com", position: "Vendedora" }),
-    ]);
-    // A 3ª linha repete a Ana (mesmo e-mail): completa o cadastro criado na 1ª e conta uma vez só.
-    expect(first).toEqual({ inserted: 2, updated: 0 });
+    expect(
+      await importEmployees(db, C, [
+        { Nome: "Ana Lima", "E-mail": "ana@x.com", Setor: "Comercial", Cidade: "Sorocaba", UF: "SP" },
+        { Nome: "Bruno Reis", CPF: "529.982.247-25", Cargo: "Técnico" },
+      ]),
+    ).toMatchObject({ errors: [], inserted: 2, updated: 0 });
 
-    const second = await upsertEmployees(db, C, [
-      parse({ name: "Ana Lima", email: "ana@x.com", phone: "(15) 99999-0000", bairro: "Centro" }),
-      parse({ name: "Bruno R.", document: "12345678909", contract_type: "PJ" }),
-      parse({ name: "Carla Dias" }),
-    ]);
-    expect(second).toEqual({ inserted: 1, updated: 2 });
+    expect(
+      await importEmployees(db, C, [
+        { Nome: "Ana Lima", "E-mail": "ANA@x.com", Telefone: "(15) 99999-0000", Bairro: "Centro" },
+        { Nome: "Bruno R.", CPF: "52998224725", Contrato: "PJ" },
+        { Nome: "Carla Dias" },
+      ]),
+    ).toMatchObject({ errors: [], inserted: 1, updated: 2 });
 
     const [ana, bruno, carla] = await employees();
-    expect(ana).toMatchObject({ email: "ana@x.com", department: "Comercial", position: "Vendedora", phone: "(15) 99999-0000", status: "ativo" });
+    expect(ana).toMatchObject({ email: "ana@x.com", department: "Comercial", status: "ativo" });
     expect(parseAddress(ana.address_json)).toMatchObject({ cidade: "Sorocaba", uf: "SP", bairro: "Centro" });
     expect(bruno).toMatchObject({ name: "Bruno R.", position: "Técnico", contract_type: "pj" });
-    expect(carla).toMatchObject({ name: "Carla Dias", vacation_days_entitled: 30, daily_minutes: 480 });
+    expect(carla).toMatchObject({ name: "Carla Dias", status: "ativo", vacation_days_entitled: 30, daily_minutes: 480 });
   });
 
-  it("sem e-mail nem CPF, nome igual atualiza o cadastro existente", async () => {
-    await upsertEmployees(db, C, [parse({ name: "Davi Costa", department: "TI" })]);
-    expect(await upsertEmployees(db, C, [parse({ name: "davi costa", position: "Suporte" })])).toEqual({ inserted: 0, updated: 1 });
+  it("o cadastro que o Meu RH criou (só e-mail) é completado pela planilha com CPF, sem duplicar", async () => {
+    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com" }, null, TODAY);
+    expect(await importEmployees(db, C, [{ Nome: "Ana Lima", "E-mail": "ana@x.com", CPF: "529.982.247-25", Cargo: "Vendedora" }])).toMatchObject({ errors: [], inserted: 0, updated: 1 });
     expect(await employees()).toHaveLength(1);
-    expect((await employees())[0]).toMatchObject({ department: "TI", position: "Suporte" });
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ document: "529.982.247-25", position: "Vendedora" });
   });
 
   it("planilha que volta um desligado para Ativo é readmissão, como na ficha: o desligamento sai e não volta a desligar", async () => {
-    const today = "2026-10-24";
-    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, today);
-    await startTermination(db, C, id, { date: "2026-10-01", reason: "Pedido de demissão" }, "test-user-rh", today);
+    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, TODAY);
+    await startTermination(db, C, id, { date: "2026-10-01", reason: "Pedido de demissão" }, "test-user-rh", TODAY);
+    await applyDueTerminations(db, C, TODAY);
     const exitTasks = () => db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND employee_id=? AND category='desligamento' AND deleted_at IS NULL", [C, id]);
+    expect((await exitTasks()).length).toBeGreaterThan(0);
 
     // Linha sem a coluna Situação não mexe no desligamento.
-    await upsertEmployees(db, C, [parse({ name: "Ana Lima", email: "ana@x.com", phone: "(15) 99999-0000" })]);
+    await importEmployees(db, C, [{ Nome: "Ana Lima", "E-mail": "ana@x.com", Telefone: "(15) 99999-0000" }]);
     expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "desligado", termination_date: "2026-10-01" });
 
-    expect(await upsertEmployees(db, C, [parse({ name: "Ana Lima", email: "ana@x.com", status: "Ativo" })])).toEqual({ inserted: 0, updated: 1 });
+    expect(await importEmployees(db, C, [{ Nome: "Ana Lima", "E-mail": "ana@x.com", Situação: "Ativo" }])).toMatchObject({ errors: [], inserted: 0, updated: 1 });
     expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
     expect(await exitTasks()).toHaveLength(0);
     // Sem isso a próxima abertura das telas de RH desligaria a pessoa de novo pela data antiga.
-    expect(await applyDueTerminations(db, C, today)).toBe(0);
+    expect(await applyDueTerminations(db, C, TODAY)).toBe(0);
     expect((await fetchEmployee(db, C, id))?.status).toBe("ativo");
+  });
+
+  it("falha no meio desfaz também a readmissão (diário da importação)", async () => {
+    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, TODAY);
+    await startTermination(db, C, id, { date: "2026-10-01", reason: "Pedido de demissão" }, "test-user-rh", TODAY);
+    await applyDueTerminations(db, C, TODAY);
+    // Gatilho que recusa a gravação de tarefas de RH: a readmissão falha depois de o colaborador já ter sido gravado.
+    await db.execute("CREATE TRIGGER block_hr_tasks BEFORE UPDATE ON hr_tasks BEGIN SELECT RAISE(ABORT, 'bloqueado no teste'); END");
+    const result = await importEmployees(db, C, [{ Nome: "Ana Lima", "E-mail": "ana@x.com", Situação: "Ativo", Cargo: "Vendedora" }]);
+    expect(result.status).toBe("falhou");
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "desligado", termination_date: "2026-10-01", termination_reason: "Pedido de demissão", position: null });
+  });
+
+  it("banco demo: atualiza pelo e-mail, cria os novos e readmite", async () => {
+    const demo = createDemoDb();
+    const result = await importEmployees(demo, DEMO_COMPANY_ID, [
+      { Nome: "Camila Martins", "E-mail": "comercial@techflow.com", Cidade: "Sorocaba", UF: "SP" },
+      { Nome: "Novo Estagiário", Contrato: "Estágio" },
+    ]);
+    expect(result).toMatchObject({ errors: [], inserted: 1, updated: 1 });
+    expect(parseAddress((await fetchEmployee(demo, DEMO_COMPANY_ID, "employee-demo-comercial"))?.address_json)).toMatchObject({ cidade: "Sorocaba", uf: "SP" });
+    const [intern] = (await employees(demo, DEMO_COMPANY_ID)).filter((employee) => employee.name === "Novo Estagiário");
+    expect(intern).toMatchObject({ contract_type: "estagio", status: "ativo" });
+
+    await startTermination(demo, DEMO_COMPANY_ID, "employee-demo-comercial", { date: "2026-10-01", reason: "Pedido de demissão" }, "demo-rh", TODAY);
+    await applyDueTerminations(demo, DEMO_COMPANY_ID, TODAY);
+    await importEmployees(demo, DEMO_COMPANY_ID, [{ Nome: "Camila Martins", "E-mail": "comercial@techflow.com", Situação: "Ativo" }]);
+    expect(await applyDueTerminations(demo, DEMO_COMPANY_ID, TODAY)).toBe(0);
+    expect(await fetchEmployee(demo, DEMO_COMPANY_ID, "employee-demo-comercial")).toMatchObject({ status: "ativo", termination_date: null });
   });
 });

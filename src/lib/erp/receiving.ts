@@ -43,7 +43,8 @@ export interface PurchaseItemInput {
 
 export interface PurchaseOrderInput {
   companyId: string;
-  supplierId: string;
+  /** null = fornecedor a definir (pedido gerado pela reposição do estoque); só é aprovado depois de escolher. */
+  supplierId: string | null;
   items: readonly PurchaseItemInput[];
   userId?: string | null;
   /** Local de entrada padrão do recebimento. */
@@ -79,7 +80,7 @@ export function canReceive(order: Pick<PurchaseOrder, "status">): boolean {
 }
 
 interface PreparedPurchase {
-  supplier: Supplier;
+  supplier: Supplier | null;
   lines: ComputedLine[];
   totals: ReturnType<typeof orderTotals>;
   orderDate: string;
@@ -89,7 +90,7 @@ interface PreparedPurchase {
 
 async function preparePurchase(db: DatabaseLike, input: PurchaseOrderInput): Promise<PreparedPurchase> {
   const { companyId } = input;
-  const supplier = (await activeRow<Supplier>(db, "suppliers", companyId, input.supplierId)) ?? fail("Fornecedor não encontrado.");
+  const supplier = input.supplierId ? (await activeRow<Supplier>(db, "suppliers", companyId, input.supplierId)) ?? fail("Fornecedor não encontrado.") : null;
   const orderDate = input.orderDate ?? todayIso();
   if (!isIsoDay(orderDate)) fail("Data do pedido inválida.");
   if (input.expectedDate && !isIsoDay(input.expectedDate)) fail("Previsão de entrega inválida.");
@@ -164,12 +165,12 @@ export async function createPurchaseOrder(db: DatabaseLike, input: PurchaseOrder
       id,
       company_id: companyId,
       number,
-      supplier_id: prepared.supplier.id,
+      supplier_id: prepared.supplier?.id ?? null,
       status: "rascunho",
       order_date: prepared.orderDate,
       expected_date: input.expectedDate ?? null,
       location_id: input.locationId ?? null,
-      payment_terms: cleanText(input.paymentTerms) ?? cleanText(prepared.supplier.terms),
+      payment_terms: cleanText(input.paymentTerms) ?? cleanText(prepared.supplier?.terms),
       installments: prepared.installments,
       ...prepared.totals,
       category_id: prepared.categoryId,
@@ -198,7 +199,7 @@ export async function updatePurchaseOrder(db: DatabaseLike, orderId: string, inp
   const oldItems = await loadPurchaseOrderItems(db, companyId, orderId);
   const now = nowIso();
   const patch = {
-    supplier_id: prepared.supplier.id,
+    supplier_id: prepared.supplier?.id ?? null,
     order_date: prepared.orderDate,
     expected_date: input.expectedDate ?? null,
     location_id: input.locationId ?? null,
@@ -230,6 +231,7 @@ export async function updatePurchaseOrder(db: DatabaseLike, orderId: string, inp
 export async function approvePurchaseOrder(db: DatabaseLike, orderId: string, options: ActionOptions = {}): Promise<void> {
   const order = await loadPurchaseOrder(db, orderId, options.companyId);
   if (order.status !== "rascunho") fail("Só pedido de compra em rascunho pode ser aprovado.");
+  if (!order.supplier_id) fail("Escolha o fornecedor do pedido (Editar) antes de aprovar.");
   const now = nowIso();
   await claimStatus(db, "purchase_orders", order.company_id, orderId, "rascunho", { status: "aprovado", approved_by: options.userId ?? null, approved_at: now, updated_at: now }, "O pedido mudou enquanto você aprovava; recarregue a página.");
 }

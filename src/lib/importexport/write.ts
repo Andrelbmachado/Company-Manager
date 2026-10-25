@@ -55,7 +55,10 @@ export function sqliteNow(now = new Date()): string {
   return now.toISOString().replace("T", " ").slice(0, 19);
 }
 
-type JournalEntry = { kind: "insert"; table: string; ids: string[] } | { kind: "update"; table: string; id: string; previous: Row };
+type JournalEntry =
+  | { kind: "insert"; table: string; ids: string[] }
+  | { kind: "update"; table: string; id: string; previous: Row }
+  | { kind: "undo"; run: () => Promise<unknown> };
 
 /** Diário da gravação: o que foi inserido e o valor anterior do que foi alterado, para desfazer. */
 export class WriteJournal {
@@ -67,6 +70,11 @@ export class WriteJournal {
 
   recordUpdate(table: string, id: string, previous: Row): void {
     this.entries.push({ kind: "update", table, id, previous });
+  }
+
+  /** Gravação feita por outra regra (ex.: o motor de estoque), com o próprio jeito de desfazer. */
+  recordUndo(run: () => Promise<unknown>): void {
+    this.entries.push({ kind: "undo", run });
   }
 
   get isEmpty(): boolean {
@@ -173,6 +181,11 @@ export async function undoJournal(db: DatabaseLike, companyId: string, journal: 
   const backend = await detectBackend(db);
   for (let index = journal.entries.length - 1; index >= 0; ) {
     const entry = journal.entries[index];
+    if (entry.kind === "undo") {
+      await entry.run();
+      index--;
+      continue;
+    }
     if (entry.kind === "insert") {
       // Linhas recém-criadas por esta importação (nunca existiram para ninguém): apagar é desfazer, não excluir dado.
       const ids = [...entry.ids].reverse();

@@ -14,12 +14,13 @@ import {
   fetchProposalItems,
   priceFor,
   PROPOSAL_ACTION_LABELS,
+  proposalPriceList,
   proposalActions,
   saveProposal,
   setProposalStatus,
   type ProposalAction,
 } from "@/lib/crm/proposals";
-import { fetchPriceListItems, parseMoneyInput } from "@/lib/crm/queries";
+import { parseMoneyInput } from "@/lib/crm/queries";
 import { formatSequence } from "@/lib/db/sequence";
 import { lineTotal, orderTotals } from "@/lib/money";
 import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
@@ -175,11 +176,12 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
   const [notice, setNotice] = useState<string | null>(null);
   const { data: contacts = [] } = useContacts(header.customer_id || undefined);
   const customer = customers.find((item) => item.id === header.customer_id) ?? null;
-  const { data: listItems = [] } = useQuery({
-    queryKey: ["price-list-items", companyId, customer?.price_list_id ?? "-"],
-    queryFn: async () => fetchPriceListItems(await getDb(), companyId, customer?.price_list_id),
-    enabled: !!customer?.price_list_id,
+  // Tabela pela regra de Vendas: a do cliente se estiver valendo hoje, senão a padrão da empresa.
+  const { data: priceList } = useQuery({
+    queryKey: ["price-list-items", companyId, "proposal", customer?.id ?? "-", customer?.price_list_id ?? "-", today],
+    queryFn: async () => proposalPriceList(await getDb(), companyId, customer?.id ?? null, today),
   });
+  const listItems = priceList?.items ?? [];
   const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
   const status = proposal ? displayProposalStatus(proposal, today) : "rascunho";
@@ -385,7 +387,7 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
           Condições de pagamento
           <input value={header.payment_terms} onChange={(event) => change({ payment_terms: event.target.value })} disabled={!editable} className={cn(INPUT, "font-normal")} placeholder="Ex.: 50% na aprovação e 50% na entrega" />
         </label>
-        {customer?.price_list_id && <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">Preços dos produtos pela tabela de preço do cliente.</p>}
+        {priceList?.list && <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">Preços dos produtos pela tabela de preço "{priceList.list.name}".</p>}
       </section>
 
       <section className={cn(CARD, "overflow-hidden")} aria-label="Itens da proposta">

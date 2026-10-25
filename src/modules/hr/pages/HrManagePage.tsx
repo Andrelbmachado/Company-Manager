@@ -167,8 +167,7 @@ export default function HrManagePage() {
         <div className="mb-2 flex gap-2">
           {tab === "colaboradores" && (
             <>
-              {/* TODO(integração): os botões ligam sozinhos quando o motor de importação (Tarefa 5) registrar a entidade
-                  "employees" em src/lib/importexport/importers/employees.ts, reexportando employeeImportEntity de @/lib/hr/employeeImport. */}
+              {/* Entidade "employees" do registro (src/lib/importexport/importers/employees.ts), com as regras do RH. */}
               <ImportExportButtons entity="employees" onImported={() => void refresh()} />
               {canCreate && <Link to="/hr/manage/colaboradores/nova" className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Plus size={14} /> Novo colaborador</Link>}
             </>

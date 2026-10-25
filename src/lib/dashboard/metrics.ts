@@ -207,6 +207,11 @@ type Loader = (reader: HomeReader, ctx: HomeContext) => Promise<HomeMetric>;
 /** Quem vê as pendências da equipe inteira; os demais veem as próprias (follow-ups). */
 const SEES_TEAM: ReadonlySet<Role> = new Set<Role>(["ceo", "admin", "gerente"]);
 
+/** O papel vê os follow-ups da equipe toda (true) ou só os próprios (false)? Mesma regra na home e no widget do CRM. */
+export function seesTeamFollowUps(role: Role): boolean {
+  return SEES_TEAM.has(role);
+}
+
 /**
  * Módulos que todo papel abre (Meu RH, Configurações), mas cujos eventos são de outras pessoas (férias, horas,
  * contas e senhas): o evento só aparece para quem gerencia o assunto.

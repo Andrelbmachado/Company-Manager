@@ -174,6 +174,22 @@ describe("winOpportunity", () => {
     expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
   });
 
+  it("o pedido sai pela regra de Vendas (createSalesOrder): tabela padrão da empresa e produto inativo vira linha avulsa", async () => {
+    const { db, companyId, seller } = await setup();
+    await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-1", companyId, "Clínica Vida"]);
+    await db.execute("INSERT INTO price_lists (id, company_id, name, is_default, active) VALUES (?,?,?,?,?)", ["pl-padrao", companyId, "Tabela padrão", 1, 1]);
+    await db.execute("INSERT INTO products (id, company_id, sku, name, price, active) VALUES (?,?,?,?,?,?)", ["prod-old", companyId, "SITE-OLD", "Site antigo", 2000, 0]);
+    await db.execute("INSERT INTO opportunities (id, company_id, customer_id, title, value, owner_id) VALUES (?,?,?,?,?,?)", ["opp-1", companyId, "cust-1", "Site", 2000, seller]);
+    await db.execute("INSERT INTO proposals (id, company_id, opportunity_id, customer_id, number, status, subtotal, value) VALUES (?,?,?,?,?,?,?,?)", ["prop-1", companyId, "opp-1", "cust-1", 1, "aceita", 2000, 2000]);
+    await db.execute("INSERT INTO proposal_items (id, company_id, proposal_id, product_id, description, qty, unit_price, total, position) VALUES (?,?,?,?,?,?,?,?,?)", ["pi-1", companyId, "prop-1", "prod-old", "Site antigo", 1, 2000, 2000, 1]);
+
+    const result = await winOpportunity(db, "opp-1", seller);
+    const order = await one(db, "SELECT * FROM sales_orders WHERE id=?", [result.salesOrderId]);
+    expect(order).toMatchObject({ price_list_id: "pl-padrao", status: "rascunho", total: 2000, installments: 1 });
+    const items = await db.select<Row[]>("SELECT * FROM sales_order_items WHERE order_id=?", [result.salesOrderId]);
+    expect(items.map((row) => [row.product_id, row.description, row.unit_price, row.delivered_qty, row.invoiced_qty])).toEqual([[null, "Site antigo", 2000, 0, 0]]);
+  });
+
   it("proposta escolhida na hora vira aceita; sem permissão de pedido, não gera pedido", async () => {
     const { db, companyId, seller } = await setup();
     await db.execute("INSERT INTO customers (id, company_id, name) VALUES (?,?,?)", ["cust-1", companyId, "Clínica Vida"]);

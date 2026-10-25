@@ -134,17 +134,6 @@ export async function fetchPriceLists(db: DatabaseLike, companyId: string): Prom
   return sortByName(rows.filter((row) => !row.deleted_at && Number(row.active) !== 0));
 }
 
-export interface PriceListItemRow {
-  product_id: string;
-  price: number;
-  min_qty: number;
-}
-
-export async function fetchPriceListItems(db: DatabaseLike, companyId: string, priceListId: string | null | undefined): Promise<PriceListItemRow[]> {
-  if (!priceListId) return [];
-  return db.select<PriceListItemRow[]>("SELECT * FROM price_list_items WHERE company_id=? AND price_list_id=? AND deleted_at IS NULL", [companyId, priceListId]);
-}
-
 // ---------------------------------------------------------------------------------------------------------------
 // Clientes
 // ---------------------------------------------------------------------------------------------------------------

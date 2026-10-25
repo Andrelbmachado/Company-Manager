@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArchiveRestore, CalendarClock, CheckCircle2, DatabaseBackup, FolderOpen, HardDriveDownload, Loader2, Save, Trash2, TriangleAlert } from "lucide-react";
+import { ArchiveRestore, CheckCircle2, DatabaseBackup, FolderOpen, Loader2, Save, Trash2, TriangleAlert } from "lucide-react";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { remove } from "@tauri-apps/plugin-fs";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { useRequiredSession } from "@/hooks/useSession";
 import {
@@ -188,14 +189,9 @@ export default function BackupPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <InfoCard icon={HardDriveDownload} title="Último backup" value={latest ? formatDateTime(latest.created_at) : "Nenhum ainda"} detail={latest ? `${BACKUP_KIND_LABELS[latest.kind]}, ${formatBytes(latest.size_bytes)}` : "Faça o primeiro agora."} />
-        <InfoCard
-          icon={CalendarClock}
-          title="Backup automático"
-          value={lastAutomatic ? `Último em ${formatDateTime(lastAutomatic.created_at)}` : "Ainda não rodou"}
-          detail={`Um por dia, feito pelo app ao abrir (e a cada hora, se ficar aberto). Guarda os ${KEEP_AUTOMATIC_BACKUPS} mais recentes; os manuais ficam até você excluir.`}
-        />
-        <InfoCard icon={ArchiveRestore} title="Onde ficam" value={folder.data ?? "Pasta de dados do app"} detail="Faça também cópias fora deste computador com Salvar cópia em..." mono />
+        <KpiCard title="Backups guardados" value={list.length} />
+        <KpiCard title="Último backup" value={latest ? formatDateTime(latest.created_at) : "Nenhum"} />
+        <KpiCard title="Último automático" value={lastAutomatic ? formatDateTime(lastAutomatic.created_at) : "Nenhum"} />
       </div>
 
       <section aria-labelledby="backups-title" className="space-y-3">
@@ -256,21 +252,16 @@ export default function BackupPage() {
           </div>
         )}
         <p className="text-xs text-muted-foreground">
+          Backup automático: um por dia, feito pelo app ao abrir (e a cada hora, se ficar aberto). Guarda os {KEEP_AUTOMATIC_BACKUPS} mais recentes; os manuais ficam até você excluir.
+          {latest && ` O último foi ${BACKUP_KIND_LABELS[latest.kind].toLowerCase()}, ${formatBytes(latest.size_bytes)}.`}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Onde ficam: <span className="break-all font-mono">{folder.data ?? "pasta de dados do app"}</span>. Faça também cópias fora deste computador com Salvar cópia em...
+        </p>
+        <p className="text-xs text-muted-foreground">
           Restaurar substitui todos os dados do app pelos do backup e reinicia o app; antes disso fica guardada uma cópia do estado atual. Um backup corrompido ou feito por uma versão mais nova do app é recusado sem mexer nos dados atuais.
         </p>
       </section>
-    </div>
-  );
-}
-
-function InfoCard({ icon: Icon, title, value, detail, mono }: { icon: typeof DatabaseBackup; title: string; value: string; detail: string; mono?: boolean }) {
-  return (
-    <div className="space-y-2 rounded-xl border bg-card p-4">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
-        <Icon size={15} aria-hidden="true" /> {title}
-      </div>
-      <p className={cn("font-semibold", mono ? "break-all font-mono text-xs" : "text-base")}>{value}</p>
-      <p className="text-xs text-muted-foreground">{detail}</p>
     </div>
   );
 }

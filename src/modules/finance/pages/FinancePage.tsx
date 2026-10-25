@@ -144,6 +144,11 @@ function entryColumns(kind: EntryKind, lookups: FinanceLookups, byId: Map<string
       header: "Parcelas",
       kind: "number",
       placeholder: "1",
+      // O campo da linha é só para gerar parcelas na conta nova; a tela mostra n/total: ordena e filtra pelo n.
+      sortValue: (row) => {
+        const raw = byId.get(row.id)?.raw;
+        return raw?.installment_count ? raw.installment_number : null;
+      },
       render: (row) => {
         const raw = byId.get(row.id)?.raw;
         return raw?.installment_count ? `${raw.installment_number}/${raw.installment_count}` : <span className="text-muted-foreground">—</span>;

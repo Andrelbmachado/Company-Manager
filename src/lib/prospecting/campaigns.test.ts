@@ -14,6 +14,7 @@ import {
   ensureDefaultCampaign,
   listCampaigns,
   nextCampaignName,
+  pickDefaultCampaign,
   renameCampaign,
 } from "./campaigns";
 
@@ -77,6 +78,14 @@ describe.each([
 
 describe("nome sugerido e validação do nome da prospecção", () => {
   const camp = (id: string, name: string) => ({ id, name });
+
+  it("campanha padrão: a \"Prospecção 1\" da empresa se estiver ativa, senão a mais antiga", () => {
+    const first = camp(defaultCampaignId("empresa"), "Clínicas");
+    expect(pickDefaultCampaign([camp("antiga", "Advogados"), first], "empresa")).toBe(first);
+    expect(pickDefaultCampaign([camp("antiga", "Advogados"), camp("nova", "Clínicas")], "empresa")?.id).toBe("antiga");
+    expect(pickDefaultCampaign([camp(defaultCampaignId("outra"), "Prospecção 1"), camp("b", "B")], "empresa")?.id).toBe(defaultCampaignId("outra"));
+    expect(pickDefaultCampaign([], "empresa")).toBeUndefined();
+  });
 
   it("sugere \"Prospecção N\" depois da maior numeração e da quantidade de campanhas", () => {
     expect(nextCampaignName([])).toBe("Prospecção 1");

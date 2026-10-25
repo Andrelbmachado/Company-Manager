@@ -15,6 +15,11 @@ export function defaultCampaignId(companyId: string): string {
   return `prospeccao-1-${companyId}`;
 }
 
+/** Campanha padrão entre as ativas (da mais antiga para a mais nova): a "Prospecção 1" da empresa, senão a mais antiga. */
+export function pickDefaultCampaign<T extends Pick<ProspectingCampaign, "id">>(active: readonly T[], companyId: string): T | undefined {
+  return active.find((campaign) => campaign.id === defaultCampaignId(companyId)) ?? active[0];
+}
+
 /**
  * Campanha padrão da empresa: a "Prospecção 1" (ou, se ela não estiver ativa, a campanha ativa mais antiga). Sem
  * nenhuma campanha ativa, cria (ou restaura) a "Prospecção 1". Leads da empresa sem campanha vão para ela.
@@ -26,7 +31,7 @@ export async function ensureDefaultCampaign(db: DatabaseLike, companyId: string)
     "SELECT * FROM prospecting_campaigns WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at ASC",
     [companyId],
   );
-  let campaignId = (active.find((campaign) => campaign.id === defaultId) ?? active[0])?.id;
+  let campaignId = pickDefaultCampaign(active, companyId)?.id;
   if (!campaignId) {
     const now = new Date().toISOString();
     const existing = await db.select<ProspectingCampaign[]>("SELECT * FROM prospecting_campaigns WHERE id=?", [defaultId]);

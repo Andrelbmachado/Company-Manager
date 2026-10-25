@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequiredSession } from "@/hooks/useSession";
@@ -11,7 +11,7 @@ import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useLabel } from "@/lib/labels/useLabel";
 import { formatMoney } from "@/lib/prospecting/contact";
-import { assignLeadsWithoutCampaign, campaignStats, createCampaign, ensureDefaultCampaign, listCampaigns, renameCampaign } from "@/lib/prospecting/campaigns";
+import { assignLeadsWithoutCampaign, campaignStats, createCampaign, ensureDefaultCampaign, listCampaigns, pickDefaultCampaign, renameCampaign } from "@/lib/prospecting/campaigns";
 import { fetchLeads, fetchPackagePrices, fetchRevenueScenarios, fetchServicePackages } from "@/lib/prospecting/queries";
 import type { Role } from "@/types";
 import { campaignsQueryKey, campaignStatsQueryKey, CurrentCampaignContext } from "../campaignContext";
@@ -42,24 +42,43 @@ export default function LeadsPage() {
   const title = useLabel("module.leads");
   const canCreate = usePermission("create", "leads");
   const canEdit = usePermission("edit", "leads");
+  const canWrite = canCreate || canEdit;
   const [tab, setTab] = useState<TabId>("leads");
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
 
+  // Lead sem campanha (importado pela tela de Importação, criado por tela antiga) vai para a campanha padrão uma vez, ao
+  // abrir a página. Fica fora da consulta das campanhas de propósito: a importação desta tela refaz todas as consultas
+  // antes de avisar a página, e a consulta levaria os leads recém-importados para a padrão, não para a campanha aberta.
+  const [preparedFor, setPreparedFor] = useState<string | null>(null);
+  const prepared = !canWrite || preparedFor === companyId;
+  useEffect(() => {
+    if (!canWrite) return;
+    let current = true;
+    void (async () => {
+      try {
+        await ensureDefaultCampaign(await getDb(), companyId);
+      } catch {
+        // Sem gravar a padrão a página ainda abre com as campanhas que já existem.
+      }
+      if (!current) return;
+      setPreparedFor(companyId);
+      await qc.invalidateQueries({ queryKey: ["leads", companyId] });
+    })();
+    return () => {
+      current = false;
+    };
+  }, [canWrite, companyId, qc]);
+
   const campaignsQuery = useQuery({
     queryKey: campaignsQueryKey(companyId),
-    queryFn: async () => {
-      const db = await getDb();
-      // Lead sem campanha (importado pela tela de Importação, criado por tela antiga) entra na campanha padrão.
-      const defaultId = canCreate || canEdit ? await ensureDefaultCampaign(db, companyId) : null;
-      const list = await listCampaigns(db, companyId);
-      return { list, defaultId: defaultId ?? list[0]?.id ?? null };
-    },
+    queryFn: async () => listCampaigns(await getDb(), companyId),
+    enabled: prepared,
   });
-  const campaigns = useMemo(() => campaignsQuery.data?.list ?? [], [campaignsQuery.data]);
-  const defaultId = campaignsQuery.data?.defaultId ?? null;
+  const campaigns = useMemo(() => campaignsQuery.data ?? [], [campaignsQuery.data]);
+  const defaultId = pickDefaultCampaign(campaigns, companyId)?.id ?? null;
   const requested = params.get(CAMPAIGN_PARAM);
-  const campaign = campaigns.find((item) => item.id === requested) ?? campaigns.find((item) => item.id === defaultId) ?? campaigns[0] ?? null;
+  const campaign = campaigns.find((item) => item.id === requested) ?? campaigns.find((item) => item.id === defaultId) ?? null;
   const selectCampaign = (id: string) =>
     setParams(
       (current) => {
@@ -80,7 +99,7 @@ export default function LeadsPage() {
     enabled: !!campaign,
   });
 
-  // Lead ainda sem campanha conta na padrão (o ensureDefaultCampaign acima o grava lá na próxima leitura).
+  // Lead ainda sem campanha conta na padrão (o ensureDefaultCampaign ao abrir a página o grava lá).
   const campaignLeads = useMemo(
     () => (campaign ? leads.filter((lead) => (lead.campaign_id ?? defaultId) === campaign.id) : []),
     [leads, campaign, defaultId],
@@ -113,12 +132,16 @@ export default function LeadsPage() {
   }
 
   // Leads novos da planilha entram na campanha aberta; os que já existiam continuam onde estavam.
-  // Se a campanha sumiu nesse meio-tempo, os leads sem campanha vão para a padrão na leitura seguinte.
+  // Se a campanha aberta sumiu nesse meio-tempo, os leads sem campanha vão para a padrão.
   async function afterImport() {
-    try {
-      if (campaign && (canCreate || canEdit)) await assignLeadsWithoutCampaign(await getDb(), companyId, campaign.id);
-    } catch {
-      // ensureDefaultCampaign (consulta das campanhas) cobre esse caso.
+    if (canWrite) {
+      const db = await getDb();
+      try {
+        if (!campaign) throw new Error("Prospecção não encontrada.");
+        await assignLeadsWithoutCampaign(db, companyId, campaign.id);
+      } catch {
+        await ensureDefaultCampaign(db, companyId).catch(() => undefined);
+      }
     }
     await qc.invalidateQueries({ queryKey: ["leads", companyId] });
   }
@@ -129,7 +152,7 @@ export default function LeadsPage() {
         title={title}
         actions={
           <>
-            <CampaignBar campaigns={campaigns} selected={campaign} onSelect={selectCampaign} canCreate={canCreate} canEdit={canEdit} onCreate={create} onRename={rename} loading={campaignsQuery.isLoading} />
+            <CampaignBar campaigns={campaigns} selected={campaign} onSelect={selectCampaign} canCreate={canCreate} canEdit={canEdit} onCreate={create} onRename={rename} loading={campaignsQuery.isPending} />
             <ImportExportButtons entity="leads" onImported={() => void afterImport()} />
           </>
         }
@@ -146,7 +169,7 @@ export default function LeadsPage() {
 
       <CurrentCampaignContext.Provider value={campaign}>
         <TabPanel idPrefix="leads" id={tab}>
-          {tab === "leads" && <LeadsPanel leads={campaignLeads} packages={packages} loading={isLoading || campaignsQuery.isLoading} />}
+          {tab === "leads" && <LeadsPanel leads={campaignLeads} packages={packages} loading={isLoading || campaignsQuery.isPending} />}
           {tab === "cronograma" && <SchedulePanel key={campaign?.id ?? "nenhuma"} leads={campaignLeads} />}
           {tab === "pacotes" && <PackagesPanel packages={packages} prices={prices} leads={campaignLeads} />}
           {/* O programa de indicação conta os fechados de quem indicou em todas as prospecções. */}

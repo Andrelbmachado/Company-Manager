@@ -59,6 +59,19 @@ describe("contas da empresa na tabela", () => {
     await expect(saveUserAccessChanges(C, admin, { created: [], updated: [{ id: "nao-existe", name: "W" }] })).rejects.toThrow(/não encontrada/);
   });
 
+  it("linha nova com e-mail inválido, repetido ou já usado não cria nenhuma conta do lote (senha que ninguém veria)", async () => {
+    await insertTestCompany(testDb());
+    const accounts = async () => (await testDb().select<{ n: number }[]>("SELECT COUNT(*) AS n FROM users"))[0].n;
+    const before = await accounts();
+    const ana = { name: "Ana", email: "ana@empresa.com" };
+    await expect(saveUserAccessChanges(C, admin, { created: [ana, { name: "Bia", email: "sem-arroba" }], updated: [] })).rejects.toThrow(/E-mail inválido/);
+    await expect(saveUserAccessChanges(C, admin, { created: [ana, { name: "Ana Souza", email: " ANA@empresa.com" }], updated: [] })).rejects.toThrow(/ana@empresa.com está em mais de uma linha/);
+    await expect(saveUserAccessChanges(C, admin, { created: [ana, { name: "Outra", email: "financeiro@teste.local" }], updated: [] })).rejects.toThrow(/financeiro@teste.local: Já existe/);
+    await expect(saveUserAccessChanges(C, admin, { created: [ana], updated: [{ id: "test-user-comercial", email: "ana@empresa.com" }] })).rejects.toThrow(/mais de uma linha/);
+    expect(await accounts()).toBe(before);
+    expect((await row("test-user-comercial"))?.email).not.toBe("ana@empresa.com");
+  });
+
   it("redefine a senha de outra pessoa (com troca) e a própria (sem troca)", async () => {
     await insertTestCompany(testDb());
     expect(await resetAccountPassword(C, admin, "test-user-comercial", "nova-senha-1", true)).toMatchObject({ mustChange: true, self: false });

@@ -101,7 +101,7 @@ export function UsersAccess() {
       />
 
       {logins.length > 0 && (
-        <div role="status" className="space-y-1 rounded-md border border-emerald-600/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-300">
+        <div role="status" className="space-y-1 rounded-md border border-status-success/40 bg-status-success/10 px-3 py-2 text-sm text-foreground">
           {logins.map((login) => (
             <p key={login.userId}>
               Conta de {login.name} criada. Login: <strong>{login.email}</strong> · Senha temporária: <code className="rounded bg-background px-1.5 py-0.5 font-mono">{login.password}</code>

@@ -150,10 +150,19 @@ async function applyUpdate(companyId: string, actor: UsersActor, fields: UserAcc
 export async function saveUserAccessChanges(companyId: string, actor: UsersActor, changes: UserAccessChanges): Promise<{ created: CreatedLogin[] }> {
   if (changes.created.length && !can(actor.role, "create", "users")) throw new Error("Seu perfil não tem permissão para criar contas.");
   if (changes.updated.length && !can(actor.role, "edit", "users")) throw new Error("Seu perfil não tem permissão para alterar contas.");
-  // Confere tudo o que dá para conferir antes de gravar a primeira linha.
+  // Confere tudo o que dá para conferir antes de gravar a primeira linha: uma conta criada antes de outra linha falhar
+  // ficaria com uma senha temporária que ninguém viu (a tela só recebe as senhas quando o lote inteiro foi gravado).
+  const emails = new Set<string>();
+  for (const fields of changes.updated) if ("email" in fields) emails.add(normalizeEmail(String(fields.email ?? "")));
   for (const fields of changes.created) {
     cleanName(fields.name);
     checkRole(fields.role ?? "comercial", actor);
+    const email = normalizeEmail(String(fields.email ?? ""));
+    if (!isValidEmail(email)) throw new Error(email ? `E-mail inválido: ${email}.` : "Informe o e-mail da pessoa.");
+    if (emails.has(email)) throw new Error(`O e-mail ${email} está em mais de uma linha.`);
+    emails.add(email);
+    const unavailable = await emailUnavailable(email);
+    if (unavailable) throw new Error(`${email}: ${unavailable}`);
   }
 
   for (const fields of changes.updated) await applyUpdate(companyId, actor, fields);

@@ -6,6 +6,7 @@ import { hashPassword } from "@/lib/auth/hash";
 import { PASSWORD_MIN_LENGTH, passwordProblem } from "@/lib/auth/password";
 import { ALL_ROLES, isValidDomain, normalizeDomain, ROLE_ACCOUNT_DOMAIN, roleAccountEmail, seedRoleAccounts } from "@/lib/auth/seedRoleAccounts";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import { SEED_SKIP_SETTING_KEY } from "@/lib/prospecting/seed";
 import { Building2, CheckCircle2, Copy, Loader2, TriangleAlert } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -33,6 +34,8 @@ export default function SetupPage() {
   const [sectorAccounts, setSectorAccounts] = useState<CreatedAccount[]>([]);
   const [sectorError, setSectorError] = useState("");
   const [copied, setCopied] = useState(false);
+  // Empresa nova começa limpa; os dados de prospecção (LeadingSites, Sorocaba) só entram se marcar.
+  const [withProspecting, setWithProspecting] = useState(false);
 
   async function handleCompany(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +80,14 @@ export default function SetupPage() {
       await db.execute("INSERT INTO companies (id, name, document) VALUES (?, ?, ?)", [companyId, companyName.trim(), companyDoc.trim() || null]);
       // A conta criada aqui é o CEO: só o CEO concede o papel de CEO depois. Nome, e-mail e senha já passaram por validate().
       await insertUserAccount({ companyId, name: adminName.trim(), email: normalizeEmail(adminEmail), role: "ceo", passwordHash: ceoPasswordHash });
+      if (!withProspecting) {
+        try {
+          await db.execute("INSERT OR IGNORE INTO settings (id, company_id, key, value_json) VALUES (?, ?, ?, ?)", [uuidv4(), companyId, SEED_SKIP_SETTING_KEY, JSON.stringify({ source: "setup" })]);
+        } catch (err) {
+          // Não impede a empresa: no pior caso, o seed de prospecção roda no primeiro acesso e pode ser apagado depois.
+          console.warn("[setup] não marcou a empresa como sem prospecção:", err);
+        }
+      }
 
       if (withSectors) {
         try {
@@ -237,6 +248,18 @@ export default function SetupPage() {
                   </div>
                 </>
               )}
+            </fieldset>
+
+            <fieldset className="rounded-lg border p-3">
+              <label htmlFor="setup-prospecting" className="flex items-start gap-2.5 text-sm">
+                <input id="setup-prospecting" type="checkbox" checked={withProspecting} onChange={(e) => setWithProspecting(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input accent-primary" />
+                <span>
+                  <span className="font-medium">Incluir a prospecção de sites da LeadingSites (Sorocaba)</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Projeto “Desenvolvimento de Site” com leads, pacotes e previsão de receita prontos. Deixe desmarcado para começar a empresa sem dados.
+                  </span>
+                </span>
+              </label>
             </fieldset>
 
             {error && (

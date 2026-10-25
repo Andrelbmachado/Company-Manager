@@ -16,6 +16,11 @@ const LEAD_SOURCE = "Google Maps (SEM_SITE_sorocaba_filtrado.csv)";
 
 export const SEED_SETTING_KEY = "seed.site_prospecting.v3";
 /**
+ * Empresa criada no Setup sem marcar "Incluir a prospecção de sites da LeadingSites": o seed não roda (onboarding limpo).
+ * Empresas anteriores não têm a chave e continuam recebendo o seed como antes.
+ */
+export const SEED_SKIP_SETTING_KEY = "seed.site_prospecting.skip";
+/**
  * v1: pacotes estimados (Básico / Com agendamento / Premium com SEO). v2: pacotes Básico / Essencial / Premium, sem etapas.
  * v3: etapas do projeto. Quem tem v1 ou v2 é atualizado sem perder edições (tudo idempotente).
  */
@@ -52,7 +57,7 @@ async function runSeed(session: Session): Promise<boolean> {
   const companyId = session.company.id;
 
   const settings = await db.select<{ key: string }[]>("SELECT * FROM settings WHERE company_id=?", [companyId]);
-  if (settings.some((setting) => setting.key === SEED_SETTING_KEY)) return false;
+  if (settings.some((setting) => setting.key === SEED_SETTING_KEY || setting.key === SEED_SKIP_SETTING_KEY)) return false;
   const upgrading = settings.some((setting) => LEGACY_SEED_KEYS.includes(setting.key));
 
   const data = await import("./data/siteProspecting.generated");

@@ -44,7 +44,7 @@ Papéis (`Role` em `src/types/index.ts`): `ceo`, `admin`, `gerente`, `tecnico`, 
 .
 ├── AGENTS.md / CLAUDE.md          # este guia (CLAUDE.md só importa AGENTS.md)
 ├── README.md                      # visão geral em pt-BR
-├── design-system.html             # referência visual do design system (estático, usa os tokens atuais)
+├── design-system.html             # referência visual do design system (estático, usa os tokens atuais: src/test/designSystem.test.ts compara com globals.css e as cores de estado do tailwind.config.js)
 ├── components.json                # config shadcn (aliases @/components, @/lib...)
 ├── package.json                   # scripts e dependências
 ├── vite.config.ts                 # porta 1420, alias @ -> src, ignora src-tauri no watch

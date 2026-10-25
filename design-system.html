@@ -24,7 +24,7 @@
             display: ['Bricolage Grotesque', 'Public Sans', 'sans-serif'],
           },
           colors: {
-            status: { danger: '#D92D20', success: '#15803D', warning: '#FACC15', 'warning-ink': '#1F1700', info: '#2B59E0', violet: '#6D3FD6', orange: '#C2410C', neutral: '#475066' },
+            status: { danger: '#D92D20', success: '#15803D', warning: '#FACC15', 'warning-ink': '#1F1700', info: '#2B59E0', violet: '#6D3FD6', orange: '#C2410C', neutral: '#525252' },
             border: "hsl(var(--border))",
             input: "hsl(var(--input))",
             ring: "hsl(var(--ring))",
@@ -75,65 +75,65 @@
   <style type="text/tailwindcss">
     @layer base {
       :root {
-        --background: 228 24% 96%;
-        --foreground: 223 37% 12%;
+        --background: 0 0% 97%;
+        --foreground: 0 0% 9%;
         --card: 0 0% 100%;
-        --card-foreground: 223 37% 12%;
+        --card-foreground: 0 0% 9%;
         --popover: 0 0% 100%;
-        --popover-foreground: 223 37% 12%;
-        --primary: 225 74% 52%;
-        --primary-foreground: 0 0% 100%;
-        --primary-text: 225 74% 42%;
-        --secondary: 225 25% 92%;
-        --secondary-foreground: 223 37% 12%;
-        --muted: 224 25% 93%;
-        --muted-foreground: 222 14% 41%;
-        --accent: 224 25% 93%;
-        --accent-foreground: 223 37% 12%;
+        --popover-foreground: 0 0% 9%;
+        --primary: 0 0% 9%;
+        --primary-foreground: 0 0% 98%;
+        --primary-text: 0 0% 9%;
+        --secondary: 0 0% 92%;
+        --secondary-foreground: 0 0% 9%;
+        --muted: 0 0% 93%;
+        --muted-foreground: 0 0% 38%;
+        --accent: 0 0% 92%;
+        --accent-foreground: 0 0% 9%;
         --destructive: 4 74% 49%;
         --destructive-foreground: 0 0% 100%;
-        --border: 220 21% 89%;
-        --input: 220 18% 80%;
-        --ring: 225 74% 52%;
+        --border: 0 0% 86%;
+        --input: 0 0% 80%;
+        --ring: 0 0% 9%;
         --radius: 0.5rem;
-        --sidebar-background: 0 0% 100%;
-        --sidebar-foreground: 223 20% 25%;
-        --sidebar-primary: 225 74% 52%;
-        --sidebar-primary-foreground: 0 0% 100%;
-        --sidebar-accent: 225 25% 94%;
-        --sidebar-accent-foreground: 223 37% 12%;
-        --sidebar-border: 220 21% 89%;
-        --sidebar-ring: 225 74% 52%;
+        --sidebar-background: 0 0% 93%;
+        --sidebar-foreground: 0 0% 20%;
+        --sidebar-primary: 0 0% 9%;
+        --sidebar-primary-foreground: 0 0% 98%;
+        --sidebar-accent: 0 0% 87%;
+        --sidebar-accent-foreground: 0 0% 9%;
+        --sidebar-border: 0 0% 86%;
+        --sidebar-ring: 0 0% 9%;
       }
       .dark {
-        --background: 226 36% 9%;
-        --foreground: 222 38% 94%;
-        --card: 225 30% 13%;
-        --card-foreground: 222 38% 94%;
-        --popover: 225 31% 15%;
-        --popover-foreground: 222 38% 94%;
-        --primary: 225 84% 59%;
-        --primary-foreground: 0 0% 100%;
-        --primary-text: 225 100% 77%;
-        --secondary: 226 28% 18%;
-        --secondary-foreground: 222 38% 94%;
-        --muted: 226 28% 18%;
-        --muted-foreground: 222 18% 67%;
-        --accent: 226 28% 18%;
-        --accent-foreground: 222 38% 94%;
+        --background: 0 0% 11%;
+        --foreground: 0 0% 93%;
+        --card: 0 0% 14%;
+        --card-foreground: 0 0% 93%;
+        --popover: 0 0% 16%;
+        --popover-foreground: 0 0% 93%;
+        --primary: 0 0% 92%;
+        --primary-foreground: 0 0% 9%;
+        --primary-text: 0 0% 92%;
+        --secondary: 0 0% 18%;
+        --secondary-foreground: 0 0% 93%;
+        --muted: 0 0% 18%;
+        --muted-foreground: 0 0% 62%;
+        --accent: 0 0% 18%;
+        --accent-foreground: 0 0% 93%;
         --destructive: 0 78% 60%;
         --destructive-foreground: 0 0% 100%;
-        --border: 227 31% 24%;
-        --input: 227 28% 28%;
-        --ring: 225 84% 59%;
-        --sidebar-background: 224 41% 7%;
-        --sidebar-foreground: 222 30% 85%;
-        --sidebar-primary: 225 84% 59%;
-        --sidebar-primary-foreground: 0 0% 100%;
-        --sidebar-accent: 225 34% 16%;
-        --sidebar-accent-foreground: 222 38% 94%;
-        --sidebar-border: 227 31% 18%;
-        --sidebar-ring: 225 84% 59%;
+        --border: 0 0% 20%;
+        --input: 0 0% 24%;
+        --ring: 0 0% 70%;
+        --sidebar-background: 0 0% 7%;
+        --sidebar-foreground: 0 0% 80%;
+        --sidebar-primary: 0 0% 92%;
+        --sidebar-primary-foreground: 0 0% 9%;
+        --sidebar-accent: 0 0% 14%;
+        --sidebar-accent-foreground: 0 0% 95%;
+        --sidebar-border: 0 0% 15%;
+        --sidebar-ring: 0 0% 70%;
       }
     }
     body {
@@ -149,7 +149,7 @@
     <header class="border-b pb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div>
         <h1 class="text-4xl font-bold tracking-tight">Design System - Company Manager</h1>
-        <p class="text-muted-foreground mt-2">Referência visual do software: superfícies opacas, bordas de 1px, tags sólidas e valores grandes nos indicadores.</p>
+        <p class="text-muted-foreground mt-2">Referência visual do software: monocromático (cinza puro, sidebar mais escura que o fundo, cor só para estado), superfícies opacas, bordas de 1px, tags sólidas e valores grandes nos indicadores.</p>
       </div>
       <button id="theme-toggle" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground hover:bg-muted transition-colors shadow-sm" aria-label="Alternar tema">
         <i data-lucide="moon" id="theme-icon-moon" class="h-5 w-5"></i>
@@ -306,17 +306,15 @@
     <!-- 5. Cards & Estruturas -->
     <section class="space-y-6">
       <h2 class="text-2xl font-semibold border-b pb-2">5. Cards e Layouts</h2>
-      <p class="text-sm text-muted-foreground">Cards opacos (<code>bg-card</code> + borda de 1px), sem sombra difusa, brilho nem translucidez. Indicador: título pequeno, valor grande em fonte de exibição.</p>
+      <p class="text-sm text-muted-foreground">Cards opacos (<code>bg-card</code> + borda de 1px), sem sombra difusa, brilho nem translucidez. Indicador do topo da tela: só o título pequeno e o valor grande em fonte de exibição (nada de texto embaixo do número).</p>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="rounded-xl border bg-card p-5">
           <p class="text-[13px] font-medium text-muted-foreground">Potencial 1º ano (estimativa)</p>
           <p class="mt-2.5 font-display text-[2.5rem] font-bold leading-none tracking-tight tabular-nums">R$ 977.020</p>
-          <p class="mt-2.5 text-xs text-muted-foreground">implantação + 12 mensalidades</p>
         </div>
         <div class="rounded-xl border bg-card p-5">
           <p class="text-[13px] font-medium text-muted-foreground">Férias disponíveis</p>
           <p class="mt-2.5 font-display text-[2.5rem] font-bold leading-none tracking-tight tabular-nums">20 dias</p>
-          <p class="mt-2.5 text-xs text-muted-foreground">30 de direito, 0 aprovados, 10 em análise</p>
         </div>
         <div class="rounded-xl border bg-card p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">

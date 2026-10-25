@@ -30,3 +30,7 @@ npm-debug.log*
 
 # Instaladores gerados por npm run dmg
 dist-installers/
+
+# Playwright
+test-results/
+playwright-report/

@@ -191,16 +191,17 @@ Conexão sem login de terceiros: o botão **Conectar nuvem** abre o seletor de p
 
 **Files:** `e2e/redesign.spec.ts`, `docs/QA.md`
 
-- [ ] **Step 1:** Playwright (`npm run dev`, banco demo): shell sem top bar; dropdown da conta com tema e notificações; editar uma célula de cliente e ver o valor após Atualizar; dashboard com 4 cards e gráfico de 3 linhas; calendário com fixture iCal.
-- [ ] **Step 2:** `npm run install:app`; abrir o app instalado; login rápido nas 11 áreas; ligar/desligar modo demo; conectar uma pasta do iCloud Drive.
-- [ ] **Step 3:** Atualizar `AGENTS.md` (padrão EditableTable/CalendarView, perfil de área, modo demo) e commit `docs: redesign modular`.
+- [x] **Step 1:** Playwright (`npm run dev`, banco demo): shell sem top bar; dropdown da conta com tema e notificações; editar uma célula de cliente e ver o valor após Atualizar; dashboard com 4 cards e gráfico de 3 linhas; calendário com fixture iCal.
+- [x] **Step 2:** `npm run install:app`; abrir o app instalado; login rápido nas 11 áreas; ligar/desligar modo demo; conectar uma pasta do iCloud Drive.
+- [x] **Step 3:** Atualizar `AGENTS.md` (padrão EditableTable/CalendarView, perfil de área, modo demo) e commit `docs: redesign modular`.
+- Resultado (2026-10-25): `e2e/redesign.spec.ts` (7 cenários) verde; login rápido nas 11 áreas abrindo todas as telas e abas no navegador sem erro; app reinstalado e teste de fumaça com cópia do banco real (migrations até a 0012, modo demo desligado, 155 leads mantidos). O que exige clicar na janela do app instalado (login rápido nas 11 áreas, ligar/desligar o switch, conectar pasta do iCloud) ficou para o André; detalhes em `docs/QA.md`.
 
 ## Execução em agentes
 
 - **Fase A (sequencial, no branch principal):** Tarefa 0 → 1 → 2 → 3 (tocam arquivos compartilhados).
 - **Fase B (paralela, worktree por tarefa):** 4, 5, 6a, 6b, 6c, 6d, 7, 8, 9, 10 — cada uma com implementador e revisor; nenhuma edita `routes.tsx`, `Sidebar.tsx`, `rbac.ts`, `demo.ts`, `lib.rs`, `types/index.ts` (a Tarefa 2 já registra rotas, nav e tabelas).
 - **Fase C:** juntar os branches (com autorização), Tarefa 11, reinstalar com `npm run install:app`.
-  - Branches juntados em `feat/crm-erp-completo` (merge `--no-ff` de r4, r5, r6a, r6b, r6c, r6d, r7, r8, r9, r10, nesta ordem). Integração: plugin HTTP registrado no `lib.rs`; Fornecedores ficou com a tela da 6c; linha nova da tabela de leads entra na prospecção escolhida; histórico de importações sem `DetailDrawer` (nenhuma tela usa `CrudDialog`/`DetailDrawer`, com trava em teste); `AGENTS.md` com as camadas de gravação de cada grupo e o contrato dos pacotes. Falta a Tarefa 11.
+  - Branches juntados em `feat/crm-erp-completo` (merge `--no-ff` de r4, r5, r6a, r6b, r6c, r6d, r7, r8, r9, r10, nesta ordem). Integração: plugin HTTP registrado no `lib.rs`; Fornecedores ficou com a tela da 6c; linha nova da tabela de leads entra na prospecção escolhida; histórico de importações sem `DetailDrawer` (nenhuma tela usa `CrudDialog`/`DetailDrawer`, com trava em teste); `AGENTS.md` com as camadas de gravação de cada grupo e o contrato dos pacotes. Tarefa 11 feita (QA em `docs/QA.md`).
 
 ## Cobertura
 

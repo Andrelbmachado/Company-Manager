@@ -13,6 +13,7 @@ import { setCompanySetting } from "@/lib/settings/companySettings";
 import { AREA_PROFILE_SETTING, LABELS_SETTING } from "@/lib/labels/store";
 import { todayIso } from "@/lib/utils";
 import type { Role, Session } from "@/types";
+import { SERIES_COLORS } from "../components/HomeWidgets";
 import DashboardPage from "./DashboardPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -265,6 +266,10 @@ describe("DashboardPage (resumo do topo e balanço anual)", () => {
       { key: "active_work", title: "Clientes ativos", value: "1" },
     ]);
     expect(container.querySelector("[data-chart='balance'] h2")?.textContent).toContain("Caixa do escritório");
+  });
+
+  it("gráficos da home são monocromáticos: as séries só usam os tokens cinza do tema (nada do vermelho de erro)", () => {
+    for (const color of Object.values(SERIES_COLORS)) expect(color).toMatch(/^hsl\(var\(--(primary|foreground|muted-foreground)\)( \/ 0?\.\d+)?\)$/);
   });
 
   it("comercial não vê números do financeiro nem de projetos; produtos vê só os trabalhos ativos, sem gráfico", async () => {

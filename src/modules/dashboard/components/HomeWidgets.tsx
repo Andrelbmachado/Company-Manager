@@ -92,10 +92,13 @@ export function HomeListCard({ widget, result, loading }: { widget: HomeWidget; 
   );
 }
 
-/** Cor por série (tokens do tema): saída em vermelho do tema, chamados em primário claro. */
-const SERIES_COLORS: Record<string, string> = {
+/**
+ * Cor por série (tokens do tema, monocromático como o BalanceChart): entrada no primário e saída em cinza médio.
+ * Saída de dinheiro não é estado de erro, então não usa o vermelho do destructive. Chamados em primário claro.
+ */
+export const SERIES_COLORS: Record<string, string> = {
   entradas: "hsl(var(--primary))",
-  saidas: "hsl(var(--destructive))",
+  saidas: "hsl(var(--muted-foreground))",
   os: "hsl(var(--primary))",
   chamados: "hsl(var(--primary) / 0.4)",
 };

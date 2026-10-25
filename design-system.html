@@ -65,6 +65,21 @@
             md: "calc(var(--radius) - 2px)",
             sm: "calc(var(--radius) - 4px)",
             xl: "0.75rem",
+          },
+          // Tipografia do macOS: mesmos tokens e tamanhos do tailwind.config.js do app.
+          fontSize: {
+            xs: ["var(--text-caption)", { lineHeight: "var(--leading-caption)" }],
+            sm: ["var(--text-body)", { lineHeight: "var(--leading-body)" }],
+            base: ["var(--text-title3)", { lineHeight: "var(--leading-title3)" }],
+            lg: ["var(--text-title2)", { lineHeight: "var(--leading-title2)" }],
+            caption: ["var(--text-caption)", { lineHeight: "var(--leading-caption)" }],
+            callout: ["var(--text-callout)", { lineHeight: "var(--leading-callout)" }],
+            body: ["var(--text-body)", { lineHeight: "var(--leading-body)" }],
+            headline: ["var(--text-body)", { lineHeight: "var(--leading-body)", fontWeight: "600" }],
+            title3: ["var(--text-title3)", { lineHeight: "var(--leading-title3)" }],
+            title2: ["var(--text-title2)", { lineHeight: "var(--leading-title2)" }],
+            title1: ["var(--text-title1)", { lineHeight: "var(--leading-title1)" }],
+            "large-title": ["var(--text-large-title)", { lineHeight: "var(--leading-large-title)" }],
           }
         }
       }
@@ -138,6 +153,24 @@
     }
     body {
       @apply bg-background text-foreground antialiased; font-family: 'Public Sans', sans-serif;
+      font-size: var(--text-body); line-height: var(--leading-body);
+    }
+    /* Tipografia (globals.css): corpo 13/16, legendas 11/14 e 12/15, títulos 15, 17, 22 e 26. */
+    :root {
+      --text-caption: 0.6875rem;
+      --leading-caption: 0.875rem;
+      --text-callout: 0.75rem;
+      --leading-callout: 0.9375rem;
+      --text-body: 0.8125rem;
+      --leading-body: 1rem;
+      --text-title3: 0.9375rem;
+      --leading-title3: 1.25rem;
+      --text-title2: 1.0625rem;
+      --leading-title2: 1.375rem;
+      --text-title1: 1.375rem;
+      --leading-title1: 1.625rem;
+      --text-large-title: 1.625rem;
+      --leading-large-title: 2rem;
     }
   </style>
 </head>
@@ -209,28 +242,36 @@
       <h2 class="text-2xl font-semibold border-b pb-2">2. Tipografia</h2>
       <div class="space-y-8 bg-card border rounded-xl p-6 shadow-sm">
         <div>
-          <h1 class="text-4xl font-bold tracking-tight">H1 - Título Principal</h1>
-          <p class="text-sm text-muted-foreground mt-1">text-4xl font-bold tracking-tight</p>
+          <h1 class="text-[1.75rem] font-bold leading-tight tracking-tight">Título da página</h1>
+          <p class="text-xs text-muted-foreground mt-1">PageHeader: text-[1.75rem] font-bold</p>
         </div>
         <div>
-          <h2 class="text-2xl font-semibold tracking-tight">H2 - Subtítulo da Página</h2>
-          <p class="text-sm text-muted-foreground mt-1">text-2xl font-semibold tracking-tight</p>
+          <h2 class="text-large-title font-semibold tracking-tight">Large title, 26/32</h2>
+          <p class="text-xs text-muted-foreground mt-1">text-large-title</p>
         </div>
         <div>
-          <h3 class="text-lg font-semibold">H3 - Título de Seção / Modal</h3>
-          <p class="text-sm text-muted-foreground mt-1">text-lg font-semibold</p>
+          <h2 class="text-title1 font-semibold tracking-tight">Title 1, 22/26</h2>
+          <p class="text-xs text-muted-foreground mt-1">text-title1</p>
         </div>
         <div>
-          <p class="text-base">Texto Base (Paragraph) - O rápido raposo marrom salta sobre o cão preguiçoso.</p>
-          <p class="text-sm text-muted-foreground mt-1">text-base</p>
+          <h3 class="text-lg font-semibold">Title 2, 17/22: título de painel</h3>
+          <p class="text-xs text-muted-foreground mt-1">text-lg = text-title2</p>
         </div>
         <div>
-          <p class="text-sm font-medium">Texto Secundário / Labels de Input - font-medium</p>
-          <p class="text-sm text-muted-foreground mt-1">text-sm font-medium</p>
+          <h3 class="text-base font-semibold">Title 3, 15/20: título de seção e abas</h3>
+          <p class="text-xs text-muted-foreground mt-1">text-base = text-title3</p>
         </div>
         <div>
-          <p class="text-xs text-muted-foreground">Texto Auxiliar (Muted) - Informações complementares e descrições curtas.</p>
-          <p class="text-sm text-muted-foreground mt-1">text-xs text-muted-foreground</p>
+          <p class="text-sm">Corpo, 13/16: texto corrido, células de tabela, campos e botões. O rápido raposo marrom salta sobre o cão preguiçoso.</p>
+          <p class="text-xs text-muted-foreground mt-1">text-sm = text-body (também o padrão do body)</p>
+        </div>
+        <div>
+          <p class="text-callout text-muted-foreground">Callout, 12/15: informação complementar.</p>
+          <p class="text-xs text-muted-foreground mt-1">text-callout</p>
+        </div>
+        <div>
+          <p class="text-xs text-muted-foreground">Legenda, 11/14: rótulos de campo, datas e contadores.</p>
+          <p class="text-xs text-muted-foreground mt-1">text-xs = text-caption</p>
         </div>
       </div>
     </section>

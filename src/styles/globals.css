@@ -75,7 +75,29 @@
   }
 }
 
+/*
+ * Tipografia no padrão do macOS (Apple HIG): corpo 13/16, legendas 11/14 e 12/15, títulos 15, 17, 22 e 26.
+ * O tailwind.config.js liga text-sm ao corpo, text-xs à legenda, text-base ao title 3 e text-lg ao title 2, e
+ * expõe os nomes text-body, text-callout, text-caption, text-headline, text-title3/2/1 e text-large-title.
+ */
 @layer base {
+  :root {
+    --text-caption: 0.6875rem;
+    --leading-caption: 0.875rem;
+    --text-callout: 0.75rem;
+    --leading-callout: 0.9375rem;
+    --text-body: 0.8125rem;
+    --leading-body: 1rem;
+    --text-title3: 0.9375rem;
+    --leading-title3: 1.25rem;
+    --text-title2: 1.0625rem;
+    --leading-title2: 1.375rem;
+    --text-title1: 1.375rem;
+    --leading-title1: 1.625rem;
+    --text-large-title: 1.625rem;
+    --leading-large-title: 2rem;
+  }
+
   * {
     @apply border-border;
   }
@@ -84,6 +106,8 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   h1, h2, h3 {

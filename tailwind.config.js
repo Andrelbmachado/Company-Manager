@@ -18,6 +18,22 @@ export default {
         sans: ['"Public Sans Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
         display: ['"Bricolage Grotesque Variable"', '"Public Sans Variable"', "ui-sans-serif", "sans-serif"],
       },
+      // Tipografia do macOS (tokens em globals.css): text-sm = corpo 13/16 e text-xs = legenda 11/14, então as telas
+      // existentes já seguem o padrão; text-base e text-lg viram title 3 e title 2 (títulos de seção e de painel).
+      fontSize: {
+        xs: ["var(--text-caption)", { lineHeight: "var(--leading-caption)" }],
+        sm: ["var(--text-body)", { lineHeight: "var(--leading-body)" }],
+        base: ["var(--text-title3)", { lineHeight: "var(--leading-title3)" }],
+        lg: ["var(--text-title2)", { lineHeight: "var(--leading-title2)" }],
+        caption: ["var(--text-caption)", { lineHeight: "var(--leading-caption)" }],
+        callout: ["var(--text-callout)", { lineHeight: "var(--leading-callout)" }],
+        body: ["var(--text-body)", { lineHeight: "var(--leading-body)" }],
+        headline: ["var(--text-body)", { lineHeight: "var(--leading-body)", fontWeight: "600" }],
+        title3: ["var(--text-title3)", { lineHeight: "var(--leading-title3)" }],
+        title2: ["var(--text-title2)", { lineHeight: "var(--leading-title2)" }],
+        title1: ["var(--text-title1)", { lineHeight: "var(--leading-title1)" }],
+        "large-title": ["var(--text-large-title)", { lineHeight: "var(--leading-large-title)" }],
+      },
       colors: {
         // Tags de status: fundo sólido e texto com contraste >= 4,5 (amarelo usa texto escuro). São a única cor do
         // tema monocromático (estado); neutral é cinza puro, como o resto da interface.

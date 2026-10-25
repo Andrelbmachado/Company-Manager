@@ -11,6 +11,7 @@ import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useLabel } from "@/lib/labels/useLabel";
 import { formatMoney } from "@/lib/prospecting/contact";
+import { packagePricesQueryKey } from "@/lib/prospecting/packages";
 import { assignLeadsWithoutCampaign, campaignStats, createCampaign, ensureDefaultCampaign, listCampaigns, pickDefaultCampaign, renameCampaign } from "@/lib/prospecting/campaigns";
 import { fetchLeads, fetchPackagePrices, fetchRevenueScenarios, fetchServicePackages } from "@/lib/prospecting/queries";
 import type { Role } from "@/types";
@@ -91,7 +92,7 @@ export default function LeadsPage() {
 
   const { data: leads = [], isLoading } = useQuery({ queryKey: ["leads", companyId], queryFn: () => fetchLeads(companyId) });
   const { data: packages = [] } = useQuery({ queryKey: ["service-packages", companyId], queryFn: () => fetchServicePackages(companyId) });
-  const { data: prices = [] } = useQuery({ queryKey: ["package-prices", companyId], queryFn: () => fetchPackagePrices(companyId) });
+  const { data: prices = [] } = useQuery({ queryKey: packagePricesQueryKey(companyId), queryFn: () => fetchPackagePrices(companyId) });
   const { data: scenarios = [] } = useQuery({ queryKey: ["revenue-scenarios", companyId], queryFn: () => fetchRevenueScenarios(companyId) });
   const { data: stats } = useQuery({
     queryKey: campaignStatsQueryKey(companyId, campaign?.id),

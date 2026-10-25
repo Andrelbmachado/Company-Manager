@@ -27,8 +27,7 @@ const session = (id: string) =>
     company: { id, name: "Empresa de Teste" },
   }) as unknown as Session;
 
-beforeEach(async () => {
-  ({ companyId } = await seedStockFixture(testDb()));
+async function mount() {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -43,6 +42,11 @@ beforeEach(async () => {
       </QueryClientProvider>,
     );
   });
+}
+
+beforeEach(async () => {
+  ({ companyId } = await seedStockFixture(testDb()));
+  await mount();
 });
 
 afterEach(() => {
@@ -103,5 +107,37 @@ describe("ReorderPage", () => {
     expect(locationSelect()!.value).toBe("");
     const orders = await generate();
     expect(orders.map((order) => order.location_id)).toEqual([null, null]);
+  });
+
+  it("cabeçalho da sugestão ordena dentro de cada fornecedor; cobertos ordenam e filtram", async () => {
+    act(() => root!.unmount());
+    document.body.innerHTML = "";
+    await testDb().execute(
+      "INSERT INTO inventory_items (id, company_id, name, sku, unit, min_stock, max_stock, cost, supplier_id) VALUES ('item-5', ?, 'Adaptador', 'ITEM-5', 'un', 5, null, 30, 'sup-1')",
+      [companyId],
+    );
+    await mount();
+    await until(() => Boolean(container.querySelector("section[aria-label='Fornecedor NetPrime'] tbody tr")), "sugestão carregada");
+    const netprime = () => container.querySelector<HTMLElement>("section[aria-label='Fornecedor NetPrime']")!;
+    const names = (section: Element) => [...section.querySelectorAll("tbody tr")].map((row) => row.querySelector("td p")?.textContent);
+    await act(async () => netprime().querySelector<HTMLElement>("th [data-sort-key='cost']")!.click());
+    expect(names(netprime())).toEqual(["Adaptador", "Switch 24p"]);
+    await act(async () => netprime().querySelector<HTMLElement>("th [data-sort-key='cost']")!.click());
+    expect(names(netprime())).toEqual(["Switch 24p", "Adaptador"]);
+    expect(netprime().querySelector("th [data-sort-key='qty']")).toBeNull();
+
+    await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Gerar 2 pedidos"))!.click());
+    const covered = () => container.querySelector<HTMLElement>("section[aria-labelledby='reorder-covered-title']");
+    await until(() => (covered()?.querySelectorAll("tbody tr").length ?? 0) === 3, "itens cobertos pelos pedidos");
+    await act(async () => covered()!.querySelector<HTMLElement>("th [data-sort-key='total']")!.click());
+    await act(async () => covered()!.querySelector<HTMLElement>("th [data-sort-key='total']")!.click());
+    expect(names(covered()!)[0]).toBe("Mouse USB");
+    await act(async () => covered()!.querySelector<HTMLButtonElement>("button[aria-label='Filtrar']")!.click());
+    const input = covered()!.querySelector<HTMLInputElement>("[aria-label='Item: contém']")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "swi");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(names(covered()!)).toEqual(["Switch 24p"]);
   });
 });

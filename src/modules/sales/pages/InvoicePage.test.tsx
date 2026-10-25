@@ -106,6 +106,22 @@ describe("Faturas", () => {
     expect(customers()).toEqual(["Cliente Revenda"]);
   });
 
+  it("parcelas do detalhe ordenam pelo cabeçalho e filtram por coluna", async () => {
+    page = await mountPage({ companyId: fx.companyId, role: "financeiro", path: `/sales/faturas/${invoiceId}`, routes });
+    await until(() => text().includes("2/2"), "parcelas");
+    const section = page.container.querySelector<HTMLElement>("section[aria-label='Parcelas (contas a receber)']")!;
+    const parcels = () => [...section.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent);
+    expect(parcels()).toEqual(["1/2", "2/2"]);
+    await click(section.querySelector("th [data-sort-key='due_date']"));
+    await click(section.querySelector("th [data-sort-key='due_date']"));
+    expect(parcels()).toEqual(["2/2", "1/2"]);
+    await click(buttonIn(section, "Filtrar"));
+    await typeInto(section.querySelector("[aria-label='Parcela: mínimo']"), "2");
+    expect(parcels()).toEqual(["2/2"]);
+    await typeInto(section.querySelector("[aria-label='Parcela: mínimo']"), "3");
+    expect(section.textContent).toContain("Nenhum registro com esses filtros.");
+  });
+
   it("'nova' explica que fatura nasce do pedido", async () => {
     page = await mountPage({ companyId: fx.companyId, role: "financeiro", path: "/sales/faturas/nova", routes });
     await until(() => text().includes("Faturas nascem dos pedidos de venda"), "explicação");

@@ -82,4 +82,26 @@ describe("InventoryCountPage", () => {
     expect(buttonIn(table(), "Adicionar")!.disabled).toBe(true);
     expect(buttonIn(mounted!.container, "Concluir e ajustar estoque")).toBeUndefined();
   });
+
+  it("contagem concluída: folha ordena pelo cabeçalho e filtra por coluna", async () => {
+    const { addCountItem, finishInventoryCount, setCountedQuantity } = await import("@/lib/inventory/counts");
+    const db = testDb();
+    const [first] = await lines();
+    await setCountedQuantity(db, { companyId, countItemId: first.id, countedQty: 8 });
+    const second = await addCountItem(db, { companyId, countId, itemId: "item-2" });
+    await setCountedQuantity(db, { companyId, countItemId: second, countedQty: 3 });
+    await finishInventoryCount(db, { companyId, countId });
+    await open("estoquista");
+    await until(() => mounted!.container.querySelector("table[aria-label='Itens da contagem'] tbody tr") !== null, "folha concluída");
+    const sheet = mounted!.container.querySelector<HTMLElement>("table[aria-label='Itens da contagem']")!;
+    const items = () => [...sheet.querySelectorAll("tbody tr")].map((row) => row.querySelector("td p")?.textContent);
+    expect(items()).toEqual(["Cabo Cat6", "Switch"]);
+    await click(sheet.querySelector("th [data-sort-key='difference']"));
+    await click(sheet.querySelector("th [data-sort-key='difference']"));
+    expect(items()).toEqual(["Switch", "Cabo Cat6"]);
+
+    await click(buttonIn(mounted!.container, "Filtrar"));
+    await typeInto(mounted!.container.querySelector("[aria-label='Item: contém']"), "cabo");
+    expect(items()).toEqual(["Cabo Cat6"]);
+  });
 });

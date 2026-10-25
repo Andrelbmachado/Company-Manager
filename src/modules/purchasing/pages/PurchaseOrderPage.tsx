@@ -5,12 +5,12 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Ban, Check, PackageCheck, Send, Trash2, Truck } from "lucide-react";
-import { IconButton, TABLE_ICONS } from "@/components/shared/table";
+import { IconButton, NoFilterMatchRow, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { usePermission } from "@/hooks/usePermission";
 import { getDb } from "@/lib/db/client";
 import { formatSequence } from "@/lib/db/sequence";
@@ -21,11 +21,11 @@ import { emit } from "@/lib/events/bus";
 import { normalizeValue } from "@/lib/importexport/normalize";
 import { formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import { TotalsSummary, newLine } from "@/modules/catalog/components/LineItemsEditor";
-import { BUTTON, DANGER, ErrorNote, Field, INPUT, LoadingRows, PAYMENT_METHODS, PRIMARY, Section, TD, TH, byId, invalidateTrade, num, useGoodsReceipts, useLocations, usePayables, useSuppliers } from "@/modules/catalog/components/tradeKit";
+import { BUTTON, DANGER, ErrorNote, Field, INPUT, LoadingRows, PAYMENT_METHODS, PRIMARY, Section, TD, byId, invalidateTrade, num, useGoodsReceipts, useLocations, usePayables, useSuppliers } from "@/modules/catalog/components/tradeKit";
 import { ConfirmButton } from "@/modules/finance/components/financeShared";
 import { InfoGrid, InfoItem, InlinePanel } from "@/modules/finance/components/inline";
 import { useEditContext } from "@/modules/finance/data/useEditContext";
-import type { PurchaseOrder, PurchaseOrderItem, StockLocation, Supplier } from "@/types";
+import type { GoodsReceipt, Payable, PurchaseOrder, PurchaseOrderItem, StockLocation, Supplier } from "@/types";
 import { PurchaseOrderEditor, emptyPurchaseOrderForm } from "../components/PurchaseOrderEditor";
 import { usePurchaseItemOptions } from "../components/itemOptions";
 import { approveOrder, cancelOrder, deleteOrder, receiveOrder, sendOrder } from "../data/orderActions";
@@ -258,43 +258,14 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
 
       <Section title="Recebimentos">
         {orderReceipts.length === 0 ? <p className="text-sm text-muted-foreground">{canReceive(order) ? "Nenhuma mercadoria recebida ainda." : draft ? "Aprove o pedido para poder receber." : "Nenhum recebimento."}</p> : (
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead className="bg-muted/30"><tr><th className={TH}>Recebimento</th><th className={TH}>Data</th><th className={TH}>NF</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Valor</th></tr></thead>
-              <tbody className="divide-y">
-                {orderReceipts.map((receipt) => (
-                  <tr key={receipt.id}>
-                    <td className={TD}><Link className="font-medium hover:underline" to={`/purchasing/recebimentos?rec=${receipt.id}`}>{formatSequence("goods_receipts", receipt.number)}</Link></td>
-                    <td className={`${TD} text-muted-foreground`}>{formatDay(receipt.received_at)}</td>
-                    <td className={`${TD} text-muted-foreground`}>{receipt.supplier_invoice_number ?? "—"}</td>
-                    <td className={TD}><StatusBadge status={receipt.status} /></td>
-                    <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(receipt.total))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <OrderReceiptsTable receipts={orderReceipts} />
         )}
       </Section>
 
       {canSeePayables && (
         <Section title="Contas a pagar">
           {orderPayables.length === 0 ? <p className="text-sm text-muted-foreground">As contas a pagar nascem no recebimento.</p> : (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead className="bg-muted/30"><tr><th className={TH}>Descrição</th><th className={TH}>Vencimento</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Valor</th></tr></thead>
-                <tbody className="divide-y">
-                  {orderPayables.map((payable) => (
-                    <tr key={payable.id}>
-                      <td className={TD}>{payable.description}</td>
-                      <td className={`${TD} text-muted-foreground`}>{formatDay(payable.due_date)}</td>
-                      <td className={TD}><StatusBadge status={payable.status} /></td>
-                      <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(payable.amount))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <OrderPayablesTable payables={orderPayables} />
           )}
         </Section>
       )}
@@ -311,6 +282,91 @@ function moneyValue(label: string, raw: string): number {
   const parsed = normalizeValue("money", raw);
   if (!parsed.ok) fail(`${label}: ${parsed.reason}`);
   return parsed.value === null ? 0 : Number(parsed.value);
+}
+
+/** Cabeçalho ordenável no padrão do TH das telas de compra/venda (o alinhamento vem do `align`). */
+const SORT_TH = "px-4 py-3 text-sm";
+
+const RECEIPT_COLUMNS: SortFilterColumn<GoodsReceipt>[] = [
+  { key: "number", header: "Recebimento", kind: "text", sortValue: (receipt) => formatSequence("goods_receipts", receipt.number) },
+  { key: "received_at", header: "Data", kind: "date" },
+  { key: "supplier_invoice_number", header: "NF", kind: "text" },
+  { key: "status", header: "Status", kind: "select", sortValue: (receipt) => statusLabel(receipt.status) },
+  { key: "total", header: "Valor", kind: "money", sortValue: (receipt) => Number(receipt.total) },
+];
+
+/** Recebimentos do pedido: clique no cabeçalho ordena e Filtrar filtra por coluna. */
+function OrderReceiptsTable({ receipts }: { receipts: GoodsReceipt[] }) {
+  const view = useSortFilter(receipts, RECEIPT_COLUMNS);
+  return (
+    <div className="rounded-xl border">
+      <TableFilterToolbar view={view} />
+      <TableFilterBar view={view} />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-muted/30">
+            <tr>
+              {RECEIPT_COLUMNS.map((column) => (
+                <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "money" ? "right" : "left"} className={SORT_TH} />
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {view.rows.map((receipt) => (
+              <tr key={receipt.id}>
+                <td className={TD}><Link className="font-medium hover:underline" to={`/purchasing/recebimentos?rec=${receipt.id}`}>{formatSequence("goods_receipts", receipt.number)}</Link></td>
+                <td className={`${TD} text-muted-foreground`}>{formatDay(receipt.received_at)}</td>
+                <td className={`${TD} text-muted-foreground`}>{receipt.supplier_invoice_number ?? "—"}</td>
+                <td className={TD}><StatusBadge status={receipt.status} /></td>
+                <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(receipt.total))}</td>
+              </tr>
+            ))}
+            {!view.rows.length && <NoFilterMatchRow colSpan={RECEIPT_COLUMNS.length} />}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const PAYABLE_COLUMNS: SortFilterColumn<Payable>[] = [
+  { key: "description", header: "Descrição", kind: "text" },
+  { key: "due_date", header: "Vencimento", kind: "date" },
+  { key: "status", header: "Status", kind: "select", sortValue: (payable) => statusLabel(payable.status) },
+  { key: "amount", header: "Valor", kind: "money", sortValue: (payable) => Number(payable.amount) },
+];
+
+/** Contas a pagar do pedido: clique no cabeçalho ordena e Filtrar filtra por coluna. */
+function OrderPayablesTable({ payables }: { payables: Payable[] }) {
+  const view = useSortFilter(payables, PAYABLE_COLUMNS);
+  return (
+    <div className="rounded-xl border">
+      <TableFilterToolbar view={view} />
+      <TableFilterBar view={view} />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-muted/30">
+            <tr>
+              {PAYABLE_COLUMNS.map((column) => (
+                <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "money" ? "right" : "left"} className={SORT_TH} />
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {view.rows.map((payable) => (
+              <tr key={payable.id}>
+                <td className={TD}>{payable.description}</td>
+                <td className={`${TD} text-muted-foreground`}>{formatDay(payable.due_date)}</td>
+                <td className={TD}><StatusBadge status={payable.status} /></td>
+                <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(payable.amount))}</td>
+              </tr>
+            ))}
+            {!view.rows.length && <NoFilterMatchRow colSpan={PAYABLE_COLUMNS.length} />}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function HeaderForm({ order, suppliers, locations, label, onDone }: { order: PurchaseOrder; suppliers: Supplier[]; locations: StockLocation[]; label: string; onDone: () => void }) {

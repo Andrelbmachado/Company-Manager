@@ -1,7 +1,7 @@
 // Folha de uma contagem de inventário. Aberta: tabela editável (Editar = contado e observação de cada item; Adicionar =
 // incluir item com o contado). Concluir só com a tabela fora do modo edição (nada de rascunho esquecido). Concluída ou
 // cancelada: tabela só de leitura com o ajuste de cada item.
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Printer, Trash2, XCircle } from "lucide-react";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { confirmAction } from "@/lib/confirm";
@@ -354,41 +355,67 @@ function CountSheet({ countId }: { countId: string }) {
 }
 
 /** Contagem concluída ou cancelada: não muda mais, então a folha é só leitura. */
+function closedSheetColumns(concluded: boolean): SortFilterColumn<CountSheetRow>[] {
+  return [
+    { key: "item_name", header: "Item", kind: "text", sortValue: (row) => [row.item_name, row.sku].filter(Boolean).join(" ") },
+    { key: "system_qty", header: "Saldo do sistema", kind: "number" },
+    { key: "counted_qty", header: "Contado", kind: "number" },
+    { key: "difference", header: "Diferença", kind: "number" },
+    { key: "notes", header: "Observação", kind: "text" },
+    { key: "adjustment", header: "Ajuste", kind: "select", sortValue: (row) => (row.adjustment_movement_id ? "Ajustado" : concluded ? "Sem diferença" : null) },
+  ];
+}
+
+const CLOSED_TH = "px-4 py-3 text-sm";
+
+/** Folha de contagem concluída ou cancelada (somente leitura): clique no cabeçalho ordena e Filtrar filtra por coluna. */
 function ClosedSheet({ rows, concluded, diffClass }: { rows: CountSheetRow[]; concluded: boolean; diffClass: (diff: number | null) => string }) {
+  const columns = useMemo(() => closedSheetColumns(concluded), [concluded]);
+  const view = useSortFilter(rows, columns);
   if (rows.length === 0) return <EmptyState icon={ClipboardCheck} title="Nenhum item nesta contagem" />;
   return (
-    <div className="overflow-x-auto rounded-xl border">
-      <table className="w-full text-sm" aria-label="Itens da contagem">
-        <thead className="whitespace-nowrap bg-muted/30">
-          <tr>
-            <th className="min-w-[12rem] px-4 py-3 text-left font-medium text-muted-foreground">Item</th>
-            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Saldo do sistema</th>
-            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Contado</th>
-            <th className="px-4 py-3 text-right font-medium text-muted-foreground">Diferença</th>
-            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Observação</th>
-            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Ajuste</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {rows.map((row) => (
-            <tr key={row.id} className="align-top">
-              <td className="px-4 py-3">
-                <p className="font-medium">{row.item_name}</p>
-                <p className="text-xs text-muted-foreground">{[row.sku, row.unit].filter(Boolean).join(" · ")}</p>
-              </td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatQty(row.system_qty, row.unit)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{row.counted_qty == null ? "—" : formatQty(row.counted_qty, row.unit)}</td>
-              <td className={`px-4 py-3 text-right font-medium tabular-nums ${diffClass(row.difference)}`}>{row.difference == null ? "—" : signed(row.difference, row.unit)}</td>
-              <td className="px-4 py-3 text-muted-foreground">{row.notes ?? "—"}</td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {row.adjustment_movement_id ? (
-                  <Link to={`/inventory/movimentacoes?item=${encodeURIComponent(row.item_id)}`} className="text-primary-text hover:underline">Ajustado</Link>
-                ) : concluded ? "Sem diferença" : "—"}
-              </td>
+    <div className="rounded-xl border">
+      <TableFilterToolbar view={view} />
+      <TableFilterBar view={view} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" aria-label="Itens da contagem">
+          <thead className="whitespace-nowrap bg-muted/30">
+            <tr>
+              {columns.map((column) => (
+                <SortableHeader
+                  key={column.key}
+                  label={column.header}
+                  sortKey={column.key}
+                  sort={view.sort}
+                  onSort={view.toggleSort}
+                  align={column.kind === "number" ? "right" : "left"}
+                  className={column.key === "item_name" ? `min-w-[12rem] ${CLOSED_TH}` : CLOSED_TH}
+                />
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y">
+            {view.rows.map((row) => (
+              <tr key={row.id} className="align-top">
+                <td className="px-4 py-3">
+                  <p className="font-medium">{row.item_name}</p>
+                  <p className="text-xs text-muted-foreground">{[row.sku, row.unit].filter(Boolean).join(" · ")}</p>
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{formatQty(row.system_qty, row.unit)}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{row.counted_qty == null ? "—" : formatQty(row.counted_qty, row.unit)}</td>
+                <td className={`px-4 py-3 text-right font-medium tabular-nums ${diffClass(row.difference)}`}>{row.difference == null ? "—" : signed(row.difference, row.unit)}</td>
+                <td className="px-4 py-3 text-muted-foreground">{row.notes ?? "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {row.adjustment_movement_id ? (
+                    <Link to={`/inventory/movimentacoes?item=${encodeURIComponent(row.item_id)}`} className="text-primary-text hover:underline">Ajustado</Link>
+                  ) : concluded ? "Sem diferença" : "—"}
+                </td>
+              </tr>
+            ))}
+            {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

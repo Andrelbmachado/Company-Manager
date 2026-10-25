@@ -75,15 +75,49 @@
   }
 }
 
+/*
+ * Tipografia no padrão do macOS (Apple HIG): corpo 13/16, legendas 11/14 e 12/15, títulos 15, 17, 22 e 26.
+ * O tailwind.config.js liga text-sm ao corpo, text-xs à legenda, text-base ao title 3 e text-lg ao title 2, e
+ * expõe os nomes text-body, text-callout, text-caption, text-headline, text-title3/2/1 e text-large-title.
+ */
 @layer base {
+  :root {
+    --text-caption: 0.6875rem;
+    --leading-caption: 0.875rem;
+    --text-callout: 0.75rem;
+    --leading-callout: 0.9375rem;
+    --text-body: 0.8125rem;
+    --leading-body: 1rem;
+    --text-title3: 0.9375rem;
+    --leading-title3: 1.25rem;
+    --text-title2: 1.0625rem;
+    --leading-title2: 1.375rem;
+    --text-title1: 1.375rem;
+    --leading-title1: 1.625rem;
+    --text-large-title: 1.625rem;
+    --leading-large-title: 2rem;
+  }
+
   * {
     @apply border-border;
   }
   html {
     font-family: "Public Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+  /*
+   * A janela não rola: só a área de conteúdo (main do AppShell) e as telas de fora da casca (login, setup), cada
+   * uma no próprio contêiner. Sem isso, rolar sobre a borda da sidebar levava a casca inteira para cima (elástico
+   * do WebKit no macOS) e só o fundo aparecia.
+   */
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground antialiased;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   h1, h2, h3 {
@@ -98,12 +132,52 @@
   table {
     font-variant-numeric: tabular-nums;
   }
+  /*
+   * Item de grid não alarga a coluna além do espaço: com o min-width automático, um título com reticências ou uma
+   * tabela larga levavam o card (e a página) para fora da janela estreita. A tabela rola dentro do próprio contêiner.
+   * Uma classe min-w-* no item ainda vence (utilitários vêm depois da base).
+   */
+  .grid > *, .inline-grid > * {
+    min-width: 0;
+  }
+  /*
+   * Tabela só para leitor de tela (a do gráfico do Dashboard): tabela não encolhe até o 1 px do .sr-only (fica da
+   * largura do conteúdo) e alargava a área que rola. Com layout fixo ela respeita a largura e continua sendo tabela.
+   */
+  table.sr-only {
+    table-layout: fixed;
+  }
 }
 
 @layer components {
   /* Card de indicador: opaco, sem brilho nem sombra. O valor é o protagonista. */
   .kpi-card {
     @apply rounded-xl border bg-card;
+  }
+  /*
+   * Respiro da área de conteúdo (AppShell). Página que precisa ocupar a área toda cancela com
+   * -m-[var(--content-pad)] (o Assistente). Em janela estreita (até 1/5 da tela) o respiro diminui.
+   */
+  .app-content {
+    --content-pad: 1.5rem;
+    padding: var(--content-pad);
+  }
+}
+
+@media (max-width: 639px) {
+  .app-content {
+    --content-pad: 0.75rem;
+  }
+}
+
+/*
+ * Impressão: com a janela travada (height 100% e overflow hidden, acima) o body teria a altura de uma página e cortaria
+ * o resto. A folha do relatório em PDF (#cm-print-root no body, src/lib/reports/export.ts) cresce por várias páginas.
+ */
+@media print {
+  html, body, #root {
+    height: auto;
+    overflow: visible;
   }
 }
 

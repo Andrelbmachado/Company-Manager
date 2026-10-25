@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
+import { ScrollScreen } from "./layout/ScrollScreen";
 import { SUBPAGES, canOpenSubpage, subpageRoutePath, type Subpage } from "./subpages";
 import { useSession } from "@/hooks/useSession";
 import { visibleModules } from "@/lib/permissions/rbac";
@@ -78,13 +79,16 @@ export function AppRoutes() {
   const { session } = useSession();
 
   if (!session) {
+    // A janela não rola (globals.css): login e setup rolam no próprio contêiner numa janela baixa.
     return (
-      <Suspense fallback={<Loader />}>
-        <Routes>
-          <Route path="/setup" element={<SetupPage />} />
-          <Route path="*" element={<LoginPage />} />
-        </Routes>
-      </Suspense>
+      <ScrollScreen>
+        <Suspense fallback={<Loader />}>
+          <Routes>
+            <Route path="/setup" element={<SetupPage />} />
+            <Route path="*" element={<LoginPage />} />
+          </Routes>
+        </Suspense>
+      </ScrollScreen>
     );
   }
 

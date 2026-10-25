@@ -61,7 +61,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
         aria-label="Abrir menu da conta"
         aria-expanded={open}
         aria-controls="account-menu"
-        title={collapsed ? session.user.name : undefined}
+        data-rail-tip={collapsed ? session.user.name : undefined}
         className={cn(
           "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-sidebar-accent",
           collapsed && "justify-center px-0",
@@ -90,8 +90,12 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
           id="account-menu"
           aria-label="Conta"
           className={cn(
-            "absolute z-50 w-72 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl",
-            collapsed ? "bottom-0 left-full ml-2" : "bottom-full left-0 mb-2",
+            "absolute z-50 w-72 overflow-y-auto overscroll-contain rounded-xl border bg-popover text-popover-foreground shadow-xl",
+            // Janela pequena (até 1/5 × 1/3 da tela): o menu não passa da janela (o switch do tema ficava fora dela no
+            // trilho e o topo sumia ao abrir para cima); o que não couber rola por dentro.
+            collapsed
+              ? "bottom-0 left-full ml-2 max-h-[calc(100vh-1rem)] max-w-[calc(100vw-4.5rem)]"
+              : "bottom-full left-0 mb-2 max-h-[calc(100vh-5rem)] max-w-[calc(100vw-1.5rem)]",
           )}
         >
           <div className="border-b px-4 py-3">

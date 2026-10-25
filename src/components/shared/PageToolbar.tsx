@@ -21,9 +21,9 @@ export function PageToolbar({
 }: PageToolbarProps) {
   return (
     <div className="flex min-h-10 flex-wrap items-center justify-between gap-3 border-b pb-4">
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
         {onSearchChange ? (
-          <label className="flex w-72 items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+          <label className="flex w-72 min-w-0 max-w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
             <Search size={14} className="shrink-0 text-muted-foreground" />
             <input
               value={search ?? ""}
@@ -48,7 +48,7 @@ export function PageToolbar({
           </button>
         )}
       </div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      {children && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{children}</div>}
     </div>
   );
 }

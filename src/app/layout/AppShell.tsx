@@ -39,11 +39,16 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    // Altura da janela (#root = 100%) e sem rolagem: só o main (e a lista de módulos da sidebar) rola, com o overscroll
+    // contido para a rolagem não passar para a janela. `relative` no main: elemento absoluto da página (sr-only de
+    // tabela e títulos dos gráficos) fica dentro da área que rola; sem isso ele saía da casca, a janela ganhava altura
+    // para rolar e, rolando sobre a borda da sidebar, a casca inteira subia e só o fundo aparecia.
+    <div className="relative flex h-full overflow-hidden bg-background">
       <Sidebar onSearch={() => setCmdOpen(true)} />
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className="min-h-full p-6">
+      <main className="relative min-w-0 flex-1 overflow-y-auto overscroll-contain">
+        {/* .app-content (globals.css): respiro de 24 px que cai para 12 px em janela estreita. */}
+        <div className="app-content min-h-full">
           <ModuleNav />
           <Suspense fallback={<PageLoading />}>
             <Outlet />

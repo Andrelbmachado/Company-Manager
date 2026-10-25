@@ -1,5 +1,14 @@
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// Tamanhos de texto do tema (tailwind.config.js > fontSize): sem eles o tailwind-merge trataria text-body como cor.
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["caption", "callout", "body", "headline", "title3", "title2", "title1", "large-title"] }],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

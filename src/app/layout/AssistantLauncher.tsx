@@ -45,16 +45,16 @@ export function AssistantLauncher({ collapsed }: { collapsed: boolean }) {
         aria-label="Assistente de IA"
         aria-expanded={open}
         aria-controls="assistant-menu"
-        title={collapsed ? "Assistente de IA" : undefined}
+        data-rail-tip={collapsed ? "Assistente de IA" : undefined}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.95rem] transition-colors",
-          collapsed && "justify-center px-0",
+          "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+          collapsed && "h-9 justify-center px-0 py-0",
           active
             ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
             : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         )}
       >
-        <Sparkles size={18} className="shrink-0" />
+        <Sparkles size={collapsed ? 18 : 16} className="shrink-0" aria-hidden="true" />
         {!collapsed && (
           <>
             <span className="flex-1 text-left">Assistente de IA</span>
@@ -68,8 +68,11 @@ export function AssistantLauncher({ collapsed }: { collapsed: boolean }) {
           id="assistant-menu"
           aria-label="Conversas do assistente"
           className={cn(
-            "absolute z-50 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl",
-            collapsed ? "left-full top-0 ml-2 w-64" : "left-0 right-0 top-full mt-1",
+            "absolute z-50 overflow-y-auto overscroll-contain rounded-xl border bg-popover text-popover-foreground shadow-xl",
+            // Janela pequena (até 1/5 × 1/3 da tela): o menu não passa da janela; as conversas rolam por dentro.
+            collapsed
+              ? "left-full top-0 ml-2 w-64 max-h-[calc(100vh-7rem)] max-w-[calc(100vw-4.5rem)]"
+              : "left-0 right-0 top-full mt-1 max-h-[calc(100vh-9rem)] max-w-[calc(100vw-1.5rem)]",
           )}
         >
           <div className="p-1.5">

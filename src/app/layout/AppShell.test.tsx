@@ -157,4 +157,47 @@ describe("AppShell", () => {
     await click(byName(sidebar(), "Nova conversa"));
     await until(() => document.querySelector("[data-testid=conversa]")?.textContent === "nova", "nova conversa");
   });
+
+  it("só a área de conteúdo rola: a casca tem a altura da janela e nada fora do main e da lista de módulos rola", async () => {
+    // Rolar entre a sidebar e o conteúdo levava a janela inteira para cima (só o fundo aparecia): a casca não rola,
+    // o main e a lista de módulos rolam sozinhos e não passam a rolagem adiante (overscroll contido).
+    await openShell();
+    const shell = sidebar().parentElement!;
+    const classes = (element: Element) => element.getAttribute("class")?.split(/\s+/) ?? [];
+    expect(classes(shell)).toEqual(expect.arrayContaining(["h-full", "overflow-hidden"]));
+    expect(classes(shell)).not.toContain("h-screen");
+
+    const main = shell.querySelector("main")!;
+    expect(main.parentElement).toBe(shell);
+    expect(classes(main)).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "overflow-y-auto", "overscroll-contain"]));
+
+    const nav = sidebar().querySelector("nav[aria-label=Módulos]")!;
+    expect(classes(nav)).toEqual(expect.arrayContaining(["overflow-y-auto", "overscroll-contain"]));
+
+    const scrollers = [shell, ...shell.querySelectorAll("*")].filter((element) =>
+      classes(element).some((name) => /^overflow(-[xy])?-(auto|scroll)$/.test(name)),
+    );
+    expect(scrollers).toEqual([nav, main]);
+  });
+
+  it("elemento absoluto (sr-only) fica dentro da área que rola e não dá altura de rolagem à janela", async () => {
+    // A tabela sr-only do gráfico do Dashboard (absoluta, sem ancestral posicionado) saía do main e da casca: a janela
+    // ganhava altura para rolar mesmo com overflow hidden. Main, casca e cada grupo da sidebar seguram os absolutos.
+    localStorage.setItem("cm_sidebar_collapsed", "true");
+    await openShell();
+    const shell = sidebar().parentElement!;
+    expect(shell.classList.contains("relative")).toBe(true);
+    expect(shell.querySelector("main")!.classList.contains("relative")).toBe(true);
+    const groupTitles = [...sidebar().querySelectorAll("nav[aria-label=Módulos] p.sr-only")];
+    expect(groupTitles.length).toBeGreaterThan(0);
+    for (const title of groupTitles) expect(title.parentElement!.classList.contains("relative")).toBe(true);
+  });
+
+  it("o conteúdo usa o respiro variável (.app-content), que encolhe em janela estreita", async () => {
+    await openShell();
+    const content = document.querySelector("main")!.firstElementChild!;
+    expect(content.classList.contains("app-content")).toBe(true);
+    expect(content.className).not.toMatch(/(^|\s)p-\d/);
+    expect(content.querySelector("[data-testid=conteudo]")).not.toBeNull();
+  });
 });

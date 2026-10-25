@@ -52,4 +52,13 @@ describe("CommandMenu", () => {
     await until(() => !items().includes("Clientes"), "busca filtrada");
     expect(items()).toContain("Processos");
   });
+
+  it("em janela baixa (até 1/3 da tela) a lista encolhe com a altura da janela: o painel não passa da borda de baixo", async () => {
+    // Com max-h-80 fixo, numa janela de 318 px o fim da lista e o rodapé ficavam fora da tela.
+    await openSearch();
+    const names = document.querySelector("[cmdk-list]")?.className.split(/\s+/) ?? [];
+    expect(names.some((name) => /^max-h-\[.*\d+vh.*\]$/.test(name))).toBe(true);
+    expect(names).not.toContain("max-h-80");
+    expect(names).toContain("overflow-y-auto");
+  });
 });

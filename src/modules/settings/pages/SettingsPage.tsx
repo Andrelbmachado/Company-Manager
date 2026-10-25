@@ -27,7 +27,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    // Largura toda da área de conteúdo: seções em duas colunas na janela larga; título, contas e acessos e o rodapé
+    // na linha inteira.
+    <div className="grid w-full grid-cols-1 items-start gap-6 xl:grid-cols-2 [&>*:first-child]:xl:col-span-2 [&>*:last-child]:xl:col-span-2">
       <PageHeader title="Configurações" description="Perfil, empresa e sistema" />
 
       {/* Company card */}
@@ -84,10 +86,10 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {canManageUsers && <UsersAccess />}
-
       {/* Modo demonstração: só CEO e Administração (o card some para os outros papéis) */}
       <DemoModeCard />
+
+      {canManageUsers && <div className="xl:col-span-2"><UsersAccess /></div>}
 
       {/* Actions */}
       <div className="rounded-xl border bg-card p-5 space-y-4">

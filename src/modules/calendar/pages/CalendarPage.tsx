@@ -175,7 +175,8 @@ export default function CalendarPage() {
 
       <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções do calendário" idPrefix="calendario" />
 
-      {tab === "calendario" && (
+      {/* As abas ficam montadas (só escondidas): trocar de aba não descarta em silêncio o rascunho das tabelas. */}
+      <div hidden={tab !== "calendario"}>
         <TabPanel idPrefix="calendario" id="calendario">
           <CalendarTab
             actor={actor}
@@ -189,8 +190,8 @@ export default function CalendarPage() {
             onEditEvents={() => setTab("eventos")}
           />
         </TabPanel>
-      )}
-      {tab === "agendas" && (
+      </div>
+      <div hidden={tab !== "agendas"}>
         <TabPanel idPrefix="calendario" id="agendas">
           <SourcesTab
             actor={actor}
@@ -204,12 +205,12 @@ export default function CalendarPage() {
             onSync={(sourceId) => sync({ sourceId })}
           />
         </TabPanel>
-      )}
-      {tab === "eventos" && (
+      </div>
+      <div hidden={tab !== "eventos"}>
         <TabPanel idPrefix="calendario" id="eventos">
           <EventsTab actor={actor} events={data.data?.events ?? []} people={people} canEdit={canEdit} loading={data.isLoading} onRefresh={refresh} />
         </TabPanel>
-      )}
+      </div>
     </div>
   );
 }

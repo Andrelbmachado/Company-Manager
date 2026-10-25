@@ -39,13 +39,17 @@ export default function DocumentsPage() {
       <div>
         <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções de documentos" idPrefix="documentos" />
       </div>
-      <TabPanel idPrefix="documentos" id={tab}>
-        {tab === "pastas" ? (
+      {/* Pastas fica montada (só escondida) enquanto os anexos aparecem: a pasta aberta e o rascunho da tabela não se perdem. */}
+      <div hidden={tab !== "pastas"}>
+        <TabPanel idPrefix="documentos" id="pastas">
           <DocumentFolders role={role} companyId={session.company.id} userId={session.user.id} canUpload={canUpload} canEdit={canEdit} canDelete={canDelete} />
-        ) : (
+        </TabPanel>
+      </div>
+      {tab === "anexos" && (
+        <TabPanel idPrefix="documentos" id="anexos">
           <AttachmentsBrowser role={role} companyId={session.company.id} canDelete={canDelete} />
-        )}
-      </TabPanel>
+        </TabPanel>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { choose, click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { choose, click, findButton, findShownButton, isShown, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { todayIso } from "@/lib/utils";
 import { emptyEmployeeInput, saveEmployee } from "@/lib/hr/employees";
 import { addTimeEntry } from "@/lib/hr/timebank";
@@ -30,9 +30,10 @@ afterEach(() => {
   page = null;
 });
 
-const tables = () => [...page!.container.querySelectorAll<HTMLElement>("[data-editable-table]")];
+// Abas e listas ficam montadas (escondidas) para não perder rascunho: os seletores olham só o que está visível.
+const tables = () => [...page!.container.querySelectorAll<HTMLElement>("[data-editable-table]")].filter(isShown);
 const table = () => tables()[0];
-const field = (label: string) => page!.container.querySelector<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`);
+const field = (label: string) => [...page!.container.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`)].find(isShown) ?? null;
 const noDialog = () => expect(document.querySelector("[role=dialog]")).toBeNull();
 
 async function employee(name: string, patch: Partial<ReturnType<typeof emptyEmployeeInput>> = {}): Promise<string> {
@@ -60,8 +61,8 @@ function onlyTitleAndNumber(): void {
 }
 
 async function showsCalendar(label = "Calendário"): Promise<void> {
-  await click(findButton(page!.container, label));
-  await until(() => !!page!.container.querySelector("[data-calendar-view]"), "calendário");
+  await click(findShownButton(page!.container, label));
+  await until(() => [...page!.container.querySelectorAll("[data-calendar-view]")].some(isShown), "calendário");
 }
 
 describe("Gestão de RH: tudo na tabela", () => {
@@ -75,7 +76,7 @@ describe("Gestão de RH: tudo na tabela", () => {
     expect(table().getAttribute("data-editable-table")).toBe("hr_admin");
     await editAndAddInPlace(table());
     await showsCalendar();
-    expect(page.container.querySelector("[data-editable-table]")).toBeNull();
+    expect(tables()).toHaveLength(0);
 
     await click(findButton(page.container, "Colaboradores"));
     await until(() => !!table() && page!.text().includes("Férias disponíveis"), "colaboradores");
@@ -243,6 +244,69 @@ describe("Ficha do colaborador", () => {
     await click(findButton(page.container, "Registrar desligamento"));
     noDialog();
     expect(page.container.querySelector("[data-termination-form]")?.getAttribute("aria-label")).toBe("Registrar desligamento de Davi Costa");
+  });
+});
+
+describe("Trocar de aba ou ver o calendário não perde o rascunho", () => {
+  it("Gestão de RH: linha nova continua depois de trocar de aba e de ver o calendário", async () => {
+    await insertTestCompany(testDb());
+    await employee("Ana Lima");
+    page = await renderPage(<HrManagePage />, { companyId: C, role: "rh", path: "/hr/manage" });
+    await until(() => !!table(), "solicitações");
+
+    await click(findButton(page.container, "Colaboradores"));
+    await until(() => !!table() && page!.text().includes("Férias disponíveis"), "colaboradores");
+    await click(findButton(table(), "Adicionar"));
+    await typeInto(field("Nome (nova linha)"), "Bruno Reis");
+    await click(findButton(page.container, "Comunicados"));
+    await click(findButton(page.container, "Colaboradores"));
+    expect(field("Nome (nova linha)")?.value).toBe("Bruno Reis");
+
+    await click(findButton(page.container, "Pendências"));
+    await click(findButton(table(), "Adicionar"));
+    await typeInto(field("Pendência (nova linha)"), "Enviar exame periódico");
+    await showsCalendar();
+    await click(findShownButton(page.container, "Lista"));
+    expect(field("Pendência (nova linha)")?.value).toBe("Enviar exame periódico");
+    expect(await testDb().select("SELECT * FROM employees WHERE company_id=? AND name=?", [C, "Bruno Reis"])).toHaveLength(0);
+  });
+
+  it("ficha do colaborador: solicitação digitada continua depois de abrir outra aba e o calendário", async () => {
+    await insertTestCompany(testDb());
+    const id = await employee("Davi Costa");
+    page = await renderPage(
+      <Routes><Route path="/hr/manage/colaboradores/:id" element={<EmployeeDetailPage />} /></Routes>,
+      { companyId: C, role: "rh", path: `/hr/manage/colaboradores/${id}` },
+    );
+    await until(() => page!.container.querySelector("h1")?.textContent === "Davi Costa", "ficha");
+    await click(findButton(page.container, "Férias e solicitações"));
+    await until(() => !!table(), "tabela de solicitações");
+    await click(findButton(table(), "Adicionar"));
+    await typeInto(field("Motivo (nova linha)"), "Casamento");
+
+    await click(findButton(page.container, "Banco de horas"));
+    await until(() => !!table() && page!.text().includes("Horas extras aprovadas"), "banco de horas");
+    await click(findButton(page.container, "Férias e solicitações"));
+    expect(field("Motivo (nova linha)")?.value).toBe("Casamento");
+    await showsCalendar();
+    await click(findShownButton(page.container, "Lista"));
+    expect(field("Motivo (nova linha)")?.value).toBe("Casamento");
+  });
+
+  it.each([
+    ["banco de horas do RH", <TimeBankPage key="rh" />, "rh" as Role],
+    ["meu banco de horas", <MyTimeBankPage key="meu" />, "tecnico" as Role],
+    ["Meu RH", <MyHrPage key="meu-rh" />, "tecnico" as Role],
+  ])("%s: o motivo digitado continua depois de ver o calendário", async (_name, element, role) => {
+    await insertTestCompany(testDb());
+    await employee("Teste tecnico", { email: "tecnico@teste.local" });
+    page = await renderPage(element, { companyId: C, role });
+    await until(() => !!table() && !findButton(table(), "Adicionar")?.disabled, "tabela");
+    await click(findButton(table(), "Adicionar"));
+    await typeInto(field("Motivo (nova linha)"), "Entrega do projeto");
+    await showsCalendar();
+    await click(findShownButton(page.container, "Lista"));
+    expect(field("Motivo (nova linha)")?.value).toBe("Entrega do projeto");
   });
 });
 

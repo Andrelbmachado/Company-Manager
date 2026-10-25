@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { click, findButton, isShown, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { createMemoryFileBackend } from "@/lib/files/backend";
 import { listFolderDocuments, saveFile, setFileBackend } from "@/lib/files/store";
 import { saveAreaLabels } from "@/lib/labels/store";
@@ -22,8 +22,9 @@ afterEach(() => {
   setFileBackend(null);
 });
 
-const table = () => page!.container.querySelector<HTMLElement>('[data-editable-table="documents"]');
-const field = (label: string) => page!.container.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${label}"]`);
+// A aba Pastas fica montada (escondida) enquanto Anexos de registros aparece: os seletores olham só o que está visível.
+const table = () => [...page!.container.querySelectorAll<HTMLElement>('[data-editable-table="documents"]')].find(isShown) ?? null;
+const field = (label: string) => [...page!.container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${label}"]`)].find(isShown) ?? null;
 const noDialog = () => expect(document.querySelector("[role=dialog]")).toBeNull();
 const doc = async (title: string) => (await listFolderDocuments(C)).find((row) => row.title === title);
 
@@ -66,6 +67,24 @@ describe("Documentos: metadados direto na tabela", () => {
     await typeInto(field("Nome da pasta"), "Propostas");
     await click(findButton(page.container, "Criar e abrir"));
     await until(() => !!page!.container.querySelector('nav [aria-current="location"]')?.textContent?.includes("Propostas"), "pasta nova aberta");
+  });
+
+  it("trocar para Anexos de registros e voltar mantém a pasta aberta e o rascunho da tabela", async () => {
+    await insertTestCompany(testDb(), { roles: ["comercial"] });
+    await saveFile(C, new File(["olá"], "Briefing.txt"), { userId: "test-user-comercial", folder: "Comercial" });
+    page = await renderPage(<DocumentsPage />, { companyId: C, role: "comercial" });
+    await until(() => findButton(page!.container, "Comercial")?.closest("nav") === null, "pasta Comercial");
+    await click(findButton(page.container, "Comercial"));
+    await until(() => page!.text().includes("Briefing.txt") && !!table(), "tabela da pasta");
+    await click(findButton(table()!, "Adicionar"));
+    await typeInto(field("Nome (nova linha)"), "Ata de reunião.docx");
+
+    await click(findButton(page.container, "Anexos de registros"));
+    await until(() => !table(), "aba de anexos");
+    await click(findButton(page.container, "Pastas"));
+    await until(() => !!table(), "aba de pastas");
+    expect(field("Nome (nova linha)")?.value).toBe("Ata de reunião.docx");
+    expect(await doc("Ata de reunião.docx")).toBeUndefined();
   });
 
   it("auditor só consulta: Editar e Adicionar desabilitados", async () => {

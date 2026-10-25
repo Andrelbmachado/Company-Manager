@@ -117,50 +117,49 @@ function ProjectsHub({ db, panel }: { db: DatabaseLike; panel: ReactNode }) {
     </div>
   );
 
-  if (view === "painel") {
-    return (
-      <div className="space-y-4">
-        <div className="flex justify-end">{switcher}</div>
-        {panel}
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={title}
-        description="Nome, status, orçamento e datas se editam na tabela; o plano em etapas e as tarefas ficam na página de cada projeto. Importar e exportar do app Project Manager fica no Painel."
-        actions={switcher}
-        className="pb-0"
-      />
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Em andamento" value={count("andamento")} />
-        <KpiCard title="Planejados" value={count("planejado")} />
-        <KpiCard title="Concluídos" value={count("concluido")} />
-        <KpiCard title="Orçamento total" value={formatCurrency(budget)} />
-      </div>
-
-      {view === "tabela" ? (
-        <EditableTable<ProjectRow>
-          resource="projects"
-          label="Projetos"
-          title="Projetos"
-          rows={rows}
-          columns={columns}
-          loading={projectsQuery.isLoading}
-          newRow={() => ({ status: "planejado", budget: 0 })}
-          onSave={save}
-          onRefresh={refresh}
-          rowActions={(project) => (
-            <Link to={`/projects/${project.id}`} aria-label={`Abrir plano de ${project.name}`} className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">Abrir plano</Link>
-          )}
-          emptyMessage="Nenhum projeto ainda. Use Adicionar e depois abra o projeto para montar o plano em etapas."
-        />
-      ) : (
-        <CalendarView items={projectCalendarItems(projects, stages, tasks)} label="Cronograma dos projetos" />
+    <>
+      {view === "painel" && (
+        <div className="space-y-4">
+          <div className="flex justify-end">{switcher}</div>
+          {panel}
+        </div>
       )}
-    </div>
+      {/* A tabela fica montada (só escondida) no Cronograma e no Painel: trocar de visão não perde em silêncio o rascunho. */}
+      <div hidden={view === "painel"} className="space-y-6">
+        <PageHeader
+          title={title}
+          description="Nome, status, orçamento e datas se editam na tabela; o plano em etapas e as tarefas ficam na página de cada projeto. Importar e exportar do app Project Manager fica no Painel."
+          actions={switcher}
+          className="pb-0"
+        />
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard title="Em andamento" value={count("andamento")} />
+          <KpiCard title="Planejados" value={count("planejado")} />
+          <KpiCard title="Concluídos" value={count("concluido")} />
+          <KpiCard title="Orçamento total" value={formatCurrency(budget)} />
+        </div>
+
+        <div hidden={view !== "tabela"}>
+          <EditableTable<ProjectRow>
+            resource="projects"
+            label="Projetos"
+            title="Projetos"
+            rows={rows}
+            columns={columns}
+            loading={projectsQuery.isLoading}
+            newRow={() => ({ status: "planejado", budget: 0 })}
+            onSave={save}
+            onRefresh={refresh}
+            rowActions={(project) => (
+              <Link to={`/projects/${project.id}`} aria-label={`Abrir plano de ${project.name}`} className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">Abrir plano</Link>
+            )}
+            emptyMessage="Nenhum projeto ainda. Use Adicionar e depois abra o projeto para montar o plano em etapas."
+          />
+        </div>
+        {view === "cronograma" && <CalendarView items={projectCalendarItems(projects, stages, tasks)} label="Cronograma dos projetos" />}
+      </div>
+    </>
   );
 }

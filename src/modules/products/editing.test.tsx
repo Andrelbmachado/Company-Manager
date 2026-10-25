@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { choose, click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { choose, click, findButton, findShownButton, isShown, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { loadInitiatives, saveInitiativeChanges } from "@/lib/products/initiatives";
 import { todayIso } from "@/lib/utils";
 import ProductDevelopmentPage from "./pages/ProductDevelopmentPage";
@@ -19,8 +19,9 @@ afterEach(() => {
   page = null;
 });
 
-const table = () => page!.container.querySelector<HTMLElement>("[data-editable-table]");
-const field = (label: string) => page!.container.querySelector<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`);
+// A lista fica montada (escondida) com o calendário aberto: os seletores olham só o que está visível.
+const table = () => [...page!.container.querySelectorAll<HTMLElement>("[data-editable-table]")].find(isShown) ?? null;
+const field = (label: string) => [...page!.container.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`)].find(isShown) ?? null;
 
 describe("Desenvolvimento de Produtos: edição direto na tabela", () => {
   it("adiciona e edita iniciativas sem diálogo; cards só com título e número", async () => {
@@ -60,6 +61,19 @@ describe("Desenvolvimento de Produtos: edição direto na tabela", () => {
     await click(findButton(page.container, "Calendário"));
     await until(() => !!page!.container.querySelector("[data-calendar-view]"), "calendário");
     expect(page.container.querySelector("[data-calendar-view]")?.textContent).toContain("Portal: Beta interno");
-    expect(page.container.querySelector("[data-editable-table]")).toBeNull();
+    expect(table()).toBeNull();
+  });
+
+  it("linha nova continua na tabela depois de ver o calendário", async () => {
+    await insertTestCompany(testDb());
+    page = await renderPage(<ProductDevelopmentPage />, { companyId: C, role: "produtos" });
+    await until(() => !!table() && page!.text().includes("Nenhuma iniciativa"), "tabela vazia");
+    await click(findButton(table()!, "Adicionar"));
+    await typeInto(field("Produto (nova linha)"), "Sensor Edge");
+    await click(findShownButton(page.container, "Calendário"));
+    await until(() => [...page!.container.querySelectorAll("[data-calendar-view]")].some(isShown), "calendário");
+    await click(findShownButton(page.container, "Lista"));
+    expect(field("Produto (nova linha)")?.value).toBe("Sensor Edge");
+    expect(await loadInitiatives(testDb(), C)).toHaveLength(0);
   });
 });

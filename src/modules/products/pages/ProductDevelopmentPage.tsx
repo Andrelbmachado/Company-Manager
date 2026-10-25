@@ -127,7 +127,8 @@ export default function ProductDevelopmentPage() {
 
       {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
 
-      {view === "lista" ? (
+      {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
+      <div hidden={view !== "lista"}>
         <EditableTable<ProductInitiative>
           resource="product_development"
           label="Iniciativas de produto"
@@ -145,9 +146,8 @@ export default function ProductDevelopmentPage() {
           ) : undefined}
           emptyMessage={initiatives.length === 0 ? "Nenhuma iniciativa cadastrada. Use Adicionar." : "Nenhum produto encontrado."}
         />
-      ) : (
-        <CalendarView items={milestoneItems(filtered)} label="Marcos das iniciativas" />
-      )}
+      </div>
+      {view === "calendario" && <CalendarView items={milestoneItems(filtered)} label="Marcos das iniciativas" />}
     </div>
   );
 }

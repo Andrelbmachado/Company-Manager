@@ -67,6 +67,17 @@ export function findButton(scope: ParentNode, label: string): HTMLButtonElement 
   return buttons.find((item) => item.textContent?.trim() === label || item.getAttribute("aria-label") === label) ?? buttons.find((item) => item.textContent?.includes(label));
 }
 
+/** Fora de aba ou visão escondida: as telas deixam abas e listas montadas com `hidden` para não perder o rascunho. */
+export function isShown(element: Element): boolean {
+  return element.closest("[hidden]") === null;
+}
+
+/** Como `findButton`, mas só entre os botões visíveis (ignora os de abas e visões escondidas). */
+export function findShownButton(scope: ParentNode, label: string): HTMLButtonElement | undefined {
+  const buttons = [...scope.querySelectorAll<HTMLButtonElement>("button")].filter(isShown);
+  return buttons.find((item) => item.textContent?.trim() === label || item.getAttribute("aria-label") === label) ?? buttons.find((item) => item.textContent?.includes(label));
+}
+
 export async function until(condition: () => boolean | Promise<boolean>, what: string): Promise<void> {
   for (let attempt = 0; attempt < 300; attempt++) {
     if (await condition()) return;

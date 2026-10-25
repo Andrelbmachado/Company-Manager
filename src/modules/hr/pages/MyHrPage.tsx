@@ -88,7 +88,8 @@ export default function MyHrPage() {
           <p className="text-sm text-muted-foreground">Peça férias, folga ou envie um atestado com Adicionar. Você pode pedir até {balance.available} dia(s) de férias.</p>
           <ViewSwitch value={view} onChange={setView} label="Ver solicitações em" />
         </div>
-        {view === "lista" ? (
+        {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
+        <div hidden={view !== "lista"}>
           <EditableTable<HrRequest>
             resource="hr_self"
             label="Minhas solicitações"
@@ -101,9 +102,8 @@ export default function MyHrPage() {
             onRefresh={refresh}
             emptyMessage="Você ainda não fez solicitações."
           />
-        ) : (
-          <CalendarView items={requestCalendarItems(requests, names)} label="Minhas férias e folgas" />
-        )}
+        </div>
+        {view === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Minhas férias e folgas" />}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

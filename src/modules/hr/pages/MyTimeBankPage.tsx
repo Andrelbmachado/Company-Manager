@@ -79,7 +79,8 @@ export default function MyTimeBankPage() {
       <ErrorAlert message={error} onClose={() => setError("")} />
 
       <div className="flex justify-end"><ViewSwitch value={view} onChange={setView} label="Ver extrato em" /></div>
-      {view === "lista" ? (
+      {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
+      <div hidden={view !== "lista"}>
         <EditableTable<TimeEntryRow>
           resource="hr_self"
           label="Extrato do banco de horas"
@@ -95,9 +96,8 @@ export default function MyTimeBankPage() {
           ) : null}
           emptyMessage="Nenhum lançamento ainda. Fez hora extra? Use Adicionar (ex.: 1:30) e o RH aprova; compensação vai com sinal de menos (-2h)."
         />
-      ) : (
-        <CalendarView items={timeEntryCalendarItems(rows, names)} label="Meu banco de horas" />
-      )}
+      </div>
+      {view === "calendario" && <CalendarView items={timeEntryCalendarItems(rows, names)} label="Meu banco de horas" />}
     </div>
   );
 }

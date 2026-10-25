@@ -112,7 +112,8 @@ export default function TimeBankPage() {
           </div>
           <ViewSwitch value={view} onChange={setView} label="Ver lançamentos em" />
         </div>
-        {view === "lista" ? (
+        {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
+        <div hidden={view !== "lista"}>
           <EditableTable<TimeEntryRow>
             resource="hr_admin"
             label="Lançamentos do banco de horas"
@@ -131,9 +132,8 @@ export default function TimeBankPage() {
             ) : null}
             emptyMessage={onlyPending ? "Nenhum lançamento aguardando. Quando um colaborador informar horas no Meu banco de horas, aparece aqui." : "Nenhum lançamento. Adicionar lança horas já aprovadas (positivo = hora extra, negativo = compensação)."}
           />
-        ) : (
-          <CalendarView items={timeEntryCalendarItems(shown, names)} label="Lançamentos do banco de horas" />
-        )}
+        </div>
+        {view === "calendario" && <CalendarView items={timeEntryCalendarItems(shown, names)} label="Lançamentos do banco de horas" />}
         <p className="text-xs text-muted-foreground">Lançado pelo RH já entra aprovado no saldo. Só lançamento em análise pode ser corrigido; para mudar um aprovado, lance um ajuste.</p>
       </section>
 

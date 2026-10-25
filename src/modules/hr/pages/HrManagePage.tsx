@@ -235,8 +235,9 @@ export default function HrManagePage() {
 
       <TabList tabs={TAB_ITEMS} value={tab} onChange={setTab} label="Seções da gestão de RH" idPrefix="rh" />
 
-      <TabPanel idPrefix="rh" id={tab}>
-        {tab === "solicitacoes" && (
+      {/* Abas e listas ficam montadas (só escondidas): trocar de aba ou ver o calendário não perde em silêncio o rascunho das tabelas. */}
+      <div hidden={tab !== "solicitacoes"}>
+        <TabPanel idPrefix="rh" id="solicitacoes">
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex gap-2">
@@ -246,7 +247,7 @@ export default function HrManagePage() {
               </div>
               <ViewSwitch value={requestView} onChange={setRequestView} label="Ver solicitações em" />
             </div>
-            {requestView === "lista" ? (
+            <div hidden={requestView !== "lista"}>
               <EditableTable<HrRequest>
                 resource="hr_admin"
                 label="Solicitações"
@@ -265,13 +266,14 @@ export default function HrManagePage() {
                 ) : null}
                 emptyMessage={filter === "pendente" ? "Nada aguardando decisão. Adicionar registra uma solicitação em nome do colaborador." : "Nenhuma solicitação."}
               />
-            ) : (
-              <CalendarView items={requestCalendarItems(requests, names)} label="Férias, folgas e atestados" />
-            )}
+            </div>
+            {requestView === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Férias, folgas e atestados" />}
           </section>
-        )}
+        </TabPanel>
+      </div>
 
-        {tab === "colaboradores" && (
+      <div hidden={tab !== "colaboradores"}>
+        <TabPanel idPrefix="rh" id="colaboradores">
           <EditableTable<EmployeeRow>
             resource="hr_admin"
             label="Colaboradores"
@@ -286,9 +288,11 @@ export default function HrManagePage() {
             rowActions={(employee) => <Link to={`/hr/manage/colaboradores/${employee.id}`} className="inline-block whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">{canEdit ? "Abrir ficha" : "Ver ficha"}</Link>}
             emptyMessage="Nenhum colaborador cadastrado. Use Adicionar ou Importar."
           />
-        )}
+        </TabPanel>
+      </div>
 
-        {tab === "comunicados" && (
+      <div hidden={tab !== "comunicados"}>
+        <TabPanel idPrefix="rh" id="comunicados">
           <EditableTable<HrAnnouncement>
             resource="hr_admin"
             label="Comunicados"
@@ -304,12 +308,14 @@ export default function HrManagePage() {
             ) : undefined}
             emptyMessage="Nenhum comunicado. Publique avisos e políticas: todos os setores veem no Meu RH."
           />
-        )}
+        </TabPanel>
+      </div>
 
-        {tab === "pendencias" && (
+      <div hidden={tab !== "pendencias"}>
+        <TabPanel idPrefix="rh" id="pendencias">
           <section className="space-y-3">
             <div className="flex justify-end"><ViewSwitch value={taskView} onChange={setTaskView} label="Ver pendências em" /></div>
-            {taskView === "lista" ? (
+            <div hidden={taskView !== "lista"}>
               <EditableTable<HrTask>
                 resource="hr_admin"
                 label="Pendências"
@@ -322,12 +328,11 @@ export default function HrManagePage() {
                 onRefresh={refresh}
                 emptyMessage="Nenhuma pendência. Peça documentos, treinamentos ou atualizações cadastrais a um colaborador ou a todos."
               />
-            ) : (
-              <CalendarView items={taskCalendarItems(tasks, names)} label="Prazos das pendências" />
-            )}
+            </div>
+            {taskView === "calendario" && <CalendarView items={taskCalendarItems(tasks, names)} label="Prazos das pendências" />}
           </section>
-        )}
-      </TabPanel>
+        </TabPanel>
+      </div>
     </div>
   );
 }

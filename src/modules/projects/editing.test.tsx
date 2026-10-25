@@ -5,7 +5,7 @@ import { Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { choose, click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { choose, click, findButton, findShownButton, isShown, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { createProjectRepository, type Project } from "@/modules/project-manager";
 import { saveAreaLabels } from "@/lib/labels/store";
 import type { Role } from "@/types";
@@ -22,8 +22,9 @@ afterEach(() => {
   page = null;
 });
 
-const table = () => page!.container.querySelector<HTMLElement>('[data-editable-table="projects"]');
-const field = (label: string) => page!.container.querySelector<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`);
+// A tabela fica montada (escondida) no Cronograma e no Painel: os seletores olham só o que está visível.
+const table = () => [...page!.container.querySelectorAll<HTMLElement>('[data-editable-table="projects"]')].find(isShown) ?? null;
+const field = (label: string) => [...page!.container.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`)].find(isShown) ?? null;
 const noDialog = () => expect(document.querySelector("[role=dialog]")).toBeNull();
 const projects = () => testDb().select<Project[]>("SELECT * FROM projects WHERE company_id=? AND deleted_at IS NULL", [C]);
 
@@ -79,6 +80,23 @@ describe("Projetos: edição direto na tabela", () => {
     await click(findButton(page!.container, "Painel"));
     await until(() => page!.text().includes("Plano em etapas"), "painel do módulo");
     expect(table()).toBeNull();
+  });
+
+  it("linha nova continua na tabela depois de ver o cronograma e o painel", async () => {
+    await insertTestCompany(testDb());
+    await open("gerente");
+    await until(() => !!table() && page!.text().includes("Nenhum projeto"), "tabela vazia");
+    await click(findButton(table()!, "Adicionar"));
+    await typeInto(field("Nome (nova linha)"), "Portal B2B");
+
+    await click(findShownButton(page!.container, "Cronograma"));
+    await until(() => [...page!.container.querySelectorAll("[data-calendar-view]")].some(isShown), "cronograma");
+    await click(findShownButton(page!.container, "Painel"));
+    await until(() => page!.text().includes("Plano em etapas"), "painel do módulo");
+    await click(findShownButton(page!.container, "Tabela"));
+    await until(() => !!table(), "tabela de volta");
+    expect(field("Nome (nova linha)")?.value).toBe("Portal B2B");
+    expect(await projects()).toHaveLength(0);
   });
 
   it("o título vem do rótulo da área (advocacia chama de Processos)", async () => {

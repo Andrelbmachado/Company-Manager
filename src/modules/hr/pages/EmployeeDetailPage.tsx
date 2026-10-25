@@ -330,11 +330,12 @@ export default function EmployeeDetailPage() {
           <div>
             <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da ficha do colaborador" idPrefix="colaborador" />
           </div>
-          <TabPanel idPrefix="colaborador" id={tab}>
-            {tab === "dados" && dataForm}
+          {tab === "dados" && <TabPanel idPrefix="colaborador" id="dados">{dataForm}</TabPanel>}
 
-            {tab === "ferias" && balance && (
-              <>
+          {/* Férias, banco de horas e ciclo ficam montados (só escondidos): trocar de aba ou ver o calendário não perde o rascunho das tabelas. */}
+          {balance && (
+            <div hidden={tab !== "ferias"}>
+              <TabPanel idPrefix="colaborador" id="ferias">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <KpiCard title={`Férias disponíveis em ${year}`} value={`${balance.available} dias`} />
                   <KpiCard title="Aprovadas no ano" value={`${balance.used} dias`} />
@@ -344,7 +345,7 @@ export default function EmployeeDetailPage() {
                   <Link to="/hr/manage" className="text-sm font-medium text-primary-text hover:underline">Decidir em Gestão de RH</Link>
                   <ViewSwitch value={requestView} onChange={setRequestView} label="Ver solicitações em" />
                 </div>
-                {requestView === "lista" ? (
+                <div hidden={requestView !== "lista"}>
                   <EditableTable<HrRequest>
                     resource="hr_admin"
                     label={`Solicitações de ${employee.name}`}
@@ -356,65 +357,63 @@ export default function EmployeeDetailPage() {
                     onRefresh={refresh}
                     emptyMessage="Nenhuma solicitação. O colaborador pede férias, folgas e envia atestados pelo Meu RH; o RH também registra aqui com Adicionar."
                   />
-                ) : (
-                  <CalendarView items={requestCalendarItems(myRequests, new Map([[employee.id, employee.name]]))} label={`Férias e folgas de ${employee.name}`} />
-                )}
-              </>
-            )}
-
-            {tab === "horas" && (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <KpiCard title="Saldo" value={<span className={balanceTone(hours.balance)}>{formatMinutes(hours.balance)}</span>} />
-                  <KpiCard title="Horas extras aprovadas" value={formatMinutes(hours.credits, { signed: false })} />
-                  <KpiCard title="Em análise" value={hours.pendingCount} />
                 </div>
-                <div className="flex justify-end"><ViewSwitch value={hoursView} onChange={setHoursView} label="Ver lançamentos em" /></div>
-                {hoursView === "lista" ? (
-                  <EditableTable<TimeEntryRow>
-                    resource="hr_admin"
-                    label={`Banco de horas de ${employee.name}`}
-                    title="Lançamentos"
-                    rows={hourRows}
-                    columns={hourColumns}
-                    newRow={() => ({ entry_date: today })}
-                    onSave={saveHours}
-                    onRefresh={refresh}
-                    emptyMessage="Nenhum lançamento no banco de horas. Adicionar lança já aprovado (1:30 = hora extra, -0:30 = compensação)."
-                  />
-                ) : (
-                  <CalendarView items={timeEntryCalendarItems(hourRows, new Map([[employee.id, employee.name]]))} label={`Banco de horas de ${employee.name}`} />
-                )}
-              </>
-            )}
+                {requestView === "calendario" && <CalendarView items={requestCalendarItems(myRequests, new Map([[employee.id, employee.name]]))} label={`Férias e folgas de ${employee.name}`} />}
+              </TabPanel>
+            </div>
+          )}
 
-            {tab === "ciclo" && (
-              <>
-                {cases.length === 0 ? (
-                  <EmptyState title="Sem processo de admissão ou desligamento" description="Admissões iniciadas em “Admissões e desligamentos” e desligamentos registrados aqui aparecem com o checklist." />
-                ) : (
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    {cases.map((item) => (
-                      <CycleCaseCard key={item.kind} item={item} today={today} canEdit={canEdit} busy={toggle.isPending} onToggle={(taskId, done) => toggle.mutate({ taskId, done })} />
-                    ))}
-                  </div>
-                )}
-                <EditableTable<HrTask>
+          <div hidden={tab !== "horas"}>
+            <TabPanel idPrefix="colaborador" id="horas">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <KpiCard title="Saldo" value={<span className={balanceTone(hours.balance)}>{formatMinutes(hours.balance)}</span>} />
+                <KpiCard title="Horas extras aprovadas" value={formatMinutes(hours.credits, { signed: false })} />
+                <KpiCard title="Em análise" value={hours.pendingCount} />
+              </div>
+              <div className="flex justify-end"><ViewSwitch value={hoursView} onChange={setHoursView} label="Ver lançamentos em" /></div>
+              <div hidden={hoursView !== "lista"}>
+                <EditableTable<TimeEntryRow>
                   resource="hr_admin"
-                  label={`Outras pendências de ${employee.name}`}
-                  title="Outras pendências"
-                  rows={otherTasks}
-                  columns={taskColumns}
-                  newRow={() => ({ status: "pendente" })}
-                  onSave={saveOtherTasks}
+                  label={`Banco de horas de ${employee.name}`}
+                  title="Lançamentos"
+                  rows={hourRows}
+                  columns={hourColumns}
+                  newRow={() => ({ entry_date: today })}
+                  onSave={saveHours}
                   onRefresh={refresh}
-                  emptyMessage="Nenhuma outra pendência. Adicionar pede um documento, treinamento ou atualização a esta pessoa."
+                  emptyMessage="Nenhum lançamento no banco de horas. Adicionar lança já aprovado (1:30 = hora extra, -0:30 = compensação)."
                 />
-              </>
-            )}
+              </div>
+              {hoursView === "calendario" && <CalendarView items={timeEntryCalendarItems(hourRows, new Map([[employee.id, employee.name]]))} label={`Banco de horas de ${employee.name}`} />}
+            </TabPanel>
+          </div>
 
-            {tab === "documentos" && <FileAttachments entityType="employee" entityId={employee.id} canEdit={canEdit} />}
-          </TabPanel>
+          <div hidden={tab !== "ciclo"}>
+            <TabPanel idPrefix="colaborador" id="ciclo">
+              {cases.length === 0 ? (
+                <EmptyState title="Sem processo de admissão ou desligamento" description="Admissões iniciadas em “Admissões e desligamentos” e desligamentos registrados aqui aparecem com o checklist." />
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {cases.map((item) => (
+                    <CycleCaseCard key={item.kind} item={item} today={today} canEdit={canEdit} busy={toggle.isPending} onToggle={(taskId, done) => toggle.mutate({ taskId, done })} />
+                  ))}
+                </div>
+              )}
+              <EditableTable<HrTask>
+                resource="hr_admin"
+                label={`Outras pendências de ${employee.name}`}
+                title="Outras pendências"
+                rows={otherTasks}
+                columns={taskColumns}
+                newRow={() => ({ status: "pendente" })}
+                onSave={saveOtherTasks}
+                onRefresh={refresh}
+                emptyMessage="Nenhuma outra pendência. Adicionar pede um documento, treinamento ou atualização a esta pessoa."
+              />
+            </TabPanel>
+          </div>
+
+          {tab === "documentos" && <TabPanel idPrefix="colaborador" id="documentos"><FileAttachments entityType="employee" entityId={employee.id} canEdit={canEdit} /></TabPanel>}
         </>
       )}
 

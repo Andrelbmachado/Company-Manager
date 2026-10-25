@@ -1,14 +1,16 @@
-// Catálogo e tabelas de preço pela tela: cadastro com item de estoque, SKU repetido, desativar, preço na tabela e reajuste.
+// Catálogo e tabelas de preço pela tela (edição na própria tabela): cadastro com item de estoque, SKU repetido,
+// desativar, consulta do comercial, preço na tabela e reajuste por percentual.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { seedTradeFixture, type TradeFixture } from "@/lib/erp/tradeFixtures";
-import { buttonIn, choose, click, dialog, field, mountPage, typeInto, until, type Mounted } from "../testHarness";
+import { buttonIn, choose, click, mountPage, typeInto, until, type Mounted } from "../testHarness";
 import type { InventoryItem, PriceListItem, Product } from "@/types";
 import CatalogPage from "./CatalogPage";
 import PriceListsPage from "./PriceListsPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
+vi.mock("@/lib/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
 
 const testDb = useTestDb();
 let fx: TradeFixture;
@@ -24,53 +26,63 @@ afterEach(() => page?.unmount());
 const text = () => page.container.textContent ?? "";
 const open = (role: "estoquista" | "comercial", path: string) => mountPage({ companyId: fx.companyId, role, path, routes: [{ path: "/catalog", element: <CatalogPage /> }, { path: "/catalog/tabelas-de-preco", element: <PriceListsPage /> }] });
 const productBySku = async (sku: string) => (await testDb().select<Product[]>("SELECT * FROM products WHERE company_id = ? AND sku = ?", [fx.companyId, sku]))[0];
+const table = (resource: string, index = 0) => page.container.querySelectorAll<HTMLElement>(`[data-editable-table="${resource}"]`)[index]!;
+const cell = <T extends HTMLElement = HTMLInputElement>(scope: ParentNode, label: string) => scope.querySelector<T>(`[aria-label="${label}"]`);
+const rowOf = (scope: ParentNode, name: string) => [...scope.querySelectorAll<HTMLTableRowElement>("tr[data-row-key]")].find((row) => row.textContent?.includes(name));
+const alertText = () => [...page.container.querySelectorAll("[role=alert]")].map((node) => node.textContent).join(" ");
 
 describe("CatalogPage", () => {
-  it("cadastra produto criando o item de estoque e recusa SKU repetido", async () => {
+  it("cadastra produto criando o item de estoque e recusa SKU repetido, tudo na tabela", async () => {
     page = await open("estoquista", "/catalog");
     await until(() => text().includes("Switch 24 portas"), "lista do catálogo");
     expect(text()).not.toContain("Produto fora de linha");
 
-    await click(buttonIn(page.container, "Novo produto ou serviço"));
-    let form = dialog("Novo produto ou serviço");
-    await typeInto(field(form, "Nome"), "Câmera IP");
-    await typeInto(field(form, "SKU"), "CAM-1");
-    await typeInto(field(form, "Preço de venda"), "700");
-    await typeInto(field(form, "Custo"), "450");
-    await choose(field<HTMLSelectElement>(form, "Item de estoque"), "__novo__");
-    await click(buttonIn(form, "Salvar"));
+    const products = table("products");
+    await click(buttonIn(products, "Adicionar"));
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    await typeInto(cell(products, "Nome (nova linha)"), "Câmera IP");
+    await typeInto(cell(products, "SKU (nova linha)"), "CAM-1");
+    await typeInto(cell(products, "Preço (nova linha)"), "700");
+    await typeInto(cell(products, "Custo (nova linha)"), "450");
+    await choose(cell<HTMLSelectElement>(products, "Item de estoque (nova linha)"), "__novo__");
+    await click(buttonIn(products, "Salvar"));
     await until(async () => Boolean(await productBySku("CAM-1")), "produto gravado");
     const product = await productBySku("CAM-1");
     const [item] = await testDb().select<InventoryItem[]>("SELECT * FROM inventory_items WHERE id = ?", [product.inventory_item_id]);
     expect(item).toMatchObject({ name: "Câmera IP", sku: "CAM-1", cost: 450 });
-    await until(() => Boolean(document.querySelector("[role=dialog][aria-label='Câmera IP']")), "detalhe do produto aberto");
-    expect(document.body.textContent).toContain("35,7%");
+    await until(() => Boolean(rowOf(products, "Câmera IP")), "linha da câmera");
+    expect(rowOf(products, "Câmera IP")!.textContent).toContain("35,7%");
 
-    await click(buttonIn(dialog("Câmera IP"), "Fechar") ?? document.querySelector("[role=dialog][aria-label='Câmera IP'] button[aria-label=Fechar]"));
-    await click(buttonIn(page.container, "Novo produto ou serviço"));
-    form = dialog("Novo produto ou serviço");
-    await typeInto(field(form, "Nome"), "Outra câmera");
-    await typeInto(field(form, "SKU"), "cam-1");
-    await typeInto(field(form, "Preço de venda"), "1");
-    await click(buttonIn(form, "Salvar"));
-    await until(() => (dialog("Novo produto ou serviço").textContent ?? "").includes('Já existe um produto com o SKU "cam-1"'), "erro de SKU");
+    await click(buttonIn(products, "Adicionar"));
+    await typeInto(cell(products, "Nome (nova linha)"), "Outra câmera");
+    await typeInto(cell(products, "SKU (nova linha)"), "cam-1");
+    await typeInto(cell(products, "Preço (nova linha)"), "1");
+    await click(buttonIn(products, "Salvar"));
+    await until(() => alertText().includes('Já existe um produto com o SKU "cam-1"'), "erro de SKU");
+    expect(cell(products, "Nome (nova linha)")?.value).toBe("Outra câmera");
   });
 
-  it("desativa pelo detalhe; comercial só consulta", async () => {
+  it("desativa pela coluna Ativo; detalhes na página; comercial só consulta", async () => {
     page = await open("estoquista", "/catalog");
     await until(() => text().includes("Mouse USB"), "lista");
-    await click([...page.container.querySelectorAll("tr")].find((row) => row.textContent?.includes("Mouse USB")));
-    await click(buttonIn(dialog("Mouse USB"), "Desativar"));
+    const products = table("products");
+    const number = [...products.querySelectorAll("tr[data-row-key]")].findIndex((row) => row.textContent?.includes("Mouse USB")) + 1;
+    await click(buttonIn(products, "Editar"));
+    await click(cell(products, `Ativo (linha ${number})`));
+    await click(buttonIn(products, "Salvar"));
     await until(async () => (await productBySku("FX-MOUSE")).active === 0, "desativado");
     page.unmount();
 
     page = await open("comercial", "/catalog");
     await until(() => text().includes("Switch 24 portas"), "lista");
-    expect(buttonIn(page.container, "Novo produto ou serviço")).toBeUndefined();
-    await click([...page.container.querySelectorAll("tr")].find((row) => row.textContent?.includes("Switch 24 portas")));
-    expect(buttonIn(dialog("Switch 24 portas"), "Desativar")).toBeUndefined();
-    expect(buttonIn(dialog("Switch 24 portas"), "Editar")).toBeUndefined();
-    expect(dialog("Switch 24 portas").textContent).toContain("Revenda");
+    const readOnly = table("products");
+    expect(buttonIn(readOnly, "Editar")?.disabled).toBe(true);
+    expect(buttonIn(readOnly, "Adicionar")?.disabled).toBe(true);
+    expect(page.container.querySelector("[aria-label='Excluir Switch 24 portas']")).toBeNull();
+    await click(page.container.querySelector("[aria-label='Detalhes de Switch 24 portas']"));
+    const details = page.container.querySelector("[aria-label='Detalhes: Switch 24 portas']");
+    expect(details?.textContent).toContain("Revenda");
+    expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 });
 
@@ -78,23 +90,20 @@ describe("PriceListsPage", () => {
   it("adiciona preço com faixa e aplica percentual na tabela escolhida", async () => {
     page = await open("estoquista", "/catalog/tabelas-de-preco");
     await until(() => text().includes("Tabela padrão") && text().includes("Revenda"), "tabelas");
-    await click([...page.container.querySelectorAll("nav[aria-label='Tabelas de preço'] button")].find((button) => button.textContent?.includes("Revenda")));
+    await click(page.container.querySelector("[aria-label='Abrir tabela Revenda']"));
     await until(() => text().includes("Clientes: Cliente Revenda"), "tabela Revenda aberta");
 
-    await click(buttonIn(page.container, "Adicionar preço"));
-    const form = dialog("Adicionar preço");
-    await choose(field<HTMLSelectElement>(form, "Produto ou serviço"), fx.products.mouse);
-    expect(field(form, "Preço nesta tabela").value).toBe("80");
-    await typeInto(field(form, "A partir de"), "20");
-    await typeInto(field(form, "Preço nesta tabela"), "60");
-    await click(buttonIn(form, "Salvar"));
+    const prices = table("products", 1);
+    await click(buttonIn(prices, "Adicionar"));
+    await choose(cell<HTMLSelectElement>(prices, "Produto / serviço (nova linha)"), fx.products.mouse);
+    await typeInto(cell(prices, "A partir de (nova linha)"), "20");
+    await typeInto(cell(prices, "Preço na tabela (nova linha)"), "60");
+    await click(buttonIn(prices, "Salvar"));
     await until(async () => (await testDb().select<PriceListItem[]>("SELECT * FROM price_list_items WHERE price_list_id = ? AND product_id = ?", [fx.priceLists.revenda, fx.products.mouse])).length === 1, "preço gravado");
 
+    await typeInto(cell(page.container, "Percentual (%)"), "-10");
+    await choose(cell<HTMLSelectElement>(page.container, "Itens do reajuste"), "produto");
     await click(buttonIn(page.container, "Aplicar % sobre o catálogo"));
-    const percent = dialog("Aplicar percentual sobre o catálogo");
-    await typeInto(field(percent, "Percentual"), "-10");
-    await choose(field<HTMLSelectElement>(percent, "Itens"), "produto");
-    await click(buttonIn(percent, "Aplicar"));
     await until(async () => {
       const rows = await testDb().select<PriceListItem[]>("SELECT * FROM price_list_items WHERE price_list_id = ? AND deleted_at IS NULL", [fx.priceLists.revenda]);
       return rows.length === 3;
@@ -105,5 +114,16 @@ describe("PriceListsPage", () => {
       [fx.products.mouse, 20, 60],
       [fx.products.switch, 1, 2700],
     ]);
+  });
+
+  it("nova tabela marcada como padrão tira a marca da antiga", async () => {
+    page = await open("estoquista", "/catalog/tabelas-de-preco");
+    await until(() => text().includes("Tabela padrão"), "tabelas");
+    const lists = table("products", 0);
+    await click(buttonIn(lists, "Adicionar"));
+    await typeInto(cell(lists, "Tabela (nova linha)"), "Atacado");
+    await click(cell(lists, "Padrão (nova linha)"));
+    await click(buttonIn(lists, "Salvar"));
+    await until(async () => (await testDb().select<{ name: string }[]>("SELECT name FROM price_lists WHERE company_id = ? AND is_default = 1", [fx.companyId])).map((row) => row.name).join() === "Atacado", "nova padrão");
   });
 });

@@ -76,6 +76,17 @@ describe("CustodyPage — edição direto na tabela", () => {
     await until(async () => (await testDb().select<Custody[]>("SELECT * FROM custodies WHERE item_id='item-2'")).length === 1, "custódia gravada");
   });
 
+  it("responsável desligado aparece pelo nome na edição (nunca pelo código) e a devolução grava", async () => {
+    await testDb().execute("UPDATE users SET status='suspended' WHERE id='test-user-tecnico'");
+    await open();
+    await click(findButton(table(), "Editar"));
+    expect((cell("Responsável (linha 1)") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Teste tecnico (inativo)");
+    await choose(cell("Status (linha 1)"), "devolvido");
+    await click(findButton(table(), "Salvar"));
+    await until(async () => (await custody("cu-1")).status === "devolvido", "devolução gravada");
+    expect((await custody("cu-1")).holder_id).toBe("test-user-tecnico");
+  });
+
   it("técnico (só consulta/solicita) vê Editar e Adicionar desabilitados com o motivo", async () => {
     await open("tecnico");
     expect(findButton(table(), "Editar")!.disabled).toBe(true);

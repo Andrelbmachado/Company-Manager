@@ -18,7 +18,7 @@ import { useLabel } from "@/lib/labels/useLabel";
 import { sumMoney } from "@/lib/money";
 import { isClosedWorkOrder, listWorkOrders, saveWorkOrderRows, WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES, workOrderCalendarItems, type WorkOrderView } from "@/lib/operations/workOrders";
 import { formatCurrency, formatDateTime, todayIso } from "@/lib/utils";
-import { emitSafely, normalizeSearch, useActor } from "@/modules/inventory/components/inventoryUi";
+import { emitSafely, normalizeSearch, useActor, withRetiredOptions } from "@/modules/inventory/components/inventoryUi";
 
 const TABS = [
   { id: "lista", label: "Lista" },
@@ -43,11 +43,11 @@ export default function WorkOrdersPage() {
     queryKey: ["work-orders", companyId],
     queryFn: async () => listWorkOrders(await getDb(), companyId),
   });
-  const { data: customers = [] } = useQuery({
+  const { data: customers = [], isSuccess: customersLoaded } = useQuery({
     queryKey: ["work-order-customers", companyId],
     queryFn: async () => (await getDb()).select<{ id: string; name: string }[]>("SELECT * FROM customers WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [companyId]),
   });
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isSuccess: usersLoaded } = useQuery({
     queryKey: ["company-users", companyId],
     queryFn: async () => fetchCompanyUsers(await getDb(), companyId),
   });
@@ -62,10 +62,14 @@ export default function WorkOrdersPage() {
   const active = orders.filter((order) => !isClosedWorkOrder(order.status));
   const overdue = active.filter((order) => order.sla_due_at && dayOf(order.sla_due_at) < today);
 
+  // Cliente excluído e técnico desligado que alguma OS ainda usa aparecem pelo nome na edição, não pelo código.
+  const customerOptions = withRetiredOptions(customers.map((customer) => ({ value: customer.id, label: customer.name })), customersLoaded, orders, (row) => row.customer_id, (row) => row.customer_name, "excluído");
+  const technicianOptions = withRetiredOptions(users.map((user) => ({ value: user.id, label: user.name })), usersLoaded, orders, (row) => row.technician_id, (row) => row.technician_name, "inativo");
+
   const columns: EditableColumn<WorkOrderView>[] = [
     { key: "number", header: "Número", kind: "text", placeholder: "automático", width: 120, render: (row) => <span className="font-medium">{row.number}</span> },
-    { key: "customer_id", header: "Cliente", kind: "select", options: customers.map((customer) => ({ value: customer.id, label: customer.name })), render: (row) => row.customer_name ?? "—" },
-    { key: "technician_id", header: "Técnico", kind: "select", options: users.map((user) => ({ value: user.id, label: user.name })), render: (row) => row.technician_name ?? "—" },
+    { key: "customer_id", header: "Cliente", kind: "select", options: customerOptions, render: (row) => row.customer_name ?? "—" },
+    { key: "technician_id", header: "Técnico", kind: "select", options: technicianOptions, render: (row) => row.technician_name ?? "—" },
     { key: "status", header: "Status", kind: "select", required: true, options: WORK_ORDER_STATUSES, render: (row) => <StatusBadge status={row.status} /> },
     { key: "priority", header: "Prioridade", kind: "select", required: true, options: WORK_ORDER_PRIORITIES, render: (row) => <StatusBadge status={row.priority} /> },
     { key: "sla_due_at", header: "Prazo", kind: "date" },

@@ -82,6 +82,26 @@ describe("logística — edição direto na tabela (contrato)", () => {
   });
 });
 
+describe("logística — histórico com cadastro excluído", () => {
+  const EXPECTED: Record<string, string[]> = {
+    Movimentações: ["Cabo Cat6 (excluído)", "Depósito (arquivado)"],
+    Transferências: ["Cabo Cat6 (excluído)", "Depósito (arquivado)"],
+    "Inventário (contagens)": ["Depósito (arquivado)"],
+  };
+
+  it.each(PAGES.filter((page) => page.name in EXPECTED))("$name: a edição mostra o nome do item excluído e do local arquivado, nunca o código", async ({ name, path, route, element }) => {
+    await testDb().execute("UPDATE inventory_items SET deleted_at=datetime('now') WHERE id='item-1'");
+    await testDb().execute("UPDATE stock_locations SET deleted_at=datetime('now') WHERE id='loc-1'");
+    mounted = await mountPage({ companyId, role: "admin", path, routes: [{ path: route, element }] });
+    const table = () => mounted!.container.querySelector<HTMLElement>("[data-editable-table]");
+    await until(() => Boolean(table()?.querySelector("tr[data-row-key]") && buttonIn(table()!, "Editar") && !buttonIn(table()!, "Editar")!.disabled), "tabela com linhas");
+    await click(buttonIn(table()!, "Editar"));
+    const shown = [...table()!.querySelectorAll("select")].map((select) => select.selectedOptions[0]?.textContent ?? "");
+    for (const label of EXPECTED[name]) expect(shown).toContain(label);
+    expect(shown.filter((text) => /item-1|loc-1/.test(text))).toEqual([]);
+  });
+});
+
 describe("logística — sem CrudDialog/DetailDrawer", () => {
   function sources(dir: string): string[] {
     return readdirSync(dir).flatMap((name) => {

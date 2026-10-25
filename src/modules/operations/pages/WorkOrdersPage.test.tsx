@@ -75,6 +75,18 @@ describe("WorkOrdersPage — edição direto na tabela", () => {
     await until(async () => (await order("id='wo-1'")).labor_cost === 250, "mão de obra gravada");
   });
 
+  it("técnico desligado aparece pelo nome na edição (nunca pelo código) e a OS continua editável", async () => {
+    await testDb().execute("UPDATE work_orders SET technician_id='test-user-auditor' WHERE id='wo-1'");
+    await testDb().execute("UPDATE users SET status='suspended' WHERE id='test-user-auditor'");
+    await open();
+    await click(findButton(table(), "Editar"));
+    expect((cell("Técnico (linha 1)") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Teste auditor (inativo)");
+    await type(cell("Materiais (linha 1)"), "80,00");
+    await click(findButton(table(), "Salvar"));
+    await until(async () => (await order("id='wo-1'")).materials_cost === 80, "materiais gravados");
+    expect((await order("id='wo-1'")).technician_id).toBe("test-user-auditor");
+  });
+
   it("auditor vê Editar e Adicionar desabilitados com o motivo", async () => {
     await open("auditor");
     expect(findButton(table(), "Editar")!.disabled).toBe(true);

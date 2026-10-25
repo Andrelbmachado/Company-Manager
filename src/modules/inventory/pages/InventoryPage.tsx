@@ -23,7 +23,7 @@ import { formatQty } from "@/lib/inventory/stock";
 import { useLabel } from "@/lib/labels/useLabel";
 import { lineTotal, sumMoney } from "@/lib/money";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { BUTTON_OUTLINE, emitSafely, ErrorBanner, errorText, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory } from "../components/inventoryUi";
+import { BUTTON_OUTLINE, emitSafely, ErrorBanner, errorText, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory, withRetiredOptions } from "../components/inventoryUi";
 
 interface SupplierOption {
   id: string;
@@ -72,10 +72,23 @@ export default function InventoryPage() {
   const locations = snapshotQuery.data?.locations ?? [];
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
 
-  const { data: suppliers = [] } = useQuery({
+  const suppliersQuery = useQuery({
     queryKey: ["supplier-options", companyId],
     queryFn: async () => (await getDb()).select<SupplierOption[]>("SELECT * FROM suppliers WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [companyId]),
   });
+  // Fornecedores ativos e, marcado "(excluído)", o já excluído que algum item ainda usa (a célula mostra o nome, não o código).
+  const supplierOptions = useMemo(
+    () =>
+      withRetiredOptions(
+        (suppliersQuery.data ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name })),
+        suppliersQuery.isSuccess,
+        items,
+        (item) => item.supplier_id,
+        (item) => item.supplier?.name,
+        "excluído",
+      ),
+    [suppliersQuery.data, suppliersQuery.isSuccess, items],
+  );
   const { data: custodies = [] } = useQuery({
     queryKey: inventoryKeys.custodies(companyId),
     queryFn: async () => listCustodies(await getDb(), companyId),
@@ -129,7 +142,18 @@ export default function InventoryPage() {
     },
     { key: "sku", header: "SKU", kind: "text", placeholder: "CAB-CAT6-01" },
     { key: "category", header: "Categoria", kind: "text" },
-    { key: "supplier_id", header: "Fornecedor", kind: "select", options: suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })) },
+    {
+      key: "supplier_id",
+      header: "Fornecedor",
+      kind: "select",
+      options: supplierOptions,
+      render: (row) =>
+        row.supplier_id ? (
+          supplierOptions.find((option) => option.value === row.supplier_id)?.label ?? byId.get(row.id)?.supplier?.name ?? "Fornecedor removido"
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
     { key: "unit", header: "Unidade", kind: "text", placeholder: "un", width: 90 },
     {
       key: "quantity",

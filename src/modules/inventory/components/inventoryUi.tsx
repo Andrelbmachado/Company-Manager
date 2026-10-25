@@ -189,6 +189,35 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * Opções de uma coluna de seleção da tabela editável mais o valor que alguma linha ainda usa mas saiu da lista (item,
+ * cliente ou fornecedor excluído, pessoa desligada), pelo nome e com a marca entre parênteses: a célula nunca mostra o
+ * código. Só depois que a lista carregou (`loaded`), para não marcar tudo enquanto ela chega. Escolher um desses em
+ * outra linha é recusado ao salvar (a camada de dados só confere o campo que mudou).
+ */
+export function withRetiredOptions<T>(
+  options: readonly SelectOption[],
+  loaded: boolean,
+  rows: readonly T[],
+  valueOf: (row: T) => string | null | undefined,
+  nameOf: (row: T) => string | null | undefined,
+  mark: string,
+): SelectOption[] {
+  if (!loaded) return [...options];
+  const known = new Set(options.map((option) => option.value));
+  const retired = new Map<string, string>();
+  for (const row of rows) {
+    const value = valueOf(row);
+    if (value && !known.has(value) && !retired.has(value)) retired.set(value, `${nameOf(row) || "Removido"} (${mark})`);
+  }
+  return [...options, ...[...retired].map(([value, label]) => ({ value, label }))];
+}
+
 export function normalizeSearch(value: string): string {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }

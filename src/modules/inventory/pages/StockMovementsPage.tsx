@@ -18,7 +18,7 @@ import { formatQty } from "@/lib/inventory/stock";
 import { lineTotal } from "@/lib/money";
 import { formatCurrency, formatDateTime, todayIso } from "@/lib/utils";
 import type { StockMovementType } from "@/types";
-import { BUTTON_OUTLINE, emitSafely, inventoryKeys, MovementTypeBadge, normalizeSearch, useActor, useInvalidateInventory } from "../components/inventoryUi";
+import { BUTTON_OUTLINE, emitSafely, inventoryKeys, MovementTypeBadge, normalizeSearch, useActor, useInvalidateInventory, withRetiredOptions } from "../components/inventoryUi";
 
 const PAGE_SIZE = 200;
 const SELECT = "h-8 rounded-md border bg-background px-2 text-sm font-normal outline-none focus:ring-2 focus:ring-ring";
@@ -64,7 +64,7 @@ export default function StockMovementsPage() {
     queryKey: inventoryKeys.movements(companyId),
     queryFn: async () => listStockMovements(await getDb(), companyId),
   });
-  const { data: snapshot } = useQuery({
+  const { data: snapshot, isSuccess: snapshotLoaded } = useQuery({
     queryKey: inventoryKeys.snapshot(companyId),
     queryFn: async () => loadStockSnapshot(await getDb(), companyId),
   });
@@ -96,6 +96,24 @@ export default function StockMovementsPage() {
     setParams(next, { replace: true });
   }
 
+  // Item excluído e local arquivado do histórico aparecem pelo nome na edição, não pelo código.
+  const itemOptions = withRetiredOptions(
+    items.map((item) => ({ value: item.id, label: item.sku ? `${item.name} (${item.sku})` : item.name })),
+    snapshotLoaded,
+    movements,
+    (row) => row.item_id,
+    (row) => row.item_name,
+    "excluído",
+  );
+  const locationOptions = withRetiredOptions(
+    locations.map((location) => ({ value: location.id, label: location.name })),
+    snapshotLoaded,
+    movements,
+    (row) => row.location_id,
+    (row) => (row.location_id === row.from_location_id ? row.from_name : row.to_name),
+    "arquivado",
+  );
+
   const columns: EditableColumn<MovementTableRow>[] = [
     { key: "created_at", header: "Data", kind: "text", readOnly: true, render: (row) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(row.created_at)}</span> },
     { key: "kind", header: "Tipo", kind: "select", required: true, options: KIND_OPTIONS, render: (row) => <MovementTypeBadge type={row.type} /> },
@@ -104,7 +122,7 @@ export default function StockMovementsPage() {
       header: "Item",
       kind: "select",
       required: true,
-      options: items.map((item) => ({ value: item.id, label: item.sku ? `${item.name} (${item.sku})` : item.name })),
+      options: itemOptions,
       render: (row) => (
         <span>
           <span className="block font-medium">{row.item_name}</span>
@@ -127,7 +145,7 @@ export default function StockMovementsPage() {
         );
       },
     },
-    { key: "location_id", header: "Local", kind: "select", required: true, options: locations.map((location) => ({ value: location.id, label: location.name })), render: (row) => <Locations row={row} /> },
+    { key: "location_id", header: "Local", kind: "select", required: true, options: locationOptions, render: (row) => <Locations row={row} /> },
     {
       key: "unit_cost",
       header: "Custo unit. (entrada)",

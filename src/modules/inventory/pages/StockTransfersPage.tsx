@@ -14,7 +14,7 @@ import { saveTransferRows, toTransferTableRows, type TransferInputRow, type Tran
 import { listStockMovements, loadStockSnapshot } from "@/lib/inventory/queries";
 import { formatQty } from "@/lib/inventory/stock";
 import { formatDateTime } from "@/lib/utils";
-import { emitSafely, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory } from "../components/inventoryUi";
+import { emitSafely, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory, withRetiredOptions } from "../components/inventoryUi";
 
 export default function StockTransfersPage() {
   const session = useRequiredSession();
@@ -25,7 +25,7 @@ export default function StockTransfersPage() {
   const presetItem = params.get("item");
   const [search, setSearch] = useState("");
 
-  const { data: snapshot } = useQuery({
+  const { data: snapshot, isSuccess: snapshotLoaded } = useQuery({
     queryKey: inventoryKeys.snapshot(companyId),
     queryFn: async () => loadStockSnapshot(await getDb(), companyId),
   });
@@ -49,7 +49,24 @@ export default function StockTransfersPage() {
     return { id: uuidv4(), item_id: preset?.id ?? "", from_location_id: origin, to_location_id: locations.find((location) => location.id !== origin)?.id ?? "" };
   }
 
-  const locationOptions = locations.map((location) => ({ value: location.id, label: location.name }));
+  // Local arquivado e item excluído do histórico aparecem pelo nome na edição, não pelo código.
+  const locationOptions = withRetiredOptions(
+    withRetiredOptions(locations.map((location) => ({ value: location.id, label: location.name })), snapshotLoaded, transfers, (row) => row.from_location_id, (row) => row.from_name, "arquivado"),
+    snapshotLoaded,
+    transfers,
+    (row) => row.to_location_id,
+    (row) => row.to_name,
+    "arquivado",
+  );
+  const itemOptions = withRetiredOptions(
+    items.map((item) => ({ value: item.id, label: item.sku ? `${item.name} (${item.sku})` : item.name })),
+    snapshotLoaded,
+    transfers,
+    (row) => row.item_id,
+    (row) => row.item_name,
+    "excluído",
+  );
+
   const columns: EditableColumn<TransferTableRow>[] = [
     { key: "created_at", header: "Data", kind: "text", readOnly: true, render: (row) => <span className="whitespace-nowrap text-muted-foreground">{row.created_at ? formatDateTime(row.created_at) : "—"}</span> },
     { key: "from_location_id", header: "De (origem)", kind: "select", required: true, options: locationOptions, render: (row) => row.from_name ?? "—" },
@@ -59,7 +76,7 @@ export default function StockTransfersPage() {
       header: "Item",
       kind: "select",
       required: true,
-      options: items.map((item) => ({ value: item.id, label: item.sku ? `${item.name} (${item.sku})` : item.name })),
+      options: itemOptions,
       render: (row) => (
         <span>
           <span className="block font-medium">{row.item_name}</span>

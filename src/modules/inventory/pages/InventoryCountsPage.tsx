@@ -15,7 +15,7 @@ import { saveCountRows } from "@/lib/inventory/countRows";
 import { listInventoryCounts, type InventoryCountSummary } from "@/lib/inventory/counts";
 import { listLocationSummaries } from "@/lib/inventory/locations";
 import { formatDateTime } from "@/lib/utils";
-import { emitSafely, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory } from "../components/inventoryUi";
+import { emitSafely, inventoryKeys, normalizeSearch, useActor, useInvalidateInventory, withRetiredOptions } from "../components/inventoryUi";
 
 const STATUS_FILTERS = [
   { value: "all", label: "Todas" },
@@ -42,7 +42,7 @@ export default function InventoryCountsPage() {
     queryKey: inventoryKeys.counts(companyId),
     queryFn: async () => listInventoryCounts(await getDb(), companyId),
   });
-  const { data: locations = [] } = useQuery({
+  const { data: locations = [], isSuccess: locationsLoaded } = useQuery({
     queryKey: inventoryKeys.locations(companyId),
     queryFn: async () => listLocationSummaries(await getDb(), companyId),
   });
@@ -71,10 +71,18 @@ export default function InventoryCountsPage() {
       header: "Local",
       kind: "select",
       required: true,
-      options: locations.map((location) => ({
-        value: location.id,
-        label: location.open_count_number ? `${location.name} (contagem ${formatSequence("inventory_counts", location.open_count_number)} aberta)` : location.name,
-      })),
+      // Local arquivado de uma contagem antiga aparece pelo nome na edição, não pelo código.
+      options: withRetiredOptions(
+        locations.map((location) => ({
+          value: location.id,
+          label: location.open_count_number ? `${location.name} (contagem ${formatSequence("inventory_counts", location.open_count_number)} aberta)` : location.name,
+        })),
+        locationsLoaded,
+        counts,
+        (row) => row.location_id,
+        (row) => row.location_name,
+        "arquivado",
+      ),
       render: (row) => row.location_name ?? "—",
     },
     { key: "status", header: "Situação", kind: "select", readOnly: true, options: STATUS_OPTIONS, render: (row) => <StatusBadge status={row.status} /> },

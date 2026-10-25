@@ -73,6 +73,22 @@ describe("InventoryPage — edição direto na tabela", () => {
     expect(await item("item-1")).toMatchObject({ name: "Cabo Cat6", sku: "CAB", min_stock: 5 });
   });
 
+  it("fornecedor excluído aparece pelo nome (nunca pelo código) e o item continua editável", async () => {
+    await testDb().execute("UPDATE inventory_items SET supplier_id='sup-1' WHERE id='item-1'");
+    await testDb().execute("UPDATE suppliers SET deleted_at=datetime('now') WHERE id='sup-1'");
+    await render();
+    const supplierCell = () => page!.container.querySelector('tr[data-row-key="item-1"] td[data-column="supplier_id"]')?.textContent ?? "";
+    await until(() => supplierCell().includes("NetPrime"), "nome do fornecedor excluído");
+    expect(supplierCell()).not.toContain("sup-1");
+
+    await click(findButton(table(), "Editar"));
+    expect((cell("Fornecedor (linha 1)") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("NetPrime (excluído)");
+    await type(cell("Mínimo (linha 1)"), "8");
+    await click(findButton(table(), "Salvar"));
+    await until(async () => (await item("item-1")).min_stock === 8, "mínimo gravado");
+    expect((await item("item-1")).supplier_id).toBe("sup-1");
+  });
+
   it("número inválido não vira 0 sem aviso: nada é gravado", async () => {
     await render();
     await click(findButton(table(), "Adicionar"));

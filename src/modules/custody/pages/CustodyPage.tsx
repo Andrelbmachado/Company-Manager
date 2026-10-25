@@ -20,7 +20,7 @@ import { CUSTODY_STATUSES, custodyCalendarItems, dayOf, deleteCustody, listCusto
 import { useLabel } from "@/lib/labels/useLabel";
 import { formatDateTime, todayIso } from "@/lib/utils";
 import type { InventoryItem, WorkOrder } from "@/types";
-import { emitSafely, ErrorBanner, errorText, normalizeSearch, useActor } from "@/modules/inventory/components/inventoryUi";
+import { emitSafely, ErrorBanner, errorText, normalizeSearch, useActor, withRetiredOptions } from "@/modules/inventory/components/inventoryUi";
 
 const TABS = [
   { id: "lista", label: "Lista" },
@@ -47,15 +47,15 @@ export default function CustodyPage() {
     queryKey: ["custodies", companyId],
     queryFn: async () => listCustodies(await getDb(), companyId),
   });
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isSuccess: itemsLoaded } = useQuery({
     queryKey: ["inventory-options", companyId],
     queryFn: async () => (await getDb()).select<InventoryItem[]>("SELECT * FROM inventory_items WHERE company_id=? AND deleted_at IS NULL ORDER BY name", [companyId]),
   });
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isSuccess: usersLoaded } = useQuery({
     queryKey: ["company-users", companyId],
     queryFn: async () => fetchCompanyUsers(await getDb(), companyId),
   });
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isSuccess: ordersLoaded } = useQuery({
     queryKey: ["work-order-options", companyId],
     queryFn: async () => (await getDb()).select<WorkOrder[]>("SELECT * FROM work_orders WHERE company_id=? AND deleted_at IS NULL ORDER BY number", [companyId]),
   });
@@ -69,14 +69,19 @@ export default function CustodyPage() {
   const open = custodies.filter((custody) => custody.status === "em_custodia");
   const late = open.filter((custody) => custody.due_back_at && dayOf(custody.due_back_at) < today);
 
+  // Item excluído, pessoa desligada e OS excluída que alguma custódia ainda usa aparecem pelo nome na edição, não pelo código.
+  const itemOptions = withRetiredOptions(items.map((item) => ({ value: item.id, label: item.name })), itemsLoaded, custodies, (row) => row.item_id, (row) => row.item_name, "excluído");
+  const holderOptions = withRetiredOptions(users.map((user) => ({ value: user.id, label: user.name })), usersLoaded, custodies, (row) => row.holder_id, (row) => row.holder_name, "inativo");
+  const orderOptions = withRetiredOptions(orders.map((order) => ({ value: order.id, label: order.number })), ordersLoaded, custodies, (row) => row.work_order_id, (row) => row.work_order_number, "excluída");
+
   const columns: EditableColumn<CustodyView>[] = [
-    { key: "item_id", header: "Item", kind: "select", required: true, options: items.map((item) => ({ value: item.id, label: item.name })), render: (row) => <span className="font-medium">{row.item_name ?? "—"}</span> },
-    { key: "holder_id", header: "Responsável", kind: "select", required: true, options: users.map((user) => ({ value: user.id, label: user.name })), render: (row) => row.holder_name ?? "—" },
+    { key: "item_id", header: "Item", kind: "select", required: true, options: itemOptions, render: (row) => <span className="font-medium">{row.item_name ?? "—"}</span> },
+    { key: "holder_id", header: "Responsável", kind: "select", required: true, options: holderOptions, render: (row) => row.holder_name ?? "—" },
     { key: "quantity", header: "Qtd.", kind: "number", required: true, width: 90 },
     { key: "status", header: "Status", kind: "select", required: true, options: CUSTODY_STATUSES, render: (row) => <StatusBadge status={row.status} /> },
     { key: "checked_out_at", header: "Retirada", kind: "text", readOnly: true, render: (row) => <span className="text-muted-foreground">{formatDateTime(row.checked_out_at)}</span> },
     { key: "due_back_at", header: "Devolução prevista", kind: "date" },
-    { key: "work_order_id", header: "OS", kind: "select", options: orders.map((order) => ({ value: order.id, label: order.number })), render: (row) => row.work_order_number ?? "—" },
+    { key: "work_order_id", header: "OS", kind: "select", options: orderOptions, render: (row) => row.work_order_number ?? "—" },
     { key: "returned_at", header: "Devolvido em", kind: "text", readOnly: true, render: (row) => (row.returned_at ? formatDateTime(row.returned_at) : "—") },
   ];
 

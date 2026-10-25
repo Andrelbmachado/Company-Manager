@@ -1,5 +1,6 @@
 // Peças reutilizáveis para tabelas que não usam EditableTable: useSortFilter + SortableHeader (clique ordena,
 // aria-sort) + FilterButton/FilterBar (filtros por tipo, contador e limpar) + IconButton (só ícone, com dica).
+import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Plus } from "lucide-react";
 import { click, plain, renderPage, type as typeInto, type RenderedPage } from "@/test/pageHarness";
@@ -77,8 +78,15 @@ async function open() {
 
 const order = () => [...document.querySelectorAll("tbody tr")].map((row) => row.getAttribute("data-row-key"));
 const header = (label: string) => [...document.querySelectorAll("th")].find((th) => th.textContent === label)!;
-const headerButton = (label: string) => header(label).querySelector("button")!;
+const headerButton = (label: string) => header(label).querySelector<HTMLElement>("[role=button]")!;
 const input = (label: string) => document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+
+/** Texto que aparece na tela (sem o nome sr-only dos botões só com ícone). */
+function visibleText(element: Element): string {
+  const clone = element.cloneNode(true) as Element;
+  clone.querySelectorAll(".sr-only").forEach((node) => node.remove());
+  return clone.textContent?.trim() ?? "";
+}
 
 describe("tabela comum com useSortFilter", () => {
   it("clique no cabeçalho: crescente, decrescente e volta à ordem original, com aria-sort e seta", async () => {
@@ -101,6 +109,22 @@ describe("tabela comum com useSortFilter", () => {
     expect(header("Nome").getAttribute("aria-sort")).toBeNull();
   });
 
+  it("cabeçalho é focável e ordena com Enter ou Espaço; não é um <button> (não colide com botões de mesmo texto)", async () => {
+    await open();
+    const control = headerButton("Nome");
+    expect(control.tagName).toBe("SPAN");
+    expect(control.tabIndex).toBe(0);
+    expect(document.querySelector("thead button")).toBeNull();
+    await act(async () => {
+      control.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(header("Nome").getAttribute("aria-sort")).toBe("ascending");
+    await act(async () => {
+      control.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    });
+    expect(header("Nome").getAttribute("aria-sort")).toBe("descending");
+  });
+
   it("valor ordena pelo número e vazio fica no fim; trocar de coluna tira a seta da anterior", async () => {
     await open();
     await click(headerButton("Nome"));
@@ -117,7 +141,7 @@ describe("tabela comum com useSortFilter", () => {
     const filter = page!.button("Filtrar")!;
     const add = page!.button("Adicionar")!;
     for (const button of [filter, add]) {
-      expect(button.textContent?.trim()).toBe("");
+      expect(visibleText(button)).toBe("");
       expect(button.title).toBeTruthy();
       expect(button.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     }
@@ -141,7 +165,7 @@ describe("tabela comum com useSortFilter", () => {
 
     await typeInto(input("Nome: contém"), "alvaro");
     expect(order()).toEqual(["r-2"]);
-    expect(filter.textContent).toBe("1");
+    expect(filter.querySelector("[data-filter-count]")?.textContent).toBe("1");
     expect(filter.getAttribute("aria-label")).toBe("Filtrar");
     expect(plain(page!.text())).toMatch(/1 filtro ativo/);
 
@@ -153,7 +177,7 @@ describe("tabela comum com useSortFilter", () => {
     await click(page!.button("Limpar filtros"));
     expect(order()).toEqual(["r-1", "r-2", "r-3", "r-4"]);
     expect(input("Valor: mínimo")?.value).toBe("");
-    expect(filter.textContent).toBe("");
+    expect(filter.querySelector("[data-filter-count]")).toBeNull();
   });
 
   it("múltipla escolha de situação e período de vencimento", async () => {

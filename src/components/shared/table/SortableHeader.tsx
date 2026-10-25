@@ -1,6 +1,9 @@
 // Cabeçalho de coluna que ordena ao clicar (crescente → decrescente → sem ordenação). O estado vai em aria-sort no
 // <th> (só na coluna ordenada, como pede o ARIA) e numa seta; sem ordenação a seta dupla só aparece no hover/foco.
-import type { CSSProperties, ReactNode } from "react";
+// O controle é um role="button" focável (Enter/Espaço), não um <button>: o rótulo da coluna ("Admissão", "Status")
+// costuma repetir o texto de botões e links da tela, e as buscas por botão pelo texto (testes, findButton) achariam o
+// cabeçalho primeiro, inclusive o de uma aba escondida.
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SortState } from "./sortFilter";
@@ -50,12 +53,19 @@ export function SortableHeader({ label, sortKey, sort, onSort, sortable = true, 
   );
   return (
     <th scope="col" aria-sort={direction === "asc" ? "ascending" : direction === "desc" ? "descending" : undefined} className={cn(TH_CLASS, alignClass, className)} style={style}>
-      <button
-        type="button"
+      <span
+        role="button"
+        tabIndex={0}
+        data-sort-key={sortKey}
         onClick={() => onSort(sortKey)}
+        onKeyDown={(event: KeyboardEvent) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onSort(sortKey);
+        }}
         title={hint(label, direction)}
         className={cn(
-          "group -mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "group -mx-1 inline-flex cursor-pointer select-none items-center gap-1 rounded px-1 py-0.5 font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           direction && "text-foreground",
         )}
       >
@@ -63,7 +73,7 @@ export function SortableHeader({ label, sortKey, sort, onSort, sortable = true, 
         {label}
         {children}
         {align !== "right" && arrow}
-      </button>
+      </span>
     </th>
   );
 }

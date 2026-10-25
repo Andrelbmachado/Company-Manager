@@ -86,6 +86,15 @@ async function openFiltered() {
 const cell = (rowKey: string, column: string) => document.querySelector<HTMLElement>(`tr[data-row-key='${rowKey}'] [data-column='${column}']`);
 const field = (rowKey: string, column: string) => cell(rowKey, column)?.querySelector<HTMLInputElement>("input, select") ?? null;
 const newRow = () => document.querySelector<HTMLTableRowElement>("tr[data-new='true']");
+const order = () => [...document.querySelectorAll("tbody tr[data-row-key]")].map((row) => row.getAttribute("data-row-key"));
+const filterInput = (label: string) => document.querySelector<HTMLInputElement>(`[data-filter-bar] input[aria-label="${label}"]`);
+
+/** Texto que aparece na tela (sem o nome sr-only dos botões só com ícone). */
+function visibleText(element: Element): string {
+  const clone = element.cloneNode(true) as Element;
+  clone.querySelectorAll(".sr-only").forEach((node) => node.remove());
+  return clone.textContent?.trim() ?? "";
+}
 
 describe("EditableTable", () => {
   it("papel sem permissão vê Editar e Adicionar desativados, com dica; Atualizar continua livre", async () => {
@@ -254,6 +263,119 @@ describe("EditableTable", () => {
     expect(document.querySelector("tr[data-row-key='c-9']")?.getAttribute("data-changed")).toBeNull();
     await click(page.button("Salvar"));
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("barra só com ícones: Filtrar ao lado de Editar, Adicionar e Atualizar, com nome acessível e dica; Editar é o lápis no quadrado", async () => {
+    await open("ceo");
+    const buttons = ["Filtrar", "Editar", "Adicionar", "Atualizar"].map((label) => page!.button(label)!);
+    for (const [index, button] of buttons.entries()) {
+      expect(visibleText(button)).toBe("");
+      expect(button.getAttribute("aria-label")).toBe(["Filtrar", "Editar", "Adicionar", "Atualizar"][index]);
+      expect(button.title).toBe(button.getAttribute("aria-label"));
+      expect(button.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    }
+    expect(buttons[0].nextElementSibling).toBe(buttons[1]);
+    expect(page!.button("Editar")!.querySelector("svg.lucide-square-pen")).not.toBeNull();
+    expect(page!.button("Filtrar")!.querySelector("svg.lucide-list-filter")).not.toBeNull();
+
+    await click(page!.button("Editar"));
+    for (const label of ["Salvar", "Cancelar"]) {
+      const button = page!.button(label)!;
+      expect(visibleText(button)).toBe("");
+      expect(button.title).toBe(label);
+    }
+  });
+
+  it("clique no cabeçalho ordena pelo tipo da coluna (vazio no fim) e o terceiro clique volta à ordem da tela", async () => {
+    await open("ceo");
+    const th = (label: string) => [...document.querySelectorAll("thead th")].find((item) => item.textContent === label)!;
+    const sortBy = (label: string) => click(th(label).querySelector("[role=button]"));
+
+    await sortBy("Limite");
+    expect(order()).toEqual(["c-3", "c-1", "c-2"]);
+    expect(th("Limite").getAttribute("aria-sort")).toBe("ascending");
+    await sortBy("Limite");
+    expect(order()).toEqual(["c-1", "c-3", "c-2"]);
+    expect(th("Limite").getAttribute("aria-sort")).toBe("descending");
+    await sortBy("Limite");
+    expect(order()).toEqual(["c-1", "c-2", "c-3"]);
+    expect(th("Limite").getAttribute("aria-sort")).toBeNull();
+
+    await sortBy("Cliente desde");
+    expect(order()).toEqual(["c-3", "c-1", "c-2"]);
+    await sortBy("Situação");
+    expect(order()).toEqual(["c-1", "c-3", "c-2"]);
+    expect(th("Cliente desde").getAttribute("aria-sort")).toBeNull();
+  });
+
+  it("texto ordena e filtra sem diferenciar acento: Álvaro antes de Bruno; 'comercio' acha Álvaro Comércio", async () => {
+    const people: Row[] = [
+      { id: "p-1", name: "Bruno Silva", email: null, credit_limit: null, since: null, status: "lead", active: 1 },
+      { id: "p-2", name: "Álvaro Comércio", email: null, credit_limit: null, since: null, status: "lead", active: 1 },
+      { id: "p-3", name: "Carla", email: null, credit_limit: null, since: null, status: "lead", active: 1 },
+    ];
+    page = await renderPage(<EditableTable<Row> resource="customers" label="Clientes" rows={people} columns={COLUMNS} onSave={onSave} onRefresh={onRefresh} />, { companyId: "empresa-1", role: "ceo" });
+    await click([...document.querySelectorAll("thead th")].find((item) => item.textContent === "Nome")!.querySelector("[role=button]"));
+    expect(order()).toEqual(["p-2", "p-1", "p-3"]);
+
+    await click(page.button("Filtrar"));
+    await typeInto(filterInput("Nome: contém"), "comercio");
+    expect(order()).toEqual(["p-2"]);
+  });
+
+  it("filtro de faixa de dinheiro, contador no botão, mensagem quando nada sobra e Limpar filtros", async () => {
+    await open("ceo");
+    const filter = page!.button("Filtrar")!;
+    expect(filter.getAttribute("aria-expanded")).toBe("false");
+    await click(filter);
+    expect(filter.getAttribute("aria-expanded")).toBe("true");
+
+    await typeInto(filterInput("Limite: mínimo"), "200");
+    await typeInto(filterInput("Limite: máximo"), "1.000,00");
+    expect(order()).toEqual(["c-1", "c-3"]);
+    expect(filter.querySelector("[data-filter-count]")?.textContent).toBe("1");
+
+    await typeInto(filterInput("Limite: mínimo"), "5.000");
+    expect(order()).toEqual([]);
+    expect(page!.text()).toMatch(/Nenhum registro com esses filtros/);
+
+    await click(page!.button("Limpar filtros"));
+    expect(order()).toEqual(["c-1", "c-2", "c-3"]);
+    expect(filter.querySelector("[data-filter-count]")).toBeNull();
+  });
+
+  it("ordenar e filtrar durante a edição não perde o rascunho; linha alterada escondida pelo filtro avisa e vai no Salvar", async () => {
+    await open("ceo", { newRow: () => ({ status: "lead", active: 1 }) });
+    await click(page!.button("Editar"));
+    await typeInto(field("c-1", "name"), "Zeta Ltda");
+    await typeInto(field("c-3", "email"), "financeiro@gama.com");
+
+    // Ordena pelo valor gravado: a linha não pula enquanto a pessoa digita.
+    await click([...document.querySelectorAll("thead th")].find((item) => item.textContent?.startsWith("Nome"))!.querySelector("[role=button]"));
+    expect(order()).toEqual(["c-1", "c-2", "c-3"]);
+    await click([...document.querySelectorAll("thead th")].find((item) => item.textContent === "Limite")!.querySelector("[role=button]"));
+    expect(order()).toEqual(["c-3", "c-1", "c-2"]);
+    expect(field("c-1", "name")?.value).toBe("Zeta Ltda");
+
+    await click(page!.button("Filtrar"));
+    await typeInto(filterInput("Limite: mínimo"), "500");
+    expect(order()).toEqual(["c-1"]);
+    expect(document.querySelector("[data-hidden-drafts]")?.textContent).toMatch(/1 linha alterada/);
+
+    // Linha nova fica no topo mesmo com filtro e ordenação.
+    await click(page!.button("Adicionar"));
+    expect(document.querySelector("tbody tr")?.getAttribute("data-new")).toBe("true");
+    await click(newRow()!.querySelector("button"));
+
+    await click(page!.button("Salvar"));
+    await until(() => onSave.mock.calls.length === 1, "onSave");
+    expect(onSave.mock.calls[0][0]).toEqual({
+      updated: [
+        { id: "c-1", name: "Zeta Ltda" },
+        { id: "c-3", email: "financeiro@gama.com" },
+      ],
+      created: [],
+    });
   });
 
   it("erro do onSave aparece e mantém o rascunho", async () => {

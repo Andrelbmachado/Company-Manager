@@ -1,4 +1,5 @@
-// Botões de barra de tabela só com ícone: o nome vai no aria-label (leitor de tela e testes) e a dica no title.
+// Botões de barra de tabela só com ícone: o nome vai no aria-label e a dica no title. O nome também fica num texto
+// sr-only dentro do botão (invisível): seletores por texto exato ("Editar") das telas e dos testes continuam valendo.
 // Ícones padrão do app: Editar = lápis saindo do quadrado (SquarePen), Adicionar = +, Atualizar = setas em círculo,
 // Filtrar = linhas de filtro, Salvar = disquete, Cancelar = X.
 import type { ButtonHTMLAttributes } from "react";
@@ -38,6 +39,7 @@ export function IconButton({ label, icon: Icon, variant = "default", spinning, i
   return (
     <button type={type} aria-label={label} title={title ?? label} className={cn(BASE, VARIANT[variant], className)} {...rest}>
       <Icon aria-hidden="true" size={iconSize} className={cn(spinning && "animate-spin")} />
+      <span className="sr-only">{label}</span>
     </button>
   );
 }
@@ -69,8 +71,9 @@ export function FilterButton({ open, onToggle, activeCount, controls, disabled, 
       className={cn(BASE, VARIANT.default, (open || activeCount > 0) && "border-primary/40 bg-primary/10 text-primary-text", className)}
     >
       <ListFilter aria-hidden="true" size={16} />
+      <span className="sr-only">Filtrar</span>
       {activeCount > 0 && (
-        <span aria-hidden="true" className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+        <span aria-hidden="true" data-filter-count="" className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
           {activeCount}
         </span>
       )}

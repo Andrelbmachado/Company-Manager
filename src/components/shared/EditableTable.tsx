@@ -1,16 +1,20 @@
 // Tabela de dados com edição no próprio lugar (padrão do app: nada de modal ou painel lateral para editar).
-// Barra: Editar (células viram campos), Adicionar (linha nova no topo, já em edição), Atualizar (refaz a consulta;
-// com rascunho pendente pergunta antes), Salvar / Cancelar no modo edição. Editar e Adicionar seguem
+// Barra só com ícones (nome no aria-label, dica no title): Filtrar (linha de filtros por coluna), Editar (células
+// viram campos), Adicionar (linha nova no topo, já em edição), Atualizar (refaz a consulta; com rascunho pendente
+// pergunta antes), Salvar / Cancelar no modo edição. Clique no cabeçalho ordena (crescente → decrescente → ordem da
+// tela). Filtro e ordenação usam o valor gravado (a linha não pula enquanto a pessoa digita) e não mexem no rascunho:
+// linha alterada que o filtro esconde continua no Salvar. Editar e Adicionar seguem
 // can(papel, "edit" | "create", resource); a tela que recebe o onSave continua tendo de conferir a permissão na
 // camada de dados. Valores digitados passam pelo normalizador da importação (1.234,56 e 31/12/2025 funcionam).
 import { useId, useState, type ReactNode } from "react";
-import { Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
 import { confirmAction } from "@/lib/confirm";
 import type { Resource } from "@/lib/permissions/rbac";
 import { cn } from "@/lib/utils";
 import { CellEditor, cellText, displayCell, type EditableColumn } from "./editable/cellEditors";
 import { collectChanges, draftText, hasChanges, hiddenChangedRows, isRowChanged, useRowDrafts } from "./editable/useRowDrafts";
+import { FilterBar, FilterButton, IconButton, SortableHeader, TABLE_ICONS, TH_CLASS, useSortFilter } from "./table";
 
 export type { ColumnKind, EditableColumn } from "./editable/cellEditors";
 
@@ -43,9 +47,6 @@ export interface EditableTableProps<T extends { id: string }> {
   className?: string;
 }
 
-const BUTTON = "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
-const PRIMARY = "inline-flex items-center gap-1.5 rounded-md border border-transparent bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50";
-const TH = "whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium text-muted-foreground";
 const TD = "px-3 py-2 align-top";
 const NO_EDIT = "Seu perfil não tem permissão para editar este cadastro.";
 const NO_CREATE = "Seu perfil não tem permissão para adicionar neste cadastro.";
@@ -75,11 +76,13 @@ export function EditableTable<T extends { id: string }>({
   const [busy, setBusy] = useState<"saving" | "refreshing" | null>(null);
   const [message, setMessage] = useState<{ kind: "status" | "error"; text: string } | null>(null);
   const tableId = useId();
+  const view = useSortFilter(rows, columns);
+  const visibleRows = view.rows;
 
   const created = drafts.state.created;
   const dirty = hasChanges(drafts.state, rows, columns);
-  // Linhas alteradas que a tela deixou de mostrar (busca, filtro): continuam no rascunho e vão no Salvar.
-  const hidden = hiddenChangedRows(drafts.state, rows, columns);
+  // Linhas alteradas que a tela ou o filtro da tabela deixaram de mostrar: continuam no rascunho e vão no Salvar.
+  const hidden = hiddenChangedRows(drafts.state, visibleRows, columns);
   const showActions = !!rowActions || (editing && created.length > 0);
   const columnCount = columns.length + (showActions ? 1 : 0);
 
@@ -133,7 +136,7 @@ export function EditableTable<T extends { id: string }>({
     const failed = Object.keys(changes.errors).filter((rowKey) => Object.keys(changes.errors[rowKey]).length > 0);
     if (failed.length) {
       drafts.setErrors(changes.errors);
-      const listed = new Set([...rows.map((row) => row.id), ...created.map((draft) => draft.key)]);
+      const listed = new Set([...visibleRows.map((row) => row.id), ...created.map((draft) => draft.key)]);
       const offList = failed.filter((rowKey) => !listed.has(rowKey)).length;
       const where = offList === 1 ? " Uma linha com erro está fora da lista atual (busca ou filtro)." : offList > 1 ? ` ${offList} linhas com erro estão fora da lista atual (busca ou filtro).` : "";
       setMessage({ kind: "error", text: `Corrija os campos marcados antes de salvar.${where}` });
@@ -217,29 +220,30 @@ export function EditableTable<T extends { id: string }>({
           {actions}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <FilterButton open={view.filtersOpen} onToggle={view.toggleFilters} activeCount={view.activeCount} controls={view.filtersId} />
           {!editing && (
-            <button type="button" className={BUTTON} disabled={!canEdit || loading || busy !== null} title={canEdit ? undefined : NO_EDIT} onClick={startEditing}>
-              <Pencil size={14} /> Editar
-            </button>
+            <IconButton label="Editar" icon={TABLE_ICONS.edit} disabled={!canEdit || loading || busy !== null} title={canEdit ? undefined : NO_EDIT} onClick={startEditing} />
           )}
-          <button type="button" className={BUTTON} disabled={!canCreate || busy !== null} title={canCreate ? undefined : NO_CREATE} onClick={add}>
-            <Plus size={14} /> Adicionar
-          </button>
+          <IconButton label="Adicionar" icon={TABLE_ICONS.add} disabled={!canCreate || busy !== null} title={canCreate ? undefined : NO_CREATE} onClick={add} />
           {editing && (
             <>
-              <button type="button" className={BUTTON} disabled={busy !== null} onClick={cancel}>
-                <X size={14} /> Cancelar
-              </button>
-              <button type="button" className={PRIMARY} disabled={busy !== null} onClick={() => void save()}>
-                <Save size={14} /> {busy === "saving" ? "Salvando..." : "Salvar"}
-              </button>
+              <IconButton label="Cancelar" icon={TABLE_ICONS.cancel} disabled={busy !== null} onClick={cancel} />
+              <IconButton
+                label="Salvar"
+                icon={busy === "saving" ? Loader2 : TABLE_ICONS.save}
+                spinning={busy === "saving"}
+                variant="primary"
+                title={busy === "saving" ? "Salvando..." : undefined}
+                aria-busy={busy === "saving" || undefined}
+                disabled={busy !== null}
+                onClick={() => void save()}
+              />
             </>
           )}
-          <button type="button" className={BUTTON} disabled={busy !== null} onClick={() => void refresh()}>
-            <RefreshCw size={14} className={cn(busy === "refreshing" && "animate-spin")} /> Atualizar
-          </button>
+          <IconButton label="Atualizar" icon={TABLE_ICONS.refresh} spinning={busy === "refreshing"} disabled={busy !== null} onClick={() => void refresh()} />
         </div>
       </div>
+      {view.filtersOpen && <FilterBar id={view.filtersId} rows={rows} columns={columns} filters={view.filters} onChange={view.setFilter} onClear={view.clearFilters} />}
       {message &&
         (message.kind === "error" ? (
           <p role="alert" className="px-4 pt-3 text-sm font-medium text-destructive">{message.text}</p>
@@ -259,13 +263,21 @@ export function EditableTable<T extends { id: string }>({
           <thead className="bg-muted/30">
             <tr>
               {columns.map((column) => (
-                <th key={column.key} scope="col" className={cn(TH, numeric(column.kind) && "text-right")} style={column.width ? { width: column.width } : undefined}>
-                  {column.header}
+                <SortableHeader
+                  key={column.key}
+                  label={column.header}
+                  sortKey={column.key}
+                  sort={view.sort}
+                  onSort={view.toggleSort}
+                  sortable={column.sortable !== false}
+                  align={numeric(column.kind) ? "right" : "left"}
+                  style={column.width ? { width: column.width } : undefined}
+                >
                   {editing && column.required && !column.readOnly && <span aria-hidden="true"> *</span>}
-                </th>
+                </SortableHeader>
               ))}
               {showActions && (
-                <th scope="col" className={TH}>
+                <th scope="col" className={TH_CLASS}>
                   <span className="sr-only">Ações</span>
                 </th>
               )}
@@ -273,11 +285,11 @@ export function EditableTable<T extends { id: string }>({
           </thead>
           <tbody className="divide-y">
             {created.map((draft) => renderRow(draft.key, draft.base, null, 0))}
-            {rows.map((row, index) => renderRow(row.id, row, row, index + 1))}
-            {!created.length && !rows.length && (
+            {visibleRows.map((row, index) => renderRow(row.id, row, row, index + 1))}
+            {!created.length && !visibleRows.length && (
               <tr>
                 <td colSpan={columnCount} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  {loading ? "Carregando..." : emptyMessage}
+                  {loading ? "Carregando..." : rows.length ? "Nenhum registro com esses filtros." : emptyMessage}
                 </td>
               </tr>
             )}

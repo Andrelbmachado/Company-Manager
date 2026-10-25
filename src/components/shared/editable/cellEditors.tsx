@@ -22,6 +22,12 @@ export interface EditableColumn<T> {
   /** Conteúdo da célula fora do modo edição (link, StatusBadge...). Sem ele, o valor formatado pelo tipo. */
   render?: (row: T) => ReactNode;
   placeholder?: string;
+  /** `false` tira a ordenação por clique no cabeçalho. */
+  sortable?: boolean;
+  /** `false` tira a coluna da barra de filtros. */
+  filterable?: boolean;
+  /** Valor usado para ordenar e filtrar quando não é `row[key]` (ex.: coluna com `render` de outro cadastro). */
+  sortValue?: (row: T) => unknown;
 }
 
 export type CellParse = { ok: true; value: unknown } | { ok: false; reason: string };

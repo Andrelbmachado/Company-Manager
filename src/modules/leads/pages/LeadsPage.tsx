@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequiredSession } from "@/hooks/useSession";
+import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -36,6 +37,7 @@ export default function LeadsPage() {
   const session = useRequiredSession();
   const companyId = session.company.id;
   const [tab, setTab] = useState<TabId>("leads");
+  const qc = useQueryClient();
 
   const { data: project } = useQuery({ queryKey: ["projects", companyId, "site"], queryFn: () => fetchSiteProject(companyId) });
   const { data: leads = [], isLoading } = useQuery({ queryKey: ["leads", companyId], queryFn: () => fetchLeads(companyId) });
@@ -54,11 +56,16 @@ export default function LeadsPage() {
       <PageHeader
         title="Prospecção de Sites"
         description="Leads de Sorocaba sem site, pacotes, cronograma e previsão de receita"
-        actions={project ? (
-          <span className="flex items-center gap-2 text-sm text-muted-foreground">
-            Projeto: <strong className="text-foreground">{project.name}</strong> <StatusBadge status={project.status} />
-          </span>
-        ) : undefined}
+        actions={
+          <>
+            {project && (
+              <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                Projeto: <strong className="text-foreground">{project.name}</strong> <StatusBadge status={project.status} />
+              </span>
+            )}
+            <ImportExportButtons entity="leads" onImported={() => qc.invalidateQueries({ queryKey: ["leads", companyId] })} />
+          </>
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

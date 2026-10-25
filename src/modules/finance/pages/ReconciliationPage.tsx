@@ -28,7 +28,6 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { CrudDialog } from "@/components/shared/CrudDialog";
 import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
@@ -160,7 +159,6 @@ export default function ReconciliationPage() {
         description="Importe o extrato (OFX ou CSV) e ligue cada lançamento à conta paga ou recebida, a uma categoria ou ignore."
         actions={
           <>
-            <ImportExportButtons entity="bank_transactions" onImported={() => invalidateFinance(qc, companyId)} />
             {canCreate && (
               <>
                 <button type="button" disabled={!accountId} onClick={() => setManualOpen(true)} className={secondaryButton}>

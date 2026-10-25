@@ -16,7 +16,6 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { CrudDialog } from "@/components/shared/CrudDialog";
 import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -125,7 +124,6 @@ export default function BankAccountsPage() {
         description="Contas, caixas e cartões da empresa, com o saldo realizado e o último saldo do extrato."
         actions={
           <>
-            <ImportExportButtons entity="bank_accounts" onImported={() => invalidateFinance(qc, companyId)} />
             {canCreate && (
               <button type="button" onClick={() => openForm(null)} className={primaryButton}>
                 <Plus size={14} aria-hidden="true" /> Nova conta bancária

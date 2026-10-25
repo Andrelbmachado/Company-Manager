@@ -14,7 +14,6 @@ import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { CrudDialog } from "@/components/shared/CrudDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -159,7 +158,6 @@ export default function RecurringEntriesPage() {
         description="Aluguel, assinaturas, contratos e outros lançamentos que se repetem. Ao abrir o financeiro, as contas do mês são geradas sozinhas, sem duplicar."
         actions={
           <>
-            <ImportExportButtons entity="recurring_entries" onImported={() => invalidateFinance(qc, companyId)} />
             {kinds.length > 0 && (
               <button type="button" disabled={generate.isPending} onClick={() => generate.mutate()} className={secondaryButton}>
                 <Play size={14} aria-hidden="true" /> Gerar lançamentos do mês

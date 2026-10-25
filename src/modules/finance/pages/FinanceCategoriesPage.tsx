@@ -12,7 +12,6 @@ import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { CrudDialog } from "@/components/shared/CrudDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
@@ -161,7 +160,6 @@ export default function FinanceCategoriesPage() {
         description="Categorias de receita e despesa usadas nos lançamentos e na DRE, e os centros de custo."
         actions={
           <>
-            <ImportExportButtons entity={tab === "plano" ? "finance_categories" : "cost_centers"} onImported={() => invalidateFinance(qc, companyId)} />
             {canCreate && (
               <button type="button" onClick={() => (tab === "plano" ? openCategory(null) : openCostCenter(null))} className={primaryButton}>
                 <Plus size={14} aria-hidden="true" /> {tab === "plano" ? "Nova categoria" : "Novo centro de custo"}

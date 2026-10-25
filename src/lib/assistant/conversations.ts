@@ -1,8 +1,9 @@
-// Histórico do Assistente de IA (tabelas assistant_conversations e assistant_messages, migration 0012).
+// Histórico do Assistente de IA (tabelas assistant_conversations e assistant_messages, migration 0012; sessão do Claude Code, 0013).
 // SQL nos padrões do banco demo (sem JOIN/LIMIT com bind): roda igual no desktop e no navegador.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import type { AssistantConversation, AssistantMessage, AssistantMessageAuthor } from "@/types";
+import { isValidClaudeSessionId } from "./claudeCode";
 
 export type Conversation = AssistantConversation;
 export type Message = AssistantMessage;
@@ -83,4 +84,10 @@ export async function appendMessage(db: DatabaseLike, conversationId: string, au
 /** Mensagens da conversa, da primeira para a última. Quem chama confere antes que a conversa é da pessoa (getConversation). */
 export async function getMessages(db: DatabaseLike, conversationId: string): Promise<Message[]> {
   return db.select<Message[]>("SELECT * FROM assistant_messages WHERE conversation_id=? ORDER BY created_at ASC", [conversationId]);
+}
+
+/** Guarda (ou limpa, com null) a sessão do Claude Code da conversa. Só aceita id de sessão válido (vai para o --resume). */
+export async function setClaudeSession(db: DatabaseLike, conversationId: string, sessionId: string | null): Promise<void> {
+  if (sessionId !== null && !isValidClaudeSessionId(sessionId)) throw new Error("Sessão do Claude Code inválida.");
+  await db.execute("UPDATE assistant_conversations SET claude_session_id=? WHERE id=?", [sessionId, conversationId]);
 }

@@ -1250,6 +1250,8 @@ export interface AssistantConversation {
   company_id: string;
   user_id: string;
   title: string;
+  /** Sessão do Claude Code local (0013): a próxima pergunta continua com --resume. NULL = sem sessão. */
+  claude_session_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

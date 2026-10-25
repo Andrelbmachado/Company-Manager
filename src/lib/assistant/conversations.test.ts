@@ -9,6 +9,7 @@ import {
   getConversation,
   getMessages,
   listConversations,
+  setClaudeSession,
 } from "./conversations";
 
 let db: TestDb;
@@ -69,6 +70,18 @@ describe("conversas do assistente", () => {
     await expect(appendMessage(db, id, "sistema" as "user", "Oi")).rejects.toThrow(/autor/i);
     await expect(appendMessage(db, "nao-existe", "user", "Oi")).rejects.toThrow(/não encontrada/);
     expect(await getMessages(db, id)).toEqual([]);
+  });
+
+  it("guarda e limpa o id da sessão do Claude Code na conversa, e recusa id inválido", async () => {
+    const id = await createConversation(db, companyId, me, "Com Claude Code");
+    expect((await getConversation(db, companyId, me, id))?.claude_session_id ?? null).toBeNull();
+    await setClaudeSession(db, id, "b211ae63-4cce-4686-9792-92c42f2c0621");
+    expect((await getConversation(db, companyId, me, id))?.claude_session_id).toBe("b211ae63-4cce-4686-9792-92c42f2c0621");
+    await expect(setClaudeSession(db, id, "--help")).rejects.toThrow(/sessão/i);
+    await expect(setClaudeSession(db, id, "abc; rm -rf ~")).rejects.toThrow(/sessão/i);
+    expect((await getConversation(db, companyId, me, id))?.claude_session_id).toBe("b211ae63-4cce-4686-9792-92c42f2c0621");
+    await setClaudeSession(db, id, null);
+    expect((await getConversation(db, companyId, me, id))?.claude_session_id ?? null).toBeNull();
   });
 
   it("o título vem da primeira pergunta, numa linha e encurtado", () => {

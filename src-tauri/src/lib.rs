@@ -3,6 +3,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 mod window_size;
 mod auth;
 mod backup;
+mod claude_code;
 mod legacy_db;
 
 #[tauri::command]
@@ -91,6 +92,12 @@ pub fn run() {
             sql: include_str!("../migrations/0012_redesign_modular.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "assistant_claude_session",
+            sql: include_str!("../migrations/0013_assistant_claude_session.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -127,7 +134,9 @@ pub fn run() {
             auth::verify_password,
             backup::backup_db,
             backup::restore_db,
-            backup::list_backups
+            backup::list_backups,
+            claude_code::claude_code_status,
+            claude_code::claude_code_ask
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,6 +6,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { UsersAccess } from "../components/UsersAccess";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { DemoModeCard } from "../components/DemoModeCard";
+import { AssistantModeSettings } from "../components/AssistantModeSettings";
 import { ASSISTANT_PROVIDERS, getAssistantApiConfig, saveAssistantApiConfig } from "@/lib/assistant/config";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
 import { LogOut, Building2, KeyRound, LockKeyhole, Save } from "lucide-react";
@@ -102,6 +103,7 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground">Conexão pessoal usada somente pela sua conta.</p>
           </div>
         </div>
+        <AssistantModeSettings />
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs font-medium">
             Provedor

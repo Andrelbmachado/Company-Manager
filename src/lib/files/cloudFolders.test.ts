@@ -246,6 +246,21 @@ describe("cadastro das pastas conectadas (SQLite real)", () => {
     expect(named).toMatchObject({ provider: "outro", label: "Projetos da empresa" });
   });
 
+  it("pasta já conectada por outro setor: a recusa não revela o nome, que só quem conectou e quem vê todas enxergam", async () => {
+    const secret = await connectCloudFolder(db, C, actor("ceo"), { localPath: ICLOUD, label: "Contratos sigilosos", home: HOME });
+    const own = await connectCloudFolder(db, C, actor("comercial"), { localPath: `${HOME}/Dropbox`, home: HOME });
+    const reason = (promise: Promise<unknown>) => promise.then(() => "", (error: unknown) => (error instanceof Error ? error.message : String(error)));
+
+    const asComercial = await reason(connectCloudFolder(db, C, actor("comercial"), { localPath: ICLOUD, home: HOME }));
+    expect(asComercial).toMatch(/outra pessoa/);
+    expect(asComercial).not.toMatch(/sigilosos/);
+    const moving = await reason(updateCloudFolder(db, C, actor("comercial"), own.id, { local_path: `${ICLOUD}/` }));
+    expect(moving).toMatch(/outra pessoa/);
+    expect(moving).not.toMatch(/sigilosos/);
+    expect(await reason(connectCloudFolder(db, C, actor("gerente"), { localPath: ICLOUD, home: HOME }))).toMatch(/“Contratos sigilosos”/);
+    expect((await listCloudFolders(db, C)).map((row) => row.id).sort()).toEqual([secret.id, own.id].sort());
+  });
+
   it("quem conectou e quem vê todas as pastas enxergam; os demais setores, não", async () => {
     const folder = (await connectCloudFolder(db, C, actor("comercial"), { localPath: ICLOUD, home: HOME })) as CloudFolder;
     const sees = (role: Role) => canSeeCloudFolder(role, `test-user-${role}`, folder);

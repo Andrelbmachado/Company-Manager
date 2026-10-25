@@ -537,11 +537,16 @@ async function findFolder(db: DatabaseLike, companyId: string, id: string): Prom
   return folder;
 }
 
-/** O banco demo não aplica o UNIQUE (empresa, pasta): a duplicata é barrada aqui também. */
-async function assertNotConnected(db: DatabaseLike, companyId: string, localPath: string, exceptId?: string): Promise<void> {
+/**
+ * O banco demo não aplica o UNIQUE (empresa, pasta): a duplicata é barrada aqui também. Quem não vê a pasta já
+ * conectada (outro setor a conectou) não fica sabendo o nome dela.
+ */
+async function assertNotConnected(db: DatabaseLike, companyId: string, actor: CloudActor, localPath: string, exceptId?: string): Promise<void> {
   const key = pathKey(localPath);
   const same = (await listCloudFolders(db, companyId)).find((row) => row.id !== exceptId && pathKey(trimSlash(row.local_path)) === key);
-  if (same) throw new CloudFolderError("duplicate", `Esta pasta já está conectada (“${same.label}”).`);
+  if (!same) return;
+  if (canSeeCloudFolder(actor.role, actor.userId, same)) throw new CloudFolderError("duplicate", `Esta pasta já está conectada (“${same.label}”).`);
+  throw new CloudFolderError("duplicate", "Esta pasta já foi conectada por outra pessoa da empresa.");
 }
 
 const isUniqueError = (error: unknown) => /UNIQUE constraint failed/i.test(errorText(error));
@@ -560,7 +565,7 @@ export async function connectCloudFolder(db: DatabaseLike, companyId: string, ac
   const localPath = normalizeLocalPath(input.localPath);
   const provider = cleanProvider(input.provider) ?? (input.home ? providerForPath(input.home, localPath) : "outro");
   const label = cleanLabel(input.label) || (input.home ? defaultCloudLabel(input.home, localPath) : defaultCloudLabel("/", localPath));
-  await assertNotConnected(db, companyId, localPath);
+  await assertNotConnected(db, companyId, actor, localPath);
   const id = uuidv4();
   const now = new Date().toISOString();
   try {
@@ -594,7 +599,7 @@ export async function updateCloudFolder(db: DatabaseLike, companyId: string, act
   let localPath = folder.local_path;
   if (patch.local_path !== undefined) {
     localPath = normalizeLocalPath(patch.local_path ?? "");
-    await assertNotConnected(db, companyId, localPath, folder.id);
+    await assertNotConnected(db, companyId, actor, localPath, folder.id);
   }
   try {
     await db.execute("UPDATE cloud_folders SET label=?, provider=?, local_path=?, updated_at=? WHERE id=? AND company_id=? AND deleted_at IS NULL", [

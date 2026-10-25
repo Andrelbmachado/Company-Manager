@@ -8,11 +8,13 @@ import { emit } from "@/lib/events/bus";
 import {
   CLOUD_PROVIDER_ORDER,
   CLOUD_PROVIDERS,
+  CloudFolderError,
   canManageCloudFolder,
   connectCloudFolder,
   describeCloudError,
   disconnectCloudFolder,
   getCloudEnv,
+  normalizeLocalPath,
   pickerStartPath,
   scanCloudFolders,
   updateCloudFolder,
@@ -90,10 +92,24 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
       setMessage({ kind: "status", text: `“${folder.label}” conectada: aparece junto das pastas dos Documentos.` });
       await onChanged();
     } catch (error) {
-      setMessage({ kind: "error", text: describeCloudError(error) });
+      // Pasta fora das padrão perde o acesso ao reabrir o app; escolhê-la de novo no seletor já devolve o acesso.
+      const already = error instanceof CloudFolderError && error.code === "duplicate" ? connectedAs(chosen) : null;
+      if (already) setMessage({ kind: "status", text: `“${already.label}” já estava conectada: o acesso a ela foi liberado de novo.` });
+      else setMessage({ kind: "error", text: describeCloudError(error) });
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Pasta conectada (das que a pessoa vê) no caminho escolhido. */
+  function connectedAs(localPath: string): CloudFolder | null {
+    let normalized: string;
+    try {
+      normalized = normalizeLocalPath(localPath);
+    } catch {
+      return null;
+    }
+    return folders.find((folder) => sameFolder(folder.local_path, normalized)) ?? null;
   }
 
   async function disconnect(folder: CloudFolder) {

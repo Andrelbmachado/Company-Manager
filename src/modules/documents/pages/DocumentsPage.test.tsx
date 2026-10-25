@@ -248,4 +248,19 @@ describe("DocumentsPage — pastas de nuvem", () => {
     await click(container.querySelector('[data-cloud-folder="Diretoria"]'));
     await until(() => container.querySelector('[role="alert"]')?.textContent?.includes("Pasta não encontrada") ?? false, "erro da pasta sumida");
   });
+
+  it("escolher de novo no seletor uma pasta já conectada só libera o acesso a ela, sem erro nem cadastro repetido", async () => {
+    const root = home.at(...ICLOUD, "Empresa");
+    await connectRow("nuvem-com", "test-user-comercial", root, "Empresa");
+    await render("comercial");
+    await until(() => container.querySelector('[data-cloud-folder="Empresa"]') !== null, "pasta conectada");
+    await click(buttonWith("Conectar nuvem"));
+    await until(() => text().includes("OneDrive (Pessoal)"), "detecção");
+
+    picked = `${root}/`;
+    await click(byLabel("Escolher pasta: iCloud Drive"));
+    await until(() => text().includes("“Empresa” já estava conectada"), "aviso de acesso liberado");
+    expect(container.querySelector('section[aria-label="Conectar nuvem"] [role="alert"]')).toBeNull();
+    expect(await testDb().select<CloudFolder[]>("SELECT * FROM cloud_folders WHERE company_id=?", [C])).toHaveLength(1);
+  });
 });

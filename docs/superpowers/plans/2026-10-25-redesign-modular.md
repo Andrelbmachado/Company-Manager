@@ -55,10 +55,10 @@ Ordem da sidebar, de cima para baixo: logo → **busca** (abre o `CommandMenu`, 
 
 Tokens (escuro, padrão): `--background: 0 0% 11%`, `--card: 0 0% 14%`, `--sidebar: 0 0% 7%`, `--border: 0 0% 20%`, `--primary: 0 0% 92%`, `--primary-foreground: 0 0% 9%`, `--muted-foreground: 0 0% 62%`. Claro: mesma escala invertida, sidebar `0 0% 93%`, fundo `0 0% 97%`. Saturação 0 em tudo que não for estado.
 
-- [ ] **Step 1:** Teste `conversations.test.ts` (SQLite real): criar conversa, gravar 2 mensagens, `listConversations` traz a conversa com a mais recente primeiro e só do próprio usuário.
-- [ ] **Step 2:** Teste de componente `AppShell.test.tsx`: não existe `banner`/`header`; sidebar tem botão "Buscar", botão "Assistente de IA" acima do link "Dashboard" e botão da conta por último; abrir a conta mostra switch "Tema escuro" e "Notificações".
-- [ ] **Step 3:** FAIL → implementar → PASS. Conferir no navegador (`npm run dev`, banco demo) que a área de conteúdo ocupa a altura toda.
-- [ ] **Step 4:** Commit `feat(shell): tema monocromático, busca, assistente e conta na sidebar, sem top bar`.
+- [x] **Step 1:** Teste `conversations.test.ts` (SQLite real): criar conversa, gravar 2 mensagens, `listConversations` traz a conversa com a mais recente primeiro e só do próprio usuário.
+- [x] **Step 2:** Teste de componente `AppShell.test.tsx`: não existe `banner`/`header`; sidebar tem botão "Buscar", botão "Assistente de IA" acima do link "Dashboard" e botão da conta por último; abrir a conta mostra switch "Tema escuro" e "Notificações".
+- [x] **Step 3:** FAIL → implementar → PASS. Conferir no navegador (`npm run dev`, banco demo) que a área de conteúdo ocupa a altura toda.
+- [x] **Step 4:** Commit `feat(shell): tema monocromático, busca, assistente e conta na sidebar, sem top bar`.
 
 ### Task 2: Migration 0012, perfil de área e rótulos editáveis
 

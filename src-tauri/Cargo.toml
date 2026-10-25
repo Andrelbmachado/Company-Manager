@@ -23,6 +23,11 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 # Hash de senha (comandos hash_password/verify_password). "std" liga o OsRng para gerar o sal.
 argon2 = { version = "0.5", features = ["std"] }
+# Mesmo sqlx do tauri-plugin-sql: corrige o checksum de bancos do protótipo antes do plugin aplicar as migrations.
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "migrate"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [profile.release]
 panic = "abort"

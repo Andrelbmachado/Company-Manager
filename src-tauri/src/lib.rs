@@ -2,6 +2,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod auth;
 mod backup;
+mod legacy_db;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -94,6 +95,19 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            // Antes do front-end abrir o banco: bancos do protótipo têm outro checksum na migration 1 (ver legacy_db.rs).
+            use tauri::Manager;
+            if let Ok(dir) = app.path().app_config_dir() {
+                let db_path = dir.join("company-manager.db");
+                match tauri::async_runtime::block_on(legacy_db::repair(&db_path)) {
+                    Ok(true) => eprintln!("[db] checksum da migration 1 atualizado (banco do protótipo)"),
+                    Ok(false) => {}
+                    Err(error) => eprintln!("[db] não foi possível conferir o banco do protótipo: {error}"),
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             greet,
             restart_app,

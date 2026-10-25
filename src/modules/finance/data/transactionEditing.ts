@@ -71,7 +71,7 @@ export async function saveTransactionChanges(db: FinanceDb, ctx: EditContext, ba
 
   const ids: string[] = [];
   for (const update of updates) {
-    await db.execute("UPDATE bank_transactions SET posted_at=?, description=?, amount=?, memo=?, updated_at=datetime('now') WHERE company_id=? AND id=?", [
+    await db.execute("UPDATE bank_transactions SET posted_at=?, description=?, amount=?, memo=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL", [
       update.posted_at,
       update.description,
       update.amount,

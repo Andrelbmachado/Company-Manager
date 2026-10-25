@@ -71,7 +71,7 @@ export async function saveCompensationChanges(db: DatabaseLike, ctx: EditContext
   for (const [employeeId, item] of work) {
     const existing = byEmployee.get(employeeId);
     if (existing) {
-      await db.execute("UPDATE employee_compensation SET base_salary=?, effective_from=?, notes=?, updated_by=?, updated_at=datetime('now') WHERE id=? AND company_id=?", [item.salary, item.effectiveFrom, item.notes, ctx.userId, existing.id, ctx.companyId]);
+      await db.execute("UPDATE employee_compensation SET base_salary=?, effective_from=?, notes=?, updated_by=?, updated_at=datetime('now') WHERE id=? AND company_id=? AND deleted_at IS NULL", [item.salary, item.effectiveFrom, item.notes, ctx.userId, existing.id, ctx.companyId]);
     } else {
       await db.execute("INSERT INTO employee_compensation (id, company_id, employee_id, base_salary, effective_from, notes, updated_by) VALUES (?,?,?,?,?,?,?)", [uuidv4(), ctx.companyId, employeeId, item.salary, item.effectiveFrom, item.notes, ctx.userId]);
     }

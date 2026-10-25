@@ -115,8 +115,8 @@ interface EditableTableProps<T extends { id: string }> {
 
 Layout: 4 cards (Lucro / Dívida do mês, A pagar na semana, A receber na semana, Projetos ativos), o título do primeiro muda para "Dívida do mês" quando o resultado é negativo; abaixo, gráfico de linha do ano: linha mensal realizada, linha do acumulado (total anual) e linha tracejada de previsão de receita.
 
-- [ ] **Step 1:** Testes SQLite com massa fixa: mês com R$ 10.000 recebidos e R$ 12.500 pagos → `result === -2500`; semana com 2 recebíveis abertos (R$ 300 + R$ 200) → 500; recebível já pago não entra; `annualBalance` tem 12 meses, `acumulado` de março = soma jan–mar, meses futuros com `realizado === null` e `previsto` preenchido.
-- [ ] **Step 2:** FAIL → implementar → PASS. Commit `feat(dashboard): resultado do mês, semana a pagar/receber, trabalhos ativos e balanço anual com previsão`.
+- [x] **Step 1:** Testes SQLite com massa fixa: mês com R$ 10.000 recebidos e R$ 12.500 pagos → `result === -2500`; semana com 2 recebíveis abertos (R$ 300 + R$ 200) → 500; recebível já pago não entra; `annualBalance` tem 12 meses, `acumulado` de março = soma jan–mar, meses futuros com `realizado === null` e `previsto` preenchido.
+- [x] **Step 2:** FAIL → implementar → PASS. Commit `feat(dashboard): resultado do mês, semana a pagar/receber, trabalhos ativos e balanço anual com previsão`.
 
 ### Task 5: Calendário conectado
 

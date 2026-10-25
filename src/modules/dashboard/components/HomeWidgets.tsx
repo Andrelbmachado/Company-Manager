@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { formatMetricValue, type HomeMetricResult, type MetricTone } from "@/lib/dashboard/metrics";
@@ -20,29 +21,26 @@ function errorText(result: HomeMetricResult | undefined): string | null {
   return result && !result.ok ? `Não foi possível carregar: ${result.error}` : null;
 }
 
-/** Indicador clicável: leva à tela do número. */
+/** Cor do número quando ele é um estado (vencido, atrasado); o resto fica na cor do texto (tema monocromático). */
+const VALUE_TONE: Partial<Record<MetricTone, string>> = {
+  warning: "text-amber-700 dark:text-amber-400",
+  danger: "text-destructive",
+};
+
+/**
+ * Indicador clicável que leva à tela do número: só título e número (KpiCard). O detalhe (contagem, "nada vencido",
+ * erro) fica na dica e no nome acessível, não embaixo do número.
+ */
 export function HomeKpiCard({ widget, result, loading }: { widget: HomeWidget; result?: HomeMetricResult; loading?: boolean }) {
-  const Icon = HOME_ICONS[widget.icon];
   const metric = result?.ok ? result.metric : null;
+  const error = errorText(result);
   const value = metric ? formatMetricValue(metric) : "—";
-  const hint = errorText(result) ?? metric?.hint ?? widget.description;
-  if (loading && !result) return <div className="h-36 animate-pulse rounded-xl border bg-card" aria-hidden="true" />;
+  const hint = error ?? metric?.hint ?? widget.description;
+  if (loading && !result) return <div className="h-[7.5rem] animate-pulse rounded-xl border bg-card" aria-hidden="true" />;
+  const tone = error ? "text-destructive" : metric?.tone ? VALUE_TONE[metric.tone] : undefined;
   return (
-    <Link
-      to={widget.path}
-      title={widget.description}
-      aria-label={`${widget.title}: ${value}. ${hint}`}
-      className={cn("kpi-card group flex flex-col gap-3 p-5 transition-colors hover:border-primary/60", FOCUS)}
-      data-widget={widget.id}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-[13px] font-medium text-muted-foreground">{widget.title}</span>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
-          <Icon size={16} aria-hidden="true" />
-        </span>
-      </div>
-      <p className="font-display text-[clamp(1.6rem,2.4vw,2.25rem)] font-bold leading-none tracking-tight tabular-nums">{value}</p>
-      <p className={cn("text-xs leading-snug", result && !result.ok ? TONE_TEXT.danger : TONE_TEXT[metric?.tone ?? "neutral"])}>{hint}</p>
+    <Link to={widget.path} title={hint} aria-label={`${widget.title}: ${value}. ${hint}`} className={cn("group block rounded-xl", FOCUS)} data-widget={widget.id}>
+      <KpiCard title={widget.title} value={tone ? <span className={tone}>{value}</span> : value} className="h-full transition-colors group-hover:border-primary/60" />
     </Link>
   );
 }
@@ -94,10 +92,13 @@ export function HomeListCard({ widget, result, loading }: { widget: HomeWidget; 
   );
 }
 
-/** Cor por série (tokens do tema): saída em vermelho do tema, chamados em primário claro. */
-const SERIES_COLORS: Record<string, string> = {
+/**
+ * Cor por série (tokens do tema, monocromático como o BalanceChart): entrada no primário e saída em cinza médio.
+ * Saída de dinheiro não é estado de erro, então não usa o vermelho do destructive. Chamados em primário claro.
+ */
+export const SERIES_COLORS: Record<string, string> = {
   entradas: "hsl(var(--primary))",
-  saidas: "hsl(var(--destructive))",
+  saidas: "hsl(var(--muted-foreground))",
   os: "hsl(var(--primary))",
   chamados: "hsl(var(--primary) / 0.4)",
 };

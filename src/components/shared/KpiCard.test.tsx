@@ -103,6 +103,48 @@ describe("KpiCard", () => {
     }
   });
 
+  it("texto que passa da caixa por fração de pixel também encolhe, em vez de ganhar reticências", async () => {
+    // Medido no Dashboard: caixa de 186,75 px (clientWidth 187) e "R$ 286.500,00" com 299,35 px a 48 px (scrollWidth
+    // 299). A conta proporcional dá 30 px, mas a 30 px o texto tem 187,09 px: o navegador mostrava "R$ 286.500,…".
+    // clientWidth e scrollWidth são inteiros; a largura com fração vem do Range (que o jsdom não tem: simulada aqui).
+    const widths = { client: 187, scroll: 299 };
+    const restore = stubMeasures(widths);
+    const textAt48px = { width: 299.35 };
+    const isValue = (node: unknown): node is HTMLElement => node instanceof HTMLElement && node.hasAttribute("data-kpi-value");
+    const box = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      return { width: isValue(this) ? 186.75 : 0 } as DOMRect;
+    });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value(this: Range) {
+        const node = this.startContainer;
+        return { width: isValue(node) ? (textAt48px.width * parseFloat(node.style.fontSize || "48px")) / 48 : 0 } as DOMRect;
+      },
+    });
+    try {
+      const shrunk = await renderPage(<KpiCard title="Funil em aberto" value="R$ 286.500,00" />, { companyId: "empresa-1" });
+      expect(valueOf(shrunk.container).style.fontSize).toBe("29px");
+      shrunk.unmount();
+
+      // Já no tamanho padrão: 187,3 px numa caixa de 186,75 px, e os dois arredondam para 187.
+      widths.scroll = 187;
+      textAt48px.width = 187.3;
+      const almost = await renderPage(<KpiCard title="Folha mensal" value="R$ 184.660,00" />, { companyId: "empresa-1" });
+      expect(valueOf(almost.container).style.fontSize).toBe("47px");
+      almost.unmount();
+
+      // O que cabe de verdade continua no tamanho padrão.
+      textAt48px.width = 186.5;
+      const fits = await renderPage(<KpiCard title="Saldo" value="R$ 10,00" />, { companyId: "empresa-1" });
+      expect(valueOf(fits.container).style.fontSize).toBe("");
+      fits.unmount();
+    } finally {
+      delete (Range.prototype as { getBoundingClientRect?: unknown }).getBoundingClientRect;
+      box.mockRestore();
+      restore();
+    }
+  });
+
   it("a API não tem subtítulo, tendência, dica, ícone nem gráfico", () => {
     // @ts-expect-error subtitle saiu da API
     render(<KpiCard title="a" value={1} subtitle="x" />);

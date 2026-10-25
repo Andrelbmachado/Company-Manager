@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { SessionContext } from "@/hooks/useSession";
 import { AppRoutes } from "./routes";
 import { clearSession, getSession } from "@/lib/auth/session";
 import { mustChangePassword, revalidateSession } from "@/lib/auth/login";
 import { upgradeLegacyPasswords } from "@/lib/auth/password";
 import { startDailyBackup } from "@/lib/backup/backup";
-import { isTauriRuntime } from "@/lib/db/client";
+import { getDb, isTauriRuntime } from "@/lib/db/client";
 import ChangePasswordPage from "@/modules/settings/pages/ChangePasswordPage";
 import type { Session } from "@/types";
 
 let legacyUpgradeStarted = false;
 let dailyBackupStarted = false;
+let demoModeInitStarted = false;
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => getSession());
+  const queryClient = useQueryClient();
 
   // Senhas antigas guardadas em texto ("plain:") viram hash assim que o app desktop abre, sem esperar o login de cada pessoa.
   useEffect(() => {
@@ -29,6 +32,20 @@ export default function App() {
     dailyBackupStarted = true;
     startDailyBackup();
   }, []);
+
+  // Primeira abertura depois da atualização do modo demonstração (só desktop): empresa sem a chave demo_mode fica com o
+  // modo desligado e sem os dados fictícios que o login rápido antigo gravava; leads ficam (src/lib/demo/demoMode.ts).
+  useEffect(() => {
+    if (demoModeInitStarted || !isTauriRuntime()) return;
+    demoModeInitStarted = true;
+    // Import dinâmico: os seeds que o modo demonstração usa não entram no pacote principal.
+    Promise.all([getDb(), import("@/lib/demo/demoMode")])
+      .then(([db, { initDemoMode }]) => initDemoMode(db))
+      .then((results) => {
+        if (results.some((result) => result.removed > 0)) void queryClient.invalidateQueries();
+      })
+      .catch((error) => console.warn("[demo] não foi possível limpar os dados de exemplo antigos", error));
+  }, [queryClient]);
 
   // Papel alterado, conta removida ou troca de senha exigida por outra pessoa vale já na próxima vez que a janela ganha foco.
   const membershipId = session?.membership.id;

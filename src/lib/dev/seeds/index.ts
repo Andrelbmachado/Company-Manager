@@ -1,4 +1,4 @@
-// TEMPORÁRIO (login rápido de desenvolvimento): seeds de área. Cada arquivo src/lib/dev/seeds/<area>.ts exporta
+// Modo demonstração (src/lib/demo): seeds de área. Cada arquivo src/lib/dev/seeds/<area>.ts exporta
 // `export async function seed(companyId: string): Promise<void>` e é descoberto sozinho (nenhum arquivo compartilhado
 // precisa mudar). Regras: ids fixos "dev-<area>-...", INSERT OR IGNORE, flag própria em settings (seedUtils.ts), SQL que
 // o banco demo entende e nunca leads. Rodam em ordem alfabética, depois do seed principal (devSeed.ts).

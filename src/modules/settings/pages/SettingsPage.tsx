@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { usePermission } from "@/hooks/usePermission";
 import { UsersAccess } from "../components/UsersAccess";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
+import { DemoModeCard } from "../components/DemoModeCard";
 import { ASSISTANT_PROVIDERS, getAssistantApiConfig, saveAssistantApiConfig } from "@/lib/assistant/config";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
 import { LogOut, Building2, KeyRound, LockKeyhole, Save } from "lucide-react";
@@ -84,6 +85,9 @@ export default function SettingsPage() {
       </div>
 
       {canManageUsers && <UsersAccess />}
+
+      {/* Modo demonstração: só CEO e Administração (o card some para os outros papéis) */}
+      <DemoModeCard />
 
       {/* Actions */}
       <div className="rounded-xl border bg-card p-5 space-y-4">

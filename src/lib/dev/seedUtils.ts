@@ -1,4 +1,4 @@
-// TEMPORÁRIO (login rápido de desenvolvimento): utilitários dos dados de exemplo (devSeed.ts e seeds/<area>.ts).
+// Modo demonstração (src/lib/demo): utilitários dos dados de exemplo (devSeed.ts e seeds/<area>.ts).
 // SQL só nos padrões que o banco demo do navegador entende (INSERT OR IGNORE e SELECT * com WHERE col=?).
 import { getDb, isTauriRuntime } from "@/lib/db/client";
 import { todayIso } from "@/lib/utils";
@@ -14,7 +14,7 @@ function localDate(offset: number, hour = 0): Date {
 export const day = (offset: number) => todayIso(localDate(offset));
 /** Timestamp ISO (UTC, como o resto do app) a `offset` dias de hoje, na hora local dada. */
 export const ts = (offset: number, hour = 9) => localDate(offset, hour).toISOString();
-/** Id da conta de desenvolvimento de cada papel (criada pelo login rápido). */
+/** Id da conta de exemplo de cada papel (criada pelo modo demonstração ou pelo login rápido: devAccounts.ts). */
 export const devUserId = (role: Role) => `dev-user-${role}`;
 
 export type SeedRow = Record<string, string | number | null>;
@@ -40,7 +40,7 @@ export async function selectRows<T extends { id: string }>(table: string, compan
 }
 
 /**
- * Registro em que os dados de exemplo podem se apoiar ou mexer. No app desktop o login rápido roda no banco de verdade:
+ * Registro em que os dados de exemplo podem se apoiar ou mexer. No app desktop o modo demonstração roda no banco de verdade:
  * só valem os registros de exemplo (id "dev-..."), para nenhum cliente, colaborador, conta, item, local ou extrato real
  * ganhar pedido, fatura, tag, documento, baixa ou movimentação fictícios. No navegador o banco demo é todo de exemplo.
  */
@@ -81,7 +81,7 @@ export async function selectAll<T extends { id: string }>(table: string, company
 
 /**
  * Conta (user_id) de cada papel na empresa, pelos vínculos (memberships): a primeira por id. Serve tanto para as
- * contas do login rápido (dev-user-<papel>) quanto para as contas do banco demo do navegador; no desktop, só os
+ * contas de exemplo (dev-user-<papel>) quanto para as contas do banco demo do navegador; no desktop, só os
  * vínculos de exemplo (ver isExampleRecord), para nada fictício sair em nome de uma pessoa de verdade.
  */
 export async function membersByRole(companyId: string): Promise<Map<Role, string>> {

@@ -73,6 +73,9 @@ describe("packageSummary", () => {
     expect(packageSummary("Vitrine e gerenciador juntos")).toBe("Vitrine e gerenciador juntos");
     expect(packageSummary(null)).toBe("");
     expect(packageSummary("  ")).toBe("");
+    expect(packageSummary("Implantação de R$ 1.600 a R$ 12.000. Depois, mensalidade.")).toBe("Implantação de R$ 1.600 a R$ 12.000.");
+    expect(packageSummary("Pronto! Em 30 dias? Sim.")).toBe("Pronto!");
+    expect(packageSummary("Primeira linha.\nSegunda linha.")).toBe("Primeira linha.");
   });
 });
 

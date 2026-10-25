@@ -93,7 +93,8 @@ export function packageFeatures(packages: readonly PackageFeatureSource[]): Pack
 /** Resumo do card: a primeira frase da descrição do pacote. */
 export function packageSummary(description: string | null | undefined): string {
   const text = description?.trim() ?? "";
-  return text.split(/(?<=[.!?])\s+/)[0] ?? "";
+  // Só lookahead: lookbehind quebra no WebKit do macOS 12/13 sem o Safari 16.4 (src/test/webkitCompat.test.ts).
+  return /^[\s\S]*?[.!?](?=\s|$)/.exec(text)?.[0] ?? text;
 }
 
 /** Preço do card: sem centavos quando o valor é inteiro (R$ 149), com os centavos quando tem (R$ 149,90), como na tabela. */

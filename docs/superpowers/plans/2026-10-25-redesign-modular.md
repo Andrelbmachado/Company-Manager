@@ -100,10 +100,10 @@ interface EditableTableProps<T extends { id: string }> {
 - `KpiCard`: só `title` + `value` (remove `subtitle` e `trend` da API; valor em `text-[clamp(2rem,3vw,3rem)]`). `StatCard` passa a ser alias de `KpiCard`.
 - Abas (`ModuleNav`, `TabList`): sem `border-b` de largura total e sem barra de rolagem visível; a linha só existe embaixo das abas (`w-fit`, indicador por aba); texto `text-base font-semibold` (maior que hoje).
 
-- [ ] **Step 1:** Testes `EditableTable.test.tsx`: sem permissão os botões Editar/Adicionar ficam `disabled`; editar duas células e Salvar chama `onSave` só com as linhas alteradas; `money` digitado `1.234,56` vira `1234.56`; Atualizar com rascunho pede confirmação e Cancelar mantém o rascunho; Adicionar cria linha com `newRow()`.
-- [ ] **Step 2:** Testes `calendar/layout.test.ts`: dois eventos sobrepostos ficam em colunas diferentes; evento de dia inteiro vai para a faixa do topo; semana começa no domingo e respeita `America/Sao_Paulo`.
-- [ ] **Step 3:** Teste `KpiCard`: não renderiza texto além de título e valor.
-- [ ] **Step 4:** FAIL → implementar → PASS. Commit `feat(ui): tabela editável, calendário, cards com número grande e abas sem linha cheia`.
+- [x] **Step 1:** Testes `EditableTable.test.tsx`: sem permissão os botões Editar/Adicionar ficam `disabled`; editar duas células e Salvar chama `onSave` só com as linhas alteradas; `money` digitado `1.234,56` vira `1234.56`; Atualizar com rascunho pede confirmação e Cancelar mantém o rascunho; Adicionar cria linha com `newRow()`.
+- [x] **Step 2:** Testes `calendar/layout.test.ts`: dois eventos sobrepostos ficam em colunas diferentes; evento de dia inteiro vai para a faixa do topo; semana começa no domingo e respeita `America/Sao_Paulo`.
+- [x] **Step 3:** Teste `KpiCard`: não renderiza texto além de título e valor.
+- [x] **Step 4:** FAIL → implementar → PASS. Commit `feat(ui): tabela editável, calendário, cards com número grande e abas sem linha cheia`.
 
 ### Task 4: Dashboard
 

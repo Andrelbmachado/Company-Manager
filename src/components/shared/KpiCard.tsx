@@ -30,10 +30,26 @@ export function KpiCard({ title, value, className }: KpiCardProps) {
       const size = parseFloat(getComputedStyle(element).fontSize);
       element.style.fontSize = `${Math.max(MIN_VALUE_PX, Math.floor((size * width) / element.scrollWidth))}px`;
     };
+    // A fonte de exibição costuma terminar de carregar depois da primeira medida: o texto alarga sem a caixa mudar de
+    // tamanho (o ResizeObserver não percebe), então mede de novo quando as fontes terminam de carregar.
+    const refit = () => {
+      width = -1;
+      fit();
+    };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(element);
-    return () => observer.disconnect();
+    const fonts = document.fonts as FontFaceSet | undefined;
+    let active = true;
+    void fonts?.ready.then(() => {
+      if (active) refit();
+    });
+    fonts?.addEventListener("loadingdone", refit);
+    return () => {
+      active = false;
+      observer.disconnect();
+      fonts?.removeEventListener("loadingdone", refit);
+    };
   }, [value]);
 
   return (

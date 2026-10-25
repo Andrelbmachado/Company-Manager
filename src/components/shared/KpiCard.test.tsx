@@ -1,6 +1,6 @@
 // Card do topo das telas: só título e número grande (nada de texto embaixo do número). StatCard é o mesmo card.
 import { describe, expect, it, vi } from "vitest";
-import type { ReactElement } from "react";
+import { act, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderPage } from "@/test/pageHarness";
 import { KpiCard } from "./KpiCard";
@@ -10,6 +10,28 @@ function render(node: ReactElement): HTMLElement {
   const host = document.createElement("div");
   host.innerHTML = renderToStaticMarkup(node);
   return host;
+}
+
+const valueOf = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-kpi-value]")!;
+
+/** Larguras do valor do card (o jsdom não faz layout) e fonte computada de 48 px; devolve quem desfaz. */
+function stubMeasures(widths: { client: number; scroll: number }): () => void {
+  const isValue = (element: unknown) => element instanceof HTMLElement && element.hasAttribute("data-kpi-value");
+  const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!.get!;
+  const scrollWidth = Object.getOwnPropertyDescriptor(Element.prototype, "scrollWidth")!.get!;
+  const computed = window.getComputedStyle.bind(window);
+  const spies = [
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(function (this: Element) {
+      return isValue(this) ? widths.client : clientWidth.call(this);
+    }),
+    vi.spyOn(Element.prototype, "scrollWidth", "get").mockImplementation(function (this: Element) {
+      return isValue(this) ? widths.scroll : scrollWidth.call(this);
+    }),
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => (isValue(element) ? ({ fontSize: "48px" } as CSSStyleDeclaration) : computed(element, pseudo))),
+  ];
+  return () => {
+    for (const spy of spies) spy.mockRestore();
+  };
 }
 
 describe("KpiCard", () => {
@@ -39,20 +61,7 @@ describe("KpiCard", () => {
 
   it("valor mais largo que o card encolhe a fonte (até 20 px); valor que cabe fica no tamanho padrão", async () => {
     const widths = { client: 100, scroll: 300 };
-    const isValue = (element: unknown) => element instanceof HTMLElement && element.hasAttribute("data-kpi-value");
-    const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!.get!;
-    const scrollWidth = Object.getOwnPropertyDescriptor(Element.prototype, "scrollWidth")!.get!;
-    const computed = window.getComputedStyle.bind(window);
-    const spies = [
-      vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(function (this: Element) {
-        return isValue(this) ? widths.client : clientWidth.call(this);
-      }),
-      vi.spyOn(Element.prototype, "scrollWidth", "get").mockImplementation(function (this: Element) {
-        return isValue(this) ? widths.scroll : scrollWidth.call(this);
-      }),
-      vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => (isValue(element) ? ({ fontSize: "48px" } as CSSStyleDeclaration) : computed(element, pseudo))),
-    ];
-    const valueOf = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-kpi-value]")!;
+    const restore = stubMeasures(widths);
     try {
       const wide = await renderPage(<KpiCard title="Saldo" value="R$ 1.234.567,89" />, { companyId: "empresa-1" });
       expect(valueOf(wide.container).style.fontSize).toBe("20px");
@@ -68,7 +77,29 @@ describe("KpiCard", () => {
       expect(valueOf(fits.container).style.fontSize).toBe("");
       fits.unmount();
     } finally {
-      for (const spy of spies) spy.mockRestore();
+      restore();
+    }
+  });
+
+  it("mede de novo quando a fonte de exibição termina de carregar (o texto alarga sem a caixa mudar de tamanho)", async () => {
+    const widths = { client: 124, scroll: 120 };
+    const restore = stubMeasures(widths);
+    const fonts = Object.assign(new EventTarget(), { ready: Promise.resolve() });
+    Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+    try {
+      const page = await renderPage(<KpiCard title="Contato principal" value="Nenhum" />, { companyId: "empresa-1" });
+      expect(valueOf(page.container).style.fontSize).toBe("");
+
+      // Com a fonte carregada, "Nenhum" passa a ocupar 129 px numa caixa de 124 px.
+      widths.scroll = 129;
+      await act(async () => {
+        fonts.dispatchEvent(new Event("loadingdone"));
+      });
+      expect(valueOf(page.container).style.fontSize).toBe("46px");
+      page.unmount();
+    } finally {
+      delete (document as { fonts?: unknown }).fonts;
+      restore();
     }
   });
 

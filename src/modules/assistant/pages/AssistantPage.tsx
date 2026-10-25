@@ -57,7 +57,10 @@ export default function AssistantPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   // Claude Code local (sem chave) quando instalado e logado; senão a API configurada (lib/assistant/provider).
   const claudeStatus = useQuery({ queryKey: CLAUDE_CODE_STATUS_KEY, queryFn: () => getClaudeCodeStatus(), staleTime: 60_000 });
-  const provider = resolveAssistantProvider(getAssistantMode(userId), claudeStatus.data, hasAssistantApiConfig(userId));
+  const mode = getAssistantMode(userId);
+  const provider = resolveAssistantProvider(mode, claudeStatus.data, hasAssistantApiConfig(userId));
+  // A conferência roda o `claude` algumas vezes (~1 s): até lá o selo não pede para configurar o que pode já estar pronto.
+  const checkingClaude = claudeStatus.isLoading && mode !== "api";
 
   const conversation = useQuery({
     queryKey: ["assistant_conversation", companyId, userId, conversationId],
@@ -148,9 +151,9 @@ export default function AssistantPage() {
         </div>
         <Link
           to="/settings"
-          className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${provider.kind !== "none" ? "bg-status-success text-white" : "bg-status-warning text-status-warning-ink"}`}
+          className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${checkingClaude ? "bg-muted text-muted-foreground" : provider.kind !== "none" ? "bg-status-success text-white" : "bg-status-warning text-status-warning-ink"}`}
         >
-          {PROVIDER_BADGE[provider.kind]}
+          {checkingClaude ? "Verificando…" : PROVIDER_BADGE[provider.kind]}
         </Link>
       </div>
 

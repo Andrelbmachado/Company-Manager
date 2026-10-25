@@ -194,4 +194,20 @@ describe("AssistantPage", () => {
     expect(String(asks[0].prompt)).toContain("Resposta da API");
     expect((await getConversation(testDb(), COMPANY, ME, id))?.claude_session_id).toBe(newSession);
   });
+
+  it("enquanto confere o Claude Code, o selo diz que está verificando (não pede para configurar)", async () => {
+    (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    let found!: (status: unknown) => void;
+    tauri.invoke.mockImplementation((command: string) => {
+      if (command === "claude_code_status") return new Promise((resolve) => (found = resolve));
+      return Promise.reject(new Error(`comando inesperado: ${command}`));
+    });
+    await open("/assistant");
+    await until(() => tauri.invoke.mock.calls.length > 0, "status pedido ao Rust");
+    expect(page!.text()).toContain("Verificando");
+    expect(page!.text()).not.toContain("Configurar assistente");
+    await act(async () => found({ available: true, path: "/opt/homebrew/bin/claude", version: "2.1.310", logged_in: true, reason: null }));
+    await until(() => page!.text().includes("Claude Code"), "selo do Claude Code");
+    expect(page!.text()).not.toContain("Verificando");
+  });
 });

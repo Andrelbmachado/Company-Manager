@@ -14,7 +14,10 @@ import type { PersonOption } from "./SourcesTab";
 interface CalendarTabProps {
   actor: CalendarActor;
   entries: CalendarEntry[];
+  /** Contas da empresa (dono do evento). */
   people: PersonOption[];
+  /** Opções do filtro "Funcionário": as contas e os colaboradores sem conta no app. */
+  filterOptions: PersonOption[];
   person: string;
   onPersonChange(value: string): void;
   canCreate: boolean;
@@ -42,7 +45,7 @@ const ORIGIN_TEXT: Record<CalendarEntry["origin"], string> = {
 
 const message = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
 
-export function CalendarTab({ actor, entries, people, person, onPersonChange, canCreate, canEdit, onChanged, onEditEvents }: CalendarTabProps) {
+export function CalendarTab({ actor, entries, people, filterOptions, person, onPersonChange, canCreate, canEdit, onChanged, onEditEvents }: CalendarTabProps) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<CalendarEventKind>("evento");
@@ -106,7 +109,7 @@ export function CalendarTab({ actor, entries, people, person, onPersonChange, ca
           Funcionário
           <select aria-label="Funcionário" value={person} onChange={(event) => onPersonChange(event.target.value)} className={`${FIELD} min-w-[14rem] text-foreground`}>
             <option value="">Todos (com os eventos da empresa)</option>
-            {people.map((option) => (
+            {filterOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
@@ -156,7 +159,7 @@ export function CalendarTab({ actor, entries, people, person, onPersonChange, ca
               <h3 className="text-base font-semibold">{selected.title}</h3>
               <p className="text-sm">{describeWhen(selected.start, selected.end, !!selected.allDay)}</p>
               <p className="text-sm text-muted-foreground">
-                {selected.sourceLabel} · {selected.userId ? names.get(selected.userId) ?? "Pessoa sem acesso ao app" : "Empresa"}
+                {selected.sourceLabel} · {selected.personName ?? (selected.userId ? names.get(selected.userId) ?? "Pessoa sem acesso ao app" : "Empresa")}
               </p>
               {selected.location && <p className="text-sm text-muted-foreground">Local: {selected.location}</p>}
               {selected.description && <p className="whitespace-pre-line text-sm text-muted-foreground">{selected.description}</p>}

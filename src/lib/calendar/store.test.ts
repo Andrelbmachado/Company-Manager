@@ -13,6 +13,8 @@ import {
   exportCompanyCalendar,
   listSources,
   loadCalendarData,
+  parsePersonFilter,
+  personFilterOptions,
   saveLocalEvents,
   saveSources,
   type CalendarActor,
@@ -139,6 +141,21 @@ describe("itens do calendário", () => {
   it("filtro por funcionário mostra só os eventos da pessoa", async () => {
     const items = calendarItems(await loadCalendarData(db, COMPANY), { userId: "test-user-tecnico" });
     expect(items.map((item) => item.title).sort()).toEqual(["Dentista", "Férias: Ana Souza"]);
+  });
+
+  it("colaborador sem conta no app também entra no filtro (ausências do RH dele) e a ausência diz de quem é", async () => {
+    const data = await loadCalendarData(db, COMPANY);
+    const options = personFilterOptions([{ value: "test-user-tecnico", label: "Ana Souza" }], data.employees);
+    expect(options).toEqual([
+      { value: "test-user-tecnico", label: "Ana Souza" },
+      { value: "funcionario:emp-bia", label: "Bia Lima (sem acesso ao app)" },
+    ]);
+    const bia = calendarItems(data, parsePersonFilter("funcionario:emp-bia"));
+    expect(bia.map((item) => item.title)).toEqual(["Ausência: Bia Lima"]);
+    expect(bia[0]).toMatchObject({ userId: null, employeeId: "emp-bia", personName: "Bia Lima" });
+    // Pelo colaborador que tem conta, vêm também os eventos da conta dele.
+    expect(calendarItems(data, { employeeId: "emp-ana" }).map((item) => item.title).sort()).toEqual(["Dentista", "Férias: Ana Souza"]);
+    expect(calendarItems(data, parsePersonFilter("")).length).toBe(4);
   });
 });
 

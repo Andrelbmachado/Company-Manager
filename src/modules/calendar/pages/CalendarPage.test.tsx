@@ -48,6 +48,13 @@ beforeEach(async () => {
   ]);
   await db.execute("INSERT INTO employees (id, company_id, user_id, name) VALUES ('emp-ana', ?, 'test-user-tecnico', 'Ana Souza')", [COMPANY]);
   await db.execute("INSERT INTO hr_requests (id, company_id, employee_id, type, start_date, end_date, days, status) VALUES ('req-1', ?, 'emp-ana', 'ferias', ?, ?, 3, 'aprovada')", [COMPANY, addDays(TODAY, -1), addDays(TODAY, 1)]);
+  // Colaboradora sem conta no app (cadastrada só no RH); dia sem outros eventos (a grade do mês mostra até 3 por dia).
+  await db.execute("INSERT INTO employees (id, company_id, user_id, name) VALUES ('emp-bia', ?, NULL, 'Bia Lima')", [COMPANY]);
+  await db.execute("INSERT INTO hr_requests (id, company_id, employee_id, type, start_date, end_date, days, reason, status) VALUES ('req-bia', ?, 'emp-bia', 'atestado', ?, ?, 1, 'consulta', 'aprovada')", [
+    COMPANY,
+    addDays(TODAY, 3),
+    addDays(TODAY, 3),
+  ]);
 });
 
 afterEach(() => {
@@ -101,6 +108,27 @@ describe("CalendarPage", () => {
     await until(() => !calendarText().includes("Planejamento"), "evento da empresa sai do filtro");
     expect(calendarText()).toContain("Reunião externa");
     expect(calendarText()).toContain("Férias: Ana Souza");
+    expect(calendarText()).not.toContain("Ausência: Bia Lima");
+  });
+
+  it("filtro inclui quem não tem conta no app: mostra as ausências dela e o detalhe diz de quem é (sem o motivo)", async () => {
+    await open("gerente");
+    await until(() => calendarText().includes("Ausência: Bia Lima"), "ausência da colaboradora sem conta");
+    const filter = () => document.querySelector<HTMLSelectElement>("select[aria-label='Funcionário']");
+    const option = () => filter()?.querySelector("option[value='funcionario:emp-bia']");
+    await until(() => !!option(), "colaboradora sem conta no filtro");
+    expect(option()?.textContent).toBe("Bia Lima (sem acesso ao app)");
+    await choose(filter(), "funcionario:emp-bia");
+    await until(() => !calendarText().includes("Planejamento"), "eventos de outras pessoas saem do filtro");
+    expect(calendarText()).toContain("Ausência: Bia Lima");
+    expect(calendarText()).not.toContain("Férias: Ana Souza");
+
+    await click(document.querySelector("[data-item-id='hr-req-bia']"));
+    const details = () => document.querySelector("section[aria-label='Evento selecionado']")?.textContent ?? "";
+    await until(() => details().includes("Ausência: Bia Lima"), "detalhe da ausência");
+    expect(details()).toContain("RH · Bia Lima");
+    expect(details()).not.toContain("Empresa");
+    expect(details()).not.toContain("consulta");
   });
 
   it("Auditoria não adiciona nem edita agendas, mas exporta a agenda da empresa; Comercial não exporta", async () => {

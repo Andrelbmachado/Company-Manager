@@ -9,7 +9,7 @@ import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { defaultCalendarFetcher } from "@/lib/calendar/fetcher";
-import { calendarItems, exportCompanyCalendar, loadCalendarData, type CalendarActor } from "@/lib/calendar/store";
+import { calendarItems, exportCompanyCalendar, loadCalendarData, parsePersonFilter, personFilterOptions, type CalendarActor } from "@/lib/calendar/store";
 import { syncCompanySources, syncSource, SYNC_INTERVAL_MINUTES } from "@/lib/calendar/sync";
 import { fetchCompanyUsers } from "@/lib/crm/queries";
 import { getDb } from "@/lib/db/client";
@@ -103,7 +103,9 @@ export default function CalendarPage() {
     () => (users.data ?? []).map((user) => ({ value: user.id, label: user.name })).sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
     [users.data],
   );
-  const entries = useMemo(() => (data.data ? calendarItems(data.data, { userId: person || null }) : []), [data.data, person]);
+  // Filtro "Funcionário": contas da empresa e colaboradores do RH sem conta no app (as ausências deles).
+  const filterOptions = useMemo(() => personFilterOptions(people, data.data?.employees ?? []), [people, data.data?.employees]);
+  const entries = useMemo(() => (data.data ? calendarItems(data.data, parsePersonFilter(person)) : []), [data.data, person]);
   const sources = data.data?.sources ?? [];
   const failing = sources.filter((source) => source.last_error).length;
 
@@ -182,6 +184,7 @@ export default function CalendarPage() {
             actor={actor}
             entries={entries}
             people={people}
+            filterOptions={filterOptions}
             person={person}
             onPersonChange={setPerson}
             canCreate={canCreate}

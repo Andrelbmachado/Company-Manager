@@ -313,16 +313,49 @@ export type CalendarOrigin = "agenda" | "app" | "rh";
 export interface CalendarEntry extends CalendarItem {
   origin: CalendarOrigin;
   kind: CalendarEventKind;
-  /** Pessoa do evento (dono da agenda, pessoa da ausência); null = empresa. */
+  /** Conta da pessoa do evento (dono da agenda, pessoa da ausência); null = empresa ou colaborador sem conta. */
   userId: string | null;
+  /** Ausência do RH: o colaborador e o nome dele (que pode não ter conta no app). */
+  employeeId?: string | null;
+  personName?: string | null;
   location?: string | null;
   description?: string | null;
   /** Evento gravado (agendas e app); ausência do RH não tem. */
   event?: CalendarEvent;
 }
 
+/** Filtro por funcionário: a conta da pessoa ou o colaborador do RH (que traz também os eventos da conta dele). */
+export interface CalendarFilter {
+  userId?: string | null;
+  employeeId?: string | null;
+}
+
+/** Valor do filtro para colaborador sem conta no app (os demais usam o id da conta). */
+export const EMPLOYEE_FILTER_PREFIX = "funcionario:";
+
+export function parsePersonFilter(value: string | null | undefined): CalendarFilter {
+  if (!value) return {};
+  return value.startsWith(EMPLOYEE_FILTER_PREFIX) ? { employeeId: value.slice(EMPLOYEE_FILTER_PREFIX.length) } : { userId: value };
+}
+
+/**
+ * Opções do filtro "Funcionário": as contas da empresa e, depois, os colaboradores do RH sem conta ativa no app (só
+ * as ausências deles aparecem). Desligados sem conta ficam de fora da lista (continuam em "Todos").
+ */
+export function personFilterOptions(
+  accounts: { value: string; label: string }[],
+  employees: Pick<Employee, "id" | "name" | "user_id" | "status">[],
+): { value: string; label: string }[] {
+  const known = new Set(accounts.map((account) => account.value));
+  const withoutAccount = employees
+    .filter((employee) => (!employee.user_id || !known.has(employee.user_id)) && employee.status !== "desligado")
+    .map((employee) => ({ value: `${EMPLOYEE_FILTER_PREFIX}${employee.id}`, label: `${employee.name} (sem acesso ao app)` }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  return [...accounts, ...withoutAccount];
+}
+
 /** Itens do CalendarView: agendas conectadas, eventos do app e ausências aprovadas (fim exclusivo, sem o motivo). */
-export function calendarItems(data: CalendarData, filter: { userId?: string | null } = {}): CalendarEntry[] {
+export function calendarItems(data: CalendarData, filter: CalendarFilter = {}): CalendarEntry[] {
   const sources = new Map(data.sources.map((source) => [source.id, source]));
   const items: CalendarEntry[] = [];
   for (const event of data.events) {
@@ -360,9 +393,13 @@ export function calendarItems(data: CalendarData, filter: { userId?: string | nu
       origin: "rh",
       kind: request.type === "ferias" ? "ferias" : "ausencia",
       userId: employee.user_id ?? null,
+      employeeId: employee.id,
+      personName: employee.name,
     });
   }
-  return filter.userId ? items.filter((item) => item.userId === filter.userId) : items;
+  if (!filter.userId && !filter.employeeId) return items;
+  const userId = filter.userId ?? (filter.employeeId ? (employees.get(filter.employeeId)?.user_id ?? null) : null);
+  return items.filter((item) => (userId !== null && item.userId === userId) || (!!filter.employeeId && item.employeeId === filter.employeeId));
 }
 
 // ── exportação ────────────────────────────────────────────────────

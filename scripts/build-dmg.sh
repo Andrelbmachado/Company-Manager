@@ -123,6 +123,6 @@ if [ -f "$QUICK_LOGIN_FILE" ] && grep -Eq '^export const DEV_QUICK_LOGIN[^=]*=[[
   echo >&2
   echo "ATENÇÃO: o login rápido de desenvolvimento está ligado (DEV_QUICK_LOGIN = true em $QUICK_LOGIN_FILE)." >&2
   echo "  Com este DMG qualquer pessoa entra em qualquer área sem senha, e o primeiro login rápido cria contas" >&2
-  echo "  dev.<papel>@company.local com senha fixa e grava dados de exemplo no banco. Não distribua fora da empresa;" >&2
+  echo "  dev.<papel>@company.local com senha fixa (dados de exemplo só pelo Modo demonstração). Não distribua fora da empresa;" >&2
   echo "  para desligar, ponha DEV_QUICK_LOGIN = false e gere o DMG de novo." >&2
 fi

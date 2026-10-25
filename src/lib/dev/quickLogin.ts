@@ -1,38 +1,29 @@
-// TEMPORÁRIO (login rápido de desenvolvimento). Para remover: apague a pasta src/lib/dev, o componente
-// src/components/dev/DevQuickLogin.tsx e o uso dele em LoginPage.tsx. Ou ponha DEV_QUICK_LOGIN = false.
+// TEMPORÁRIO (login rápido de desenvolvimento). Para remover: ponha DEV_QUICK_LOGIN = false, ou apague este arquivo,
+// o componente src/components/dev/DevQuickLogin.tsx e o uso dele em LoginPage.tsx. Os dados de exemplo
+// (devSeed.ts, seeds/) e as contas de exemplo (devAccounts.ts) ficam: são do modo demonstração (src/lib/demo).
 import { getDb, isTauriRuntime } from "@/lib/db/client";
 import { DEMO_ACCOUNTS } from "@/lib/db/demo";
 import { hashPassword, login } from "@/lib/auth/login";
-import { devUserId, seedDevData } from "./devSeed";
+import { devEmail, ensureDevAccounts } from "./devAccounts";
 import { runAreaSeeds } from "./seeds";
 import type { Role, Session } from "@/types";
+
+export { DEV_AREAS, devEmail } from "./devAccounts";
 
 export const DEV_QUICK_LOGIN = true;
 export const DEV_PASSWORD = "dev";
 
-export const DEV_AREAS: { role: Role; label: string; name: string }[] = [
-  { role: "ceo", label: "CEO", name: "André Machado" },
-  { role: "admin", label: "Admin", name: "Mariana Costa" },
-  { role: "gerente", label: "Gerência", name: "Ricardo Almeida" },
-  { role: "tecnico", label: "TI", name: "Lucas Ribeiro" },
-  { role: "estoquista", label: "Estoque", name: "Patrícia Gomes" },
-  { role: "financeiro", label: "Financeiro", name: "Fernanda Lima" },
-  { role: "rh", label: "RH", name: "Tiago Freitas" },
-  { role: "comercial", label: "Comercial", name: "Camila Martins" },
-  { role: "atendimento", label: "Atendimento", name: "João Santos" },
-  { role: "produtos", label: "Produtos", name: "Bruno Martins" },
-  { role: "auditor", label: "Auditoria", name: "Beatriz Souza" },
-];
-
-export const devEmail = (role: Role) => `dev.${role}@company.local`;
-
-/** Garante empresa, uma conta por área e os dados de exemplo (desktop); no navegador usa as contas demo e roda os seeds de área. */
+/**
+ * Desktop: garante empresa e uma conta por área e entra; **não grava dados de exemplo** (eles só entram pelo modo
+ * demonstração, em Configurações). Navegador: entra com a conta demo; o banco demo é todo de demonstração, então os
+ * seeds de área continuam completando-o (catálogo, vendas, financeiro...).
+ */
 export async function devQuickLogin(role: Role): Promise<Session> {
   if (!isTauriRuntime()) {
     const account = DEMO_ACCOUNTS.find((item) => item.role === role);
     if (!account) throw new Error("Área sem conta demo.");
     const session = await login(account.email, account.password);
-    // Dados de exemplo das áreas novas (catálogo, financeiro...) também no banco demo; falha não impede o login.
+    // Falha num seed de área não impede o login (o erro volta no resultado e no console).
     await runAreaSeeds(session.company.id);
     return session;
   }
@@ -44,19 +35,6 @@ export async function devQuickLogin(role: Role): Promise<Session> {
     await db.execute("INSERT OR IGNORE INTO companies (id, name) VALUES (?, ?)", [company.id, "Minha Empresa"]);
   }
 
-  const hash = await hashPassword(DEV_PASSWORD);
-  for (const area of DEV_AREAS) {
-    const email = devEmail(area.role);
-    const exists = await db.select<{ id: string }[]>("SELECT id FROM users WHERE lower(email) = ? AND deleted_at IS NULL LIMIT 1", [email]);
-    if (exists.length) continue;
-    const userId = devUserId(area.role);
-    await db.execute("INSERT OR IGNORE INTO users (id, name, email, password_hash) VALUES (?,?,?,?)", [userId, area.name, email, hash]);
-    await db.execute(
-      "INSERT OR IGNORE INTO memberships (id, company_id, user_id, role, scope) VALUES (?,?,?,?,?)",
-      [`dev-member-${area.role}`, company.id, userId, area.role, ["ceo", "admin", "gerente"].includes(area.role) ? "empresa" : "setor"],
-    );
-  }
-
-  await seedDevData(company.id);
+  await ensureDevAccounts(db, company.id, await hashPassword(DEV_PASSWORD));
   return login(devEmail(role), DEV_PASSWORD);
 }

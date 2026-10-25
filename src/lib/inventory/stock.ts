@@ -28,7 +28,14 @@ export type StockErrorCode =
   | "contagem_fechada"
   | "contagem_incompleta"
   | "item_repetido"
-  | "valor_invalido";
+  | "valor_invalido"
+  | "contagem_travada"
+  | "contagem_repetida"
+  | "responsavel_invalido"
+  | "status_invalido"
+  | "data_invalida"
+  | "os_invalida"
+  | "custodia_invalida";
 
 /** Erro de regra de estoque, com mensagem pronta para a tela (pt-BR). */
 export class StockError extends Error {
@@ -323,6 +330,8 @@ export interface TransferInput {
   lines: readonly TransferLine[];
   userId?: string | null;
   note?: string | null;
+  /** ref_id da transferência; padrão = um uuid novo. Quem grava pela tabela passa o id da linha (não duplica ao repetir). */
+  transferId?: string | null;
 }
 
 export interface TransferResult {
@@ -348,7 +357,7 @@ export async function transferStock(db: DatabaseLike, input: TransferInput): Pro
   const from = await activeLocation(db, input.companyId, input.fromLocationId);
   const to = await activeLocation(db, input.companyId, input.toLocationId);
 
-  const transferId = uuidv4();
+  const transferId = input.transferId || uuidv4();
   const plans: PlannedMovement[] = [];
   const shortages: string[] = [];
   for (const [itemId, quantity] of totals) {

@@ -1,17 +1,16 @@
 // Gravações das tabelas de Compras: permissão conferida na camada de dados, pedido em rascunho editado por inteiro
-// (cabeçalho e itens), pedido aprovado só muda previsão e observações, recebimento pela linha nova e fornecedor
-// conferido antes de gravar.
+// (cabeçalho e itens), pedido aprovado só muda previsão e observações e recebimento pela linha nova. Fornecedores:
+// src/lib/erp/supplierRows.test.ts.
 import { describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { approvePurchaseOrder, createPurchaseOrder, loadPurchaseOrderItems } from "@/lib/erp/receiving";
 import { seedTradeFixture } from "@/lib/erp/tradeFixtures";
-import type { GoodsReceipt, PurchaseOrder, PurchaseOrderItem, Role, Supplier } from "@/types";
+import type { GoodsReceipt, PurchaseOrder, PurchaseOrderItem, Role } from "@/types";
 import { approveOrder, receiveOrder } from "./orderActions";
 import { purchaseItemRow, removePurchaseItem, savePurchaseItemChanges } from "./purchaseItemEditing";
 import { savePurchaseOrderChanges } from "./purchaseOrderEditing";
 import { saveReceiptChanges } from "./receiptEditing";
-import { saveSupplierChanges } from "./supplierEditing";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
 
@@ -129,28 +128,5 @@ describe("saveReceiptChanges", () => {
     await expect(saveReceiptChanges(db, { ...ctx, role: "financeiro" }, { updated: [], created: [{ purchase_order_id: orderId }] })).rejects.toThrow(/permissão/);
     await expect(receiveOrder(db, { ...ctx, role: "gerente" }, orderId, [], {})).rejects.toThrow(/entrada de mercadoria/);
     expect(await db.select<GoodsReceipt[]>("SELECT * FROM goods_receipts WHERE company_id = ?", [ctx.companyId])).toHaveLength(0);
-  });
-});
-
-describe("saveSupplierChanges", () => {
-  it("grava endereço e avaliação, recusa CNPJ repetido sem gravar nada", async () => {
-    const { db, ctx, fx } = await setup();
-    const [id] = await saveSupplierChanges(db, ctx, {
-      updated: [{ id: fx.supplierId, terms: "30 dias", rating: "4" }],
-      created: [{ name: "Eletro Peças Ltda", document: "45.723.174/0001-10", email: "Vendas@EletroPecas.com.br", cidade: "Sorocaba", uf: "SP" }],
-    });
-    const rows = await db.select<Supplier[]>("SELECT * FROM suppliers WHERE company_id = ? ORDER BY name", [ctx.companyId]);
-    expect(rows.find((row) => row.id === fx.supplierId)).toMatchObject({ terms: "30 dias", rating: 4, name: "Distribuidora Teste" });
-    const created = rows.find((row) => row.id === id)!;
-    expect(created).toMatchObject({ email: "vendas@eletropecas.com.br", document: "45.723.174/0001-10" });
-    expect(JSON.parse(created.address_json)).toEqual({ cidade: "Sorocaba", uf: "SP" });
-
-    await expect(saveSupplierChanges(db, ctx, { updated: [{ id, notes: "ok" }], created: [{ name: "Repetido", document: "11222333000181" }] })).rejects.toThrow("Repetido: Já existe um fornecedor com este CNPJ/CPF: Distribuidora Teste.");
-    expect((await db.select<Supplier[]>("SELECT * FROM suppliers WHERE id = ?", [id]))[0].notes).toBeNull();
-  });
-
-  it("papel sem permissão é barrado", async () => {
-    const { db, ctx, fx } = await setup("gerente");
-    await expect(saveSupplierChanges(db, ctx, { updated: [{ id: fx.supplierId, name: "Outro" }], created: [] })).rejects.toThrow(/permissão para editar/);
   });
 });

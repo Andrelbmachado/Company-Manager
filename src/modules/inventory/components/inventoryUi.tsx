@@ -2,11 +2,14 @@
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, X } from "lucide-react";
+import { useRequiredSession } from "@/hooks/useSession";
+import { emit, type DomainEvent } from "@/lib/events/bus";
+import { PermissionError, type Actor } from "@/lib/inventory/permission";
 import { roundQty, StockError } from "@/lib/inventory/stock";
 import { MOVEMENT_TYPE_LABELS } from "@/lib/inventory/queries";
 import { roundMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import type { StockMovementType } from "@/types";
+import type { Role, StockMovementType } from "@/types";
 
 /** Todas as consultas do estoque começam com ["inventory", companyId]: invalidar o prefixo atualiza todas as telas. */
 export const inventoryKeys = {
@@ -34,9 +37,26 @@ export function useInvalidateInventory(companyId: string): (options?: { purchase
   };
 }
 
+/** Quem está gravando (papel e conta), para a permissão conferida na camada de dados. */
+export function useActor(): Actor {
+  const session = useRequiredSession();
+  return { role: session.membership.role as Role, userId: session.user.id };
+}
+
+/** Evento de histórico depois de gravar: falha no evento não desfaz nem esconde a gravação (só vai para o console). */
+export async function emitSafely(events: readonly DomainEvent[]): Promise<void> {
+  for (const event of events) {
+    try {
+      await emit(event);
+    } catch (caught) {
+      console.error(`[logística] evento ${event.type} falhou`, caught);
+    }
+  }
+}
+
 /** Mensagem para a tela: a da regra de estoque ou um aviso genérico com o detalhe técnico. */
 export function errorText(error: unknown): string {
-  if (error instanceof StockError) return error.message;
+  if (error instanceof StockError || error instanceof PermissionError) return error.message;
   const detail = error instanceof Error ? error.message : String(error ?? "");
   return detail ? `Não foi possível concluir: ${detail}` : "Não foi possível concluir a operação.";
 }
@@ -167,6 +187,35 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
       ))}
     </div>
   );
+}
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * Opções de uma coluna de seleção da tabela editável mais o valor que alguma linha ainda usa mas saiu da lista (item,
+ * cliente ou fornecedor excluído, pessoa desligada), pelo nome e com a marca entre parênteses: a célula nunca mostra o
+ * código. Só depois que a lista carregou (`loaded`), para não marcar tudo enquanto ela chega. Escolher um desses em
+ * outra linha é recusado ao salvar (a camada de dados só confere o campo que mudou).
+ */
+export function withRetiredOptions<T>(
+  options: readonly SelectOption[],
+  loaded: boolean,
+  rows: readonly T[],
+  valueOf: (row: T) => string | null | undefined,
+  nameOf: (row: T) => string | null | undefined,
+  mark: string,
+): SelectOption[] {
+  if (!loaded) return [...options];
+  const known = new Set(options.map((option) => option.value));
+  const retired = new Map<string, string>();
+  for (const row of rows) {
+    const value = valueOf(row);
+    if (value && !known.has(value) && !retired.has(value)) retired.set(value, `${nameOf(row) || "Removido"} (${mark})`);
+  }
+  return [...options, ...[...retired].map(([value, label]) => ({ value, label }))];
 }
 
 export function normalizeSearch(value: string): string {

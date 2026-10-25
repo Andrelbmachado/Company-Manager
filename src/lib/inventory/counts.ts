@@ -9,13 +9,13 @@ import { insertWithNextNumber } from "./numbering";
 import { byName, userNames } from "./queries";
 import { activeItem, activeLocation, itemBalances, quantityAt, recordStockMovement, roundQty, StockError } from "./stock";
 
-async function loadCount(db: DatabaseLike, companyId: string, countId: string): Promise<InventoryCount> {
+export async function loadCount(db: DatabaseLike, companyId: string, countId: string): Promise<InventoryCount> {
   const rows = await db.select<InventoryCount[]>("SELECT * FROM inventory_counts WHERE company_id=? AND id=? AND deleted_at IS NULL", [companyId, countId]);
   if (!rows[0]) throw new StockError("contagem_invalida", "Contagem de inventário não encontrada.");
   return rows[0];
 }
 
-function requireOpen(count: InventoryCount): void {
+export function requireOpen(count: InventoryCount): void {
   if (count.status !== "aberta") {
     const state = count.status === "concluida" ? "concluída" : "cancelada";
     throw new StockError("contagem_fechada", `A contagem ${formatSequence("inventory_counts", count.number)} já está ${state}.`);
@@ -34,6 +34,8 @@ async function loadCountItem(db: DatabaseLike, companyId: string, countItemId: s
 
 export interface OpenCountInput {
   companyId: string;
+  /** Id da contagem (o da linha nova da tabela); sem ele, é gerado. */
+  id?: string | null;
   locationId: string;
   userId?: string | null;
   /** Itens a contar; sem a lista, entram todos os itens com saldo registrado no local. */
@@ -64,7 +66,7 @@ export async function openInventoryCount(db: DatabaseLike, input: OpenCountInput
     items = active.filter((item) => withBalance.has(item.id));
   }
 
-  const id = uuidv4();
+  const id = input.id || uuidv4();
   const now = new Date().toISOString();
   const number = await insertWithNextNumber(db, "inventory_counts", companyId, (candidate) =>
     db.execute(

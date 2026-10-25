@@ -5,6 +5,7 @@ import type { DatabaseLike } from "@/lib/db/demo";
 import { formatSequence } from "@/lib/db/sequence";
 import { lineTotal, sumMoney } from "@/lib/money";
 import type { InventoryCount, InventoryItem, StockBalance, StockLocation } from "@/types";
+import { assertCan, assertCanSaveRows, type Actor } from "./permission";
 import { byName } from "./queries";
 import { activeLocation, formatQty, roundQty, StockError } from "./stock";
 
@@ -52,6 +53,88 @@ export async function saveStockLocation(db: DatabaseLike, input: LocationInput):
   const id = uuidv4();
   await db.execute("INSERT INTO stock_locations (id, company_id, name, type, address) VALUES (?, ?, ?, ?, ?)", [id, input.companyId, name, type, address]);
   return id;
+}
+
+const LOCATION_FIELDS = ["name", "type", "address"] as const;
+type LocationField = (typeof LOCATION_FIELDS)[number];
+
+export interface LocationRowChanges {
+  updated: readonly (Partial<StockLocation> & { id: string })[];
+  created: readonly Partial<StockLocation>[];
+}
+
+const cleanText = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text || null;
+};
+
+/**
+ * Grava a tabela de locais (Estoque > Locais): `updated` = só os campos alterados (e o id), `created` = linhas novas com
+ * o id gerado pela tela (salvar de novo depois de uma falha não duplica). Exige `edit`/`create` em `inventory`. Tudo
+ * é conferido antes de gravar (nome obrigatório e único entre os ativos, também entre as linhas novas): uma linha com
+ * erro e nenhuma é gravada.
+ */
+export async function saveLocationRows(
+  db: DatabaseLike,
+  companyId: string,
+  actor: Actor,
+  changes: LocationRowChanges,
+): Promise<{ created: { id: string; name: string }[]; updated: { id: string; name: string }[] }> {
+  assertCanSaveRows(actor, "inventory", "locais de estoque", changes);
+  const current = await db.select<StockLocation[]>("SELECT * FROM stock_locations WHERE company_id=? AND deleted_at IS NULL", [companyId]);
+  const byId = new Map(current.map((row) => [row.id, row]));
+  const plans: { kind: "create" | "update"; id: string; name: string; type: string; address: string | null; fields: LocationField[] }[] = [];
+  const valuesOf = (source: Partial<StockLocation>) => {
+    const name = cleanText(source.name);
+    if (!name) throw new StockError("nome_invalido", "Informe o nome do local.");
+    return { name, type: cleanText(source.type) ?? "deposito", address: cleanText(source.address) };
+  };
+
+  for (const patch of changes.updated) {
+    const row = byId.get(patch.id);
+    if (!row) throw new StockError("local_invalido", "Local de estoque não encontrado (excluído ou de outra empresa). Atualize a lista.");
+    const fields = LOCATION_FIELDS.filter((field) => field in patch);
+    if (fields.length === 0) continue;
+    plans.push({ kind: "update", id: row.id, fields, ...valuesOf({ ...row, ...Object.fromEntries(fields.map((field) => [field, patch[field]])) }) });
+  }
+  for (const row of changes.created) {
+    const id = cleanText(row.id) ?? uuidv4();
+    // Linha nova gravada numa tentativa anterior que falhou depois dela: não grava de novo.
+    if ((await db.select<StockLocation[]>("SELECT * FROM stock_locations WHERE company_id=? AND id=?", [companyId, id]))[0]) continue;
+    plans.push({ kind: "create", id, fields: [...LOCATION_FIELDS], ...valuesOf(row) });
+  }
+
+  const finalNames = new Map(current.map((row) => [row.id, nameKey(row.name)]));
+  for (const plan of plans) finalNames.set(plan.id, nameKey(plan.name));
+  for (const plan of plans) {
+    if (!plan.fields.includes("name")) continue;
+    if ([...finalNames.entries()].some(([id, key]) => id !== plan.id && key === nameKey(plan.name))) {
+      throw new StockError("nome_repetido", `Já existe um local chamado "${plan.name}".`);
+    }
+  }
+
+  const result = { created: [] as { id: string; name: string }[], updated: [] as { id: string; name: string }[] };
+  for (const plan of plans) {
+    if (plan.kind === "update") {
+      await db.execute(`UPDATE stock_locations SET ${plan.fields.map((field) => `${field}=?`).join(", ")}, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL`, [
+        ...plan.fields.map((field) => plan[field]),
+        companyId,
+        plan.id,
+      ]);
+      result.updated.push({ id: plan.id, name: plan.name });
+    } else {
+      await db.execute("INSERT INTO stock_locations (id, company_id, name, type, address) VALUES (?, ?, ?, ?, ?)", [plan.id, companyId, plan.name, plan.type, plan.address]);
+      result.created.push({ id: plan.id, name: plan.name });
+    }
+  }
+  return result;
+}
+
+/** Arquiva o local pela tabela (exige `delete` em `inventory`); as regras de local vazio são as de archiveStockLocation. */
+export async function archiveLocationRow(db: DatabaseLike, companyId: string, actor: Actor, locationId: string): Promise<void> {
+  assertCan(actor, "delete", "inventory", "locais de estoque");
+  await archiveStockLocation(db, { companyId, locationId });
 }
 
 async function openCountsAt(db: DatabaseLike, companyId: string, locationId: string): Promise<InventoryCount[]> {

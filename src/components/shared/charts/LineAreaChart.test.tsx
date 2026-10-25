@@ -211,12 +211,49 @@ describe("ChartLegend", () => {
   });
 });
 
+/** "H S% L%" (token HSL do globals.css) → [h, s, l]. */
+const hsl = (value: string | undefined) => (value ?? "").trim().split(/\s+/).map((part) => Number.parseFloat(part));
+
+/** Luminância relativa (WCAG) de uma cor HSL. */
+function luminance([hue, saturation, lightness]: number[]): number {
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n: number) => {
+    const k = (n + hue / 30) % 12;
+    const value = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(8) + 0.0722 * channel(4);
+}
+
+const contrast = (a: number[], b: number[]) => {
+  const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (high + 0.05) / (low + 0.05);
+};
+
 describe("tokens da paleta de séries", () => {
   const css = readFileSync(path.resolve(__dirname, "../../../styles/globals.css"), "utf8");
   const block = (selector: string) => {
     const start = css.indexOf(`${selector} {`);
     return css.slice(start, css.indexOf("}", start));
   };
+  const token = (theme: string, name: string) => new RegExp(`--${name}:\\s*([^;]+);`).exec(theme)?.[1];
+
+  it("cada cor tem contraste >= 3:1 (WCAG 1.4.11) sobre o card e o fundo do próprio tema", () => {
+    expect(contrast([0, 0, 0], [0, 0, 100])).toBeCloseTo(21, 1);
+    for (const selector of [":root", ".dark"]) {
+      const theme = block(selector);
+      for (const surface of ["card", "background"]) {
+        const base = hsl(token(theme, surface));
+        expect(base, `${selector} --${surface}`).toHaveLength(3);
+        for (let index = 1; index <= CHART_PALETTE_SIZE; index++) {
+          const ratio = contrast(hsl(token(theme, `chart-${index}`)), base);
+          expect(ratio, `${selector} --chart-${index} sobre --${surface}`).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
 
   it("--chart-1 a --chart-6 existem no tema claro e no escuro, com cor (saturação > 0) e distintas", () => {
     for (const selector of [":root", ".dark"]) {
@@ -231,6 +268,21 @@ describe("tokens da paleta de séries", () => {
   });
 });
 
+/** Componentes do recharts que um arquivo usa: import com apelido, aspas simples ou duplas, e `import * as X` (<X.Line>). */
+function rechartsComponents(source: string): string[] {
+  const names: string[] = [];
+  for (const match of source.matchAll(/import\s+(type\s+)?(\{[^}]*\}|\*\s*as\s+(\w+))\s*from\s*["']recharts["']/g)) {
+    if (match[1]) continue; // import type: só tipos, não desenha nada
+    if (match[3]) {
+      for (const used of source.matchAll(new RegExp(`<${match[3]}\\.(\\w+)`, "g"))) names.push(used[1]);
+      continue;
+    }
+    const specifiers = match[2].slice(1, -1).split(",").map((name) => name.trim());
+    names.push(...specifiers.filter((name) => name && !/^type\s/.test(name)).map((name) => name.split(/\s+as\s+/)[0]));
+  }
+  return names;
+}
+
 describe("uso do LineAreaChart", () => {
   const src = path.resolve(__dirname, "../../..");
   const files = (dir: string): string[] =>
@@ -240,13 +292,18 @@ describe("uso do LineAreaChart", () => {
       return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [full] : [];
     });
 
+  it("o detector de uso do recharts pega apelido, aspas simples e import * as, e ignora import type", () => {
+    expect(rechartsComponents(`import { Line as Linha, Bar } from 'recharts';`)).toEqual(["Line", "Bar"]);
+    expect(rechartsComponents(`import {\n  Bar,\n  AreaChart,\n} from "recharts";`)).toEqual(["Bar", "AreaChart"]);
+    expect(rechartsComponents(`import * as R from "recharts";\nconst grafico = <R.LineChart data={[]} />;`)).toEqual(["LineChart"]);
+    expect(rechartsComponents(`import type { LineProps } from "recharts";`)).toEqual([]);
+    expect(rechartsComponents(`import { type LineProps, Bar } from "recharts";`)).toEqual(["Bar"]);
+  });
+
   it("nenhuma tela desenha linha ou área do recharts direto (todo gráfico de linha passa pelo componente)", () => {
     const offenders = files(src)
       .filter((file) => !file.includes(`${path.sep}components${path.sep}shared${path.sep}charts${path.sep}`))
-      .filter((file) => {
-        const imports = [...readFileSync(file, "utf8").matchAll(/import\s*\{([^}]*)\}\s*from\s*"recharts"/g)].flatMap((match) => match[1].split(",").map((name) => name.trim()));
-        return imports.some((name) => ["Line", "LineChart", "Area", "AreaChart"].includes(name));
-      })
+      .filter((file) => rechartsComponents(readFileSync(file, "utf8")).some((name) => ["Line", "LineChart", "Area", "AreaChart"].includes(name)))
       .map((file) => path.relative(src, file));
     expect(offenders).toEqual([]);
   });

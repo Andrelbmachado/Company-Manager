@@ -19,7 +19,7 @@ import {
 } from "@/lib/files/cloudFolders";
 import { fileTypeLabel, formatBytes, formatTimestamp, guessMime } from "@/lib/files/format";
 import { saveBlobAs } from "@/lib/files/saveAs";
-import { getMaxFileBytes, readBlobBytes } from "@/lib/files/store";
+import { getMaxFileBytes } from "@/lib/files/store";
 import { cn } from "@/lib/utils";
 import type { CloudFolder, Role } from "@/types";
 import { foldName } from "../access";
@@ -83,8 +83,8 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
     const maxBytes = await getMaxFileBytes(companyId).catch(() => undefined);
     for (const file of files) {
       try {
-        const bytes = await readBlobBytes(file);
-        const saved = await sendToCloudFolder(actor, folder, path, file.name, bytes, { maxBytes });
+        // O arquivo vai inteiro: o tamanho (0 bytes, limite) é conferido antes de ler, e pasta arrastada explica.
+        const saved = await sendToCloudFolder(actor, folder, path, file.name, file, { maxBytes });
         result.saved.push(saved);
         await emit({
           type: "documents.cloud_upload",
@@ -94,7 +94,7 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
           entityId: folder.id,
           title: `Arquivo enviado para ${folder.label}: ${saved}`,
           module: "documents",
-          metadata: { path: [...path, saved].join("/"), size_bytes: bytes.byteLength },
+          metadata: { path: [...path, saved].join("/"), size_bytes: file.size },
         });
       } catch (error) {
         result.failed.push({ name: file.name, message: describeCloudError(error) });

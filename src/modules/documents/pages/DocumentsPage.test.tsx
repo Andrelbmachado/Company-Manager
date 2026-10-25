@@ -1,6 +1,6 @@
 // Tela de Documentos com SQLite real: pastas por setor, envio para a pasta do setor, detalhe com versões e anexos,
 // e pastas de nuvem conectadas lidas de uma pasta temporária de verdade (iCloud Drive e OneDrive falsos).
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -225,6 +225,12 @@ describe("DocumentsPage — pastas de nuvem", () => {
     await until(() => text().includes("Leia-me (2).txt"), "arquivo novo na lista");
     expect(readFileSync(path.join(root, "Leia-me.txt"), "utf8")).toBe("Olá da nuvem");
     expect(readFileSync(path.join(root, "Leia-me (2).txt"), "utf8")).toBe("versão nova");
+
+    // Arquivo vazio (ou pasta arrastada, que chega com 0 bytes) não vira arquivo na nuvem.
+    Object.defineProperty(input, "files", { value: [new File([], "Vazio.txt", { type: "text/plain" })], configurable: true });
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    await until(() => container.querySelector('[role="alert"]')?.textContent?.includes("“Vazio.txt” está vazio") ?? false, "recusa do arquivo vazio");
+    expect(readdirSync(root)).not.toContain("Vazio.txt");
   });
 
   it("cada setor só vê a pasta que conectou; quem vê tudo vê todas; pasta sumida dá erro legível", async () => {

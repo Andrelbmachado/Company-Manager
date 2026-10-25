@@ -179,6 +179,47 @@ describe("arquivos da pasta conectada (disco de verdade)", () => {
     expect(await writeCloudFile(root, "", "../../fora.txt", bytes, fs)).toBe("fora.txt");
     expect(readFileSync(path.join(root, "fora.txt"), "utf8")).toBe("nova versão");
   });
+
+  it("a pasta interna do app (com.company.manager) não aparece, não abre e não recebe arquivo, nem dentro de uma pasta conectada", async () => {
+    const support = tmp.mkdir("Library", "Application Support");
+    const appData = tmp.mkdir("Library", "Application Support", "com.company.manager");
+    writeFileSync(path.join(appData, "company-manager.db"), "banco com salários e senhas");
+    tmp.mkdir("Library", "Application Support", "Outro App");
+    const bytes = new TextEncoder().encode("x");
+
+    expect((await listCloudFolder(support, "", fs)).map((entry) => entry.name)).toEqual(["Outro App"]);
+    await expect(listCloudFolder(support, "com.company.manager", fs)).rejects.toThrow(/Company Manager/);
+    await expect(readCloudFile(support, ["com.company.manager", "company-manager.db"], fs)).rejects.toThrow(/Company Manager/);
+    // O disco do Mac não diferencia maiúsculas: a mesma pasta escrita de outro jeito também é recusada.
+    await expect(readCloudFile(support, "COM.Company.Manager/company-manager.db", fs)).rejects.toBeInstanceOf(CloudFolderError);
+    await expect(writeCloudFile(support, "com.company.manager", "plantado.cmbackup", bytes, fs)).rejects.toBeInstanceOf(CloudFolderError);
+    expect(readdirSync(appData)).toEqual(["company-manager.db"]);
+    expect(() => normalizeLocalPath(`${HOME}/Library/Application Support/COM.Company.Manager`)).toThrow(CloudFolderError);
+  });
+
+  it("envio: 0 bytes e acima do limite são recusados antes de ler o arquivo; arquivo que não dá para ler (pasta arrastada) explica", async () => {
+    const folder = { id: "nuvem-1", company_id: "c", provider: "icloud", label: "Empresa", local_path: root, created_by: "test-user-comercial", created_at: "", updated_at: "" } as CloudFolder;
+    const comercial = { role: "comercial" as Role, userId: "test-user-comercial" };
+    /** Arquivo escolhido/arrastado cuja leitura falha (como uma pasta solta na área de envio). */
+    const unreadable = (size: number) => ({ size, type: "", arrayBuffer: () => Promise.reject(new Error("NotReadableError")) }) as unknown as Blob;
+    const before = readdirSync(root).sort();
+
+    await expect(writeCloudFile(root, "", "Vazio.txt", new Uint8Array(), fs)).rejects.toThrow(/vazio/);
+    await expect(sendToCloudFolder(comercial, folder, "", "Vazio.txt", new Blob([]), { fs })).rejects.toThrow(/vazio/);
+    await expect(sendToCloudFolder(comercial, folder, "", "Pasta", unreadable(0), { fs })).rejects.toThrow(/vazio/);
+    await expect(sendToCloudFolder(comercial, folder, "", "Grande.bin", unreadable(10), { fs, maxBytes: 5 })).rejects.toThrow(/limite/);
+    await expect(sendToCloudFolder(comercial, folder, "", "Pasta", unreadable(96), { fs })).rejects.toThrow(/Não foi possível ler “Pasta”.*pasta/);
+    expect(readdirSync(root).sort()).toEqual(before);
+
+    expect(await sendToCloudFolder(comercial, folder, "Contratos", "Nota.txt", new Blob(["olá"]), { fs })).toBe("Nota.txt");
+    expect(readFileSync(path.join(root, "Contratos", "Nota.txt"), "utf8")).toBe("olá");
+  });
+
+  it("erro do disco ao conferir o nome vira mensagem da pasta (no Tauri, link para fora responde 'forbidden path')", async () => {
+    const guarded = { ...fs, exists: async (target: string) => (target.endsWith("/Novo.txt") ? Promise.reject(new Error("forbidden path: /x/Novo.txt")) : fs.exists(target)) };
+    await expect(writeCloudFile(root, "", "Novo.txt", new TextEncoder().encode("x"), guarded)).rejects.toMatchObject({ name: "CloudFolderError", code: "no_access" });
+    expect(readdirSync(root)).not.toContain("Novo.txt");
+  });
 });
 
 describe("cadastro das pastas conectadas (SQLite real)", () => {

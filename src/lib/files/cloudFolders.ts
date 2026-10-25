@@ -4,14 +4,16 @@
 //
 // Segurança: tudo passa por uma pasta conectada (raiz) mais nomes simples dentro dela. Nunca "..", caminho absoluto,
 // item oculto ou link simbólico — o app não segue link nenhum, nem para dentro (não dá para saber para onde aponta sem
-// realpath, que o plugin-fs não tem). O escopo do Tauri (capabilities/default.json) é a segunda barreira: ele resolve
-// links e só libera as pastas de nuvem padrão, mais a pasta escolhida no seletor durante a sessão.
+// realpath, que o plugin-fs não tem). A pasta de dados do próprio app (com.company.manager: banco, anexos, backups)
+// nunca é conectada nem aberta, nem dentro de uma pasta conectada. O escopo do Tauri (capabilities/default.json) é a
+// segunda barreira: ele resolve links e só libera as pastas de nuvem padrão, mais a pasta escolhida no seletor durante
+// a sessão.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { can } from "@/lib/permissions/rbac";
 import type { CloudFolder, CloudProvider, Role } from "@/types";
 import { formatBytes } from "./format";
-import { HARD_MAX_FILE_BYTES, sanitizeFileName } from "./store";
+import { HARD_MAX_FILE_BYTES, readBlobBytes, sanitizeFileName } from "./store";
 import { tauriCloudEnv, tauriCloudFs } from "./tauriCloudFs";
 
 // ── Serviços ─────────────────────────────────────────────────────
@@ -142,7 +144,7 @@ export function pickerStartPath(home: string, provider: CloudProvider, detected:
 
 // ── Erros e caminhos ─────────────────────────────────────────────
 
-export type CloudFolderErrorCode = "invalid" | "outside" | "missing" | "no_access" | "not_dir" | "not_file" | "too_large" | "unreadable" | "duplicate" | "forbidden" | "not_found";
+export type CloudFolderErrorCode = "invalid" | "outside" | "missing" | "no_access" | "not_dir" | "not_file" | "empty" | "too_large" | "unreadable" | "duplicate" | "forbidden" | "not_found";
 
 /** Erro com mensagem pronta para a tela (pt-BR). */
 export class CloudFolderError extends Error {
@@ -160,6 +162,13 @@ export function describeCloudError(error: unknown): string {
   return detail ? `Não foi possível concluir: ${detail}` : "Não foi possível concluir a operação na pasta da nuvem.";
 }
 
+/**
+ * Pasta de dados do app no Mac ($APPDATA com o banco, anexos e backups; também caches e WebKit): mesmo nome do
+ * identifier do tauri.conf.json. O disco do Mac não diferencia maiúsculas, então a comparação também não.
+ */
+const APP_FOLDER = "com.company.manager";
+const isAppFolder = (name: string) => name.normalize("NFC").toLowerCase() === APP_FOLDER;
+
 /** Caminho completo da pasta conectada, sem barra no fim. Recusa relativo, "~", ".", "..", a raiz e a pasta do app. */
 export function normalizeLocalPath(localPath: string): string {
   const value = String(localPath ?? "").trim();
@@ -169,7 +178,7 @@ export function normalizeLocalPath(localPath: string): string {
   const segments = value.split("/").filter(Boolean);
   if (segments.some((segment) => segment === "." || segment === "..")) throw new CloudFolderError("invalid", "Caminho com “.” ou “..” não é aceito: use o caminho completo da pasta.");
   if (segments.length === 0) throw new CloudFolderError("invalid", "A raiz do disco não pode ser conectada: escolha uma pasta.");
-  if (segments.includes("com.company.manager")) throw new CloudFolderError("invalid", "A pasta interna do Company Manager não pode ser conectada.");
+  if (segments.some(isAppFolder)) throw new CloudFolderError("invalid", "A pasta interna do Company Manager não pode ser conectada.");
   return `/${segments.join("/")}`;
 }
 
@@ -186,6 +195,7 @@ export function cloudSubpath(relative: string | readonly string[]): string[] {
     if (!segment || segment.includes("/") || segment.includes("\u0000")) throw new CloudFolderError("invalid", "Nome de pasta ou arquivo inválido.");
     if (segment === "." || segment === "..") throw new CloudFolderError("outside", "Caminho com “..” sai da pasta conectada e não é aceito.");
     if (segment.startsWith(".")) throw new CloudFolderError("invalid", "Itens ocultos (nome começando com ponto) não são abertos pelo app.");
+    if (isAppFolder(segment)) throw new CloudFolderError("invalid", "A pasta interna do Company Manager não é aberta pelas pastas de nuvem.");
   }
   return segments;
 }
@@ -320,7 +330,7 @@ export interface CloudEntry {
 
 const ICLOUD_PLACEHOLDER = /^\.(.+)\.icloud$/;
 
-/** Itens da pasta conectada (ou de uma subpasta): pastas primeiro, sem ocultos e sem links. */
+/** Itens da pasta conectada (ou de uma subpasta): pastas primeiro, sem ocultos, sem links e sem a pasta do app. */
 export async function listCloudFolder(root: string, relative: string | readonly string[] = "", fs: CloudFs = getCloudFs()): Promise<CloudEntry[]> {
   const segments = cloudSubpath(relative);
   const { path: dir, info } = await resolveInside(root, segments, fs);
@@ -332,7 +342,7 @@ export async function listCloudFolder(root: string, relative: string | readonly 
     if (isAccessError(error)) throw new CloudFolderError("no_access", "O app não tem acesso a esta pasta. Escolha a pasta de novo para liberar o acesso.");
     throw new CloudFolderError("unreadable", `Não foi possível ler a pasta: ${errorText(error)}`);
   }
-  const visible = raw.filter((entry) => !entry.isSymlink && !entry.name.startsWith(".") && (entry.isDirectory || entry.isFile));
+  const visible = raw.filter((entry) => !entry.isSymlink && !entry.name.startsWith(".") && !isAppFolder(entry.name) && (entry.isDirectory || entry.isFile));
   const names = new Set(visible.map((entry) => entry.name));
   const entries: CloudEntry[] = await Promise.all(
     visible.map(async (entry) => {
@@ -347,7 +357,7 @@ export async function listCloudFolder(root: string, relative: string | readonly 
   );
   for (const entry of raw) {
     const placeholder = entry.isFile ? ICLOUD_PLACEHOLDER.exec(entry.name) : null;
-    if (placeholder && !names.has(placeholder[1])) entries.push({ name: placeholder[1], isDir: false, size: 0, modified: "", cloudOnly: true });
+    if (placeholder && !names.has(placeholder[1]) && !isAppFolder(placeholder[1])) entries.push({ name: placeholder[1], isDir: false, size: 0, modified: "", cloudOnly: true });
   }
   return entries.sort((a, b) => Number(b.isDir) - Number(a.isDir) || compareNames(a.name, b.name));
 }
@@ -375,6 +385,22 @@ function splitExtension(name: string): [string, string] {
 
 const MAX_NAME_ATTEMPTS = 500;
 
+/** Mesmas regras de tamanho dos documentos: 0 bytes (pasta arrastada, leitura que falhou) e acima do limite não vão. */
+function checkUploadSize(name: string, size: number, maxBytes: number): void {
+  if (size === 0) throw new CloudFolderError("empty", `“${name}” está vazio (0 bytes).`);
+  if (size > maxBytes) throw new CloudFolderError("too_large", `“${name}” tem ${formatBytes(size, { roundUp: true })}; o limite é ${formatBytes(maxBytes)} por arquivo.`);
+}
+
+/** Bytes do arquivo escolhido ou arrastado: o tamanho é conferido antes de ler, para não carregar um arquivo enorme à toa. */
+async function readUpload(file: Blob, name: string, maxBytes: number): Promise<Uint8Array> {
+  checkUploadSize(name, file.size, maxBytes);
+  try {
+    return await readBlobBytes(file);
+  } catch {
+    throw new CloudFolderError("unreadable", `Não foi possível ler “${name}”. Se for uma pasta, envie os arquivos de dentro dela.`);
+  }
+}
+
 /**
  * Grava um arquivo novo na pasta conectada (ou subpasta) e devolve o nome usado. Nunca sobrescreve: nome repetido
  * vira "nome (2).ext", "nome (3).ext"... O nome passa pelo mesmo saneamento dos documentos (sem pastas nem "..").
@@ -392,20 +418,30 @@ export async function writeCloudFile(
   if (info && !info.isDirectory) throw new CloudFolderError("not_dir", `“${segments[segments.length - 1]}” não é uma pasta.`);
   const maxBytes = options.maxBytes ?? HARD_MAX_FILE_BYTES;
   const clean = sanitizeFileName(fileName);
-  if (bytes.byteLength > maxBytes) throw new CloudFolderError("too_large", `“${clean}” passa do limite de ${formatBytes(maxBytes)} por arquivo.`);
+  checkUploadSize(clean, bytes.byteLength, maxBytes);
+  const writeError = (error: unknown) =>
+    isAccessError(error)
+      ? new CloudFolderError("no_access", "O app não tem acesso para gravar nesta pasta. Escolha a pasta de novo para liberar o acesso.")
+      : new CloudFolderError("unreadable", `Não foi possível gravar “${clean}”: ${errorText(error)}`);
   const [stem, extension] = splitExtension(clean);
   for (let attempt = 1; attempt <= MAX_NAME_ATTEMPTS; attempt++) {
     const candidate = attempt === 1 ? clean : `${stem} (${attempt})${extension}`;
     const target = joinPath(dir, [candidate]);
-    if (await fs.exists(target)) continue;
+    let taken: boolean;
+    try {
+      taken = await fs.exists(target);
+    } catch (error) {
+      // No Tauri, um link com esse nome apontando para fora do escopo responde "forbidden path".
+      throw writeError(error);
+    }
+    if (taken) continue;
     try {
       await fs.writeNewFile(target, bytes);
       return candidate;
     } catch (error) {
       // Outro envio criou o mesmo nome entre a checagem e a gravação: tenta o próximo.
       if (await fs.exists(target).catch(() => false)) continue;
-      if (isAccessError(error)) throw new CloudFolderError("no_access", "O app não tem acesso para gravar nesta pasta. Escolha a pasta de novo para liberar o acesso.");
-      throw new CloudFolderError("unreadable", `Não foi possível gravar “${clean}”: ${errorText(error)}`);
+      throw writeError(error);
     }
   }
   throw new CloudFolderError("invalid", `Já existem arquivos demais com o nome “${clean}” nesta pasta.`);
@@ -460,19 +496,24 @@ export async function openCloudFile(actor: CloudActor, folder: FolderAccess, rel
   return readCloudFile(folder.local_path, relative, fs);
 }
 
-/** Envio pela tela: `attach` em documents e ver a pasta; devolve o nome gravado (nunca sobrescreve). */
+/**
+ * Envio pela tela: `attach` em documents e ver a pasta; devolve o nome gravado (nunca sobrescreve). `content` pode ser
+ * o próprio arquivo escolhido/arrastado: o tamanho (0 bytes, limite) é conferido antes de ler.
+ */
 export async function sendToCloudFolder(
   actor: CloudActor,
   folder: FolderAccess,
   folderPath: string | readonly string[],
   fileName: string,
-  bytes: Uint8Array,
+  content: Uint8Array | Blob,
   options: { maxBytes?: number; fs?: CloudFs } = {},
 ): Promise<string> {
   if (!can(actor.role, "attach", "documents") || !canSeeCloudFolder(actor.role, actor.userId, folder)) {
     throw new CloudFolderError("forbidden", "Seu perfil não tem permissão para enviar arquivos para esta pasta.");
   }
-  return writeCloudFile(folder.local_path, folderPath, fileName, bytes, options.fs ?? getCloudFs(), { maxBytes: options.maxBytes });
+  const maxBytes = options.maxBytes ?? HARD_MAX_FILE_BYTES;
+  const bytes = ArrayBuffer.isView(content) ? new Uint8Array(content.buffer, content.byteOffset, content.byteLength) : await readUpload(content, sanitizeFileName(fileName), maxBytes);
+  return writeCloudFile(folder.local_path, folderPath, fileName, bytes, options.fs ?? getCloudFs(), { maxBytes });
 }
 
 function cleanLabel(label: string | null | undefined): string {

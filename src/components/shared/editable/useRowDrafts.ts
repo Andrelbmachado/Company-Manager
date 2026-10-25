@@ -14,6 +14,11 @@ export interface DraftState<T> {
   /** Linha (id, ou a chave da linha nova) → coluna → texto digitado. Só células tocadas. */
   cells: Record<string, Record<string, string>>;
   created: CreatedDraft<T>[];
+  /**
+   * Cópia de cada linha existente na última vez que a pessoa mexeu nela. Se a tela deixar de mostrar a linha (busca,
+   * filtro), o rascunho continua valendo (Atualizar avisa, Salvar grava) em vez de sumir em silêncio.
+   */
+  originals: Record<string, T>;
 }
 
 export type CellErrors = Record<string, Record<string, string>>;
@@ -38,13 +43,32 @@ export function isRowChanged<T extends { id: string }>(state: DraftState<T>, row
   return editable(columns).some((column) => column.key in cells && cells[column.key] !== cellText(column, row[column.key]));
 }
 
+/**
+ * Linhas existentes com rascunho: as da lista atual, na ordem dela, e depois as que a tela deixou de mostrar (busca,
+ * filtro), pela cópia guardada quando a pessoa mexeu nelas.
+ */
+export function draftedRows<T extends { id: string }>(state: DraftState<T>, rows: T[]): { row: T; visible: boolean }[] {
+  const listed = new Set(rows.map((row) => row.id));
+  const visible = rows.filter((row) => state.cells[row.id]).map((row) => ({ row, visible: true }));
+  const hidden = Object.keys(state.cells)
+    .filter((key) => !listed.has(key) && state.originals[key])
+    .map((key) => ({ row: state.originals[key], visible: false }));
+  return [...visible, ...hidden];
+}
+
 export function hasChanges<T extends { id: string }>(state: DraftState<T>, rows: T[], columns: EditableColumn<T>[]): boolean {
-  return state.created.length > 0 || rows.some((row) => isRowChanged(state, row, columns));
+  return state.created.length > 0 || draftedRows(state, rows).some(({ row }) => isRowChanged(state, row, columns));
+}
+
+/** Quantas linhas alteradas a tela não está mostrando agora (serão salvas junto). */
+export function hiddenChangedRows<T extends { id: string }>(state: DraftState<T>, rows: T[], columns: EditableColumn<T>[]): number {
+  return draftedRows(state, rows).filter(({ row, visible }) => !visible && isRowChanged(state, row, columns)).length;
 }
 
 /**
- * Monta o que vai para o onSave: linhas existentes só com os campos que mudaram (e o id); linhas novas com
- * `newRow()` + o que foi digitado. Célula inválida ou obrigatória vazia vira erro e nada é salvo.
+ * Monta o que vai para o onSave: linhas existentes só com os campos que mudaram (e o id), inclusive as que a tela
+ * deixou de mostrar; linhas novas com `newRow()` + o que foi digitado. Célula inválida ou obrigatória vazia vira
+ * erro e nada é salvo.
  */
 export function collectChanges<T extends { id: string }>(
   rows: T[],
@@ -60,9 +84,8 @@ export function collectChanges<T extends { id: string }>(
   const created: Partial<T>[] = [];
 
   if (allowed.edit) {
-    for (const row of rows) {
+    for (const { row } of draftedRows(state, rows)) {
       const cells = state.cells[row.id];
-      if (!cells) continue;
       const patch: Partial<T> = {};
       for (const column of editable(columns)) {
         if (!(column.key in cells)) continue;
@@ -97,7 +120,7 @@ export function collectChanges<T extends { id: string }>(
   return { updated, created, errors };
 }
 
-const EMPTY = { cells: {}, created: [] };
+const EMPTY = { cells: {}, created: [], originals: {} };
 
 /** Estado dos rascunhos + erros por célula (limpos quando a pessoa mexe na célula). */
 export function useRowDrafts<T extends { id: string }>() {
@@ -105,8 +128,13 @@ export function useRowDrafts<T extends { id: string }>() {
   const [errors, setErrors] = useState<CellErrors>({});
   const counter = useRef(0);
 
-  const setCell = useCallback((rowKey: string, columnKey: string, text: string) => {
-    setState((current) => ({ ...current, cells: { ...current.cells, [rowKey]: { ...current.cells[rowKey], [columnKey]: text } } }));
+  /** `original` = a linha gravada (linha existente); guardada para o rascunho sobreviver se a tela a esconder. */
+  const setCell = useCallback((rowKey: string, columnKey: string, text: string, original?: T) => {
+    setState((current) => ({
+      ...current,
+      cells: { ...current.cells, [rowKey]: { ...current.cells[rowKey], [columnKey]: text } },
+      originals: original ? { ...current.originals, [rowKey]: original } : current.originals,
+    }));
     setErrors((current) => {
       if (!current[rowKey]?.[columnKey]) return current;
       const rowErrors = { ...current[rowKey] };
@@ -126,7 +154,7 @@ export function useRowDrafts<T extends { id: string }>() {
     setState((current) => {
       const cells = { ...current.cells };
       delete cells[key];
-      return { cells, created: current.created.filter((draft) => draft.key !== key) };
+      return { ...current, cells, created: current.created.filter((draft) => draft.key !== key) };
     });
   }, []);
 

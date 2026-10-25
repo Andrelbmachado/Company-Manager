@@ -1,7 +1,8 @@
 // Tabela editável no próprio lugar (sem modal): Editar / Adicionar / Atualizar / Salvar / Cancelar, permissão por
 // recurso, valores digitados no formato brasileiro e confirmação antes de descartar rascunhos.
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { click, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { choose, click, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { confirmAction } from "@/lib/confirm";
 import type { Role } from "@/types";
 import { EditableTable, type EditableColumn } from "./EditableTable";
@@ -62,6 +63,23 @@ async function open(role: Role, extra: { newRow?: () => Partial<Row> } = {}) {
     <EditableTable<Row> resource="customers" label="Clientes" rows={ROWS} columns={COLUMNS} onSave={onSave} onRefresh={onRefresh} newRow={extra.newRow} />,
     { companyId: "empresa-1", role },
   );
+  return page;
+}
+
+/** Tela com busca que filtra as linhas passadas à tabela (como as listas da Fase B). */
+function FilteredTable() {
+  const [search, setSearch] = useState("");
+  const rows = ROWS.filter((row) => (row.name ?? "").toLowerCase().includes(search.toLowerCase()));
+  return (
+    <>
+      <input aria-label="Buscar" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <EditableTable<Row> resource="customers" label="Clientes" rows={rows} columns={COLUMNS} onSave={onSave} onRefresh={onRefresh} />
+    </>
+  );
+}
+
+async function openFiltered() {
+  page = await renderPage(<FilteredTable />, { companyId: "empresa-1", role: "ceo" });
   return page;
 }
 
@@ -184,6 +202,57 @@ describe("EditableTable", () => {
     await click(page!.button("Cancelar"));
     expect(newRow()).toBeNull();
     expect(cell("c-1", "name")?.textContent).toBe("Alfa Ltda");
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("linha alterada que a busca da tela escondeu não some: o Atualizar avisa e o Salvar grava junto", async () => {
+    await openFiltered();
+    await click(page!.button("Editar"));
+    await typeInto(field("c-1", "name"), "Alfa Tecnologia");
+    await typeInto(document.querySelector("input[aria-label=Buscar]"), "gama");
+    expect(cell("c-1", "name")).toBeNull();
+    expect(document.querySelector("[data-hidden-drafts]")?.textContent).toMatch(/1 linha alterada/);
+
+    await click(page!.button("Atualizar"));
+    expect(confirmAction).toHaveBeenCalledTimes(1);
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    await typeInto(field("c-3", "email"), "financeiro@gama.com");
+    await click(page!.button("Salvar"));
+    await until(() => onSave.mock.calls.length === 1, "onSave");
+    expect(onSave.mock.calls[0][0]).toEqual({
+      updated: [
+        { id: "c-3", email: "financeiro@gama.com" },
+        { id: "c-1", name: "Alfa Tecnologia" },
+      ],
+      created: [],
+    });
+  });
+
+  it("erro numa linha escondida pela busca não salva nada e avisa que a linha está fora da lista", async () => {
+    await openFiltered();
+    await click(page!.button("Editar"));
+    await typeInto(field("c-1", "credit_limit"), "mil reais");
+    await typeInto(document.querySelector("input[aria-label=Buscar]"), "gama");
+    await click(page!.button("Salvar"));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(document.querySelector("[role=alert]")?.textContent).toMatch(/fora da lista/);
+  });
+
+  it("seleção com valor gravado fora das opções (status antigo) mostra o valor gravado e permite voltar a ele", async () => {
+    const legacy: Row = { id: "c-9", name: "Ômega", email: null, credit_limit: null, since: null, status: "qualificado", active: 1 };
+    page = await renderPage(
+      <EditableTable<Row> resource="customers" label="Clientes" rows={[legacy]} columns={COLUMNS} onSave={onSave} onRefresh={onRefresh} />,
+      { companyId: "empresa-1", role: "ceo" },
+    );
+    await click(page.button("Editar"));
+    const select = field("c-9", "status") as unknown as HTMLSelectElement;
+    expect(select.value).toBe("qualificado");
+    await choose(select, "active");
+    expect(document.querySelector("tr[data-row-key='c-9']")?.getAttribute("data-changed")).toBe("true");
+    await choose(select, "qualificado");
+    expect(document.querySelector("tr[data-row-key='c-9']")?.getAttribute("data-changed")).toBeNull();
+    await click(page.button("Salvar"));
     expect(onSave).not.toHaveBeenCalled();
   });
 

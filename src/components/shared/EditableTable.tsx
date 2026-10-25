@@ -9,8 +9,8 @@ import { usePermission } from "@/hooks/usePermission";
 import { confirmAction } from "@/lib/confirm";
 import type { Resource } from "@/lib/permissions/rbac";
 import { cn } from "@/lib/utils";
-import { CellEditor, displayCell, type EditableColumn } from "./editable/cellEditors";
-import { collectChanges, draftText, hasChanges, isRowChanged, useRowDrafts } from "./editable/useRowDrafts";
+import { CellEditor, cellText, displayCell, type EditableColumn } from "./editable/cellEditors";
+import { collectChanges, draftText, hasChanges, hiddenChangedRows, isRowChanged, useRowDrafts } from "./editable/useRowDrafts";
 
 export type { ColumnKind, EditableColumn } from "./editable/cellEditors";
 
@@ -78,6 +78,8 @@ export function EditableTable<T extends { id: string }>({
 
   const created = drafts.state.created;
   const dirty = hasChanges(drafts.state, rows, columns);
+  // Linhas alteradas que a tela deixou de mostrar (busca, filtro): continuam no rascunho e vão no Salvar.
+  const hidden = hiddenChangedRows(drafts.state, rows, columns);
   const showActions = !!rowActions || (editing && created.length > 0);
   const columnCount = columns.length + (showActions ? 1 : 0);
 
@@ -128,9 +130,13 @@ export function EditableTable<T extends { id: string }>({
 
   async function save() {
     const changes = collectChanges(rows, columns, drafts.state, { edit: canEdit, create: canCreate });
-    if (Object.values(changes.errors).some((cells) => Object.keys(cells).length > 0)) {
+    const failed = Object.keys(changes.errors).filter((rowKey) => Object.keys(changes.errors[rowKey]).length > 0);
+    if (failed.length) {
       drafts.setErrors(changes.errors);
-      setMessage({ kind: "error", text: "Corrija os campos marcados antes de salvar." });
+      const listed = new Set([...rows.map((row) => row.id), ...created.map((draft) => draft.key)]);
+      const offList = failed.filter((rowKey) => !listed.has(rowKey)).length;
+      const where = offList === 1 ? " Uma linha com erro está fora da lista atual (busca ou filtro)." : offList > 1 ? ` ${offList} linhas com erro estão fora da lista atual (busca ou filtro).` : "";
+      setMessage({ kind: "error", text: `Corrija os campos marcados antes de salvar.${where}` });
       return;
     }
     if (!changes.updated.length && !changes.created.length) {
@@ -174,10 +180,11 @@ export function EditableTable<T extends { id: string }>({
                 <CellEditor
                   column={column}
                   text={draftText(drafts.state, rowKey, column, value)}
+                  stored={cellText(column, value)}
                   label={`${column.header} (${isNew ? "nova linha" : `linha ${number}`})`}
                   error={error}
                   errorId={`${tableId}-${rowKey}-${column.key}-erro`}
-                  onChange={(text) => drafts.setCell(rowKey, column.key, text)}
+                  onChange={(text) => drafts.setCell(rowKey, column.key, text, row ?? undefined)}
                 />
               ) : row && column.render ? (
                 column.render(row)
@@ -239,6 +246,13 @@ export function EditableTable<T extends { id: string }>({
         ) : (
           <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">{message.text}</p>
         ))}
+      {hidden > 0 && (
+        <p data-hidden-drafts="" aria-live="polite" className="px-4 pt-3 text-sm text-muted-foreground">
+          {hidden === 1
+            ? "1 linha alterada está fora da lista atual (busca ou filtro) e também será salva."
+            : `${hidden} linhas alteradas estão fora da lista atual (busca ou filtro) e também serão salvas.`}
+        </p>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm" aria-label={label} aria-busy={loading || busy === "refreshing" ? true : undefined}>
           <thead className="bg-muted/30">

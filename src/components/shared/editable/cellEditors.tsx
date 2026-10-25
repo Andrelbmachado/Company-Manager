@@ -114,6 +114,11 @@ const PLACEHOLDER: Partial<Record<ColumnKind, string>> = { money: "0,00", date: 
 interface CellEditorProps<T> {
   column: EditableColumn<T>;
   text: string;
+  /**
+   * Valor gravado como texto (`cellText`). Na seleção, um valor gravado que não está nas opções (status antigo)
+   * aparece como opção extra: sem isso o campo mostraria outra opção e não daria para voltar ao valor gravado.
+   */
+  stored?: string;
   label: string;
   error?: string;
   errorId?: string;
@@ -121,7 +126,7 @@ interface CellEditorProps<T> {
 }
 
 /** Campo da célula no modo edição; o erro de validação aparece logo abaixo, na própria célula. */
-export function CellEditor<T>({ column, text, label, error, errorId, onChange }: CellEditorProps<T>) {
+export function CellEditor<T>({ column, text, stored, label, error, errorId, onChange }: CellEditorProps<T>) {
   const invalid = error ? true : undefined;
   const describedBy = error ? errorId : undefined;
   let control: ReactNode;
@@ -136,10 +141,13 @@ export function CellEditor<T>({ column, text, label, error, errorId, onChange }:
       />
     );
   } else if (column.kind === "select") {
+    const options = column.options ?? [];
+    const legacy = stored && !options.some((option) => option.value === stored) ? stored : null;
     control = (
       <select aria-label={label} aria-invalid={invalid} aria-describedby={describedBy} value={text} onChange={(event) => onChange(event.target.value)} className={cn(CELL_INPUT, "px-1.5")}>
         {(!column.required || !text) && <option value="">—</option>}
-        {(column.options ?? []).map((option) => (
+        {legacy && <option value={legacy}>{legacy}</option>}
+        {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>

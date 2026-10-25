@@ -1,5 +1,5 @@
 // Lista de pedidos de compra pela tela: pedido novo pela linha da tabela (abre o pedido), pedido aprovado só muda
-// previsão e observações, e a previsão de entrega no calendário.
+// previsão e observações, a previsão de entrega no calendário e rascunho que não se perde ao ver o calendário.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
@@ -7,7 +7,7 @@ import { approvePurchaseOrder, createPurchaseOrder } from "@/lib/erp/receiving";
 import { seedTradeFixture, type TradeFixture } from "@/lib/erp/tradeFixtures";
 import { todayIso } from "@/lib/utils";
 import { buttonIn, click, mountPage, until, type Mounted } from "@/modules/catalog/testHarness";
-import { addRow, cellText, editCell, saveError, saveTable, startEditing, tableOf } from "@/modules/finance/testing/tableActions";
+import { addRow, cellField, cellText, editCell, saveError, saveTable, startEditing, tableOf } from "@/modules/finance/testing/tableActions";
 import type { PurchaseOrder } from "@/types";
 import PurchasingPage from "./PurchasingPage";
 
@@ -44,6 +44,18 @@ describe("PurchasingPage", () => {
     const [created] = await orders();
     expect(created).toMatchObject({ status: "rascunho", supplier_id: fx.supplierId, total: 120 });
     await until(() => page.path() === `/purchasing/pedidos/${created.id}`, "pedido aberto");
+  });
+
+  it("linha nova continua na tabela depois de ver o calendário", async () => {
+    page = await open();
+    await until(() => Boolean(page.container.querySelector('[data-editable-table="purchase_orders"] table:not([aria-busy="true"])')), "tabela carregada");
+    const table = tableOf(page.container, "purchase_orders");
+    await addRow(table);
+    await editCell(table, "nova", "supplier_id", fx.supplierId);
+    const toggle = (label: string) => [...page.container.querySelectorAll("button")].find((button) => button.textContent?.trim() === label);
+    await click(toggle("Calendário"));
+    await click(toggle("Lista"));
+    expect(cellField(tableOf(page.container, "purchase_orders"), "nova", "supplier_id").value).toBe(fx.supplierId);
   });
 
   it("pedido aprovado muda a previsão na tabela e aparece no calendário", async () => {

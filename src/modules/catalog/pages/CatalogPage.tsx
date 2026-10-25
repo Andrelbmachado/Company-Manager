@@ -112,6 +112,18 @@ export default function CatalogPage() {
       render: (row) => (row.inventory_item_id ? itemsById.get(row.inventory_item_id)?.name ?? "—" : <span className="text-muted-foreground">Sem estoque</span>),
     },
     { key: "active", header: "Ativo", kind: "bool", render: (row) => <StatusBadge status={isTrue(row.active) ? "active" : "inactive"} /> },
+    // Dados fiscais e descrição (antes no formulário do produto): NCM e código de barras valem para produto, código do
+    // serviço (LC 116) para serviço.
+    { key: "ncm", header: "NCM", kind: "text", width: 110 },
+    { key: "barcode", header: "Código de barras", kind: "text", width: 140 },
+    { key: "service_code", header: "Código do serviço", kind: "text", width: 110 },
+    {
+      key: "description",
+      header: "Descrição",
+      kind: "text",
+      width: 220,
+      render: (row) => (row.description ? <span className="block max-w-[16rem] truncate" title={row.description}>{row.description}</span> : <span className="text-muted-foreground">—</span>),
+    },
   ];
 
   async function save(changes: EditableTableChanges<ProductRow>) {

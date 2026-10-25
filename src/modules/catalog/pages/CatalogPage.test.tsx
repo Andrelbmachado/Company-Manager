@@ -62,6 +62,24 @@ describe("CatalogPage", () => {
     expect(cell(products, "Nome (nova linha)")?.value).toBe("Outra câmera");
   });
 
+  it("edita NCM, código de barras, código do serviço e descrição na própria tabela", async () => {
+    page = await open("estoquista", "/catalog");
+    await until(() => text().includes("Visita técnica"), "lista do catálogo");
+    const products = table("products");
+    const lineOf = (name: string) => [...products.querySelectorAll("tr[data-row-key]")].findIndex((row) => row.textContent?.includes(name)) + 1;
+    const mouse = lineOf("Mouse USB");
+    const visit = lineOf("Visita técnica");
+    await click(buttonIn(products, "Editar"));
+    await typeInto(cell(products, `NCM (linha ${mouse})`), "8471.60.53");
+    await typeInto(cell(products, `Código de barras (linha ${mouse})`), "7891234567895");
+    await typeInto(cell(products, `Descrição (linha ${mouse})`), "Mouse óptico 1200 dpi");
+    await typeInto(cell(products, `Código do serviço (linha ${visit})`), "14.01");
+    await click(buttonIn(products, "Salvar"));
+    await until(async () => (await productBySku("FX-VISITA")).service_code === "14.01", "código do serviço gravado");
+    expect(await productBySku("FX-MOUSE")).toMatchObject({ ncm: "8471.60.53", barcode: "7891234567895", description: "Mouse óptico 1200 dpi", name: "Mouse USB" });
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+  });
+
   it("desativa pela coluna Ativo; detalhes na página; comercial só consulta", async () => {
     page = await open("estoquista", "/catalog");
     await until(() => text().includes("Mouse USB"), "lista");

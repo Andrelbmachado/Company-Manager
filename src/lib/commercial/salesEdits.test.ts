@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
 import { confirmSalesOrder, createSalesOrder, invoiceSalesOrder } from "@/lib/erp/orders";
 import { seedTradeFixture, type TradeFixture } from "@/lib/erp/tradeFixtures";
-import { saveInvoiceRows, saveSalesOrderRows } from "./salesEdits";
+import { removeSalesOrderItem, saveInvoiceRows, saveSalesOrderItemRows, saveSalesOrderRows } from "./salesEdits";
 
 type Row = Record<string, unknown>;
 
@@ -87,5 +87,35 @@ describe("saveInvoiceRows", () => {
     const draft = await createSalesOrder(db, { companyId: fx.companyId, customerId: fx.customerId, items: [{ description: "X", qty: 1, unitPrice: 10 }] });
     await expect(saveInvoiceRows(db, fx.companyId, finance, { updated: [], created: [{ sales_order_id: draft }] })).rejects.toThrow(/Confirme/);
     expect(await db.select("SELECT id FROM invoices WHERE company_id=?", [fx.companyId])).toHaveLength(0);
+  });
+});
+
+describe("saveSalesOrderItemRows e removeSalesOrderItem", () => {
+  it("inclui item no rascunho vazio (preço da tabela do cliente), altera quantidade e mantém o preço digitado", async () => {
+    const { db, fx, seller } = await setup();
+    const { created } = await saveSalesOrderRows(db, fx.companyId, seller, { updated: [], created: [{ customer_id: fx.customerId }] });
+    const orderId = String(created[0]);
+    await saveSalesOrderItemRows(db, fx.companyId, seller, orderId, { updated: [], created: [{ product_id: fx.products.switch, qty: 2 }, { description: "Instalação", qty: 1, unit_price: 300 }] });
+    let items = await db.select<Row[]>("SELECT * FROM sales_order_items WHERE order_id=? AND deleted_at IS NULL ORDER BY position", [orderId]);
+    expect(items.map((item) => [item.description, item.qty, item.unit_price])).toEqual([["Switch 24 portas", 2, 2700], ["Instalação", 1, 300]]);
+    expect(await one("SELECT total FROM sales_orders WHERE id=?", [orderId])).toEqual({ total: 5700 });
+
+    await saveSalesOrderItemRows(db, fx.companyId, seller, orderId, { updated: [{ id: String(items[0]!.id), qty: 3 }], created: [] });
+    items = await db.select<Row[]>("SELECT * FROM sales_order_items WHERE order_id=? AND deleted_at IS NULL ORDER BY position", [orderId]);
+    expect(items.map((item) => [item.description, item.qty, item.unit_price])).toEqual([["Switch 24 portas", 3, 2700], ["Instalação", 1, 300]]);
+
+    await removeSalesOrderItem(db, fx.companyId, seller, orderId, String(items[1]!.id));
+    // updateSalesOrder regrava os itens (ids novos): a tela recarrega a lista depois de cada gravação.
+    const rest = await db.select<Row[]>("SELECT * FROM sales_order_items WHERE order_id=? AND deleted_at IS NULL", [orderId]);
+    expect(rest.map((item) => item.description)).toEqual(["Switch 24 portas"]);
+    await expect(removeSalesOrderItem(db, fx.companyId, seller, orderId, String(rest[0]!.id))).rejects.toThrow(/ao menos um item/);
+  });
+
+  it("pedido faturado e item avulso sem preço são recusados", async () => {
+    const { db, fx, seller } = await setup();
+    const orderId = await confirmedOrder(fx);
+    await expect(saveSalesOrderItemRows(db, fx.companyId, seller, orderId, { updated: [], created: [{ description: "Sem preço", qty: 1 }] })).rejects.toThrow(/preço/);
+    await invoiceSalesOrder(db, orderId, { companyId: fx.companyId });
+    await expect(saveSalesOrderItemRows(db, fx.companyId, seller, orderId, { updated: [], created: [{ description: "X", qty: 1, unit_price: 1 }] })).rejects.toThrow(/não pode ser editado/);
   });
 });

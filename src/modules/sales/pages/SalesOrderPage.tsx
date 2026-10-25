@@ -2,14 +2,15 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Ban, Check, FileText, Pencil, ShoppingCart, Trash2, Truck } from "lucide-react";
-import { CrudDialog } from "@/components/shared/CrudDialog";
-import { DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
+import { removeSalesOrderItem, saveSalesOrderItemRows } from "@/lib/commercial/salesEdits";
+import { confirmAction } from "@/lib/confirm";
 import { getDb } from "@/lib/db/client";
 import { formatSequence } from "@/lib/db/sequence";
 import {
@@ -27,16 +28,19 @@ import {
   updateSalesOrder,
 } from "@/lib/erp/orders";
 import { formatQty, roundQty } from "@/lib/erp/stockPosting";
-import { errorMessage } from "@/lib/erp/tradeDb";
+import { errorMessage, isTrue } from "@/lib/erp/tradeDb";
 import { emit } from "@/lib/events/bus";
 import { splitInstallments } from "@/lib/money";
 import { formatCurrency, formatDay, todayIso } from "@/lib/utils";
+import { InfoGrid as DetailGrid, InfoItem as DetailItem, InlinePanel, ROW_DANGER, refreshTrade, useEditActor } from "@/modules/catalog/components/inline";
 import { DocumentItemsTable } from "@/modules/catalog/components/DocumentItemsTable";
 import { TotalsSummary } from "@/modules/catalog/components/LineItemsEditor";
 import {
   BUTTON,
   DANGER,
   ErrorNote,
+  Field,
+  INPUT,
   LoadingRows,
   PAYMENT_METHODS,
   PRIMARY,
@@ -107,7 +111,7 @@ function NewSalesOrder({ customerId }: { customerId: string }) {
   );
 }
 
-type Dialog = "invoice" | "deliver" | "cancel" | "delete" | null;
+type Panel = "invoice" | "deliver" | "cancel" | null;
 
 function ExistingSalesOrder({ orderId }: { orderId: string }) {
   const session = useRequiredSession();
@@ -120,8 +124,10 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
   const canSeeInvoices = usePermission("view", "invoices");
   const canSeeCustomers = usePermission("view", "customers");
   const [editing, setEditing] = useState(false);
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const [panel, setPanel] = useState<Panel>(null);
+  const actor = useEditActor();
   const [form, setForm] = useState<Record<string, string>>({});
+  const [itemError, setItemError] = useState<string | null>(null);
   const today = todayIso();
 
   const query = useQuery({
@@ -162,7 +168,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
 
   function finish() {
     invalidateTrade(qc);
-    setDialog(null);
+    setPanel(null);
   }
 
   const confirm = useMutation({
@@ -218,11 +224,38 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
     },
   });
 
-  function open(next: Exclude<Dialog, null>, values: Record<string, string> = {}) {
+  function open(next: Exclude<Panel, null>, values: Record<string, string> = {}) {
     for (const mutation of [invoice, deliver, cancel, remove]) mutation.reset();
     setForm(values);
-    setDialog(next);
+    setPanel(next);
   }
+
+  async function askRemove() {
+    remove.reset();
+    const ok = await confirmAction(`O rascunho ${label} e os itens saem da lista. O número ${label} não é reaproveitado.`, { title: `Excluir rascunho ${label}?`, okLabel: "Excluir" });
+    if (ok) remove.mutate();
+  }
+
+  async function saveItems(changes: EditableTableChanges<SalesOrderItem>) {
+    await saveSalesOrderItemRows(await getDb(), companyId, actor, orderId, changes);
+    await log("sales_order.updated", `Itens do pedido ${label} alterados`);
+    invalidateTrade(qc);
+  }
+
+  async function removeItem(item: SalesOrderItem) {
+    setItemError(null);
+    const ok = await confirmAction(`Tirar "${item.description}" do pedido ${label}? Os totais são recalculados.`, { title: "Remover item?", okLabel: "Remover" });
+    if (!ok) return;
+    try {
+      await removeSalesOrderItem(await getDb(), companyId, actor, orderId, item.id);
+      await log("sales_order.updated", `Item removido do pedido ${label}: ${item.description}`);
+      invalidateTrade(qc);
+    } catch (error) {
+      setItemError(errorMessage(error));
+    }
+  }
+
+  const field = (key: string) => ({ value: form[key] ?? "", onChange: (event: { target: { value: string } }) => setForm((current) => ({ ...current, [key]: event.target.value })) });
 
   if (query.isLoading) {
     return <div className="space-y-5"><BackLink /><PageHeader title="Pedido de venda" /><LoadingRows /></div>;
@@ -244,6 +277,19 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
   const canDeliver = canEdit && (order.status === "confirmado" || order.status === "faturado");
   const canCancel = canEdit && (order.status === "rascunho" || order.status === "confirmado") && !order.invoiced_at;
   const canRemove = canDelete && order.status === "rascunho";
+
+  const productOptions = products
+    .filter((product) => (!product.deleted_at && isTrue(product.active)) || items.some((item) => item.product_id === product.id))
+    .map((product) => ({ value: product.id, label: `${product.name}${product.sku ? ` (${product.sku})` : ""}${isTrue(product.active) && !product.deleted_at ? "" : " (inativo)"}` }));
+  const itemColumns: EditableColumn<SalesOrderItem>[] = [
+    { key: "product_id", header: "Produto", kind: "select", width: 220, options: productOptions, render: (item) => (item.product_id ? productsById.get(item.product_id)?.name ?? "Produto removido" : <span className="text-muted-foreground">Avulso</span>) },
+    { key: "description", header: "Descrição", kind: "text", width: 220, placeholder: "do produto" },
+    { key: "qty", header: "Qtd.", kind: "number", required: true, width: 80 },
+    { key: "unit_price", header: "Preço unit.", kind: "money", placeholder: "da tabela" },
+    { key: "discount", header: "Desconto", kind: "money" },
+    { key: "tax_rate", header: "Imposto (%)", kind: "number", width: 90, placeholder: "do produto" },
+    { key: "total", header: "Total", kind: "money", readOnly: true, render: (item) => <span className="font-medium tabular-nums">{formatCurrency(Number(item.total))}</span> },
+  ];
 
   if (editing && editable) {
     return (
@@ -277,16 +323,76 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         description={customer ? `${customer.name} · ${formatDay(order.order_date)}` : formatDay(order.order_date)}
         actions={
           <>
-            {editable && <button type="button" className={BUTTON} onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
+            {editable && <button type="button" className={BUTTON} onClick={() => setEditing(true)}><Pencil size={14} /> Editar pedido</button>}
             {canConfirm && <button type="button" className={PRIMARY} disabled={confirm.isPending} onClick={() => confirm.mutate()}><Check size={14} /> Confirmar</button>}
             {canBill && <button type="button" className={PRIMARY} onClick={() => open("invoice", { issueDate: today, installments: String(order.installments || 1), firstDueDate: "", intervalDays: "30", paymentMethod: Number(order.installments) > 1 ? "boleto" : "pix", notes: "" })}><FileText size={14} /> Faturar</button>}
             {canDeliver && <button type="button" className={BUTTON} onClick={() => open("deliver", { locationId: order.location_id ?? locations[0]?.id ?? "" })}><Truck size={14} /> Entregar</button>}
             {canCancel && <button type="button" className={DANGER} onClick={() => open("cancel", { reason: "" })}><Ban size={14} /> Cancelar</button>}
-            {canRemove && <button type="button" className={DANGER} onClick={() => open("delete")}><Trash2 size={14} /> Excluir</button>}
+            {canRemove && <button type="button" className={DANGER} disabled={remove.isPending} onClick={() => void askRemove()}><Trash2 size={14} /> Excluir</button>}
           </>
         }
       />
       <ErrorNote error={confirm.error} />
+      <ErrorNote error={remove.error} />
+
+      {panel === "invoice" && (
+        <InlinePanel title={`Faturar pedido ${label}`} label={`Faturar pedido ${label}`} onClose={() => setPanel(null)}>
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); invoice.mutate(); }}>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Emissão"><input type="date" required className={INPUT} {...field("issueDate")} /></Field>
+              <Field label="Forma de pagamento">
+                <select className={INPUT} {...field("paymentMethod")}>
+                  <option value="">—</option>
+                  {PAYMENT_METHODS.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Parcelas"><input inputMode="numeric" required className={INPUT} {...field("installments")} /></Field>
+              <Field label="Dias entre parcelas"><input inputMode="numeric" className={INPUT} {...field("intervalDays")} /></Field>
+              <Field label="Primeiro vencimento (opcional)"><input type="date" className={INPUT} {...field("firstDueDate")} /></Field>
+              <Field label="Observações da fatura"><textarea rows={2} className={`${INPUT} h-auto py-2`} {...field("notes")} /></Field>
+            </div>
+            <InstallmentPreview total={Number(order.total)} issueDate={form.issueDate || today} installments={form.installments ?? ""} intervalDays={form.intervalDays ?? ""} firstDueDate={form.firstDueDate ?? ""} />
+            <ErrorNote error={invoice.error} />
+            <div className="flex gap-2">
+              <button type="submit" className={PRIMARY} disabled={invoice.isPending}><FileText size={14} /> {invoice.isPending ? "Emitindo..." : "Emitir fatura"}</button>
+              <button type="button" className={BUTTON} onClick={() => setPanel(null)}>Fechar</button>
+            </div>
+          </form>
+        </InlinePanel>
+      )}
+
+      {panel === "deliver" && (
+        <InlinePanel title={`Entregar pedido ${label}`} label={`Entregar pedido ${label}`} onClose={() => setPanel(null)}>
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); deliver.mutate(); }}>
+            <Field label="Local de saída do estoque" className="max-w-sm">
+              <select className={INPUT} {...field("locationId")}>
+                <option value="">Escolha...</option>
+                {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
+            </Field>
+            <DeliveryPreview order={order} items={items} locationId={form.locationId ?? ""} productsById={productsById} itemsById={itemsById} balances={balances} />
+            <ErrorNote error={deliver.error} />
+            <div className="flex gap-2">
+              <button type="submit" className={PRIMARY} disabled={deliver.isPending}><Truck size={14} /> Confirmar entrega</button>
+              <button type="button" className={BUTTON} onClick={() => setPanel(null)}>Fechar</button>
+            </div>
+          </form>
+        </InlinePanel>
+      )}
+
+      {panel === "cancel" && (
+        <InlinePanel title={`Cancelar pedido ${label}?`} label={`Cancelar pedido ${label}`} onClose={() => setPanel(null)}>
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); cancel.mutate(); }}>
+            <Field label="Motivo" className="max-w-xl"><textarea rows={2} required className={`${INPUT} h-auto py-2`} {...field("reason")} /></Field>
+            <p className="text-xs text-muted-foreground">O pedido fica no histórico como cancelado. Pedido faturado precisa ter a fatura cancelada antes.</p>
+            <ErrorNote error={cancel.error} />
+            <div className="flex gap-2">
+              <button type="submit" className={DANGER} disabled={cancel.isPending || !(form.reason ?? "").trim()}><Ban size={14} /> Cancelar pedido</button>
+              <button type="button" className={BUTTON} onClick={() => setPanel(null)}>Fechar</button>
+            </div>
+          </form>
+        </InlinePanel>
+      )}
 
       <div className="grid gap-5 rounded-xl border bg-card p-5 lg:grid-cols-[1fr_auto]">
         <DetailGrid>
@@ -312,9 +418,31 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         ]} />
       </div>
 
-      <Section title="Itens">
-        <DocumentItemsTable<SalesOrderItem> items={items} extra={order.delivered_at ? [{ header: "Entregue", cell: (item) => formatQty(Number(item.delivered_qty)) }] : []} />
-      </Section>
+      {isSalesOrderEditable(order) ? (
+        <div className="space-y-2">
+          <EditableTable<SalesOrderItem>
+            resource="sales_orders"
+            title="Itens"
+            label={`Itens do pedido ${label}`}
+            rows={items}
+            columns={itemColumns}
+            onSave={saveItems}
+            onRefresh={() => refreshTrade(qc)}
+            newRow={() => ({ qty: 1 })}
+            emptyMessage="Pedido sem itens: use Adicionar. Com produto escolhido, preço, descrição e imposto vêm da tabela do cliente se ficarem em branco."
+            rowActions={canEdit ? (item) => (
+              <button type="button" className={ROW_DANGER} aria-label={`Remover item ${item.description}`} onClick={() => void removeItem(item)}>
+                <Trash2 size={13} /> Remover
+              </button>
+            ) : undefined}
+          />
+          {itemError && <p role="alert" className="text-sm text-destructive">{itemError}</p>}
+        </div>
+      ) : (
+        <Section title="Itens">
+          <DocumentItemsTable<SalesOrderItem> items={items} extra={order.delivered_at ? [{ header: "Entregue", cell: (item) => formatQty(Number(item.delivered_qty)) }] : []} />
+        </Section>
+      )}
 
       {(order.notes || order.internal_notes) && (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -367,58 +495,6 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         <FileAttachments entityType="sales_order" entityId={orderId} canEdit={canEdit} />
       </Section>
 
-      {dialog === "invoice" && (
-        <CrudDialog
-          title={`Faturar pedido ${label}`}
-          fields={[
-            { key: "issueDate", label: "Emissão", type: "date", required: true },
-            { key: "paymentMethod", label: "Forma de pagamento", type: "select", options: PAYMENT_METHODS.map((method) => ({ value: method.value, label: method.label })) },
-            { key: "installments", label: "Parcelas", type: "number", required: true },
-            { key: "intervalDays", label: "Dias entre parcelas", type: "number" },
-            { key: "firstDueDate", label: "Primeiro vencimento (opcional)", type: "date" },
-            { key: "notes", label: "Observações da fatura", type: "textarea" },
-          ]}
-          values={form}
-          onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
-          onClose={() => setDialog(null)}
-          onSubmit={() => invoice.mutate()}
-          busy={invoice.isPending}
-          submitLabel="Emitir fatura"
-        >
-          <InstallmentPreview total={Number(order.total)} issueDate={form.issueDate || today} installments={form.installments} intervalDays={form.intervalDays} firstDueDate={form.firstDueDate} />
-          <ErrorNote error={invoice.error} className="mt-3" />
-        </CrudDialog>
-      )}
-
-      {dialog === "deliver" && (
-        <CrudDialog
-          title={`Entregar pedido ${label}`}
-          fields={[{ key: "locationId", label: "Local de saída do estoque", type: "select", options: [{ value: "", label: "Escolha..." }, ...locations.map((location) => ({ value: location.id, label: location.name }))] }]}
-          values={form}
-          onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
-          onClose={() => setDialog(null)}
-          onSubmit={() => deliver.mutate()}
-          busy={deliver.isPending}
-          submitLabel="Confirmar entrega"
-        >
-          <DeliveryPreview order={order} items={items} locationId={form.locationId ?? ""} productsById={productsById} itemsById={itemsById} balances={balances} />
-          <ErrorNote error={deliver.error} className="mt-3" />
-        </CrudDialog>
-      )}
-
-      {dialog === "cancel" && (
-        <CrudDialog title={`Cancelar pedido ${label}?`} fields={[{ key: "reason", label: "Motivo", type: "textarea", required: true }]} values={form} onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} onClose={() => setDialog(null)} onSubmit={() => cancel.mutate()} busy={cancel.isPending} submitLabel="Cancelar pedido">
-          <p className="mt-3 text-xs text-muted-foreground">O pedido fica no histórico como cancelado. Pedido faturado precisa ter a fatura cancelada antes.</p>
-          <ErrorNote error={cancel.error} className="mt-3" />
-        </CrudDialog>
-      )}
-
-      {dialog === "delete" && (
-        <CrudDialog title={`Excluir rascunho ${label}?`} fields={[]} values={{}} onChange={() => undefined} onClose={() => setDialog(null)} onSubmit={() => remove.mutate()} busy={remove.isPending} submitLabel="Excluir">
-          <p className="text-sm text-muted-foreground">O rascunho e os itens saem da lista. O número {label} não é reaproveitado.</p>
-          <ErrorNote error={remove.error} className="mt-3" />
-        </CrudDialog>
-      )}
     </div>
   );
 }

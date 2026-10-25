@@ -6,11 +6,11 @@
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { formatSequence, nextSequenceNumber } from "@/lib/db/sequence";
-import { invoiceSalesOrder, isSalesOrderEditable, loadSalesOrder, loadSalesOrderItems, updateSalesOrder } from "@/lib/erp/orders";
+import { invoiceSalesOrder, isSalesOrderEditable, loadSalesOrder, loadSalesOrderItems, updateSalesOrder, type SalesItemInput, type SalesOrderInput } from "@/lib/erp/orders";
 import { effectivePriceList } from "@/lib/erp/pricing";
 import { activeRow, claimStatus, cleanText, documentById, insertRow, isIsoDay, nowIso, updateRow } from "@/lib/erp/tradeDb";
 import { todayIso } from "@/lib/utils";
-import type { Customer, Invoice, SalesOrder } from "@/types";
+import type { Customer, Invoice, SalesOrder, SalesOrderItem } from "@/types";
 import { assertChanges, type EditActor, type RowChanges, type SaveResult } from "./guard";
 
 const label = (number: number | null | undefined) => formatSequence("sales_orders", number);
@@ -84,25 +84,18 @@ export async function saveSalesOrderRows(db: DatabaseLike, companyId: string, ac
         const header = Object.fromEntries(HEADER_FIELDS.filter((field) => field in merged).map((field) => [field, merged[field] ?? null]));
         await claimStatus(db, "sales_orders", companyId, order.id, order.status, { ...header, customer_id: merged.customer_id, order_date: merged.order_date, price_list_id: list?.id ?? null, updated_at: nowIso() }, conflict, ["invoiced_at"]);
       } else {
-        await updateSalesOrder(db, order.id, {
-          companyId,
+        await updateSalesOrder(db, order.id, rebuildInput(companyId, actor, order, items.map(lineFromItem), {
           customerId: String(merged.customer_id),
-          // Preço digitado em cada item: trocar cliente ou data não reprecifica o que já foi combinado.
-          items: items.map((item) => ({ productId: item.product_id ?? null, description: item.description, unit: item.unit, qty: Number(item.qty), unitPrice: Number(item.unit_price), discount: Number(item.discount ?? 0), taxRate: Number(item.tax_rate ?? 0) })),
-          userId: actor.userId,
           sellerId: merged.seller_id ?? null,
           contactId: customerChanged ? null : order.contact_id ?? null,
           priceListId: customerChanged ? null : order.price_list_id ?? null,
-          locationId: order.location_id ?? null,
           orderDate: merged.order_date,
           deliveryDate: merged.delivery_date ?? null,
           paymentTerms: merged.payment_terms ?? null,
           installments: checkInstallments(merged.installments, ""),
-          discount: Number(order.discount ?? 0),
-          shipping: Number(order.shipping ?? 0),
           notes: merged.notes ?? null,
           internalNotes: merged.internal_notes ?? null,
-        });
+        }));
       }
       result.updated.push(order.id);
     } else {
@@ -110,6 +103,88 @@ export async function saveSalesOrderRows(db: DatabaseLike, companyId: string, ac
     }
   }
   return result;
+}
+
+/** Linha gravada → linha de updateSalesOrder com o preço explícito (refazer o pedido não reprecifica o combinado). */
+function lineFromItem(item: SalesOrderItem): SalesItemInput {
+  return { productId: item.product_id ?? null, description: item.description, unit: item.unit, qty: Number(item.qty), unitPrice: Number(item.unit_price), discount: Number(item.discount ?? 0), taxRate: Number(item.tax_rate ?? 0) };
+}
+
+/** Entrada de updateSalesOrder com o cabeçalho atual do pedido (e o que mudar em `overrides`). */
+function rebuildInput(companyId: string, actor: EditActor, order: SalesOrder, items: SalesItemInput[], overrides: Partial<SalesOrderInput> = {}): SalesOrderInput {
+  return {
+    companyId,
+    customerId: String(order.customer_id ?? ""),
+    items,
+    userId: actor.userId,
+    sellerId: order.seller_id ?? null,
+    contactId: order.contact_id ?? null,
+    priceListId: order.price_list_id ?? null,
+    locationId: order.location_id ?? null,
+    orderDate: order.order_date,
+    deliveryDate: order.delivery_date ?? null,
+    paymentTerms: order.payment_terms ?? null,
+    installments: Number(order.installments) || 1,
+    discount: Number(order.discount ?? 0),
+    shipping: Number(order.shipping ?? 0),
+    notes: order.notes ?? null,
+    internalNotes: order.internal_notes ?? null,
+    ...overrides,
+  };
+}
+
+async function editableOrder(db: DatabaseLike, companyId: string, orderId: string): Promise<SalesOrder> {
+  const order = await loadSalesOrder(db, orderId, companyId);
+  if (!isSalesOrderEditable(order)) throw new Error(`O pedido ${label(order.number)} não pode ser editado: já foi faturado, entregue ou cancelado.`);
+  return order;
+}
+
+const optionalNumber = (value: unknown) => (value === null || value === undefined || value === "" ? null : Number(value));
+
+/**
+ * Itens do pedido pela tabela da página do pedido: existentes mudam só o que foi alterado (o resto, inclusive o preço,
+ * fica como está); novos com produto pegam descrição, imposto e preço da tabela do cliente quando não digitados.
+ * Refaz o pedido com updateSalesOrder (totais recalculados; o número não muda).
+ */
+export async function saveSalesOrderItemRows(db: DatabaseLike, companyId: string, actor: EditActor, orderId: string, changes: RowChanges<SalesOrderItem>): Promise<SaveResult> {
+  if (changes.updated.length + changes.created.length > 0) assertChanges(actor, { updated: [{ id: orderId }], created: [] }, "sales_orders");
+  const order = await editableOrder(db, companyId, orderId);
+  const items = await loadSalesOrderItems(db, companyId, orderId);
+  const patches = new Map(changes.updated.map((patch) => [patch.id, patch]));
+  for (const id of patches.keys()) if (!items.some((item) => item.id === id)) throw new Error("Item não encontrado neste pedido. Atualize a página.");
+  const lines: SalesItemInput[] = items.map((item) => {
+    const patch = patches.get(item.id);
+    const line = lineFromItem(item);
+    if (!patch) return line;
+    const productChanged = "product_id" in patch && (patch.product_id ?? null) !== (item.product_id ?? null);
+    return {
+      productId: "product_id" in patch ? cleanText(patch.product_id) : line.productId,
+      // Trocar o produto sem digitar descrição/preço/imposto pega os do novo produto.
+      description: "description" in patch ? cleanText(patch.description) : productChanged ? null : line.description,
+      unit: productChanged ? null : line.unit,
+      qty: "qty" in patch ? Number(patch.qty) : line.qty,
+      unitPrice: "unit_price" in patch ? optionalNumber(patch.unit_price) : productChanged ? null : line.unitPrice,
+      discount: "discount" in patch ? Number(patch.discount ?? 0) : line.discount,
+      taxRate: "tax_rate" in patch ? optionalNumber(patch.tax_rate) : productChanged ? null : line.taxRate,
+    };
+  });
+  for (const row of changes.created) {
+    lines.push({ productId: cleanText(row.product_id), description: cleanText(row.description), unit: cleanText(row.unit), qty: Number(row.qty ?? 1), unitPrice: optionalNumber(row.unit_price), discount: Number(row.discount ?? 0), taxRate: optionalNumber(row.tax_rate) });
+  }
+  await updateSalesOrder(db, orderId, rebuildInput(companyId, actor, order, lines));
+  const fresh = await loadSalesOrderItems(db, companyId, orderId);
+  return { created: fresh.slice(items.length).map((item) => item.id), updated: [orderId] };
+}
+
+/** Tira um item do pedido (o pedido precisa continuar com ao menos um). */
+export async function removeSalesOrderItem(db: DatabaseLike, companyId: string, actor: EditActor, orderId: string, itemId: string): Promise<void> {
+  assertChanges(actor, { updated: [{ id: orderId }], created: [] }, "sales_orders");
+  const order = await editableOrder(db, companyId, orderId);
+  const items = await loadSalesOrderItems(db, companyId, orderId);
+  if (!items.some((item) => item.id === itemId)) throw new Error("Item não encontrado neste pedido. Atualize a página.");
+  const rest = items.filter((item) => item.id !== itemId);
+  if (rest.length === 0) throw new Error("O pedido precisa de ao menos um item: inclua outro antes de tirar este, ou exclua o rascunho.");
+  await updateSalesOrder(db, orderId, rebuildInput(companyId, actor, order, rest.map(lineFromItem)));
 }
 
 async function createDraftOrder(db: DatabaseLike, companyId: string, actor: EditActor, plan: Extract<OrderPlan, { mode: "create" }>): Promise<string> {

@@ -3,7 +3,7 @@
 // EditableTable espera (onRefresh devolve a promessa da recarga).
 import type { ReactNode } from "react";
 import type { QueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { CalendarDays, List, X } from "lucide-react";
 import { useRequiredSession } from "@/hooks/useSession";
 import type { EditActor } from "@/lib/commercial/guard";
 import { cn } from "@/lib/utils";
@@ -25,10 +25,10 @@ export function InfoItem({ label, value }: { label: string; value: ReactNode }) 
 }
 
 /** Painel de detalhes na página (não é diálogo): título, ações e um botão de fechar. */
-export function InlinePanel({ title, subtitle, actions, onClose, children, className }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; onClose?: () => void; children: ReactNode; className?: string }) {
-  const label = typeof title === "string" ? title : undefined;
+export function InlinePanel({ title, subtitle, actions, onClose, children, className, label }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; onClose?: () => void; children: ReactNode; className?: string; label?: string }) {
+  const text = typeof title === "string" ? title : undefined;
   return (
-    <section aria-label={label ? `Detalhes: ${label}` : "Detalhes"} className={cn("space-y-4 rounded-xl border bg-card p-5", className)}>
+    <section aria-label={label ?? (text ? `Detalhes: ${text}` : "Detalhes")} className={cn("space-y-4 rounded-xl border bg-card p-5", className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -37,7 +37,7 @@ export function InlinePanel({ title, subtitle, actions, onClose, children, class
         <div className="flex flex-wrap items-center gap-2">
           {actions}
           {onClose && (
-            <button type="button" aria-label="Fechar detalhes" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={onClose}>
+            <button type="button" aria-label="Fechar painel" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={onClose}>
               <X size={16} />
             </button>
           )}
@@ -66,4 +66,29 @@ export function refreshTrade(qc: QueryClient): Promise<void> {
 export function useEditActor(): EditActor {
   const session = useRequiredSession();
   return { role: session.membership.role as Role, userId: session.user.id };
+}
+
+export type ListOrCalendar = "lista" | "calendario";
+
+/** Alterna a mesma informação entre a tabela e o CalendarView (datas e agenda das telas comerciais). */
+export function ViewSwitch({ value, onChange, label = "Visualização" }: { value: ListOrCalendar; onChange: (next: ListOrCalendar) => void; label?: string }) {
+  const options: { id: ListOrCalendar; text: string; icon: ReactNode }[] = [
+    { id: "lista", text: "Lista", icon: <List size={14} /> },
+    { id: "calendario", text: "Calendário", icon: <CalendarDays size={14} /> },
+  ];
+  return (
+    <div role="group" aria-label={label} className="inline-flex rounded-md border p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          aria-pressed={value === option.id}
+          onClick={() => onChange(option.id)}
+          className={cn("inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-sm font-medium transition-colors", value === option.id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
+        >
+          {option.icon} {option.text}
+        </button>
+      ))}
+    </div>
+  );
 }

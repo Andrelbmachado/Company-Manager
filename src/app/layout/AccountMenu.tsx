@@ -68,7 +68,8 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
           open && "bg-sidebar-accent",
         )}
       >
-        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
+        {/* Borda: no tema claro bg-muted e a sidebar são o mesmo cinza (93%) e o círculo sumia. */}
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sidebar-border bg-muted text-xs font-semibold text-foreground">
           {initials}
           {unread > 0 && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-destructive" />}
         </span>

@@ -170,6 +170,8 @@ export interface Lead {
   /** Quem indicou este lead. Benefícios só valem quando ele fecha o negócio. */
   referred_by?: string | null;
   referral_status?: ReferralStatus | null;
+  /** Campanha de prospecção (0012). Lead sem campanha vai para a padrão (ensureDefaultCampaign). */
+  campaign_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -1260,6 +1262,80 @@ export interface AssistantMessage {
   text: string;
   created_at: string;
 }
+
+// ── Redesign modular (0012): calendário, nuvem, campanhas e perfil de área ──
+
+/** ical = link iCal (Google, Apple/iCloud, Outlook); local = agenda do próprio app. */
+export type CalendarSourceKind = "ical" | "local";
+
+export interface CalendarSource {
+  id: string;
+  company_id: string;
+  /** Dono da agenda (filtro por funcionário). NULL = agenda da empresa. */
+  user_id?: string | null;
+  name: string;
+  kind: CalendarSourceKind;
+  url?: string | null;
+  color?: string | null;
+  last_sync_at?: string | null;
+  /** Última falha de sincronização (texto legível); os eventos antigos continuam. */
+  last_error?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type CalendarEventKind = "ausencia" | "ferias" | "reuniao" | "externo" | "evento";
+
+export interface CalendarEvent {
+  id: string;
+  company_id: string;
+  /** NULL = evento criado no app. */
+  source_id?: string | null;
+  /** Chave da ocorrência na fonte (UID do iCal; recorrência expandida: UID + início). Única por fonte. */
+  uid?: string | null;
+  title: string;
+  /** 'YYYY-MM-DD' no dia inteiro, senão instante ISO (UTC). */
+  starts_at: string;
+  /** Fim exclusivo (como no iCal). */
+  ends_at?: string | null;
+  /** 0/1. */
+  all_day: number;
+  location?: string | null;
+  description?: string | null;
+  user_id?: string | null;
+  kind: CalendarEventKind;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export type CloudProvider = "icloud" | "gdrive" | "onedrive" | "dropbox" | "outro";
+
+/** Pasta sincronizada no Mac conectada aos Documentos (o app só lê/grava dentro de local_path). */
+export interface CloudFolder {
+  id: string;
+  company_id: string;
+  provider: CloudProvider;
+  label: string;
+  local_path: string;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface ProspectingCampaign {
+  id: string;
+  company_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+/** Área da empresa (`settings` `company.area_profile`): define os rótulos de cards, gráficos e módulos. */
+export type AreaProfile = "ti" | "advocacia" | "servicos" | "comercio" | "personalizado";
 
 // ── Backup (comandos Tauri em src-tauri/src/backup.rs) ─────────────
 

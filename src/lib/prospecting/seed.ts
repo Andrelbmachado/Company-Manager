@@ -8,6 +8,7 @@ import { v5 as uuidv5 } from "uuid";
 import { getDb } from "@/lib/db/client";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { emit } from "@/lib/events/bus";
+import { ensureDefaultCampaign } from "./campaigns";
 import { computeForecasts, type ForecastLead } from "./forecast";
 import type { Project, RevenueScenario, Session } from "@/types";
 
@@ -137,6 +138,9 @@ async function runSeed(session: Session): Promise<boolean> {
       );
     }
   }
+
+  // Leads do seed (e qualquer lead ainda sem campanha) vão para a campanha padrão "Prospecção 1" (migration 0012).
+  await ensureDefaultCampaign(db, companyId);
 
   // Apaga os pacotes antigos (agora sem leads apontando para eles).
   for (const key of LEGACY_PACKAGE_KEYS) {

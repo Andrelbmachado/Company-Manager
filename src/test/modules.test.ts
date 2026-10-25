@@ -107,3 +107,26 @@ describe("módulos novos registrados", () => {
     }
   });
 });
+
+describe("registro do redesign (Tarefa 2): o que a Fase B usa sem tocar nos arquivos compartilhados", () => {
+  it("Calendário: módulo de todos os papéis, rota /calendar com RequireModule, item em Visão Geral, comando na busca e página", () => {
+    for (const role of TEST_ROLES) expect(visibleModules(role), role).toContain("calendar");
+    expect(source("app/routes.tsx")).toMatch(/path="\/calendar\/\*" element={<RequireModule module="calendar">/);
+    expect(source("app/layout/Sidebar.tsx")).toMatch(/module: "calendar",[^}]*path: "\/calendar",[^}]*group: "Visão Geral"/);
+    expect(source("app/layout/CommandMenu.tsx")).toMatch(/module: "calendar",[^}]*path: "\/calendar"/);
+    expect(source("modules/calendar/pages/CalendarPage.tsx")).toMatch(/export default function CalendarPage\(/);
+  });
+
+  it("Fornecedores: item em Logística apontando para a subpágina das Compras, exigindo ver fornecedores", () => {
+    expect(source("app/layout/Sidebar.tsx")).toMatch(/module: "purchasing",[^}]*path: "\/purchasing\/fornecedores",[^}]*group: "Logística",[^}]*resource: "suppliers"/);
+    // Quem vê fornecedores também abre as Compras (senão o atalho levaria de volta ao início).
+    for (const role of TEST_ROLES) {
+      if (can(role, "view", "suppliers")) expect(visibleModules(role), role).toContain("purchasing");
+    }
+  });
+
+  it("Configurações tem a aba Área da empresa", () => {
+    expect(source("app/subpages.ts")).toMatch(/path: "\/settings\/area", page: "settings\/pages\/AreaProfilePage.tsx", label: "Área da empresa"/);
+    expect(source("modules/settings/pages/AreaProfilePage.tsx")).toMatch(/export default function AreaProfilePage\(/);
+  });
+});

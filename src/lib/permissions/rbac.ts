@@ -40,6 +40,9 @@ export const RESOURCES = [
   "suppliers",
   // Backup e restauração do banco inteiro (inclusive a folha): só CEO e admin, pelo "*"
   "backups",
+  // Redesign (0012): agenda da empresa (calendar_sources/calendar_events) e modo demonstração (só CEO e admin, pelo "*")
+  "calendar",
+  "demo_mode",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -240,8 +243,29 @@ const ERP_PERMISSIONS: PermissionMap = {
   },
 };
 
-for (const [role, resources] of Object.entries(ERP_PERMISSIONS)) {
-  Object.assign((PERMISSIONS[role] ??= {}), resources);
+/**
+ * Redesign modular (0012), mesclado em PERMISSIONS por papel. CEO e admin já têm tudo pelo "*" (inclusive
+ * `demo_mode`, que liga e desliga os dados de exemplo e não aparece para mais ninguém).
+ * `calendar`: todos veem a agenda da empresa; `create` = conectar a própria agenda (link iCal) e criar evento
+ * (a tela pode deixar a pessoa editar e excluir o que é dela, `user_id`); `edit`/`delete` = gerenciar as fontes e
+ * os eventos de todos (Gerência e RH, que cuida das ausências); `export` = baixar o .ics da agenda da empresa.
+ */
+const REDESIGN_PERMISSIONS: PermissionMap = {
+  gerente: { calendar: ["view", "create", "edit", "delete", "export"] },
+  rh: { calendar: ["view", "create", "edit", "delete", "export"] },
+  tecnico: { calendar: ["view", "create"] },
+  estoquista: { calendar: ["view", "create"] },
+  financeiro: { calendar: ["view", "create"] },
+  comercial: { calendar: ["view", "create"] },
+  atendimento: { calendar: ["view", "create"] },
+  produtos: { calendar: ["view", "create"] },
+  auditor: { calendar: ["view", "export"] },
+};
+
+for (const extra of [ERP_PERMISSIONS, REDESIGN_PERMISSIONS]) {
+  for (const [role, resources] of Object.entries(extra)) {
+    Object.assign((PERMISSIONS[role] ??= {}), resources);
+  }
 }
 
 export function can(
@@ -295,6 +319,7 @@ export function visibleModules(role: Role): string[] {
     purchasing: "purchase_orders",
     reports: "reports",
     imports: "imports",
+    calendar: "calendar",
   };
 
   const visible = [

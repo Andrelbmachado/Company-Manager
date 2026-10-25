@@ -35,6 +35,7 @@ const SalesPage = lazy(() => import("@/modules/sales/pages/SalesPage"));
 const PurchasingPage = lazy(() => import("@/modules/purchasing/pages/PurchasingPage"));
 const ReportsPage = lazy(() => import("@/modules/reports/pages/ReportsPage"));
 const ImportsPage = lazy(() => import("@/modules/imports/pages/ImportsPage"));
+const CalendarPage = lazy(() => import("@/modules/calendar/pages/CalendarPage"));
 
 // Subpáginas (src/app/subpages.ts): uma rota por item do registro, com a página carregada sob demanda.
 // ChangePasswordPage fica fora: o App.tsx a importa direto (senão o Vite avisa que o import dinâmico não separa o chunk).
@@ -115,6 +116,7 @@ export function AppRoutes() {
           <Route path="/purchasing/*" element={<RequireModule module="purchasing"><PurchasingPage /></RequireModule>} />
           <Route path="/reports/*" element={<RequireModule module="reports"><ReportsPage /></RequireModule>} />
           <Route path="/imports/*" element={<RequireModule module="imports"><ImportsPage /></RequireModule>} />
+          <Route path="/calendar/*" element={<RequireModule module="calendar"><CalendarPage /></RequireModule>} />
           {SUBPAGES.map((page) => {
             const Page = SUBPAGE_COMPONENTS.get(page.path)!;
             return <Route key={page.path} path={subpageRoutePath(page)} element={<RequireSubpage page={page}><Page /></RequireSubpage>} />;

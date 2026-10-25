@@ -750,8 +750,10 @@ class DemoDatabase implements DatabaseLike {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       tables = saved ? (JSON.parse(saved) as DemoTables) : createSeed();
+      // Banco salvo antes da 0012 (sem a tabela de campanhas): repete o backfill da migration nos leads.
+      const before0012 = Boolean(saved) && !("prospecting_campaigns" in tables);
       ensureTables(tables);
-      if (saved) upgradeSaved(tables);
+      if (saved) upgradeSaved(tables, { before0012 });
     } catch {
       tables = createSeed();
       ensureTables(tables);
@@ -810,7 +812,25 @@ class DemoDatabase implements DatabaseLike {
 }
 
 /** Dados de demonstração que bancos salvos antes deles ganham ao abrir. */
-function upgradeSaved(tables: DemoTables): void {
+/**
+ * Mesmo backfill da migration 0012: cada empresa com leads ganha a campanha "Prospecção 1" (id
+ * 'prospeccao-1-<empresa>', o defaultCampaignId de lib/prospecting/campaigns.ts) e os leads sem campanha vão para ela.
+ * Só no banco salvo antes da 0012; lead sem campanha criado depois fica para o ensureDefaultCampaign.
+ */
+function backfillCampaigns(tables: DemoTables): void {
+  const now = nowIso();
+  for (const lead of tables.leads) {
+    const companyId = String(lead.company_id);
+    const campaignId = `prospeccao-1-${companyId}`;
+    if (!tables.prospecting_campaigns.some((row) => row.id === campaignId)) {
+      tables.prospecting_campaigns.push({ id: campaignId, company_id: companyId, name: "Prospecção 1", created_at: now, updated_at: now, deleted_at: null });
+    }
+    if (lead.campaign_id == null) lead.campaign_id = campaignId;
+  }
+}
+
+function upgradeSaved(tables: DemoTables, { before0012 }: { before0012: boolean }): void {
+  if (before0012) backfillCampaigns(tables);
   // Contas demo novas (CEO, RH) em bancos salvos antes delas.
   for (const account of DEMO_ACCOUNTS) {
     if (!tables.users.some((user) => user.id === account.id)) {

@@ -99,6 +99,9 @@ export const SUBPAGES: readonly Subpage[] = [
   { module: "reports", path: "/reports/estoque", page: "reports/pages/StockReportPage.tsx", label: "Giro de estoque", requires: [view("reports"), view("inventory")] },
   { module: "reports", path: "/reports/dre", page: "reports/pages/DreReportPage.tsx", label: "DRE", requires: [view("reports"), view("finance")] },
 
+  // Área da empresa (redesign, Tarefa 2): perfil de área e rótulos de cards, gráficos e módulos
+  { module: "settings", path: "/settings/area", page: "settings/pages/AreaProfilePage.tsx", label: "Área da empresa", requires: [view("settings")] },
+
   // Backup e restauração (Tarefa 10)
   { module: "settings", path: "/settings/backup", page: "settings/pages/BackupPage.tsx", label: "Backup e restauração", requires: [view("backups")] },
 ];

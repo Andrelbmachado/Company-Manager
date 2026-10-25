@@ -45,6 +45,10 @@ const VIEW_MATRIX: Record<string, Role[]> = {
   suppliers: ["ceo", "admin", "gerente", "estoquista", "financeiro", "auditor"],
   // Backup e restauração levam o banco inteiro (inclusive a folha): só CEO e Administração.
   backups: ["ceo", "admin"],
+  // Redesign (0012): agenda da empresa (ausências, reuniões, agendas por link iCal) para todos; modo demonstração
+  // (liga/desliga os dados de exemplo) só CEO e Administração.
+  calendar: ROLES,
+  demo_mode: ["ceo", "admin"],
 };
 
 /** Todos os recursos do RBAC, da matriz ou citados em PERMISSIONS (recursos novos entram sozinhos no teste de espelho). */
@@ -142,6 +146,17 @@ describe("can()", () => {
     expect(ROLES.filter((role) => can(role, "edit", "backups"))).toEqual(["ceo", "admin"]);
   });
 
+  it("calendário: todos veem; cada um conecta a própria agenda e cria evento; Gerência e RH gerenciam os de todos; Auditoria só vê e exporta", () => {
+    expect(ROLES.filter((role) => can(role, "create", "calendar"))).toEqual(["ceo", "admin", "gerente", "tecnico", "estoquista", "financeiro", "rh", "comercial", "atendimento", "produtos"]);
+    expect(ROLES.filter((role) => can(role, "edit", "calendar"))).toEqual(["ceo", "admin", "gerente", "rh"]);
+    expect(ROLES.filter((role) => can(role, "delete", "calendar"))).toEqual(["ceo", "admin", "gerente", "rh"]);
+    expect(ROLES.filter((role) => can(role, "export", "calendar"))).toEqual(["ceo", "admin", "gerente", "rh", "auditor"]);
+  });
+
+  it("modo demonstração só para CEO e Administração", () => {
+    expect(ROLES.filter((role) => can(role, "edit", "demo_mode"))).toEqual(["ceo", "admin"]);
+  });
+
   it("papel desconhecido não acessa nada", () => {
     expect(can("estagiario" as Role, "view", "tickets")).toBe(false);
     expect(visibleModules("estagiario" as Role)).toEqual(["dashboard", "assistant"]);
@@ -149,7 +164,7 @@ describe("can()", () => {
 });
 
 describe("visibleModules()", () => {
-  const MODULE_RESOURCE: Record<string, Resource> = { crm: "customers", audit: "audit_logs", payroll: "payroll", hr_manage: "hr_admin", hr: "hr_self", finance: "finance" };
+  const MODULE_RESOURCE: Record<string, Resource> = { crm: "customers", audit: "audit_logs", payroll: "payroll", hr_manage: "hr_admin", hr: "hr_self", finance: "finance", calendar: "calendar" };
 
   it("mostra o módulo só para quem pode ver o recurso", () => {
     for (const role of ROLES) {
@@ -168,5 +183,9 @@ describe("visibleModules()", () => {
 
   it("Auditoria para CEO, Administração, TI e Auditoria", () => {
     expect(ROLES.filter((role) => visibleModules(role).includes("audit"))).toEqual(["ceo", "admin", "tecnico", "auditor"]);
+  });
+
+  it("Calendário para todos os papéis", () => {
+    expect(ROLES.filter((role) => visibleModules(role).includes("calendar"))).toEqual(ROLES);
   });
 });

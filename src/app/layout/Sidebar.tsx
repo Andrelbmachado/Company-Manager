@@ -2,8 +2,10 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
-import { visibleModules } from "@/lib/permissions/rbac";
-import { activeNavPath } from "../subpages";
+import { can, visibleModules } from "@/lib/permissions/rbac";
+import { useAreaLabels } from "@/lib/labels/useLabel";
+import type { LabelKey } from "@/lib/labels/profiles";
+import { activeNavPath, type Requirement } from "../subpages";
 import { AccountMenu } from "./AccountMenu";
 import { AssistantLauncher } from "./AssistantLauncher";
 import { SidebarSearch } from "./SidebarSearch";
@@ -32,37 +34,45 @@ import {
   Truck,
   BarChart3,
   FileUp,
+  CalendarDays,
+  Factory,
 } from "lucide-react";
 
 interface NavItem {
   module: string;
-  label: string;
+  /** Nome do item: vem do perfil de área (Configurações > Área da empresa), com o texto padrão de profiles.ts. */
+  labelKey: LabelKey;
   path: string;
   icon: React.ElementType;
   group: string;
+  /** Permissões além de ver o módulo (item que aponta para uma subpágina, como Fornecedores). */
+  requires?: readonly Requirement[];
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { module: "dashboard", label: "Dashboard", path: "/", icon: LayoutDashboard, group: "Visão Geral" },
-  { module: "hr", label: "Meu RH", path: "/hr", icon: UserRound, group: "Pessoas" },
-  { module: "hr_manage", label: "Gestão de RH", path: "/hr/manage", icon: UsersRound, group: "Pessoas" },
-  { module: "crm", label: "CRM", path: "/crm", icon: Users, group: "Comercial" },
-  { module: "leads", label: "Prospecção", path: "/leads", icon: Megaphone, group: "Comercial" },
-  { module: "opportunities", label: "Oportunidades", path: "/opportunities", icon: Target, group: "Comercial" },
-  { module: "sales", label: "Vendas", path: "/sales", icon: ShoppingCart, group: "Comercial" },
-  { module: "catalog", label: "Catálogo", path: "/catalog", icon: Tags, group: "Comercial" },
-  { module: "operations", label: "Ordens de Serviço", path: "/work-orders", icon: Wrench, group: "Operações" },
-  { module: "projects", label: "Project Manager", path: "/projects", icon: FolderKanban, group: "Operações" },
-  { module: "products", label: "Desenv. de Produtos", path: "/products", icon: Boxes, group: "Produto" },
-  { module: "inventory", label: "Estoque", path: "/inventory", icon: Package, group: "Logística" },
-  { module: "custody", label: "Custódia de peça", path: "/custody", icon: Archive, group: "Logística" },
-  { module: "purchasing", label: "Compras", path: "/purchasing", icon: Truck, group: "Logística" },
-  { module: "finance", label: "Financeiro", path: "/finance", icon: Wallet, group: "Gestão" },
-  { module: "payroll", label: "Folha de pagamento", path: "/payroll", icon: HandCoins, group: "Gestão" },
-  { module: "documents", label: "Documentos", path: "/documents", icon: FileText, group: "Gestão" },
-  { module: "reports", label: "Relatórios", path: "/reports", icon: BarChart3, group: "Gestão" },
-  { module: "imports", label: "Importar dados", path: "/imports", icon: FileUp, group: "Gestão" },
-  { module: "audit", label: "Auditoria", path: "/audit", icon: ShieldCheck, group: "Gestão" },
+  { module: "dashboard", labelKey: "module.dashboard", path: "/", icon: LayoutDashboard, group: "Visão Geral" },
+  { module: "calendar", labelKey: "module.calendar", path: "/calendar", icon: CalendarDays, group: "Visão Geral" },
+  { module: "hr", labelKey: "module.hr", path: "/hr", icon: UserRound, group: "Pessoas" },
+  { module: "hr_manage", labelKey: "module.hr_manage", path: "/hr/manage", icon: UsersRound, group: "Pessoas" },
+  { module: "crm", labelKey: "module.crm", path: "/crm", icon: Users, group: "Comercial" },
+  { module: "leads", labelKey: "module.leads", path: "/leads", icon: Megaphone, group: "Comercial" },
+  { module: "opportunities", labelKey: "module.opportunities", path: "/opportunities", icon: Target, group: "Comercial" },
+  { module: "sales", labelKey: "module.sales", path: "/sales", icon: ShoppingCart, group: "Comercial" },
+  { module: "catalog", labelKey: "module.catalog", path: "/catalog", icon: Tags, group: "Comercial" },
+  { module: "operations", labelKey: "module.operations", path: "/work-orders", icon: Wrench, group: "Operações" },
+  { module: "projects", labelKey: "module.projects", path: "/projects", icon: FolderKanban, group: "Operações" },
+  { module: "products", labelKey: "module.products", path: "/products", icon: Boxes, group: "Produto" },
+  { module: "inventory", labelKey: "module.inventory", path: "/inventory", icon: Package, group: "Logística" },
+  { module: "custody", labelKey: "module.custody", path: "/custody", icon: Archive, group: "Logística" },
+  { module: "purchasing", labelKey: "module.purchasing", path: "/purchasing", icon: Truck, group: "Logística" },
+  // Lista de fornecedores das Compras (subpágina /purchasing/fornecedores), com atalho próprio em Logística.
+  { module: "purchasing", labelKey: "module.suppliers", path: "/purchasing/fornecedores", icon: Factory, group: "Logística", requires: [{ resource: "suppliers" }] },
+  { module: "finance", labelKey: "module.finance", path: "/finance", icon: Wallet, group: "Gestão" },
+  { module: "payroll", labelKey: "module.payroll", path: "/payroll", icon: HandCoins, group: "Gestão" },
+  { module: "documents", labelKey: "module.documents", path: "/documents", icon: FileText, group: "Gestão" },
+  { module: "reports", labelKey: "module.reports", path: "/reports", icon: BarChart3, group: "Gestão" },
+  { module: "imports", labelKey: "module.imports", path: "/imports", icon: FileUp, group: "Gestão" },
+  { module: "audit", labelKey: "module.audit", path: "/audit", icon: ShieldCheck, group: "Gestão" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "cm_sidebar_width";
@@ -78,9 +88,11 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   const [width, setWidth] = useState(() => clampSidebarWidth(Number(localStorage.getItem(SIDEBAR_WIDTH_KEY)) || DEFAULT_WIDTH));
   const [resizing, setResizing] = useState(false);
-  const allowed = new Set(visibleModules(session.membership.role as Role));
+  const { label } = useAreaLabels();
+  const role = session.membership.role as Role;
+  const allowed = new Set(visibleModules(role));
 
-  const visible = NAV_ITEMS.filter((item) => allowed.has(item.module));
+  const visible = NAV_ITEMS.filter((item) => allowed.has(item.module) && (item.requires ?? []).every((need) => can(role, need.action ?? "view", need.resource)));
   // Item ativo: o caminho mais longo que contém a URL (/hr/banco-de-horas acende Meu RH; /hr/manage/..., Gestão de RH).
   const activePath = activeNavPath(visible.map((item) => item.path), location.pathname);
   const assistantVisible = allowed.has("assistant");
@@ -183,11 +195,12 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
             {items.map((item) => {
               const Icon = item.icon;
               const active = item.path === activePath;
+              const text = label(item.labelKey);
               return (
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? text : undefined}
                   className={cn(
                     "relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.95rem] transition-colors",
                     collapsed && "justify-center px-0",
@@ -197,7 +210,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
                   )}
                 >
                   <Icon size={18} className="shrink-0" />
-                  {!collapsed && item.label}
+                  {!collapsed && text}
                 </NavLink>
               );
             })}

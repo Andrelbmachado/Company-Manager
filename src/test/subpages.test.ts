@@ -161,8 +161,9 @@ describe("navegação do módulo", () => {
     const crm = moduleNavItems("atendimento", "crm").map((item) => item.path);
     expect(crm).toEqual(["/crm", "/crm/contatos", "/crm/atividades"]);
     expect(moduleNavItems("rh", "finance")).toEqual([]);
-    expect(moduleNavItems("rh", "settings").map((item) => item.path)).toEqual(["/settings"]);
-    expect(moduleNavItems("admin", "settings").map((item) => item.path)).toEqual(["/settings", "/settings/backup"]);
+    // Área da empresa: todos que abrem Configurações veem (só CEO e Administração editam, na própria tela).
+    expect(moduleNavItems("rh", "settings").map((item) => item.path)).toEqual(["/settings", "/settings/area"]);
+    expect(moduleNavItems("admin", "settings").map((item) => item.path)).toEqual(["/settings", "/settings/area", "/settings/backup"]);
     for (const role of TEST_ROLES) {
       for (const section of MODULE_SECTIONS) {
         for (const item of moduleNavItems(role, section.module).slice(1)) {

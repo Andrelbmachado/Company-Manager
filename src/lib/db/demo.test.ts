@@ -181,4 +181,29 @@ describe("banco demo", () => {
       expect(row).toHaveProperty("category_id", null);
     }
   });
+
+  it("leads salvos antes das campanhas (0012) vão para a \"Prospecção 1\" ao abrir, como no backfill da migration", async () => {
+    const first = createDemoDb();
+    await first.execute("INSERT INTO leads (id, company_id, name) VALUES (?, ?, ?)", ["lead-antigo", C, "Pet Shop Antigo"]);
+    await first.execute("INSERT INTO leads (id, company_id, name) VALUES (?, ?, ?)", ["lead-outra", "outra-empresa", "De outra empresa"]);
+    const saved = JSON.parse(localStorage.getItem(DEMO_STORAGE_KEY) ?? "{}") as Record<string, Row[]>;
+    delete saved.prospecting_campaigns;
+    for (const row of saved.leads) delete row.campaign_id;
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(saved));
+
+    const reopened = createDemoDb();
+    const campaigns = await reopened.select<Row[]>("SELECT * FROM prospecting_campaigns WHERE company_id=?", [C]);
+    expect(campaigns).toEqual([expect.objectContaining({ id: `prospeccao-1-${C}`, name: "Prospecção 1", deleted_at: null })]);
+    const [lead] = await reopened.select<Row[]>("SELECT * FROM leads WHERE company_id=? AND id=?", [C, "lead-antigo"]);
+    expect(lead.campaign_id).toBe(`prospeccao-1-${C}`);
+    const [other] = await reopened.select<Row[]>("SELECT * FROM leads WHERE company_id=? AND id=?", ["outra-empresa", "lead-outra"]);
+    expect(other.campaign_id).toBe("prospeccao-1-outra-empresa");
+
+    // Abrir de novo não duplica a campanha; lead novo sem campanha fica para o ensureDefaultCampaign (não aqui).
+    await reopened.execute("INSERT INTO leads (id, company_id, name) VALUES (?, ?, ?)", ["lead-novo", C, "Novo"]);
+    const again = createDemoDb();
+    expect(await again.select<Row[]>("SELECT * FROM prospecting_campaigns WHERE company_id=?", [C])).toHaveLength(1);
+    const [novo] = await again.select<Row[]>("SELECT * FROM leads WHERE company_id=? AND id=?", [C, "lead-novo"]);
+    expect(novo.campaign_id).toBeNull();
+  });
 });

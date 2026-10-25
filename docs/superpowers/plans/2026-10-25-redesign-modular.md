@@ -37,9 +37,9 @@
 
 **Files:** nenhum novo; resolve conflitos em `AGENTS.md`, `src/lib/dev/devSeed.ts`, `src-tauri/Cargo.*`.
 
-- [ ] **Step 1:** `git merge --no-ff` de cada branch listado em Global Constraints, nesta ordem: t1, t5, t6, t7, t8a, t8b, t8c, t9, t10.
-- [ ] **Step 2:** Resolver os `TODO(integração)` deixados pelos agentes: `ImportExportButtons` e `FileAttachments` reais nas telas; 8a usa `recordStockMovement` (8c) e `createPurchaseOrder`; importador de estoque passa pelo motor de estoque; DRE única (8b) usada por relatórios (T10); `employeeImportEntity` (T9) registrado no registry (T5); confirmações de exclusão com `ask()` do `@tauri-apps/plugin-dialog` em vez de `window.confirm` (bug no desktop: apagava sem perguntar).
-- [ ] **Step 3:** `npm run typecheck && npm test && npm run build` e `cargo test --lib` em `src-tauri` → tudo verde. Commit `merge: integra as tarefas 1 e 5–10`.
+- [x] **Step 1:** `git merge --no-ff` de cada branch listado em Global Constraints, nesta ordem: t1, t5, t6, t7, t8a, t8b, t8c, t9, t10.
+- [x] **Step 2:** Resolver os `TODO(integração)` deixados pelos agentes: `ImportExportButtons` e `FileAttachments` reais nas telas; 8a usa `recordStockMovement` (8c) e `createPurchaseOrder`; importador de estoque passa pelo motor de estoque; DRE única (8b) usada por relatórios (T10); `employeeImportEntity` (T9) registrado no registry (T5); confirmações de exclusão com `ask()` do `@tauri-apps/plugin-dialog` em vez de `window.confirm` (bug no desktop: apagava sem perguntar).
+- [x] **Step 3:** `npm run typecheck && npm test && npm run build` e `cargo test --lib` em `src-tauri` → tudo verde. Commit `merge: integra as tarefas 1 e 5–10`.
 
 ### Task 1: Tema monocromático, shell sem top bar, conta e assistente na sidebar
 

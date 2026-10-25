@@ -124,7 +124,8 @@ describe("ReorderPage", () => {
     expect(names(netprime())).toEqual(["Adaptador", "Switch 24p"]);
     await act(async () => netprime().querySelector<HTMLElement>("th [data-sort-key='cost']")!.click());
     expect(names(netprime())).toEqual(["Switch 24p", "Adaptador"]);
-    expect(netprime().querySelector("th [data-sort-key='qty']")).toBeNull();
+    // Comprar também ordena (pelo valor no clique; digitar depois não faz a linha pular).
+    expect(netprime().querySelector("th [data-sort-key='qty']")).not.toBeNull();
 
     await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Gerar 2 pedidos"))!.click());
     const covered = () => container.querySelector<HTMLElement>("section[aria-labelledby='reorder-covered-title']");
@@ -139,5 +140,27 @@ describe("ReorderPage", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(names(covered()!)).toEqual(["Switch 24p"]);
+  });
+
+  it("Filtrar esconde itens da sugestão e o pedido sai só com o que está na tela", async () => {
+    await until(() => Boolean(generateButton()), "sugestão carregada");
+    const suggestions = () => container.querySelector<HTMLElement>("[data-reorder-suggestions]")!;
+    await act(async () => suggestions().querySelector<HTMLButtonElement>("button[aria-label='Filtrar']")!.click());
+    const input = suggestions().querySelector<HTMLInputElement>("[aria-label='Item: contém']")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "switch");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const shownNames = () => [...container.querySelectorAll("section[aria-label^='Fornecedor'] tbody tr")].map((row) => row.querySelector("td p")?.textContent);
+    expect(shownNames()).toEqual(["Switch 24p"]);
+    const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.includes("Gerar 1 pedido de compra"));
+    expect(button).toBeTruthy();
+    await act(async () => button!.click());
+    let items: { description: string }[] = [];
+    await until(async () => {
+      items = await testDb().select<{ description: string }[]>("SELECT i.description FROM purchase_order_items i JOIN purchase_orders o ON o.id = i.order_id WHERE o.company_id=?", [companyId]);
+      return items.length > 0;
+    }, "pedido gravado");
+    expect(items.map((item) => item.description)).toEqual(["Switch 24p"]);
   });
 });

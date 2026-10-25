@@ -5,7 +5,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Ban, Check, PackageCheck, Send, Trash2, Truck } from "lucide-react";
-import { IconButton, NoFilterMatchRow, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
+import { IconButton, NoFilterMatchRow, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterButton, TableFilterToolbar, useDraftSortFilter, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
@@ -447,6 +447,15 @@ interface ReceiveRow {
   locationId: string;
 }
 
+/** Linha da tabela "O que chegou": o que a pessoa digita mais o item do pedido, para ordenar e filtrar. */
+interface ReceiveView extends ReceiveRow {
+  line: PurchaseOrderItem;
+  description: string;
+  remaining: number;
+}
+
+const receiveKey = (row: ReceiveView) => row.lineId;
+
 function ReceivePanel({ order, items, locations, label, onDone }: { order: PurchaseOrder; items: PurchaseOrderItem[]; locations: StockLocation[]; label: string; onDone: () => void }) {
   const ctx = useEditContext();
   const qc = useQueryClient();
@@ -454,6 +463,21 @@ function ReceivePanel({ order, items, locations, label, onDone }: { order: Purch
   const [rows, setRows] = useState<ReceiveRow[]>(() => items.map((line) => ({ lineId: line.id, qty: String(remainingQty(line)), locationId: defaultLocation })));
   const [form, setForm] = useState({ receivedDate: todayIso(), supplierInvoiceNumber: "", installments: String(order.installments || 1), intervalDays: "30", firstDueDate: "", paymentMethod: "boleto" });
   const change = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
+  const receiveColumns = useMemo<SortFilterColumn<ReceiveView>[]>(
+    () => [
+      { key: "description", header: "Item", kind: "text" },
+      { key: "remaining", header: "Falta", kind: "number" },
+      { key: "qty", header: "Recebido", kind: "number", sortValue: (row) => num(row.qty, 0) },
+      { key: "locationId", header: "Local", kind: "select", options: locations.map((location) => ({ value: location.id, label: location.name })) },
+    ],
+    [locations],
+  );
+  const viewRows = rows.flatMap((row): ReceiveView[] => {
+    const line = items.find((candidate) => candidate.id === row.lineId);
+    return line ? [{ ...row, line, description: line.description, remaining: remainingQty(line) }] : [];
+  });
+  // Filtro só esconde da vista: o recebimento grava todas as linhas com quantidade, visíveis ou não.
+  const receiveView = useDraftSortFilter(viewRows, receiveColumns, receiveKey);
 
   const receive = useMutation({
     mutationFn: async () => {
@@ -490,15 +514,25 @@ function ReceivePanel({ order, items, locations, label, onDone }: { order: Purch
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium">O que chegou</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">O que chegou</p>
+            <TableFilterButton view={receiveView} />
+          </div>
           {locations.length === 0 && <p className="text-sm text-destructive">Nenhum local de estoque</p>}
           <div className="overflow-x-auto rounded-lg border">
+            <TableFilterBar view={receiveView} />
             <table className="w-full min-w-[520px] text-sm">
-              <thead className="bg-muted/30 text-xs"><tr><th className="px-3 py-2 text-left font-medium text-muted-foreground">Item</th><th className="px-3 py-2 text-right font-medium text-muted-foreground">Falta</th><th className="w-24 px-3 py-2 text-left font-medium text-muted-foreground">Recebido</th><th className="px-3 py-2 text-left font-medium text-muted-foreground">Local</th></tr></thead>
+              <thead className="bg-muted/30 text-xs">
+                <tr>
+                  <SortableHeader label="Item" sortKey="description" sort={receiveView.sort} onSort={receiveView.toggleSort} className="px-3 py-2" />
+                  <SortableHeader label="Falta" sortKey="remaining" sort={receiveView.sort} onSort={receiveView.toggleSort} align="right" className="px-3 py-2" />
+                  <SortableHeader label="Recebido" sortKey="qty" sort={receiveView.sort} onSort={receiveView.toggleSort} className="w-24 px-3 py-2" />
+                  <SortableHeader label="Local" sortKey="locationId" sort={receiveView.sort} onSort={receiveView.toggleSort} className="px-3 py-2" />
+                </tr>
+              </thead>
               <tbody className="divide-y">
-                {rows.map((row) => {
-                  const line = items.find((candidate) => candidate.id === row.lineId);
-                  if (!line) return null;
+                {receiveView.rows.map((row) => {
+                  const { line } = row;
                   const update = (patch: Partial<ReceiveRow>) => setRows((current) => current.map((candidate) => (candidate.lineId === row.lineId ? { ...candidate, ...patch } : candidate)));
                   return (
                     <tr key={row.lineId}>
@@ -514,6 +548,7 @@ function ReceivePanel({ order, items, locations, label, onDone }: { order: Purch
                     </tr>
                   );
                 })}
+                {viewRows.length > 0 && !receiveView.rows.length && <NoFilterMatchRow colSpan={4} />}
               </tbody>
             </table>
           </div>

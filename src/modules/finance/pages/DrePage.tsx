@@ -1,6 +1,7 @@
 // DRE gerencial por competência: receita, deduções, custos, despesas, resultado financeiro e outros, com o detalhe
-// por categoria do plano de contas e comparativo de meses. O cálculo fica em lib/erp/dre.
-import { useState } from "react";
+// por categoria do plano de contas e comparativo de meses. O cálculo fica em lib/erp/dre. A ordem das seções e dos
+// subtotais é a da demonstração; o clique no cabeçalho ordena e Filtrar filtra as categorias dentro de cada seção.
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calculator } from "lucide-react";
 import { getDb } from "@/lib/db/client";
@@ -12,6 +13,7 @@ import { useRequiredSession } from "@/hooks/useSession";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { SortableHeader, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import type { DreGroup } from "@/types";
 import { ErrorNote, Field, errorMessage, inputClass, th } from "../components/financeShared";
 
@@ -41,6 +43,7 @@ const SPANS = [
 
 interface DetailRow {
   key: string;
+  group: DreGroup;
   label: string;
   values: number[];
 }
@@ -51,7 +54,7 @@ function detailRows(results: DreResult[], group: DreGroup): DetailRow[] {
   results.forEach((result, index) => {
     for (const line of result.linhas.filter((item) => item.group === group)) {
       const key = line.categoryId ?? `label:${line.name}`;
-      const row = rows.get(key) ?? { key, label: line.code ? `${line.code} · ${line.name}` : line.name, values: results.map(() => 0) };
+      const row = rows.get(key) ?? { key: `${group}-${key}`, group, label: line.code ? `${line.code} · ${line.name}` : line.name, values: results.map(() => 0) };
       row.values[index] = roundMoney(row.values[index] + line.value);
       rows.set(key, row);
     }
@@ -87,6 +90,17 @@ export default function DrePage() {
   const current = data[data.length - 1];
   const empty = shown.every((result) => result.linhas.length === 0);
   const costs = (r: DreResult) => roundMoney(r.deducoes + r.custos + r.despesas);
+  const last = shown[shown.length - 1];
+  const categories = useMemo(() => SECTIONS.flatMap((section) => detailRows(shown, section.group)), [shown]);
+  const columns = useMemo<SortFilterColumn<DetailRow>[]>(
+    () => [
+      { key: "label", header: "Demonstração", kind: "text" },
+      ...shown.map((result, index): SortFilterColumn<DetailRow> => ({ key: `m${index}`, header: monthLabel(result.month), kind: "money", sortValue: (row) => row.values[index] })),
+      { key: "share", header: "% receita", kind: "percent", sortValue: (row) => (last && last.receita > 0 ? (Math.abs(row.values[row.values.length - 1]) / last.receita) * 100 : null) },
+    ],
+    [shown, last],
+  );
+  const view = useSortFilter(categories, columns);
 
   return (
     <div className="space-y-6">
@@ -105,6 +119,7 @@ export default function DrePage() {
           <input type="checkbox" checked={details} onChange={(event) => setDetails(event.target.checked)} className="h-4 w-4" />
           Detalhar por categoria
         </label>
+        <TableFilterButton view={view} disabled={!details} className="ml-auto" />
       </div>
 
       {!valid && <ErrorNote message="Escolha um mês." />}
@@ -126,17 +141,17 @@ export default function DrePage() {
       ) : (
         shown.length > 0 && (
           <div className="overflow-x-auto rounded-xl border">
+            {details && <TableFilterBar view={view} />}
             <table className="w-full text-sm">
               <thead className="bg-muted/30">
                 <tr>
-                  <th className={th}>Demonstração</th>
-                  {shown.map((result) => <th key={result.month} className={cn(th, "text-right")}>{monthLabel(result.month)}</th>)}
-                  <th className={cn(th, "text-right")}>% receita</th>
+                  {columns.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.key === "label" ? "left" : "right"} className={th} />
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {SECTIONS.flatMap((section) => {
-                  const last = shown[shown.length - 1];
                   const rows = [
                     <tr key={section.group} className="border-t font-medium">
                       <td className="px-4 py-2.5">{section.label}</td>
@@ -145,7 +160,7 @@ export default function DrePage() {
                     </tr>,
                   ];
                   if (details) {
-                    for (const row of detailRows(shown, section.group)) {
+                    for (const row of view.rows.filter((item) => item.group === section.group)) {
                       rows.push(
                         <tr key={`${section.group}-${row.key}`} className="text-muted-foreground">
                           <td className="py-1.5 pl-8 pr-4">{row.label}</td>

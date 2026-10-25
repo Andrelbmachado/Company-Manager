@@ -16,29 +16,47 @@ interface IndexedRow {
  * A mesma tabela que vai para a exportação, na tela: números à direita, linha de total no rodapé. Clique no cabeçalho
  * ordena pelo tipo da coluna e Filtrar abre os filtros por coluna; com filtro escondendo linhas, o total (do período
  * inteiro) sai do rodapé para não somar o que não está na tela. Demonstrativo com estilo por linha (DRE: grupo,
- * subtotal, detalhe) não ordena nem filtra: a ordem das linhas é o próprio relatório.
+ * subtotal, detalhe): grupos e subtotais ficam no lugar e a ordenação e o filtro valem para as linhas de detalhe
+ * ("indent") dentro de cada grupo.
  */
+/**
+ * Linhas do demonstrativo na tela: as de grupo e subtotal na posição do relatório; cada sequência de detalhe entre elas
+ * só com as que passaram no filtro, na ordem da ordenação.
+ */
+function statementRows(rows: IndexedRow[], visible: IndexedRow[], styles: ReadonlyArray<string | undefined>): IndexedRow[] {
+  const rank = new Map(visible.map((item, position) => [item.index, position] as const));
+  const result: IndexedRow[] = [];
+  let block: IndexedRow[] = [];
+  const flush = () => {
+    result.push(...block.filter((item) => rank.has(item.index)).sort((a, b) => rank.get(a.index)! - rank.get(b.index)!));
+    block = [];
+  };
+  for (const item of rows) {
+    if (styles[item.index] === "indent") {
+      block.push(item);
+      continue;
+    }
+    flush();
+    result.push(item);
+  }
+  flush();
+  return result;
+}
+
 export function ReportDataTable({ table, empty = "Nada no período escolhido." }: { table: ReportTable; empty?: string }) {
   const numeric = (kind: string) => NUMERIC.has(kind);
   const statement = Boolean(table.styles?.length);
   const rows = useMemo<IndexedRow[]>(() => table.rows.map((row, index) => ({ row, index })), [table.rows]);
   const columns = useMemo<SortFilterColumn<IndexedRow>[]>(
-    () =>
-      table.columns.map((column) => ({
-        key: column.key,
-        header: column.label,
-        kind: column.kind,
-        sortable: !statement,
-        filterable: !statement,
-        sortValue: (item: IndexedRow) => item.row[column.key],
-      })),
-    [table.columns, statement],
+    () => table.columns.map((column) => ({ key: column.key, header: column.label, kind: column.kind, sortValue: (item: IndexedRow) => item.row[column.key] })),
+    [table.columns],
   );
   const view = useSortFilter(rows, columns);
+  const shown = useMemo(() => (statement ? statementRows(rows, view.rows, table.styles!) : view.rows), [statement, rows, view.rows, table.styles]);
   const filtered = view.rows.length < rows.length;
   return (
     <div className="rounded-xl border">
-      {!statement && rows.length > 0 && <TableFilterToolbar view={view} />}
+      {rows.length > 0 && <TableFilterToolbar view={view} />}
       <TableFilterBar view={view} />
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -55,7 +73,6 @@ export function ReportDataTable({ table, empty = "Nada no período escolhido." }
                   sortKey={column.key}
                   sort={view.sort}
                   onSort={view.toggleSort}
-                  sortable={!statement}
                   align={numeric(column.kind) ? "right" : "left"}
                   className="px-4 py-3 text-sm"
                 />
@@ -69,10 +86,10 @@ export function ReportDataTable({ table, empty = "Nada no período escolhido." }
                   {empty}
                 </td>
               </tr>
-            ) : view.rows.length === 0 ? (
+            ) : shown.length === 0 ? (
               <NoFilterMatchRow colSpan={table.columns.length} />
             ) : (
-              view.rows.map(({ row, index }) => {
+              shown.map(({ row, index }) => {
                 const style = table.styles?.[index];
                 return (
                   <tr key={index} className={cn("border-t", style === "strong" && "bg-muted/20 font-semibold")}>

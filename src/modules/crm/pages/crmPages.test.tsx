@@ -245,7 +245,7 @@ describe("telas do CRM", () => {
     await until(() => text().includes("Nenhum duplicado encontrado"), "lista vazia depois de mesclar");
   });
 
-  it("duplicados: a tabela do grupo ordena pelo cabeçalho sem mexer em quem fica", async () => {
+  it("duplicados: a tabela do grupo ordena pelo cabeçalho sem mexer em quem fica e o filtro tira da mescla quem some", async () => {
     await testDb().execute("INSERT INTO customers (id, company_id, name, email, created_at) VALUES (?,?,?,?,?)", ["old", companyId, "Clínica Vida", "contato@vida.com", "2026-01-01 10:00:00"]);
     await testDb().execute("INSERT INTO customers (id, company_id, name, email, created_at) VALUES (?,?,?,?,?)", ["new", companyId, "Clinica Vida Ltda", "CONTATO@vida.com", "2026-05-01 10:00:00"]);
     await renderAt("/crm/duplicados", "/crm/duplicados", <DuplicatesPage />);
@@ -256,7 +256,20 @@ describe("telas do CRM", () => {
     await click(container.querySelector("th [data-sort-key='created_at']"));
     expect(names()).toEqual(["Clinica Vida Ltda", "Clínica Vida"]);
     expect(container.querySelector<HTMLInputElement>("input[aria-label='Manter Clínica Vida']")?.checked).toBe(true);
-    expect(container.querySelector("th [data-sort-key='keep']")).toBeNull();
+    // Fica ordena pela escolha: quem fica vem primeiro.
+    await click(container.querySelector("th [data-sort-key='keep']"));
+    expect(names()).toEqual(["Clínica Vida", "Clinica Vida Ltda"]);
+    expect(button("Mesclar 1 em “Clínica Vida”")).toBeTruthy();
+    await click(button("Filtrar"));
+    await type(container.querySelector("[aria-label='Cliente: contém']"), "vida");
+    expect(names()).toEqual(["Clínica Vida", "Clinica Vida Ltda"]);
+    await type(container.querySelector("[aria-label='Cliente: contém']"), "ltda");
+    expect(names()).toEqual(["Clinica Vida Ltda"]);
+    await type(container.querySelector("[aria-label='Cliente: contém']"), "xyz");
+    expect(names()).toEqual([undefined]);
+    expect(text()).toContain("Nenhum registro com esses filtros.");
+    // Escondido pelo filtro não entra na mescla.
+    expect(button("Mesclar 0 em “Clínica Vida”")?.disabled).toBe(true);
   });
 
   it("lead: converter em oportunidade e abrir no funil", async () => {

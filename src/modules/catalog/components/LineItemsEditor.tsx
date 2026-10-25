@@ -1,9 +1,11 @@
 // Itens de pedido (venda ou compra): produto do catálogo (ou item de estoque) ou linha avulsa, quantidade, preço,
 // desconto em R$ e imposto em %. O preço vem sugerido (tabela de preço na venda, custo na compra) até a pessoa digitar
-// outro; a validação de verdade fica em computeLines/quoteItems na gravação.
+// outro; a validação de verdade fica em computeLines/quoteItems na gravação. Cabeçalho ordena e Filtrar esconde linhas
+// só na vista (useDraftSortFilter: digitar não faz a linha pular); a gravação segue a ordem em que os itens entraram.
+import { useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { IconButton, TABLE_ICONS } from "@/components/shared/table";
+import { IconButton, NoFilterMatchRow, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterButton, useDraftSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { lineTotal } from "@/lib/money";
 import { formatCurrency } from "@/lib/utils";
 import { INPUT, num } from "./tradeKit";
@@ -58,8 +60,25 @@ interface LineItemsEditorProps {
 const CELL = "px-2 py-2 align-top";
 const SMALL_INPUT = `${INPUT} h-8 px-2`;
 
+const TH = "px-2 py-2";
+
 export function LineItemsEditor({ lines, onChange, options, suggestPrice, priceLabel = "Preço unit.", allowFreeLines = true, showTax = true, disabled }: LineItemsEditorProps) {
   const groups = Array.from(new Set(options.map((option) => option.group ?? "")));
+  const columns = useMemo<SortFilterColumn<EditableLine>[]>(
+    () => [
+      { key: "ref", header: "Produto / serviço", kind: "select", options: [{ value: "", label: "Item avulso" }, ...options.map((option) => ({ value: option.ref, label: option.label }))] },
+      { key: "description", header: "Descrição", kind: "text" },
+      { key: "qty", header: "Qtd.", kind: "number", sortValue: (line) => num(line.qty, 0) },
+      { key: "unit", header: "Un.", kind: "text" },
+      { key: "unitPrice", header: priceLabel, kind: "money", sortValue: (line) => num(line.unitPrice, 0) },
+      { key: "discount", header: "Desc. (R$)", kind: "money", sortValue: (line) => num(line.discount, 0) },
+      ...(showTax ? [{ key: "taxRate", header: "Imp. %", kind: "percent" as const, sortValue: (line: EditableLine) => num(line.taxRate, 0) }] : []),
+      { key: "total", header: "Total", kind: "money", sortValue: lineAmount },
+    ],
+    [options, priceLabel, showTax],
+  );
+  const view = useDraftSortFilter(lines, columns, (line) => line.key);
+  const header = (key: string) => columns.find((column) => column.key === key)!.header;
 
   function update(key: string, patch: Partial<EditableLine>) {
     onChange(lines.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -93,66 +112,75 @@ export function LineItemsEditor({ lines, onChange, options, suggestPrice, priceL
 
   return (
     <div className="space-y-3">
+      <TableFilterBar view={view} className="rounded-xl border" />
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[860px] text-sm">
           <thead className="bg-muted/30 text-xs">
             <tr>
-              <th className="px-2 py-2 text-left font-medium text-muted-foreground">Produto / serviço</th>
-              <th className="px-2 py-2 text-left font-medium text-muted-foreground">Descrição</th>
-              <th className="w-20 px-2 py-2 text-left font-medium text-muted-foreground">Qtd.</th>
-              <th className="w-16 px-2 py-2 text-left font-medium text-muted-foreground">Un.</th>
-              <th className="w-28 px-2 py-2 text-left font-medium text-muted-foreground">{priceLabel}</th>
-              <th className="w-24 px-2 py-2 text-left font-medium text-muted-foreground">Desc. (R$)</th>
-              {showTax && <th className="w-20 px-2 py-2 text-left font-medium text-muted-foreground">Imp. %</th>}
-              <th className="w-28 px-2 py-2 text-right font-medium text-muted-foreground">Total</th>
+              <SortableHeader label={header("ref")} sortKey="ref" sort={view.sort} onSort={view.toggleSort} className={TH} />
+              <SortableHeader label={header("description")} sortKey="description" sort={view.sort} onSort={view.toggleSort} className={TH} />
+              <SortableHeader label={header("qty")} sortKey="qty" sort={view.sort} onSort={view.toggleSort} className={`w-20 ${TH}`} />
+              <SortableHeader label={header("unit")} sortKey="unit" sort={view.sort} onSort={view.toggleSort} className={`w-16 ${TH}`} />
+              <SortableHeader label={header("unitPrice")} sortKey="unitPrice" sort={view.sort} onSort={view.toggleSort} className={`w-28 ${TH}`} />
+              <SortableHeader label={header("discount")} sortKey="discount" sort={view.sort} onSort={view.toggleSort} className={`w-24 ${TH}`} />
+              {showTax && <SortableHeader label={header("taxRate")} sortKey="taxRate" sort={view.sort} onSort={view.toggleSort} className={`w-20 ${TH}`} />}
+              <SortableHeader label={header("total")} sortKey="total" sort={view.sort} onSort={view.toggleSort} align="right" className={`w-28 ${TH}`} />
               <th className="w-10 px-2 py-2"><span className="sr-only">Remover</span></th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {lines.map((line, index) => (
-              <tr key={line.key}>
-                <td className={CELL}>
-                  <select aria-label={`Produto do item ${index + 1}`} value={line.ref} disabled={disabled} onChange={(event) => pick(line, event.target.value)} className={SMALL_INPUT}>
-                    {allowFreeLines ? <option value="">Item avulso</option> : <option value="" disabled>Escolha...</option>}
-                    {groups.map((group) => {
-                      const groupOptions = options.filter((option) => (option.group ?? "") === group);
-                      const rendered = groupOptions.map((option) => <option key={option.ref} value={option.ref}>{option.label}</option>);
-                      return group ? <optgroup key={group} label={group}>{rendered}</optgroup> : rendered;
-                    })}
-                  </select>
-                </td>
-                <td className={CELL}>
-                  <input aria-label={`Descrição do item ${index + 1}`} value={line.description} disabled={disabled} onChange={(event) => update(line.key, { description: event.target.value })} className={SMALL_INPUT} />
-                </td>
-                <td className={CELL}>
-                  <input aria-label={`Quantidade do item ${index + 1}`} inputMode="decimal" value={line.qty} disabled={disabled} onChange={(event) => changeQty(line, event.target.value)} className={SMALL_INPUT} />
-                </td>
-                <td className={CELL}>
-                  <input aria-label={`Unidade do item ${index + 1}`} value={line.unit} disabled={disabled} onChange={(event) => update(line.key, { unit: event.target.value })} className={SMALL_INPUT} />
-                </td>
-                <td className={CELL}>
-                  <input aria-label={`${priceLabel} do item ${index + 1}`} inputMode="decimal" value={line.unitPrice} disabled={disabled} onChange={(event) => update(line.key, { unitPrice: event.target.value, manualPrice: true })} className={SMALL_INPUT} />
-                </td>
-                <td className={CELL}>
-                  <input aria-label={`Desconto do item ${index + 1}`} inputMode="decimal" value={line.discount} placeholder="0" disabled={disabled} onChange={(event) => update(line.key, { discount: event.target.value })} className={SMALL_INPUT} />
-                </td>
-                {showTax && (
+            {view.rows.map((line) => {
+              // Número do item = posição na lista gravada (não muda ao ordenar ou filtrar).
+              const index = lines.indexOf(line);
+              return (
+                <tr key={line.key}>
                   <td className={CELL}>
-                    <input aria-label={`Imposto do item ${index + 1}`} inputMode="decimal" value={line.taxRate} placeholder="0" disabled={disabled} onChange={(event) => update(line.key, { taxRate: event.target.value })} className={SMALL_INPUT} />
+                    <select aria-label={`Produto do item ${index + 1}`} value={line.ref} disabled={disabled} onChange={(event) => pick(line, event.target.value)} className={SMALL_INPUT}>
+                      {allowFreeLines ? <option value="">Item avulso</option> : <option value="" disabled>Escolha...</option>}
+                      {groups.map((group) => {
+                        const groupOptions = options.filter((option) => (option.group ?? "") === group);
+                        const rendered = groupOptions.map((option) => <option key={option.ref} value={option.ref}>{option.label}</option>);
+                        return group ? <optgroup key={group} label={group}>{rendered}</optgroup> : rendered;
+                      })}
+                    </select>
                   </td>
-                )}
-                <td className={`${CELL} pt-3.5 text-right tabular-nums`}>{formatCurrency(lineAmount(line))}</td>
-                <td className={CELL}>
-                  <button type="button" aria-label={`Remover item ${index + 1}`} disabled={disabled || lines.length === 1} onClick={() => onChange(lines.filter((candidate) => candidate.key !== line.key))} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    <Trash2 size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  <td className={CELL}>
+                    <input aria-label={`Descrição do item ${index + 1}`} value={line.description} disabled={disabled} onChange={(event) => update(line.key, { description: event.target.value })} className={SMALL_INPUT} />
+                  </td>
+                  <td className={CELL}>
+                    <input aria-label={`Quantidade do item ${index + 1}`} inputMode="decimal" value={line.qty} disabled={disabled} onChange={(event) => changeQty(line, event.target.value)} className={SMALL_INPUT} />
+                  </td>
+                  <td className={CELL}>
+                    <input aria-label={`Unidade do item ${index + 1}`} value={line.unit} disabled={disabled} onChange={(event) => update(line.key, { unit: event.target.value })} className={SMALL_INPUT} />
+                  </td>
+                  <td className={CELL}>
+                    <input aria-label={`${priceLabel} do item ${index + 1}`} inputMode="decimal" value={line.unitPrice} disabled={disabled} onChange={(event) => update(line.key, { unitPrice: event.target.value, manualPrice: true })} className={SMALL_INPUT} />
+                  </td>
+                  <td className={CELL}>
+                    <input aria-label={`Desconto do item ${index + 1}`} inputMode="decimal" value={line.discount} placeholder="0" disabled={disabled} onChange={(event) => update(line.key, { discount: event.target.value })} className={SMALL_INPUT} />
+                  </td>
+                  {showTax && (
+                    <td className={CELL}>
+                      <input aria-label={`Imposto do item ${index + 1}`} inputMode="decimal" value={line.taxRate} placeholder="0" disabled={disabled} onChange={(event) => update(line.key, { taxRate: event.target.value })} className={SMALL_INPUT} />
+                    </td>
+                  )}
+                  <td className={`${CELL} pt-3.5 text-right tabular-nums`}>{formatCurrency(lineAmount(line))}</td>
+                  <td className={CELL}>
+                    <button type="button" aria-label={`Remover item ${index + 1}`} disabled={disabled || lines.length === 1} onClick={() => onChange(lines.filter((candidate) => candidate.key !== line.key))} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {lines.length > 0 && !view.rows.length && <NoFilterMatchRow colSpan={showTax ? 9 : 8} />}
           </tbody>
         </table>
       </div>
-      <IconButton label="Adicionar item" icon={TABLE_ICONS.add} disabled={disabled} onClick={() => onChange([...lines, newLine()])} />
+      <div className="flex items-center gap-2">
+        <IconButton label="Adicionar item" icon={TABLE_ICONS.add} disabled={disabled} onClick={() => onChange([...lines, newLine()])} />
+        <TableFilterButton view={view} />
+      </div>
     </div>
   );
 }

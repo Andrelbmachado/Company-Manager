@@ -1,6 +1,7 @@
 // Travas da varredura do pedido de 2026-10-25, para não voltarem:
 // - item 8: página sem subtítulo (PageHeader não tem descrição; nada de saudação com nome, papel ou empresa);
-// - item 9: sem texto de ajuda (estado vazio curto, sem descrição; frases de instrução do pedido não voltam).
+// - item 9: sem texto de ajuda (estado vazio curto, sem descrição; frases de instrução do pedido não voltam);
+// - item 10: toda <table> visível ordena pelo cabeçalho (SortableHeader, nada de <th> com texto) e tem filtro.
 // Os botões só com ícone (itens 12 e 13) estão em iconButtonsGuard.test.ts e o gráfico de linha fora do componente
 // compartilhado (itens 2 e 3) em components/shared/charts/LineAreaChart.test.tsx. project-manager fica de fora.
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -44,6 +45,10 @@ function opening(node: ts.Node): ts.JsxOpeningLikeElement | null {
 
 function attribute(element: ts.JsxOpeningLikeElement, name: string): ts.JsxAttribute | undefined {
   return element.attributes.properties.find((item): item is ts.JsxAttribute => ts.isJsxAttribute(item) && item.name.getText() === name);
+}
+
+function className(element: ts.JsxOpeningLikeElement): string {
+  return attribute(element, "className")?.initializer?.getText() ?? "";
 }
 
 /** Elementos JSX de uma tag (ex.: "PageHeader", "table") no arquivo. */
@@ -117,6 +122,68 @@ describe("item 9: sem texto de ajuda desnecessário", () => {
       /Conexão pessoal usada somente/,
     ];
     const offenders = files.flatMap((file) => banned.filter((pattern) => pattern.test(file.text)).map((pattern) => `${file.path} ${pattern}`));
+    expect(offenders).toEqual([]);
+  });
+});
+
+/** <th> que não mostra texto (coluna de seleção ou de ações, com o nome só num sr-only). */
+function silentHeader(node: ts.Node): boolean {
+  if (ts.isJsxSelfClosingElement(node)) return true;
+  if (!ts.isJsxElement(node)) return false;
+  return node.children.every((child) => {
+    if (ts.isJsxText(child)) return child.text.trim() === "";
+    const element = opening(child);
+    return Boolean(element && className(element).includes("sr-only"));
+  });
+}
+
+describe("item 10: toda tabela ordena pelo cabeçalho e tem filtro", () => {
+  const tables = files.flatMap((file) => elements(file, "table").map((node) => ({ file, node })));
+
+  it("acha as tabelas do app", () => {
+    expect(tables.length).toBeGreaterThan(20);
+  });
+
+  it("cabeçalho com texto é sempre um SortableHeader (clique ordena), sem desligar a ordenação", () => {
+    const offenders: string[] = [];
+    for (const { file, node } of tables) {
+      const element = opening(node)!;
+      // Tabela só para leitor de tela (ex.: os números do gráfico): não aparece, não tem o que clicar.
+      if (className(element).includes("sr-only")) continue;
+      let sortable = 0;
+      walk(node, (child) => {
+        const inner = opening(child);
+        if (!inner) return;
+        const tag = inner.tagName.getText();
+        // <th scope="row"> é o rótulo da linha no corpo da tabela, não um cabeçalho de coluna.
+        const rowHeader = attribute(inner, "scope")?.initializer?.getText() === '"row"';
+        if (tag === "th" && !rowHeader && !silentHeader(child)) offenders.push(`${where(file, child)} <th> com texto (use SortableHeader)`);
+        if (tag === "SortableHeader") {
+          sortable++;
+          const flag = attribute(inner, "sortable")?.initializer;
+          if (flag && flag.getText() === "{false}") offenders.push(`${where(file, child)} SortableHeader com sortable={false}`);
+        }
+      });
+      if (!sortable) offenders.push(`${where(file, node)} tabela sem SortableHeader`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("nenhuma coluna de tela desliga a ordenação (sortable: false)", () => {
+    const offenders = files.filter((file) => file.path.startsWith("modules") && /\bsortable:\s*false\b/.test(file.text)).map((file) => file.path);
+    expect(offenders).toEqual([]);
+  });
+
+  it("todo arquivo com tabela visível tem a linha de filtros", () => {
+    const filter = /<(TableFilterBar|FilterBar|TableFilterToolbar)\b/;
+    const offenders = [
+      ...new Set(
+        tables
+          .filter(({ node }) => !className(opening(node)!).includes("sr-only"))
+          .filter(({ file }) => !filter.test(file.text))
+          .map(({ file }) => file.path),
+      ),
+    ];
     expect(offenders).toEqual([]);
   });
 });

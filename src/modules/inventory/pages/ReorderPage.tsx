@@ -13,26 +13,29 @@ import { formatQty } from "@/lib/inventory/stock";
 import { lineTotal, sumMoney } from "@/lib/money";
 import { cn, formatCurrency } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, nextSort, sortRows, useSortFilter, type SortFilterColumn, type SortState } from "@/components/shared/table";
+import { NO_FILTER_MATCH, NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, TableFilterToolbar, useDraftSortFilter, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { BUTTON_PRIMARY, ErrorBanner, errorText, Field, INPUT, inventoryKeys, parseDecimal, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
 
 const NO_SUPPLIER = "Sem fornecedor cadastrado";
 
-// Folha de sugestão: o cabeçalho ordena as linhas dentro de cada fornecedor (um clique vale para todos os grupos).
-// Comprar e Total mudam enquanto se digita, então não ordenam (a linha fugiria do cursor). Não há filtro aqui: item
-// escondido continuaria marcado e entraria no pedido sem aparecer na tela.
-const SUGGESTION_COLUMNS: SortFilterColumn<ReorderSuggestion>[] = [
+// Folha de sugestão: o cabeçalho ordena as linhas dentro de cada fornecedor (um clique vale para todos os grupos) e
+// Filtrar esconde itens. Comprar e Total ordenam pelo valor do clique (useDraftSortFilter: digitar não faz a linha
+// fugir do cursor). O pedido sai só com o que está na tela: item escondido pelo filtro não entra, mesmo marcado.
+type SuggestionRow = ReorderSuggestion & { qty: number; total: number };
+
+const SUGGESTION_COLUMNS: SortFilterColumn<SuggestionRow>[] = [
   { key: "name", header: "Item", kind: "text", sortValue: (row) => [row.name, row.sku].filter(Boolean).join(" ") },
   { key: "on_hand", header: "Saldo", kind: "number" },
   { key: "on_order", header: "Em pedido", kind: "number" },
   { key: "min_stock", header: "Mínimo", kind: "number" },
   { key: "max_stock", header: "Máximo", kind: "number" },
-  { key: "qty", header: "Comprar", kind: "number", sortable: false, filterable: false },
+  { key: "qty", header: "Comprar", kind: "number" },
   { key: "cost", header: "Custo unit.", kind: "money" },
-  { key: "total", header: "Total", kind: "money", sortable: false, filterable: false },
+  { key: "total", header: "Total", kind: "money" },
 ];
+const suggestionKey = (row: SuggestionRow) => row.item_id;
 
 type CoveredItem = StockItemRow & { on_order: number };
 
@@ -79,7 +82,6 @@ export default function ReorderPage() {
       .map((item) => ({ ...item, on_order: onOrder?.get(item.id) ?? 0 }));
   }, [snapshot, suggestions, onOrder]);
   const coveredView = useSortFilter(covered, COVERED_COLUMNS);
-  const [groupSort, setGroupSort] = useState<SortState | null>(null);
 
   useEffect(() => {
     if (locationId === null && locations[0]) setLocationId(locations[0].id);
@@ -89,17 +91,19 @@ export default function ReorderPage() {
     const draft = quantities[row.item_id];
     return draft === undefined ? row.suggested_qty : parseDecimal(draft);
   };
-  const groups = useMemo(() => {
-    const map = new Map<string, ReorderSuggestion[]>();
-    for (const row of suggestions) {
-      const key = row.supplier_name ?? NO_SUPPLIER;
-      map.set(key, [...(map.get(key) ?? []), row]);
-    }
-    return [...map.entries()];
-  }, [suggestions]);
+  const suggestionRows = suggestions.map((row): SuggestionRow => {
+    const qty = qtyOf(row);
+    return { ...row, qty, total: qty > 0 ? lineTotal(qty, row.cost) : 0 };
+  });
+  const suggestionView = useDraftSortFilter(suggestionRows, SUGGESTION_COLUMNS, suggestionKey);
+  // Grupos na ordem em que os fornecedores aparecem na sugestão; dentro de cada um, a ordem e o filtro da vista.
+  const supplierOrder = [...new Set(suggestions.map((row) => row.supplier_name ?? NO_SUPPLIER))];
+  const groups = supplierOrder
+    .map((supplier) => [supplier, suggestionView.rows.filter((row) => (row.supplier_name ?? NO_SUPPLIER) === supplier)] as const)
+    .filter(([, rows]) => rows.length > 0);
 
   const isSelected = (itemId: string) => !excluded.has(itemId);
-  const chosen = suggestions.filter((row) => isSelected(row.item_id));
+  const chosen = suggestionView.rows.filter((row) => isSelected(row.item_id));
   const invalid = chosen.filter((row) => !(qtyOf(row) > 0));
   const chosenCost = sumMoney(chosen.map((row) => (qtyOf(row) > 0 ? lineTotal(qtyOf(row), row.cost) : 0)));
   const supplierCount = new Set(chosen.map((row) => row.supplier_id ?? "")).size;
@@ -195,6 +199,13 @@ export default function ReorderPage() {
         />
       ) : (
         <>
+          <div data-reorder-suggestions="" className="space-y-3">
+            <div className="flex justify-end">
+              <TableFilterButton view={suggestionView} />
+            </div>
+            <TableFilterBar view={suggestionView} className="rounded-xl border" />
+            {groups.length === 0 && <p className="rounded-xl border px-4 py-8 text-center text-sm text-muted-foreground">{NO_FILTER_MATCH}</p>}
+          </div>
           {groups.map(([supplier, rows]) => {
             const allChecked = rows.every((row) => isSelected(row.item_id));
             return (
@@ -217,9 +228,8 @@ export default function ReorderPage() {
                           key={column.key}
                           label={column.header}
                           sortKey={column.key}
-                          sort={groupSort}
-                          onSort={(key) => setGroupSort((current) => nextSort(current, key))}
-                          sortable={column.sortable !== false}
+                          sort={suggestionView.sort}
+                          onSort={suggestionView.toggleSort}
                           align={column.kind === "text" || column.key === "qty" ? "left" : "right"}
                           className={cn(REORDER_TH, column.key === "name" && "min-w-[12rem]", column.key === "qty" && "w-32")}
                         />
@@ -227,7 +237,7 @@ export default function ReorderPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {sortRows(rows, SUGGESTION_COLUMNS, groupSort).map((row) => {
+                    {rows.map((row) => {
                       const qty = qtyOf(row);
                       return (
                         <tr key={row.item_id}>

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ArrowLeft, FileDown, FilePen, Plus, Save, Trash2, Trophy } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, useDraftSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { getDb } from "@/lib/db/client";
 import {
@@ -73,6 +74,21 @@ function safeNumber(text: string): number {
   const value = Number(compact.includes(",") ? compact.replace(/\./g, "").replace(",", ".") : compact);
   return Number.isFinite(value) ? value : 0;
 }
+
+const itemTotal = (item: EditorItem) => lineTotal(safeNumber(item.qty), safeMoney(item.unit_price), safeMoney(item.discount));
+
+// Ordenar e filtrar os itens só muda a vista (useDraftSortFilter): a proposta grava na ordem em que entraram.
+const ITEM_COLUMNS: SortFilterColumn<EditorItem>[] = [
+  { key: "description", header: "Descrição", kind: "text" },
+  { key: "unit", header: "Un.", kind: "text" },
+  { key: "qty", header: "Qtd.", kind: "number", sortValue: (item) => safeNumber(item.qty) },
+  { key: "unit_price", header: "Preço unit.", kind: "money", sortValue: (item) => safeMoney(item.unit_price) },
+  { key: "discount", header: "Desconto", kind: "money", sortValue: (item) => safeMoney(item.discount) },
+  { key: "tax_rate", header: "Imp. %", kind: "percent", sortValue: (item) => safeNumber(item.tax_rate) },
+  { key: "total", header: "Total", kind: "money", sortValue: itemTotal },
+];
+const ITEM_HEADER: Record<string, string> = Object.fromEntries(ITEM_COLUMNS.map((column) => [column.key, column.header]));
+const itemKey = (item: EditorItem) => item.key;
 
 function fromItem(item: ProposalItem): EditorItem {
   return {
@@ -171,6 +187,7 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
     };
   });
   const [items, setItems] = useState<EditorItem[]>(() => savedItems.map(fromItem));
+  const itemsView = useDraftSortFilter(items, ITEM_COLUMNS, itemKey);
   const [dirty, setDirty] = useState(false);
   const [dialog, setDialog] = useState<"pdf" | "delete" | "win" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -395,16 +412,20 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
       <section className={cn(CARD, "overflow-hidden")} aria-label="Itens da proposta">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
           <h2 className="font-semibold">Itens</h2>
-          {editable && (
-            <div className="flex flex-wrap items-center gap-2">
-              <select value="" onChange={(event) => addProduct(event.target.value)} aria-label="Adicionar item do catálogo" className={SELECT}>
-                <option value="">+ Item do catálogo…</option>
-                {products.map((product) => <option key={product.id} value={product.id}>{product.sku ? `${product.sku} · ` : ""}{product.name} ({formatCurrency(Number(product.price ?? 0))})</option>)}
-              </select>
-              <button type="button" onClick={addFreeItem} className={BTN_SECONDARY}><Plus size={14} /> Item avulso</button>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {editable && (
+              <>
+                <select value="" onChange={(event) => addProduct(event.target.value)} aria-label="Adicionar item do catálogo" className={SELECT}>
+                  <option value="">+ Item do catálogo…</option>
+                  {products.map((product) => <option key={product.id} value={product.id}>{product.sku ? `${product.sku} · ` : ""}{product.name} ({formatCurrency(Number(product.price ?? 0))})</option>)}
+                </select>
+                <button type="button" onClick={addFreeItem} className={BTN_SECONDARY}><Plus size={14} /> Item avulso</button>
+              </>
+            )}
+            <TableFilterButton view={itemsView} />
+          </div>
         </div>
+        <TableFilterBar view={itemsView} className="px-5" />
         {items.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">Sem itens.</p>
         ) : (
@@ -412,38 +433,43 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
             <table className="w-full text-sm">
               <thead className="bg-muted/30 text-left text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Descrição</th>
-                  <th className="w-20 px-2 py-2 font-medium">Un.</th>
-                  <th className="w-24 px-2 py-2 font-medium">Qtd.</th>
-                  <th className="w-32 px-2 py-2 font-medium">Preço unit.</th>
-                  <th className="w-28 px-2 py-2 font-medium">Desconto</th>
-                  <th className="w-20 px-2 py-2 font-medium">Imp. %</th>
-                  <th className="w-32 px-3 py-2 text-right font-medium">Total</th>
+                  <SortableHeader label={ITEM_HEADER.description!} sortKey="description" sort={itemsView.sort} onSort={itemsView.toggleSort} className="px-3 py-2" />
+                  <SortableHeader label={ITEM_HEADER.unit!} sortKey="unit" sort={itemsView.sort} onSort={itemsView.toggleSort} className="w-20 px-2 py-2" />
+                  <SortableHeader label={ITEM_HEADER.qty!} sortKey="qty" sort={itemsView.sort} onSort={itemsView.toggleSort} className="w-24 px-2 py-2" />
+                  <SortableHeader label={ITEM_HEADER.unit_price!} sortKey="unit_price" sort={itemsView.sort} onSort={itemsView.toggleSort} className="w-32 px-2 py-2" />
+                  <SortableHeader label={ITEM_HEADER.discount!} sortKey="discount" sort={itemsView.sort} onSort={itemsView.toggleSort} className="w-28 px-2 py-2" />
+                  <SortableHeader label={ITEM_HEADER.tax_rate!} sortKey="tax_rate" sort={itemsView.sort} onSort={itemsView.toggleSort} className="w-20 px-2 py-2" />
+                  <SortableHeader label={ITEM_HEADER.total!} sortKey="total" sort={itemsView.sort} onSort={itemsView.toggleSort} align="right" className="w-32 px-3 py-2" />
                   {editable && <th className="w-10 px-2 py-2"><span className="sr-only">Remover</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {items.map((item, index) => (
-                  <tr key={item.key} className="align-top">
-                    <td className="px-3 py-2">
-                      <input value={item.description} onChange={(event) => changeItem(item.key, { description: event.target.value })} disabled={!editable} aria-label={`Descrição do item ${index + 1}`} className={INPUT} />
-                      {item.product_id && <p className="mt-1 text-xs text-muted-foreground">Catálogo{productById.get(item.product_id)?.sku ? ` · ${productById.get(item.product_id)?.sku}` : ""}</p>}
-                    </td>
-                    <td className="px-2 py-2"><input value={item.unit} onChange={(event) => changeItem(item.key, { unit: event.target.value })} disabled={!editable} aria-label={`Unidade do item ${index + 1}`} className={INPUT} /></td>
-                    <td className="px-2 py-2"><input value={item.qty} inputMode="decimal" onChange={(event) => changeItem(item.key, { qty: event.target.value })} disabled={!editable} aria-label={`Quantidade do item ${index + 1}`} className={cn(INPUT, "text-right")} /></td>
-                    <td className="px-2 py-2"><input value={item.unit_price} inputMode="decimal" onChange={(event) => changeItem(item.key, { unit_price: event.target.value, autoPrice: false })} disabled={!editable} aria-label={`Preço unitário do item ${index + 1}`} className={cn(INPUT, "text-right")} placeholder="0,00" /></td>
-                    <td className="px-2 py-2"><input value={item.discount} inputMode="decimal" onChange={(event) => changeItem(item.key, { discount: event.target.value })} disabled={!editable} aria-label={`Desconto do item ${index + 1} em reais`} className={cn(INPUT, "text-right")} placeholder="0,00" /></td>
-                    <td className="px-2 py-2"><input value={item.tax_rate} inputMode="decimal" onChange={(event) => changeItem(item.key, { tax_rate: event.target.value })} disabled={!editable} aria-label={`Imposto do item ${index + 1} em %`} className={cn(INPUT, "text-right")} placeholder="0" /></td>
-                    <td className="px-3 py-2 pt-4 text-right font-medium tabular-nums">{formatCurrency(lineTotal(numeric[index]!.qty, numeric[index]!.unit_price, numeric[index]!.discount))}</td>
-                    {editable && (
-                      <td className="px-2 py-2 pt-3">
-                        <button type="button" onClick={() => { setItems((current) => current.filter((other) => other.key !== item.key)); setDirty(true); }} className={BTN_GHOST} aria-label={`Remover o item ${index + 1}`}>
-                          <Trash2 size={13} />
-                        </button>
+                {itemsView.rows.map((item) => {
+                  // Número do item = posição na proposta (não muda ao ordenar ou filtrar).
+                  const index = items.indexOf(item);
+                  return (
+                    <tr key={item.key} className="align-top">
+                      <td className="px-3 py-2">
+                        <input value={item.description} onChange={(event) => changeItem(item.key, { description: event.target.value })} disabled={!editable} aria-label={`Descrição do item ${index + 1}`} className={INPUT} />
+                        {item.product_id && <p className="mt-1 text-xs text-muted-foreground">Catálogo{productById.get(item.product_id)?.sku ? ` · ${productById.get(item.product_id)?.sku}` : ""}</p>}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="px-2 py-2"><input value={item.unit} onChange={(event) => changeItem(item.key, { unit: event.target.value })} disabled={!editable} aria-label={`Unidade do item ${index + 1}`} className={INPUT} /></td>
+                      <td className="px-2 py-2"><input value={item.qty} inputMode="decimal" onChange={(event) => changeItem(item.key, { qty: event.target.value })} disabled={!editable} aria-label={`Quantidade do item ${index + 1}`} className={cn(INPUT, "text-right")} /></td>
+                      <td className="px-2 py-2"><input value={item.unit_price} inputMode="decimal" onChange={(event) => changeItem(item.key, { unit_price: event.target.value, autoPrice: false })} disabled={!editable} aria-label={`Preço unitário do item ${index + 1}`} className={cn(INPUT, "text-right")} placeholder="0,00" /></td>
+                      <td className="px-2 py-2"><input value={item.discount} inputMode="decimal" onChange={(event) => changeItem(item.key, { discount: event.target.value })} disabled={!editable} aria-label={`Desconto do item ${index + 1} em reais`} className={cn(INPUT, "text-right")} placeholder="0,00" /></td>
+                      <td className="px-2 py-2"><input value={item.tax_rate} inputMode="decimal" onChange={(event) => changeItem(item.key, { tax_rate: event.target.value })} disabled={!editable} aria-label={`Imposto do item ${index + 1} em %`} className={cn(INPUT, "text-right")} placeholder="0" /></td>
+                      <td className="px-3 py-2 pt-4 text-right font-medium tabular-nums">{formatCurrency(itemTotal(item))}</td>
+                      {editable && (
+                        <td className="px-2 py-2 pt-3">
+                          <button type="button" onClick={() => { setItems((current) => current.filter((other) => other.key !== item.key)); setDirty(true); }} className={BTN_GHOST} aria-label={`Remover o item ${index + 1}`}>
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+                {!itemsView.rows.length && <NoFilterMatchRow colSpan={editable ? 8 : 7} />}
               </tbody>
             </table>
           </div>

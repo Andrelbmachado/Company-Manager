@@ -169,7 +169,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
       {loading ? (
         <div className="space-y-2">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-lg bg-muted/30" />)}</div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Megaphone} title="Nenhum lead encontrado" description={leads.length ? "Ajuste os filtros para ver mais resultados." : "Os leads de prospecção são importados no primeiro acesso do CEO, da Administração, da Gerência ou do Comercial."} />
+        <EmptyState icon={Megaphone} title="Nenhum lead encontrado" description={leads.length ? "Ajuste os filtros para ver mais resultados." : "Esta prospecção ainda não tem leads. Use Importar, no topo da página, para trazer uma planilha."} />
       ) : (
         <>
           <p className="text-xs text-muted-foreground">{filtered.length} de {leads.length} leads · ordenados por prioridade de abordagem</p>

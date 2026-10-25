@@ -96,7 +96,7 @@ function LeadOutreach({ lead }: { lead: Lead }) {
         <dt className="text-muted-foreground">WhatsApp</dt>
         <dd>
           {wa ? (
-            <button type="button" onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 text-emerald-700 hover:underline dark:text-emerald-400">
+            <button type="button" onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 text-primary-text hover:underline">
               <MessageCircle size={14} /> {lead.whatsapp}
             </button>
           ) : (

@@ -116,6 +116,10 @@ describe("Prospecção: várias campanhas e cards enxutos", () => {
     await until(() => campaignSelect(page.container)?.value === created!.id && kpi(page.container, "Leads") === "0", "campanha nova escolhida");
     expect(kpi(page.container, "Potencial no 1º ano")).toBe("R$ 0");
     expect(page.text()).not.toContain("Pet Shop Alfa");
+    // Campanha nova: a lista vazia explica como trazer leads, sem o texto antigo do seed ("primeiro acesso do CEO...").
+    await until(() => page.text().includes("Nenhum lead encontrado"), "lista vazia da campanha nova");
+    expect(page.text()).not.toContain("primeiro acesso");
+    expect(page.text()).toContain("Esta prospecção ainda não tem leads");
   });
 
   it("nome repetido aparece como erro no próprio campo e nada é gravado", async () => {
@@ -159,6 +163,29 @@ describe("Prospecção: várias campanhas e cards enxutos", () => {
     expect(rename?.title).toMatch(/permissão/i);
   });
 
+  it("previsão de receita calcula na hora só com os leads da campanha escolhida, em cards só com título e número", async () => {
+    const companyId = await seed();
+    await testDb().execute("INSERT INTO revenue_scenarios (id, company_id, code, label, conversion_rate) VALUES (?, ?, ?, ?, ?)", ["s5", companyId, "c5", "Conservador (5%)", 0.05]);
+    await testDb().execute("INSERT INTO revenue_scenarios (id, company_id, code, label, conversion_rate) VALUES (?, ?, ?, ?, ?)", ["s20", companyId, "c20", "Otimista (20%)", 0.2]);
+    const rendered = await renderPage(<LeadsPage />, { companyId, role: "comercial", path: "/leads" });
+    page = rendered;
+    await until(() => kpi(rendered.container, "Leads") === "3", "cards da Prospecção 1");
+
+    await click(rendered.button("Previsão de receita"));
+    await until(() => kpi(rendered.container, "Conservador (5%)") === "R$ 300", "previsão da Prospecção 1 (R$ 6.000 × 5%)");
+    expect(kpi(rendered.container, "Otimista (20%)")).toBe("R$ 1.200");
+    for (const card of cards(rendered.container)) {
+      expect(card.childCount).toBe(2);
+      expect(card.text).toBe(card.title + card.value);
+    }
+    for (const fixed of FIXED_TEXTS) expect(rendered.text()).not.toContain(fixed);
+    expect(rendered.button("Recalcular a partir dos leads")).toBeUndefined();
+
+    await choose(campaignSelect(rendered.container), OTHER);
+    await until(() => kpi(rendered.container, "Conservador (5%)") === "R$ 250", "previsão de Advogados (R$ 5.000 × 5%)");
+    expect(kpi(rendered.container, "Otimista (20%)")).toBe("R$ 1.000");
+  });
+
   it("cronograma em calendário mostra só os leads da campanha e remarca a abordagem no próprio lugar", async () => {
     const { companyId, page } = await open();
     await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
@@ -174,6 +201,10 @@ describe("Prospecção: várias campanhas e cards enxutos", () => {
     const date = page.container.querySelector<HTMLInputElement>('input[aria-label="Abordar em"]');
     expect(date?.value).toBe("2026-11-03");
     expect(document.querySelector("[role=dialog]")).toBeNull();
+    // Tema monocromático: o contato (WhatsApp) usa token, não cor solta da paleta; cor só no selo de status.
+    const chosen = page.container.querySelector('section[aria-label="Lead escolhido"]');
+    expect(chosen?.textContent).toContain("(15) 99876-5432");
+    expect(chosen?.innerHTML).not.toMatch(/\b(?:text|bg|border)-(?:emerald|green|red|amber|yellow|orange|blue|sky|indigo|violet|purple|pink|rose|lime|teal|cyan)-\d/);
     await type(date, "2026-11-10");
     // Digitar o ano dígito a dígito passa por datas válidas (0002, 0020...): só grava ao confirmar.
     expect((await testDb().select<Lead[]>("SELECT * FROM leads WHERE id=?", ["a1"]))[0]?.outreach_date).toBe("2026-11-03");

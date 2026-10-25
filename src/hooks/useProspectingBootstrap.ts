@@ -16,7 +16,8 @@ export function useProspectingBootstrap(): void {
     ensureSiteProspectingSeed(session)
       .then((imported) => {
         if (!imported) return;
-        for (const key of ["projects", "tasks", "pm", "leads", "service-packages", "package-prices", "revenue-scenarios", "revenue-forecasts"]) {
+        // dashboard-kpis: o Dashboard costuma estar aberto no primeiro login e conta o projeto novo em "Projetos ativos".
+        for (const key of ["projects", "tasks", "pm", "leads", "service-packages", "package-prices", "revenue-scenarios", "revenue-forecasts", "dashboard-kpis"]) {
           qc.invalidateQueries({ queryKey: [key] });
         }
       })

@@ -1,10 +1,10 @@
 // Contas a receber da tela Financeiro: a descrição vai em `description` (0008), não mais em `ref_id`; criar e editar
-// acontecem na própria tabela.
+// acontecem na própria tabela, e o rascunho de uma aba não passa para a outra nem se perde ao ver o calendário.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { renderPage, until, type RenderedPage } from "@/test/pageHarness";
-import { addRow, cellField, editCell, saveTable, startEditing, tableOf } from "../testing/tableActions";
+import { click, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { addRow, cellField, editCell, rowOf, saveTable, startEditing, tableOf } from "../testing/tableActions";
 import FinancePage from "./FinancePage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -72,5 +72,26 @@ describe("FinancePage (contas a receber)", () => {
     await until(async () => (await receivable("rec-new")).description === "Parcela 1/3 - renegociada", "edição gravada");
     expect(await receivable("rec-new")).toMatchObject({ ref_type: "invoice", ref_id: "inv-1", amount: 300 });
     expect(await receivable("rec-old")).toMatchObject({ description: "Contrato antigo (revisado)", amount: 500 });
+  });
+
+  it("linha nova de A receber não aparece em A pagar, sobrevive ao calendário e é gravada como conta a receber", async () => {
+    await until(() => page.text().includes("Contrato antigo"), "lista de contas a receber");
+    const receivables = tableOf(page.container, "receivables");
+    await addRow(receivables);
+    await editCell(receivables, "nova", "description", "Serviço extra");
+    await editCell(receivables, "nova", "amount", "800");
+
+    await click(page.button("A pagar"));
+    await until(() => page.button("A pagar")?.getAttribute("aria-selected") === "true", "aba A pagar");
+    expect(rowOf(tableOf(page.container, "payables"), "nova")).toBeNull();
+
+    await click(page.button("A receber"));
+    await click(page.button("Calendário"));
+    await click(page.button("Lista"));
+    const table = tableOf(page.container, "receivables");
+    expect(cellField(table, "nova", "description").value).toBe("Serviço extra");
+    await saveTable(table);
+    await until(async () => (await testDb().select<ReceivableRow[]>("SELECT * FROM receivables WHERE description = ?", ["Serviço extra"])).length === 1, "conta a receber gravada");
+    expect(await testDb().select("SELECT id FROM payables")).toHaveLength(0);
   });
 });

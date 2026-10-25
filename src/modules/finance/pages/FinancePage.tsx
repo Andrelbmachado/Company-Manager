@@ -84,6 +84,20 @@ function matchesStatus(entry: FinanceEntry, filter: StatusFilter, today: string)
 const byDueDate = (a: FinanceEntry, b: FinanceEntry) =>
   (a.dueDate ?? "9999-99-99").localeCompare(b.dueDate ?? "9999-99-99") || a.description.localeCompare(b.description, "pt-BR");
 
+/** Contas que passam na situação e na busca (descrição, cliente/fornecedor, categoria ou documento), por vencimento. */
+function filterEntries(entries: FinanceEntry[], statusFilter: StatusFilter, term: string, lookups: FinanceLookups, today: string): FinanceEntry[] {
+  return entries
+    .filter((entry) => matchesStatus(entry, statusFilter, today))
+    .filter(
+      (entry) =>
+        !term ||
+        [entry.description, lookups.partyName(entry.kind, entry.partyId), lookups.categoryName(entry.categoryId), entry.raw.document_number ?? ""].some((value) =>
+          value.toLocaleLowerCase("pt-BR").includes(term),
+        ),
+    )
+    .sort(byDueDate);
+}
+
 function totals(entries: FinanceEntry[], today: string) {
   const open = entries.filter((entry) => entry.remaining > 0);
   const overdue = open.filter((entry) => isOverdue(entry, today));
@@ -159,7 +173,6 @@ export default function FinancePage() {
     receivables: { create: usePermission("create", "receivables"), edit: usePermission("edit", "receivables"), remove: usePermission("delete", "receivables"), approve: false },
   };
   const can = permissions[tab];
-  const kind = KIND[tab];
 
   const payablesQuery = useQuery({ queryKey: ["payables", companyId], queryFn: async () => loadPayables(await getDb(), companyId) });
   const receivablesQuery = useQuery({ queryKey: ["receivables", companyId], queryFn: async () => loadReceivables(await getDb(), companyId) });
@@ -193,19 +206,7 @@ export default function FinancePage() {
   const rec = totals(receivableEntries, today);
 
   const term = search.trim().toLocaleLowerCase("pt-BR");
-  const filtered = entries
-    .filter((entry) => matchesStatus(entry, statusFilter, today))
-    .filter(
-      (entry) =>
-        !term ||
-        [entry.description, lookups.partyName(entry.kind, entry.partyId), lookups.categoryName(entry.categoryId), entry.raw.document_number ?? ""].some((value) =>
-          value.toLocaleLowerCase("pt-BR").includes(term),
-        ),
-    )
-    .sort(byDueDate);
-  const listed = filtered.filter((entry) => !month || (entry.dueDate ?? "").startsWith(month));
-  const rows = listed.map((entry) => entryRow(entry, today));
-  const columns = useMemo(() => entryColumns(kind, lookups, byId, today), [kind, lookups, byId, today]);
+  const filtered = filterEntries(entries, statusFilter, term, lookups, today);
   const selectedEntry = selected ? (byId.get(selected.id) ?? null) : null;
   const partyLabel = tab === "payables" ? "Fornecedor" : "Cliente";
 
@@ -221,13 +222,12 @@ export default function FinancePage() {
     }));
   const withoutDueDate = filtered.filter((entry) => !entry.dueDate && entry.status !== "cancelada").length;
 
-  async function save(changes: EditableTableChanges<EntryRow>) {
-    const saved = await saveEntryChanges(await getDb(), ctx, kind, changes);
+  // Cada aba grava no próprio tipo (a tabela de uma aba nunca recebe o rascunho da outra).
+  async function save(entryKind: EntryKind, changes: EditableTableChanges<EntryRow>) {
+    const saved = await saveEntryChanges(await getDb(), ctx, entryKind, changes);
     invalidateFinance(qc, companyId);
     if (saved.created.length > 1) setNotice(`${saved.created.length} contas criadas.`);
   }
-
-  const refresh = () => qc.invalidateQueries({ queryKey: [ENTRY_RESOURCE[kind], companyId] });
 
   return (
     <div className="space-y-6">
@@ -266,43 +266,25 @@ export default function FinancePage() {
           <ViewToggle value={view} onChange={setView} />
         </PageToolbar>
 
-        {view === "lista" ? (
-          <div className="space-y-2">
-            <EditableTable<EntryRow>
-              resource={ENTRY_RESOURCE[kind]}
-              label={tab === "payables" ? "Contas a pagar" : "Contas a receber"}
-              rows={rows}
-              columns={columns}
-              loading={(tab === "payables" ? payablesQuery : receivablesQuery).isLoading}
-              newRow={() => ({ bank_account_id: lookups.defaultBankAccountId, due_date: month ? `${month}-10` : null })}
-              onSave={save}
-              onRefresh={refresh}
-              emptyMessage={statusFilter === "abertas" && !term && !month ? "Nada em aberto. Escolha a situação Todas para ver o histórico." : "Nenhuma conta com esses filtros."}
-              rowActions={(row) => {
-                const entry = byId.get(row.id);
-                if (!entry) return null;
-                return (
-                  <span className="flex justify-end gap-1.5">
-                    {can.edit && entry.remaining > 0 && entry.status !== "cancelada" && (
-                      <button type="button" onClick={() => setSelected({ id: entry.id, settle: true })} className={secondaryButton} aria-label={`Baixar ${entry.description}`}>
-                        <HandCoins size={14} aria-hidden="true" /> Baixar
-                      </button>
-                    )}
-                    <button type="button" onClick={() => setSelected({ id: entry.id, settle: false })} className={secondaryButton} aria-label={`Ficha de ${entry.description}`}>
-                      <FileText size={14} aria-hidden="true" /> Ficha
-                    </button>
-                  </span>
-                );
-              }}
-            />
-            {rows.length > 0 && (
-              <p className="px-1 text-sm text-muted-foreground">
-                Total ({rows.length}): valor {formatCurrency(sumMoney(listed.map((entry) => entry.amount)))} · {tab === "payables" ? "pago" : "recebido"}{" "}
-                {formatCurrency(sumMoney(listed.map((entry) => entry.paid)))} · saldo <span className="font-medium text-foreground">{formatCurrency(sumMoney(listed.map((entry) => entry.remaining)))}</span>
-              </p>
-            )}
-          </div>
-        ) : (
+        {TABS.map(({ id }) => (
+          <EntryList
+            key={id}
+            hidden={id !== tab || view !== "lista"}
+            kind={KIND[id]}
+            entries={id === "payables" ? payableEntries : receivableEntries}
+            loading={(id === "payables" ? payablesQuery : receivablesQuery).isLoading}
+            lookups={lookups}
+            today={today}
+            statusFilter={statusFilter}
+            term={term}
+            month={month}
+            can={permissions[id]}
+            onSave={(changes) => save(KIND[id], changes)}
+            onRefresh={() => qc.invalidateQueries({ queryKey: [ENTRY_RESOURCE[KIND[id]], companyId] })}
+            onSelect={(entryId, settle) => setSelected({ id: entryId, settle })}
+          />
+        ))}
+        {view === "calendario" && (
           <div className="space-y-2">
             <CalendarView items={calendarItems} date={month ? `${month}-01` : undefined} label={tab === "payables" ? "Vencimentos a pagar" : "Vencimentos a receber"} onSelect={(item) => setSelected({ id: item.id, settle: false })} />
             {withoutDueDate > 0 && (
@@ -325,6 +307,72 @@ export default function FinancePage() {
           onSettleOpen={(open) => setSelected({ id: selectedEntry.id, settle: open })}
           onClose={() => setSelected(null)}
         />
+      )}
+    </div>
+  );
+}
+
+interface EntryListProps {
+  kind: EntryKind;
+  hidden: boolean;
+  entries: FinanceEntry[];
+  loading: boolean;
+  lookups: FinanceLookups;
+  today: string;
+  statusFilter: StatusFilter;
+  term: string;
+  month: string;
+  can: EntryPermissions;
+  onSave(changes: EditableTableChanges<EntryRow>): Promise<void>;
+  onRefresh(): Promise<unknown>;
+  onSelect(id: string, settle: boolean): void;
+}
+
+/**
+ * Lista editável de um tipo de conta. As duas abas (e a lista enquanto o calendário aparece) ficam montadas e só se
+ * escondem: o rascunho de uma aba não vai parar na outra nem se perde em silêncio ao trocar de aba ou de visão.
+ */
+function EntryList({ kind, hidden, entries, loading, lookups, today, statusFilter, term, month, can, onSave, onRefresh, onSelect }: EntryListProps) {
+  const payable = kind === "payable";
+  const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
+  const listed = filterEntries(entries, statusFilter, term, lookups, today).filter((entry) => !month || (entry.dueDate ?? "").startsWith(month));
+  const rows = listed.map((entry) => entryRow(entry, today));
+  const columns = useMemo(() => entryColumns(kind, lookups, byId, today), [kind, lookups, byId, today]);
+
+  return (
+    <div hidden={hidden} className="space-y-2">
+      <EditableTable<EntryRow>
+        resource={ENTRY_RESOURCE[kind]}
+        label={payable ? "Contas a pagar" : "Contas a receber"}
+        rows={rows}
+        columns={columns}
+        loading={loading}
+        newRow={() => ({ bank_account_id: lookups.defaultBankAccountId, due_date: month ? `${month}-10` : null })}
+        onSave={onSave}
+        onRefresh={onRefresh}
+        emptyMessage={statusFilter === "abertas" && !term && !month ? "Nada em aberto. Escolha a situação Todas para ver o histórico." : "Nenhuma conta com esses filtros."}
+        rowActions={(row) => {
+          const entry = byId.get(row.id);
+          if (!entry) return null;
+          return (
+            <span className="flex justify-end gap-1.5">
+              {can.edit && entry.remaining > 0 && entry.status !== "cancelada" && (
+                <button type="button" onClick={() => onSelect(entry.id, true)} className={secondaryButton} aria-label={`Baixar ${entry.description}`}>
+                  <HandCoins size={14} aria-hidden="true" /> Baixar
+                </button>
+              )}
+              <button type="button" onClick={() => onSelect(entry.id, false)} className={secondaryButton} aria-label={`Ficha de ${entry.description}`}>
+                <FileText size={14} aria-hidden="true" /> Ficha
+              </button>
+            </span>
+          );
+        }}
+      />
+      {rows.length > 0 && (
+        <p className="px-1 text-sm text-muted-foreground">
+          Total ({rows.length}): valor {formatCurrency(sumMoney(listed.map((entry) => entry.amount)))} · {payable ? "pago" : "recebido"}{" "}
+          {formatCurrency(sumMoney(listed.map((entry) => entry.paid)))} · saldo <span className="font-medium text-foreground">{formatCurrency(sumMoney(listed.map((entry) => entry.remaining)))}</span>
+        </p>
       )}
     </div>
   );

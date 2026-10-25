@@ -40,6 +40,15 @@ describe("ReferralPanel", () => {
     expect(cellTexts(referred)).toEqual(["Mercado", "Oficina"]);
     expect(cellTexts(referrers)).toEqual(["Carla", "Bruno", "Ana"]);
   });
+
+  it("as regras do programa ficam num details fechado, não num cartão de texto aberto na tela", async () => {
+    page = await renderPage(<ReferralPanel leads={[]} />, { companyId: "empresa-1" });
+    const rule = [...document.querySelectorAll("li")].find((item) => item.textContent?.includes("contrato assinado e pago"));
+    const details = rule?.closest("details");
+    expect(details).toBeTruthy();
+    expect(details!.open).toBe(false);
+    expect(details!.querySelector("summary")?.textContent).toBe("Como funciona");
+  });
 });
 
 describe("ForecastPanel", () => {

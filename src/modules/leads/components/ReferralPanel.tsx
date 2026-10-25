@@ -42,15 +42,16 @@ export function ReferralPanel({ leads }: { leads: Lead[] }) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-card p-5">
-        <h2 className="font-semibold">Como funciona</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+      {/* Regras do programa só sob demanda (AGENTS.md §5: nada de texto explicando regra de negócio aberto na tela). */}
+      <details className="rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground">Como funciona</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>Só vale quando o indicado fecha o negócio: contrato assinado e pago. Indicação que não fecha não conta nem gera benefício para ninguém.</li>
           <li>Por indicado que fechar, quem indicou ganha {months(REFERRAL_RULES.monthsPerClosed)} grátis na mensalidade e o indicado ganha {REFERRAL_RULES.referredSetupDiscount * 100}% de desconto no setup.</li>
           <li>Bônus de nível para quem indica: {tierText}{REFERRAL_RULES.cumulative ? " (os níveis se somam)" : " (não se somam: vale o maior nível atingido)"}.</li>
           <li>Vale para qualquer pacote: Básico, Essencial ou Premium.</li>
         </ul>
-      </section>
+      </details>
 
       {referrers.length === 0 ? (
         <EmptyState icon={Gift} title="Nenhuma indicação registrada" />

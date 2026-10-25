@@ -179,4 +179,18 @@ describe("AppShell", () => {
     );
     expect(scrollers).toEqual([nav, main]);
   });
+
+  it("elemento absoluto (sr-only) fica dentro da área que rola e não dá altura de rolagem à janela", async () => {
+    // A tabela sr-only do gráfico do Dashboard (absoluta, sem ancestral posicionado) saía do main e da casca: a janela
+    // ganhava altura para rolar mesmo com overflow hidden. Main, casca e cada grupo da sidebar seguram os absolutos.
+    localStorage.setItem("cm_sidebar_collapsed", "true");
+    await openShell();
+    const shell = sidebar().parentElement!;
+    expect(shell.classList.contains("relative")).toBe(true);
+    expect(shell.querySelector("main")!.classList.contains("relative")).toBe(true);
+    const groupTitles = [...sidebar().querySelectorAll("nav[aria-label=Módulos] p.sr-only")];
+    expect(groupTitles.length).toBeGreaterThan(0);
+    for (const title of groupTitles) expect(title.parentElement!.classList.contains("relative")).toBe(true);
+  });
+
 });

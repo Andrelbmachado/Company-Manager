@@ -132,6 +132,13 @@
   table {
     font-variant-numeric: tabular-nums;
   }
+  /*
+   * Tabela só para leitor de tela (a do gráfico do Dashboard): tabela não encolhe até o 1 px do .sr-only (fica da
+   * largura do conteúdo) e alargava a área que rola. Com layout fixo ela respeita a largura e continua sendo tabela.
+   */
+  table.sr-only {
+    table-layout: fixed;
+  }
 }
 
 @layer components {

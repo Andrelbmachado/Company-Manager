@@ -244,7 +244,8 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
           className={cn("flex-1 overflow-y-auto overscroll-contain py-3", rail ? "px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "px-2.5")}
         >
           {Object.entries(groups).map(([group, items]) => (
-            <div key={group} className={cn("space-y-1", rail ? "mb-3 border-b border-sidebar-border pb-3 last:mb-0 last:border-b-0 last:pb-0" : "mb-5")}>
+            // relative: o título sr-only do grupo (absoluto) fica dentro da lista que rola, não estica a sidebar.
+            <div key={group} className={cn("relative space-y-1", rail ? "mb-3 border-b border-sidebar-border pb-3 last:mb-0 last:border-b-0 last:pb-0" : "mb-5")}>
               <p className={cn("px-2.5 pb-1.5 text-xs font-semibold text-muted-foreground", rail && "sr-only")}>
                 {group}
               </p>

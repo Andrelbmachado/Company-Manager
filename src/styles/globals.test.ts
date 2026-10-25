@@ -82,4 +82,9 @@ describe("janela travada: só a área de conteúdo rola", () => {
     expect(root).toMatch(/overflow:\s*hidden/);
     expect(root).toMatch(/overscroll-behavior:\s*none/);
   });
+
+  it("tabela sr-only respeita a largura de 1 px (sem layout fixo ela fica da largura do conteúdo e cria rolagem lateral)", () => {
+    expect(rule(css, "table.sr-only")).toMatch(/table-layout:\s*fixed/);
+  });
 });
+

@@ -60,7 +60,7 @@ export default function MyTimeBankPage() {
 
   const columns: EditableColumn<TimeEntryRow>[] = [
     { key: "entry_date", header: "Data", kind: "date", required: true },
-    { key: "hours", header: "Horas", kind: "text", required: true, placeholder: "1:30 ou -2h", render: (entry) => <span className={cn("font-medium tabular-nums", balanceTone(entry.minutes))}>{entry.hours}</span> },
+    { key: "hours", header: "Horas", kind: "text", required: true, placeholder: "1:30 ou -2h", sortKind: "number", sortValue: (entry) => (Number(entry.minutes) || 0) / 60, render: (entry) => <span className={cn("font-medium tabular-nums", balanceTone(entry.minutes))}>{entry.hours}</span> },
     { key: "reason", header: "Motivo", kind: "text", required: true, placeholder: "Ex.: plantão, entrega para cliente" },
     { key: "status", header: "Status", kind: "select", options: STATUSES, readOnly: true, render: (entry) => <StatusBadge status={entry.status} tone={entry.status === "aprovada" ? "success" : undefined} /> },
   ];

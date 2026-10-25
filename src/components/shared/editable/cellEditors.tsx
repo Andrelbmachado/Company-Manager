@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import { cleanText, normalizeField, normalizeValue } from "@/lib/importexport/normalize";
 import { cn, formatCurrency, formatDay } from "@/lib/utils";
+import type { SortKind } from "../table/sortFilter";
 
 export type ColumnKind = "text" | "number" | "money" | "date" | "select" | "bool" | "email" | "phone";
 
@@ -28,6 +29,8 @@ export interface EditableColumn<T> {
   filterable?: boolean;
   /** Valor usado para ordenar e filtrar quando não é `row[key]` (ex.: coluna com `render` de outro cadastro). */
   sortValue?: (row: T) => unknown;
+  /** Tipo de ordenar/filtrar quando difere do editor (ex.: horas digitadas como "1:30", comparadas como número). */
+  sortKind?: SortKind;
 }
 
 export type CellParse = { ok: true; value: unknown } | { ok: false; reason: string };

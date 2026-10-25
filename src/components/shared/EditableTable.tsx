@@ -6,7 +6,7 @@
 // linha alterada que o filtro esconde continua no Salvar. Editar e Adicionar seguem
 // can(papel, "edit" | "create", resource); a tela que recebe o onSave continua tendo de conferir a permissão na
 // camada de dados. Valores digitados passam pelo normalizador da importação (1.234,56 e 31/12/2025 funcionam).
-import { useId, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
 import { confirmAction } from "@/lib/confirm";
@@ -14,7 +14,7 @@ import type { Resource } from "@/lib/permissions/rbac";
 import { cn } from "@/lib/utils";
 import { CellEditor, cellText, displayCell, type EditableColumn } from "./editable/cellEditors";
 import { collectChanges, draftText, hasChanges, hiddenChangedRows, isRowChanged, useRowDrafts } from "./editable/useRowDrafts";
-import { IconButton, NO_FILTER_MATCH, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterButton, TH_CLASS, useSortFilter } from "./table";
+import { IconButton, NO_FILTER_MATCH, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterButton, TH_CLASS, useSortFilter, type SortFilterColumn } from "./table";
 
 export type { ColumnKind, EditableColumn } from "./editable/cellEditors";
 
@@ -76,7 +76,9 @@ export function EditableTable<T extends { id: string }>({
   const [busy, setBusy] = useState<"saving" | "refreshing" | null>(null);
   const [message, setMessage] = useState<{ kind: "status" | "error"; text: string } | null>(null);
   const tableId = useId();
-  const view = useSortFilter(rows, columns);
+  // `sortKind` troca só o tipo de ordenar/filtrar (o editor continua pelo `kind`).
+  const sortColumns = useMemo<SortFilterColumn<T>[]>(() => columns.map((column) => (column.sortKind ? { ...column, kind: column.sortKind } : column)), [columns]);
+  const view = useSortFilter(rows, sortColumns);
   const visibleRows = view.rows;
 
   const created = drafts.state.created;

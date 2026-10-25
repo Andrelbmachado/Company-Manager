@@ -195,6 +195,30 @@ describe("Saldo por colaborador", () => {
   });
 });
 
+describe("Lançamentos do banco de horas", () => {
+  it("Horas ordena e filtra pelo tempo (negativo maior antes), não pelo texto", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    const ana = await newEmployee("Ana Lima");
+    for (const minutes of [-30, 90, -120]) {
+      const id = await addTimeEntry(db, C, { employeeId: ana, date: todayIso(), minutes, reason: `Ajuste ${minutes}` }, "test-user-rh", todayIso());
+      await decideTimeEntry(db, C, id, true, "test-user-rh");
+    }
+    await render("rh", "/hr/manage/banco-de-horas", "/hr/manage/banco-de-horas", <TimeBankPage />);
+    await waitFor(() => has("Ajuste -120"), "lançamentos");
+    await click("Todos");
+    const table = () => container.querySelector<HTMLElement>("[data-editable-table]")!;
+    const hoursOf = () => [...table().querySelectorAll("tr[data-row-key] td[data-column='hours']")].map((item) => item.textContent?.replace("−", "-"));
+    await waitFor(() => hoursOf().length === 3, "três lançamentos");
+    await click(table().querySelector<HTMLElement>("th [data-sort-key='hours']")!);
+    expect(hoursOf()).toEqual(["-2h00", "-0h30", "+1h30"]);
+
+    await click(table().querySelector<HTMLElement>("button[aria-label='Filtrar']")!);
+    await setCell("Horas: mínimo", "-1");
+    expect(hoursOf()).toEqual(["-0h30", "+1h30"]);
+  });
+});
+
 describe("Meu banco de horas (qualquer colaborador)", () => {
   it("informa horas (pendente para o RH) e retira o pedido", async () => {
     const db = testDb();

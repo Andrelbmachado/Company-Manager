@@ -155,7 +155,7 @@ describe("ImportsPage", () => {
 });
 
 describe("ImportHistoryPage", () => {
-  it("lista as importações e abre o detalhe com os erros e as colunas usadas", async () => {
+  it("lista as importações e abre o detalhe na própria página (sem diálogo) com os erros e as colunas usadas", async () => {
     await renderPage(<ImportHistoryPage />, "ceo", "/imports/historico", async (db, companyId) => {
       await db.execute(
         "INSERT INTO import_batches (id, company_id, entity, filename, format, mode, status, rows_total, rows_ok, rows_err, inserted, updated, errors_json, mapping_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -166,11 +166,12 @@ describe("ImportHistoryPage", () => {
     expect(text()).toContain("Produtos e serviços");
     expect(text()).toContain("Com erros");
     await click(container.querySelector("tbody tr button"));
-    await until(() => Boolean(container.querySelector('[role="dialog"]')), "detalhe");
-    const dialog = container.querySelector('[role="dialog"]')!.textContent ?? "";
-    expect(dialog).toContain("Preço de venda: valor inválido");
-    expect(dialog).toContain("→ Preço de venda");
-    expect(dialog).toContain("Baixar relatório de erros (CSV)");
+    await until(() => Boolean(container.querySelector('section[aria-label="produtos.xlsx"]')), "detalhe");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    const detail = container.querySelector('section[aria-label="produtos.xlsx"]')!.textContent ?? "";
+    expect(detail).toContain("Preço de venda: valor inválido");
+    expect(detail).toContain("→ Preço de venda");
+    expect(detail).toContain("Baixar relatório de erros (CSV)");
   });
 
   it("só mostra importações de cadastros que o papel pode ver (os erros trazem CPF, valores, nomes)", async () => {

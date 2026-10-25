@@ -1,9 +1,10 @@
 // Travas da integração dos branches (Tarefa 0): nenhum TODO(integração) sobrando, nenhuma confirmação pelo
 // window.confirm (no WebView do desktop ele não espera a resposta: a exclusão acontecia sem perguntar; use
 // confirmAction de src/lib/confirm.ts, o ConfirmDialog do CRM ou o botão de dois passos do Financeiro) e nenhum
-// ImportExportButtons de cadastro sem importador (os botões ficariam sempre desativados na tela).
+// ImportExportButtons de cadastro sem importador (os botões ficariam sempre desativados na tela). Depois do redesign
+// (Fase C), nenhuma tela usa CrudDialog nem DetailDrawer: edição e detalhe ficam na própria página.
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { registry } from "@/lib/importexport/registry";
 
@@ -38,5 +39,10 @@ describe("integração dos branches", () => {
       }
     }
     expect(unregistered).toEqual([]);
+  });
+
+  it("nenhuma tela edita ou mostra registro em modal de formulário ou gaveta lateral (redesign: tudo no próprio lugar)", () => {
+    const offenders = files.filter((file) => file.path.startsWith(`modules${sep}`) && /from\s+["'][^"']*\/(CrudDialog|DetailDrawer)["']/.test(file.text)).map((file) => file.path);
+    expect(offenders).toEqual([]);
   });
 });

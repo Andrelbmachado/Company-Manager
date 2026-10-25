@@ -1,9 +1,9 @@
-// Histórico de importações (import_batches): quando, qual cadastro, arquivo, resultado e os erros de cada uma.
+// Histórico de importações (import_batches): quando, qual cadastro, arquivo, resultado e os erros de cada uma. O detalhe
+// abre na própria página, abaixo da lista (sem gaveta lateral, como o resto do app depois do redesign).
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FileUp, History } from "lucide-react";
-import { DetailDrawer, DetailGrid, DetailItem } from "@/components/shared/DetailDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
@@ -17,6 +17,7 @@ import { MAX_STORED_ERRORS } from "@/lib/importexport/runImport";
 import { saveBlob } from "@/lib/importexport/saveFile";
 import { can } from "@/lib/permissions/rbac";
 import { formatDateTime } from "@/lib/utils";
+import { InfoGrid, InfoItem, InlinePanel } from "@/modules/finance/components/inline";
 import type { ImportBatch, Role } from "@/types";
 import { ResultReport } from "../components/ResultReport";
 
@@ -124,12 +125,12 @@ export default function ImportHistoryPage() {
         </div>
       )}
 
-      {selected && <BatchDrawer batch={selected} onClose={() => setSelected(null)} isMine={selected.created_by === session.user.id} />}
+      {selected && <BatchDetail key={selected.id} batch={selected} onClose={() => setSelected(null)} isMine={selected.created_by === session.user.id} />}
     </div>
   );
 }
 
-function BatchDrawer({ batch, onClose, isMine }: { batch: ImportBatch; onClose: () => void; isMine: boolean }) {
+function BatchDetail({ batch, onClose, isMine }: { batch: ImportBatch; onClose: () => void; isMine: boolean }) {
   const entity = getEntity(batch.entity);
   const errors = parseJson<ImportRowError[]>(batch.errors_json, []);
   const mapping = parseJson<Record<string, string>>(batch.mapping_json, {});
@@ -142,16 +143,16 @@ function BatchDrawer({ batch, onClose, isMine }: { batch: ImportBatch; onClose: 
   }
 
   return (
-    <DetailDrawer title={batch.filename ?? "Importação"} subtitle={`${entityLabel(batch.entity)} · ${when(batch.created_at)}`} onClose={onClose}>
+    <InlinePanel title={batch.filename ?? "Importação"} subtitle={`${entityLabel(batch.entity)} · ${when(batch.created_at)}`} onClose={onClose}>
       <div className="space-y-6">
-        <DetailGrid>
-          <DetailItem label="Situação" value={<StatusBadge status={batch.status} />} />
-          <DetailItem label="Formato" value={batch.format ? batch.format.toUpperCase() : null} />
-          <DetailItem label="Aba" value={batch.sheet_name} />
-          <DetailItem label="Se houvesse erro" value={MODE_LABEL[batch.mode] ?? batch.mode} />
-          <DetailItem label="Feita por" value={isMine ? "Você" : batch.created_by ? "Outra pessoa da empresa" : null} />
-          <DetailItem label="Concluída em" value={when(batch.finished_at)} />
-        </DetailGrid>
+        <InfoGrid>
+          <InfoItem label="Situação" value={<StatusBadge status={batch.status} />} />
+          <InfoItem label="Formato" value={batch.format ? batch.format.toUpperCase() : null} />
+          <InfoItem label="Aba" value={batch.sheet_name} />
+          <InfoItem label="Se houvesse erro" value={MODE_LABEL[batch.mode] ?? batch.mode} />
+          <InfoItem label="Feita por" value={isMine ? "Você" : batch.created_by ? "Outra pessoa da empresa" : null} />
+          <InfoItem label="Concluída em" value={when(batch.finished_at)} />
+        </InfoGrid>
 
         {entity ? (
           <ResultReport
@@ -188,6 +189,6 @@ function BatchDrawer({ batch, onClose, isMine }: { batch: ImportBatch; onClose: 
           </section>
         )}
       </div>
-    </DetailDrawer>
+    </InlinePanel>
   );
 }

@@ -5,6 +5,7 @@ import { Paperclip } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileTypeIcon } from "@/components/shared/FileTypeIcon";
 import { PageToolbar } from "@/components/shared/PageToolbar";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { attachmentEntity, attachmentEntityLabel, attachmentEntityNames, canViewAttachmentsOf } from "@/lib/files/entities";
 import { formatBytes, formatTimestamp } from "@/lib/files/format";
 import { listAllAttachments } from "@/lib/files/store";
@@ -39,6 +40,14 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
   const list = visible.filter(
     (doc) => (!type || doc.entity_type === type) && (!needle || foldName(doc.title).includes(needle) || foldName(ownerName(doc)).includes(needle)),
   );
+  const columns: SortFilterColumn<DocumentRow>[] = [
+    { key: "title", header: "Arquivo", kind: "text" },
+    { key: "owner", header: "Registro", kind: "text", sortValue: (doc) => `${attachmentEntityLabel(doc.entity_type ?? "")}: ${ownerName(doc)}` },
+    { key: "version", header: "Versão", kind: "integer" },
+    { key: "size_bytes", header: "Tamanho", kind: "number", filterable: false },
+    { key: "created_at", header: "Enviado em", kind: "datetime" },
+  ];
+  const view = useSortFilter(list, columns);
 
   function ownerCell(doc: DocumentRow) {
     const entity = attachmentEntity(doc.entity_type);
@@ -61,6 +70,7 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
             {types.map((entityType) => <option key={entityType} value={entityType}>{attachmentEntityLabel(entityType)}</option>)}
           </select>
         </label>
+        {visible.length > 0 && <TableFilterButton view={view} />}
       </PageToolbar>
 
       {isLoading ? (
@@ -74,34 +84,36 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
           description={visible.length === 0 ? "Arquivos anexados nas fichas (clientes, faturas, colaboradores...) aparecem aqui." : "Mude a busca ou o filtro."}
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-3 py-2 font-medium">Arquivo</th>
-                <th scope="col" className="px-3 py-2 font-medium">Registro</th>
-                <th scope="col" className="px-3 py-2 font-medium">Versão</th>
-                <th scope="col" className="px-3 py-2 font-medium">Tamanho</th>
-                <th scope="col" className="px-3 py-2 font-medium">Enviado em</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {list.map((doc) => (
-                <tr key={doc.id} className="hover:bg-muted/30">
-                  <td className="px-3 py-2">
-                    <button type="button" onClick={() => setSelected(doc)} aria-expanded={selected?.id === doc.id} className="flex items-center gap-2 text-left font-medium hover:underline">
-                      <FileTypeIcon name={doc.title} fileType={doc.type} size={16} className="shrink-0 text-muted-foreground" />
-                      {doc.title}
-                    </button>
-                  </td>
-                  <td className="px-3 py-2">{ownerCell(doc)}</td>
-                  <td className="px-3 py-2">v{doc.version}</td>
-                  <td className="px-3 py-2">{doc.size_bytes ? formatBytes(doc.size_bytes) : "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{formatTimestamp(doc.created_at)}</td>
+        <div className="rounded-lg border">
+          <TableFilterBar view={view} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                <tr>
+                  {columns.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} className="px-3 py-2" />
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {view.rows.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-muted/30">
+                    <td className="px-3 py-2">
+                      <button type="button" onClick={() => setSelected(doc)} aria-expanded={selected?.id === doc.id} className="flex items-center gap-2 text-left font-medium hover:underline">
+                        <FileTypeIcon name={doc.title} fileType={doc.type} size={16} className="shrink-0 text-muted-foreground" />
+                        {doc.title}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2">{ownerCell(doc)}</td>
+                    <td className="px-3 py-2">v{doc.version}</td>
+                    <td className="px-3 py-2">{doc.size_bytes ? formatBytes(doc.size_bytes) : "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{formatTimestamp(doc.created_at)}</td>
+                  </tr>
+                ))}
+                {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

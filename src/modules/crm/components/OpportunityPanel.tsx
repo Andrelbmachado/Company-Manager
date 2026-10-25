@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { FilePlus2, Pencil, ThumbsDown, Trash2, Trophy } from "lucide-react";
+import { FilePlus2, ThumbsDown, Trash2, Trophy } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { confirmAction } from "@/lib/confirm";
 import { getDb } from "@/lib/db/client";
@@ -86,7 +87,7 @@ export function OpportunityPanel({ opportunityId, onClose }: { opportunityId: st
       title={opportunity.title}
       subtitle={`Oportunidade · ${STAGE_LABELS[opportunity.stage]}`}
       onClose={onClose}
-      actions={canEdit && !editing ? <button type="button" onClick={() => setEditing(true)} className={BTN_SECONDARY}><Pencil size={14} /> Editar oportunidade</button> : undefined}
+      actions={canEdit && !editing ? <IconButton label="Editar oportunidade" icon={TABLE_ICONS.edit} onClick={() => setEditing(true)} /> : undefined}
     >
       <div className="space-y-6">
         {editing && <OpportunityForm key={opportunity.id} opportunity={opportunity} onClose={() => setEditing(false)} />}

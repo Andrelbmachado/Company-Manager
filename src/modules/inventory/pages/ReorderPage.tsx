@@ -7,17 +7,43 @@ import { formatSequence } from "@/lib/db/sequence";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
 import { emit } from "@/lib/events/bus";
-import { isAtReorderPoint, loadStockSnapshot } from "@/lib/inventory/queries";
+import { isAtReorderPoint, loadStockSnapshot, type StockItemRow } from "@/lib/inventory/queries";
 import { createReorderPurchaseOrders, onOrderByItem, reorderSuggestions, type CreatedPurchaseOrder, type ReorderSuggestion } from "@/lib/inventory/reorder";
 import { formatQty } from "@/lib/inventory/stock";
 import { lineTotal, sumMoney } from "@/lib/money";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, nextSort, sortRows, useSortFilter, type SortFilterColumn, type SortState } from "@/components/shared/table";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { BUTTON_PRIMARY, ErrorBanner, errorText, Field, INPUT, inventoryKeys, parseDecimal, TableSkeleton, useInvalidateInventory } from "../components/inventoryUi";
 
 const NO_SUPPLIER = "Sem fornecedor cadastrado";
+
+// Folha de sugestão: o cabeçalho ordena as linhas dentro de cada fornecedor (um clique vale para todos os grupos).
+// Comprar e Total mudam enquanto se digita, então não ordenam (a linha fugiria do cursor). Não há filtro aqui: item
+// escondido continuaria marcado e entraria no pedido sem aparecer na tela.
+const SUGGESTION_COLUMNS: SortFilterColumn<ReorderSuggestion>[] = [
+  { key: "name", header: "Item", kind: "text", sortValue: (row) => [row.name, row.sku].filter(Boolean).join(" ") },
+  { key: "on_hand", header: "Saldo", kind: "number" },
+  { key: "on_order", header: "Em pedido", kind: "number" },
+  { key: "min_stock", header: "Mínimo", kind: "number" },
+  { key: "max_stock", header: "Máximo", kind: "number" },
+  { key: "qty", header: "Comprar", kind: "number", sortable: false, filterable: false },
+  { key: "cost", header: "Custo unit.", kind: "money" },
+  { key: "total", header: "Total", kind: "money", sortable: false, filterable: false },
+];
+
+type CoveredItem = StockItemRow & { on_order: number };
+
+const COVERED_COLUMNS: SortFilterColumn<CoveredItem>[] = [
+  { key: "name", header: "Item", kind: "text", sortValue: (item) => [item.name, item.sku].filter(Boolean).join(" ") },
+  { key: "total", header: "Saldo", kind: "number" },
+  { key: "min_stock", header: "Mínimo", kind: "number", sortValue: (item) => item.min_stock ?? 0 },
+  { key: "on_order", header: "Em pedido", kind: "number" },
+];
+
+const REORDER_TH = "px-4 py-2 text-sm";
 
 export default function ReorderPage() {
   const session = useRequiredSession();
@@ -46,10 +72,14 @@ export default function ReorderPage() {
   });
   const locations = snapshot?.locations ?? [];
   // Abaixo do mínimo, mas o que já está em pedido de compra aberto cobre a reposição: não entra na sugestão.
-  const suggested = new Set(suggestions.map((row) => row.item_id));
-  const covered = (snapshot?.items ?? [])
-    .filter((item) => isAtReorderPoint(item.total, item.min_stock) && !suggested.has(item.id))
-    .map((item) => ({ ...item, on_order: onOrder?.get(item.id) ?? 0 }));
+  const covered = useMemo<CoveredItem[]>(() => {
+    const suggested = new Set(suggestions.map((row) => row.item_id));
+    return (snapshot?.items ?? [])
+      .filter((item) => isAtReorderPoint(item.total, item.min_stock) && !suggested.has(item.id))
+      .map((item) => ({ ...item, on_order: onOrder?.get(item.id) ?? 0 }));
+  }, [snapshot, suggestions, onOrder]);
+  const coveredView = useSortFilter(covered, COVERED_COLUMNS);
+  const [groupSort, setGroupSort] = useState<SortState | null>(null);
 
   useEffect(() => {
     if (locationId === null && locations[0]) setLocationId(locations[0].id);
@@ -186,18 +216,22 @@ export default function ReorderPage() {
                   <thead>
                     <tr className="whitespace-nowrap text-muted-foreground">
                       <th className="w-10 px-4 py-2" />
-                      <th className="min-w-[12rem] px-4 py-2 text-left font-medium">Item</th>
-                      <th className="px-4 py-2 text-right font-medium">Saldo</th>
-                      <th className="px-4 py-2 text-right font-medium">Em pedido</th>
-                      <th className="px-4 py-2 text-right font-medium">Mínimo</th>
-                      <th className="px-4 py-2 text-right font-medium">Máximo</th>
-                      <th className="w-32 px-4 py-2 text-left font-medium">Comprar</th>
-                      <th className="px-4 py-2 text-right font-medium">Custo unit.</th>
-                      <th className="px-4 py-2 text-right font-medium">Total</th>
+                      {SUGGESTION_COLUMNS.map((column) => (
+                        <SortableHeader
+                          key={column.key}
+                          label={column.header}
+                          sortKey={column.key}
+                          sort={groupSort}
+                          onSort={(key) => setGroupSort((current) => nextSort(current, key))}
+                          sortable={column.sortable !== false}
+                          align={column.kind === "text" || column.key === "qty" ? "left" : "right"}
+                          className={cn(REORDER_TH, column.key === "name" && "min-w-[12rem]", column.key === "qty" && "w-32")}
+                        />
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {rows.map((row) => {
+                    {sortRows(rows, SUGGESTION_COLUMNS, groupSort).map((row) => {
                       const qty = qtyOf(row);
                       return (
                         <tr key={row.item_id}>
@@ -270,34 +304,45 @@ export default function ReorderPage() {
       )}
 
       {!isLoading && covered.length > 0 && (
-        <section className="overflow-x-auto rounded-xl border" aria-labelledby="reorder-covered-title">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-4 py-2.5">
+        <section className="rounded-xl border" aria-labelledby="reorder-covered-title">
+          <TableFilterToolbar view={coveredView} className="bg-muted/20 px-4 py-2.5">
             <h2 id="reorder-covered-title" className="text-sm font-semibold">Abaixo do mínimo, já cobertos por pedido de compra</h2>
             <Link to="/purchasing" className="text-sm text-primary-text hover:underline">Ver pedidos de compra</Link>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="whitespace-nowrap text-muted-foreground">
-                <th className="min-w-[12rem] px-4 py-2 text-left font-medium">Item</th>
-                <th className="px-4 py-2 text-right font-medium">Saldo</th>
-                <th className="px-4 py-2 text-right font-medium">Mínimo</th>
-                <th className="px-4 py-2 text-right font-medium">Em pedido</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {covered.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-4 py-2">
-                    <p className="font-medium">{item.name}</p>
-                    {item.sku && <p className="text-xs text-muted-foreground">{item.sku}</p>}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-status-danger dark:text-red-400">{formatQty(item.total, item.unit)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{formatQty(item.min_stock ?? 0)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatQty(item.on_order, item.unit)}</td>
+          </TableFilterToolbar>
+          <TableFilterBar view={coveredView} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="whitespace-nowrap text-muted-foreground">
+                  {COVERED_COLUMNS.map((column) => (
+                    <SortableHeader
+                      key={column.key}
+                      label={column.header}
+                      sortKey={column.key}
+                      sort={coveredView.sort}
+                      onSort={coveredView.toggleSort}
+                      align={column.kind === "text" ? "left" : "right"}
+                      className={cn(REORDER_TH, column.key === "name" && "min-w-[12rem]")}
+                    />
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {coveredView.rows.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-2">
+                      <p className="font-medium">{item.name}</p>
+                      {item.sku && <p className="text-xs text-muted-foreground">{item.sku}</p>}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums text-status-danger dark:text-red-400">{formatQty(item.total, item.unit)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{formatQty(item.min_stock ?? 0)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatQty(item.on_order, item.unit)}</td>
+                  </tr>
+                ))}
+                {!coveredView.rows.length && <NoFilterMatchRow colSpan={COVERED_COLUMNS.length} />}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

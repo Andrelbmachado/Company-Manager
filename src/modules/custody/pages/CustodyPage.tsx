@@ -79,10 +79,10 @@ export default function CustodyPage() {
     { key: "holder_id", header: "Responsável", kind: "select", required: true, options: holderOptions, render: (row) => row.holder_name ?? "—" },
     { key: "quantity", header: "Qtd.", kind: "number", required: true, width: 90 },
     { key: "status", header: "Status", kind: "select", required: true, options: CUSTODY_STATUSES, render: (row) => <StatusBadge status={row.status} /> },
-    { key: "checked_out_at", header: "Retirada", kind: "text", readOnly: true, render: (row) => <span className="text-muted-foreground">{formatDateTime(row.checked_out_at)}</span> },
+    { key: "checked_out_at", header: "Retirada", kind: "date", readOnly: true, render: (row) => <span className="text-muted-foreground">{formatDateTime(row.checked_out_at)}</span> },
     { key: "due_back_at", header: "Devolução prevista", kind: "date" },
     { key: "work_order_id", header: "OS", kind: "select", options: orderOptions, render: (row) => row.work_order_number ?? "—" },
-    { key: "returned_at", header: "Devolvido em", kind: "text", readOnly: true, render: (row) => (row.returned_at ? formatDateTime(row.returned_at) : "—") },
+    { key: "returned_at", header: "Devolvido em", kind: "date", readOnly: true, render: (row) => (row.returned_at ? formatDateTime(row.returned_at) : "—") },
   ];
 
   function invalidate() {

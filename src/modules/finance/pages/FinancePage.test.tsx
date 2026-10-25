@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { click, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { click, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
 import { addRow, cellField, editCell, rowOf, saveTable, startEditing, tableOf } from "../testing/tableActions";
 import FinancePage from "./FinancePage";
 
@@ -93,5 +93,24 @@ describe("FinancePage (contas a receber)", () => {
     await saveTable(table);
     await until(async () => (await testDb().select<ReceivableRow[]>("SELECT * FROM receivables WHERE description = ?", ["Serviço extra"])).length === 1, "conta a receber gravada");
     expect(await testDb().select("SELECT id FROM payables")).toHaveLength(0);
+  });
+
+  it("Parcelas ordena e filtra pelo número da parcela mostrado (n/total), não pelo campo de gerar parcelas da linha nova", async () => {
+    const db = testDb();
+    const [{ company_id: companyId }] = await db.select<{ company_id: string }[]>("SELECT company_id FROM receivables WHERE id = 'rec-old'");
+    await db.execute("UPDATE receivables SET installment_number = 2, installment_count = 3 WHERE id = 'rec-new'");
+    await db.execute("INSERT INTO receivables (id, company_id, description, amount, status, installment_number, installment_count) VALUES ('rec-p1', ?, 'Primeira parcela', 300, 'aberta', 1, 3)", [companyId]);
+    page.unmount();
+    page = await renderPage(<FinancePage />, { companyId });
+    await until(() => page.text().includes("Primeira parcela") && page.text().includes("Contrato antigo"), "lista de contas a receber");
+    const table = tableOf(page.container, "receivables");
+    const parcels = () => [...table.querySelectorAll("tr[data-row-key] td[data-column='installments']")].map((cell) => cell.textContent);
+    await click(table.querySelector("th [data-sort-key='installments']"));
+    expect(parcels()).toEqual(["1/3", "2/3", "—"]);
+    await click(table.querySelector("th [data-sort-key='installments']"));
+    expect(parcels()).toEqual(["2/3", "1/3", "—"]);
+    await click(table.querySelector("button[aria-label='Filtrar']"));
+    await type(table.querySelector("[aria-label='Parcelas: mínimo']"), "2");
+    expect(parcels()).toEqual(["2/3"]);
   });
 });

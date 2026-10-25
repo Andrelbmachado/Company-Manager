@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { getDb } from "@/lib/db/client";
 import { addTag, createTag, removeTag, TAG_COLORS } from "@/lib/crm/segments";
 import { cn } from "@/lib/utils";
@@ -86,7 +87,7 @@ export function TagEditor({ entityType, entityId, canEdit }: { entityType: strin
               </select>
             </>
           )}
-          <button type="submit" disabled={add.isPending || (creating ? !name.trim() : !choice)} className={BTN_GHOST}>Adicionar</button>
+          <IconButton type="submit" label="Adicionar tag" icon={TABLE_ICONS.add} disabled={add.isPending || (creating ? !name.trim() : !choice)} />
           <button type="button" onClick={() => { setAdding(false); add.reset(); }} className={BTN_GHOST}>Cancelar</button>
           {add.error && <span role="alert" className="text-xs text-destructive">{errorText(add.error)}</span>}
         </form>

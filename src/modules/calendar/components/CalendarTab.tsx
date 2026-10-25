@@ -2,6 +2,7 @@
 // formulário no próprio lugar ao clicar num dia ou horário vazio e detalhes do evento escolhido (sem modal).
 import { useMemo, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { CalendarView, type CalendarItem } from "@/components/shared/CalendarView";
 import { getDb } from "@/lib/db/client";
 import { confirmAction } from "@/lib/confirm";
@@ -172,7 +173,7 @@ export function CalendarTab({ actor, entries, people, filterOptions, person, onP
           {selected.event && (canManageEvent(actor, selected.event) || canDeleteEvent(actor, selected.event)) && (
             <div className="mt-3 flex gap-2">
               {canEdit && canManageEvent(actor, selected.event) && (
-                <button type="button" className={BUTTON} onClick={onEditEvents}>Editar em Eventos do app</button>
+                <IconButton label="Editar em Eventos do app" icon={TABLE_ICONS.edit} onClick={onEditEvents} />
               )}
               {canDeleteEvent(actor, selected.event) && (
                 <button type="button" className={BUTTON} onClick={() => void remove(selected)}>Excluir evento</button>

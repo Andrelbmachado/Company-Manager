@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Ban, Receipt } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
@@ -18,8 +19,27 @@ import { formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import { InfoGrid as DetailGrid, InfoItem as DetailItem, InlinePanel } from "@/modules/catalog/components/inline";
 import { DocumentItemsTable } from "@/modules/catalog/components/DocumentItemsTable";
 import { TotalsSummary } from "@/modules/catalog/components/LineItemsEditor";
-import { BUTTON, DANGER, ErrorNote, Field, INPUT, LoadingRows, PRIMARY, Section, TD, TH, invalidateTrade, paymentMethodLabel, useCustomers, useReceivables, useSalesOrders } from "@/modules/catalog/components/tradeKit";
-import type { Invoice, InvoiceItem } from "@/types";
+import { BUTTON, DANGER, ErrorNote, Field, INPUT, LoadingRows, PRIMARY, Section, TD, invalidateTrade, paymentMethodLabel, useCustomers, useReceivables, useSalesOrders } from "@/modules/catalog/components/tradeKit";
+import type { Invoice, InvoiceItem, Receivable } from "@/types";
+
+interface ParcelRow {
+  parcel: Receivable;
+  number: number;
+  count: number;
+  overdue: boolean;
+}
+
+/** Cabeçalho ordenável no padrão do TH das telas de compra/venda (o alinhamento vem do `align`). */
+const SORT_TH = "px-4 py-3 text-sm";
+
+const PARCEL_COLUMNS: SortFilterColumn<ParcelRow>[] = [
+  { key: "number", header: "Parcela", kind: "integer", sortValue: (row) => row.number },
+  { key: "due_date", header: "Vencimento", kind: "date", sortValue: (row) => row.parcel.due_date },
+  { key: "status", header: "Status", kind: "select", sortValue: (row) => statusLabel(row.overdue ? "vencida" : row.parcel.status) },
+  { key: "received_at", header: "Recebido em", kind: "date", sortValue: (row) => row.parcel.received_at },
+  { key: "amount", header: "Valor", kind: "money", sortValue: (row) => Number(row.parcel.amount) },
+  { key: "received", header: "Recebido", kind: "money", sortValue: (row) => receivedOf(row.parcel) },
+];
 
 function BackLink() {
   return <Link to="/sales/faturas" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Faturas</Link>;
@@ -69,6 +89,18 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   const { data: receivables = [] } = useReceivables(companyId);
   const { data: customers = [] } = useCustomers(companyId);
   const { data: orders = [] } = useSalesOrders(companyId, canSeeOrders);
+  const parcels = useMemo(
+    () =>
+      receivables
+        .filter((row) => row.invoice_id === invoiceId)
+        .sort((a, b) => Number(a.installment_number ?? 0) - Number(b.installment_number ?? 0) || (a.due_date ?? "").localeCompare(b.due_date ?? "")),
+    [receivables, invoiceId],
+  );
+  const parcelRows = useMemo<ParcelRow[]>(
+    () => parcels.map((parcel, index) => ({ parcel, number: parcel.installment_number ?? index + 1, count: parcel.installment_count ?? parcels.length, overdue: isReceivableOverdue(parcel, today) })),
+    [parcels, today],
+  );
+  const parcelView = useSortFilter(parcelRows, PARCEL_COLUMNS);
 
   const cancel = useMutation({
     mutationFn: async (label: string) => {
@@ -94,7 +126,6 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   }
 
   const label = formatSequence("invoices", invoice.number);
-  const parcels = receivables.filter((row) => row.invoice_id === invoiceId).sort((a, b) => Number(a.installment_number ?? 0) - Number(b.installment_number ?? 0) || (a.due_date ?? "").localeCompare(b.due_date ?? ""));
   const active = parcels.filter(isActiveReceivable);
   const status = invoiceDisplayStatus(invoice, active, today);
   const received = sumMoney(active.map(receivedOf));
@@ -152,34 +183,41 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
 
       <Section title="Parcelas (contas a receber)">
         {parcels.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma parcela encontrada.</p> : (
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full min-w-[620px] text-sm">
-              <thead className="bg-muted/30">
-                <tr>
-                  <th className={TH}>Parcela</th>
-                  <th className={TH}>Vencimento</th>
-                  <th className={TH}>Status</th>
-                  <th className={TH}>Recebido em</th>
-                  <th className={`${TH} text-right`}>Valor</th>
-                  <th className={`${TH} text-right`}>Recebido</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {parcels.map((parcel, index) => {
-                  const overdue = isReceivableOverdue(parcel, today);
-                  return (
+          <div className="rounded-xl border">
+            <TableFilterToolbar view={parcelView} />
+            <TableFilterBar view={parcelView} />
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead className="bg-muted/30">
+                  <tr>
+                    {PARCEL_COLUMNS.map((column) => (
+                      <SortableHeader
+                        key={column.key}
+                        label={column.header}
+                        sortKey={column.key}
+                        sort={parcelView.sort}
+                        onSort={parcelView.toggleSort}
+                        align={column.kind === "money" ? "right" : "left"}
+                        className={SORT_TH}
+                      />
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {parcelView.rows.map(({ parcel, number, count, overdue }) => (
                     <tr key={parcel.id}>
-                      <td className={TD}>{parcel.installment_number ?? index + 1}/{parcel.installment_count ?? parcels.length}</td>
+                      <td className={TD}>{number}/{count}</td>
                       <td className={`${TD} ${overdue ? "text-destructive" : "text-muted-foreground"}`}>{formatDay(parcel.due_date)}</td>
                       <td className={TD}><StatusBadge status={overdue ? "vencida" : parcel.status} /></td>
                       <td className={`${TD} text-muted-foreground`}>{formatDay(parcel.received_at)}</td>
                       <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(parcel.amount))}</td>
                       <td className={`${TD} text-right tabular-nums`}>{receivedOf(parcel) ? formatCurrency(receivedOf(parcel)) : "—"}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                  {!parcelView.rows.length && <NoFilterMatchRow colSpan={PARCEL_COLUMNS.length} />}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </Section>

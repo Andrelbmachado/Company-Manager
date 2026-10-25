@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Ban, Check, FileText, Pencil, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Ban, Check, FileText, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { IconButton, NoFilterMatchRow, SortableHeader, TABLE_ICONS, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { removeSalesOrderItem, saveSalesOrderItemRows } from "@/lib/commercial/salesEdits";
@@ -46,7 +47,6 @@ import {
   PRIMARY,
   Section,
   TD,
-  TH,
   byId,
   invalidateTrade,
   num,
@@ -61,7 +61,7 @@ import {
 } from "@/modules/catalog/components/tradeKit";
 import { SalesOrderEditor, emptySalesOrderForm, salesLinesFrom, salesOrderFormFrom } from "../components/SalesOrderEditor";
 import { newLine } from "@/modules/catalog/components/LineItemsEditor";
-import type { SalesOrder, SalesOrderItem, StockMovement } from "@/types";
+import type { Invoice, Receivable, SalesOrder, SalesOrderItem, StockMovement } from "@/types";
 
 /** :id = "nova" abre o formulário de criação (?cliente=<id> já escolhe o cliente). */
 export default function SalesOrderPage() {
@@ -323,7 +323,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         description={customer ? `${customer.name} · ${formatDay(order.order_date)}` : formatDay(order.order_date)}
         actions={
           <>
-            {editable && <button type="button" className={BUTTON} onClick={() => setEditing(true)}><Pencil size={14} /> Editar pedido</button>}
+            {editable && <IconButton label="Editar pedido" icon={TABLE_ICONS.edit} onClick={() => setEditing(true)} />}
             {canConfirm && <button type="button" className={PRIMARY} disabled={confirm.isPending} onClick={() => confirm.mutate()}><Check size={14} /> Confirmar</button>}
             {canBill && <button type="button" className={PRIMARY} onClick={() => open("invoice", { issueDate: today, installments: String(order.installments || 1), firstDueDate: "", intervalDays: "30", paymentMethod: Number(order.installments) > 1 ? "boleto" : "pix", notes: "" })}><FileText size={14} /> Faturar</button>}
             {canDeliver && <button type="button" className={BUTTON} onClick={() => open("deliver", { locationId: order.location_id ?? locations[0]?.id ?? "" })}><Truck size={14} /> Entregar</button>}
@@ -440,7 +440,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         </div>
       ) : (
         <Section title="Itens">
-          <DocumentItemsTable<SalesOrderItem> items={items} extra={order.delivered_at ? [{ header: "Entregue", cell: (item) => formatQty(Number(item.delivered_qty)) }] : []} />
+          <DocumentItemsTable<SalesOrderItem> items={items} extra={order.delivered_at ? [{ header: "Entregue", cell: (item) => formatQty(Number(item.delivered_qty)), value: (item) => Number(item.delivered_qty) }] : []} />
         </Section>
       )}
 
@@ -454,22 +454,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
       {canSeeInvoices && (
         <Section title="Faturas">
           {orderInvoices.length === 0 ? <p className="text-sm text-muted-foreground">{order.status === "rascunho" ? "Confirme o pedido para poder faturar." : "Ainda não faturado."}</p> : (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead className="bg-muted/30"><tr><th className={TH}>Fatura</th><th className={TH}>Emissão</th><th className={TH}>Parcelas</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Total</th></tr></thead>
-                <tbody className="divide-y">
-                  {orderInvoices.map((row) => (
-                    <tr key={row.id}>
-                      <td className={TD}><Link className="font-medium hover:underline" to={`/sales/faturas/${row.id}`}>{formatSequence("invoices", row.number)}</Link></td>
-                      <td className={`${TD} text-muted-foreground`}>{formatDay(row.issue_date)}</td>
-                      <td className={`${TD} text-muted-foreground`}>{row.installments}x</td>
-                      <td className={TD}><StatusBadge status={invoiceDisplayStatus(row, receivables.filter((receivable) => receivable.invoice_id === row.id), today)} /></td>
-                      <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(row.total))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <OrderInvoicesTable invoices={orderInvoices} receivables={receivables} today={today} />
           )}
         </Section>
       )}
@@ -495,6 +480,57 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         <FileAttachments entityType="sales_order" entityId={orderId} canEdit={canEdit} />
       </Section>
 
+    </div>
+  );
+}
+
+interface OrderInvoiceRow {
+  invoice: Invoice;
+  status: string;
+}
+
+const ORDER_INVOICE_COLUMNS: SortFilterColumn<OrderInvoiceRow>[] = [
+  { key: "number", header: "Fatura", kind: "text", sortValue: (row) => formatSequence("invoices", row.invoice.number) },
+  { key: "issue_date", header: "Emissão", kind: "date", sortValue: (row) => row.invoice.issue_date },
+  { key: "installments", header: "Parcelas", kind: "integer", sortValue: (row) => Number(row.invoice.installments) },
+  { key: "status", header: "Status", kind: "select", sortValue: (row) => statusLabel(row.status) },
+  { key: "total", header: "Total", kind: "money", sortValue: (row) => Number(row.invoice.total) },
+];
+
+/** Faturas do pedido: clique no cabeçalho ordena e Filtrar filtra por coluna (status pelo rótulo mostrado). */
+function OrderInvoicesTable({ invoices, receivables, today }: { invoices: Invoice[]; receivables: Receivable[]; today: string }) {
+  const rows = useMemo<OrderInvoiceRow[]>(
+    () => invoices.map((invoice) => ({ invoice, status: invoiceDisplayStatus(invoice, receivables.filter((receivable) => receivable.invoice_id === invoice.id), today) })),
+    [invoices, receivables, today],
+  );
+  const view = useSortFilter(rows, ORDER_INVOICE_COLUMNS);
+  return (
+    <div className="rounded-xl border">
+      <TableFilterToolbar view={view} />
+      <TableFilterBar view={view} />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-muted/30">
+            <tr>
+              {ORDER_INVOICE_COLUMNS.map((column) => (
+                <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "money" ? "right" : "left"} className="px-4 py-3 text-sm" />
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {view.rows.map(({ invoice, status }) => (
+              <tr key={invoice.id}>
+                <td className={TD}><Link className="font-medium hover:underline" to={`/sales/faturas/${invoice.id}`}>{formatSequence("invoices", invoice.number)}</Link></td>
+                <td className={`${TD} text-muted-foreground`}>{formatDay(invoice.issue_date)}</td>
+                <td className={`${TD} text-muted-foreground`}>{invoice.installments}x</td>
+                <td className={TD}><StatusBadge status={status} /></td>
+                <td className={`${TD} text-right tabular-nums`}>{formatCurrency(Number(invoice.total))}</td>
+              </tr>
+            ))}
+            {!view.rows.length && <NoFilterMatchRow colSpan={ORDER_INVOICE_COLUMNS.length} />}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

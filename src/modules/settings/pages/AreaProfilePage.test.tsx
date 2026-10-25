@@ -125,4 +125,17 @@ describe("AreaProfilePage", () => {
     expect(page!.button("Atualizar")?.disabled).toBe(false);
     expect(row("module.dashboard")?.textContent).toMatch(/Dashboard/);
   });
+
+  it("Filtrar fica ao lado de Editar e Atualizar; a tabela ordena pelo cabeçalho e filtra por coluna", async () => {
+    await open("ceo");
+    const toolbar = page!.button("Editar")!.parentElement!;
+    expect([...toolbar.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"))).toEqual(["Editar", "Atualizar", "Filtrar"]);
+    const keys = () => [...document.querySelectorAll("tbody tr")].map((item) => item.getAttribute("data-key"));
+    await click(document.querySelector("th [data-sort-key='used']"));
+    expect(keys()[0]).toBe("dashboard.payables_week");
+
+    await click(page!.button("Filtrar"));
+    await typeInto(document.querySelector("[aria-label='Rótulo usado: contém']"), "lucro");
+    expect(keys()).toEqual(["dashboard.profit"]);
+  });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArchiveRestore, CheckCircle2, DatabaseBackup, FolderOpen, Loader2, Save, Trash2, TriangleAlert } from "lucide-react";
 import { appDataDir, join } from "@tauri-apps/api/path";
@@ -7,6 +7,7 @@ import { remove } from "@tauri-apps/plugin-fs";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { useRequiredSession } from "@/hooks/useSession";
 import {
   BACKUP_EXTENSION,
@@ -28,6 +29,14 @@ import { cn, formatDateTime } from "@/lib/utils";
 import type { Role } from "@/types";
 
 const FILTERS = [{ name: "Backup do Company Manager", extensions: [BACKUP_EXTENSION] }];
+const TH = "px-4 py-3 text-sm";
+const COLUMNS: SortFilterColumn<BackupEntry>[] = [
+  { key: "created_at", header: "Data", kind: "datetime" },
+  { key: "kind", header: "Tipo", kind: "select", options: Object.entries(BACKUP_KIND_LABELS).map(([value, label]) => ({ value, label })) },
+  { key: "size_bytes", header: "Tamanho", kind: "number", filterable: false },
+  { key: "files_count", header: "Anexos", kind: "integer" },
+  { key: "schema_version", header: "Versão do banco", kind: "integer" },
+];
 const BUTTON = "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 const PRIMARY = "flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -54,6 +63,8 @@ export default function BackupPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
 
   const backups = useQuery({ queryKey: ["backups"], queryFn: listBackups, enabled: desktop });
+  const list = useMemo(() => backups.data ?? [], [backups.data]);
+  const view = useSortFilter(list, COLUMNS);
   const folder = useQuery({ queryKey: ["backups", "folder"], queryFn: async () => join(await appDataDir(), "backups"), enabled: desktop, staleTime: Infinity });
 
   async function track(type: string, title: string, metadata: Record<string, unknown>) {
@@ -139,7 +150,6 @@ export default function BackupPage() {
     );
   }
 
-  const list = backups.data ?? [];
   const latest = list[0];
   const lastAutomatic = list.find((entry) => entry.kind === "automatico");
   const spinner = <Loader2 size={14} className="animate-spin" aria-hidden="true" />;
@@ -207,48 +217,51 @@ export default function BackupPage() {
         ) : list.length === 0 ? (
           <EmptyState icon={DatabaseBackup} title="Nenhum backup guardado" description="O automático do dia é feito sozinho ao abrir o app; você também pode fazer um agora." />
         ) : (
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Backups guardados na pasta do app, do mais novo para o mais antigo</caption>
-              <thead className="bg-muted/30 text-left">
-                <tr>
-                  <th scope="col" className="px-4 py-3">Data</th>
-                  <th scope="col" className="px-4 py-3">Tipo</th>
-                  <th scope="col" className="px-4 py-3 text-right">Tamanho</th>
-                  <th scope="col" className="px-4 py-3 text-right">Anexos</th>
-                  <th scope="col" className="px-4 py-3 text-right">Versão do banco</th>
-                  <th scope="col" className="px-4 py-3 text-right"><span className="sr-only">Ações</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {list.map((entry) => (
-                  <tr key={entry.path} className="hover:bg-muted/20">
-                    <td className="px-4 py-3">
-                      <span className="font-medium">{formatDateTime(entry.created_at)}</span>
-                      <span className="block font-mono text-xs text-muted-foreground">{entry.file_name}</span>
-                    </td>
-                    <td className="px-4 py-3">{BACKUP_KIND_LABELS[entry.kind]}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{formatBytes(entry.size_bytes)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{entry.files_count}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{entry.schema_version ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        {canRestore && (
-                          <button type="button" onClick={() => restore(entry.path, `de ${formatDateTime(entry.created_at)}`)} disabled={busy !== null} className={BUTTON} aria-label={`Restaurar o backup de ${formatDateTime(entry.created_at)}`}>
-                            <ArchiveRestore size={14} aria-hidden="true" /> Restaurar
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button type="button" onClick={() => deleteBackup(entry)} disabled={busy !== null} className={cn(BUTTON, "text-destructive")} aria-label={`Excluir o backup de ${formatDateTime(entry.created_at)}`} title="Excluir">
-                            <Trash2 size={14} aria-hidden="true" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+          <div className="rounded-xl border">
+            <TableFilterToolbar view={view} />
+            <TableFilterBar view={view} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">Backups guardados na pasta do app, do mais novo para o mais antigo</caption>
+                <thead className="bg-muted/30 text-left">
+                  <tr>
+                    {COLUMNS.map((column) => (
+                      <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "text" || column.kind === "select" || column.kind === "datetime" ? "left" : "right"} className={TH} />
+                    ))}
+                    <th scope="col" className="px-4 py-3 text-right"><span className="sr-only">Ações</span></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y">
+                  {view.rows.map((entry) => (
+                    <tr key={entry.path} className="hover:bg-muted/20">
+                      <td className="px-4 py-3">
+                        <span className="font-medium">{formatDateTime(entry.created_at)}</span>
+                        <span className="block font-mono text-xs text-muted-foreground">{entry.file_name}</span>
+                      </td>
+                      <td className="px-4 py-3">{BACKUP_KIND_LABELS[entry.kind]}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{formatBytes(entry.size_bytes)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{entry.files_count}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{entry.schema_version ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          {canRestore && (
+                            <button type="button" onClick={() => restore(entry.path, `de ${formatDateTime(entry.created_at)}`)} disabled={busy !== null} className={BUTTON} aria-label={`Restaurar o backup de ${formatDateTime(entry.created_at)}`}>
+                              <ArchiveRestore size={14} aria-hidden="true" /> Restaurar
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button type="button" onClick={() => deleteBackup(entry)} disabled={busy !== null} className={cn(BUTTON, "text-destructive")} aria-label={`Excluir o backup de ${formatDateTime(entry.created_at)}`} title="Excluir">
+                              <Trash2 size={14} aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!view.rows.length && <NoFilterMatchRow colSpan={COLUMNS.length + 1} />}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
         <p className="text-xs text-muted-foreground">

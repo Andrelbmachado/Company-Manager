@@ -12,7 +12,8 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn, formatDateTime } from "@/lib/utils";
 import { saveTicketChanges, TICKET_PRIORITY_OPTIONS, TICKET_STATUS_OPTIONS, type TicketFields } from "@/lib/support/tickets";
-import { ArrowLeft, Building2, CheckCircle2, HeadphonesIcon, Pencil, RotateCcw, Save, UserRound, Wrench, X } from "lucide-react";
+import { ArrowLeft, Building2, CheckCircle2, HeadphonesIcon, RotateCcw, Save, UserRound, Wrench, X } from "lucide-react";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import type { Role, Ticket } from "@/types";
 
 interface TicketView extends Ticket {
@@ -185,7 +186,7 @@ export default function SupportPage() {
     { key: "description", header: "Descrição", kind: "text", placeholder: "Detalhes (opcional)" },
     { key: "requester_area", header: "Área", kind: "text", readOnly: true },
     { key: "opener_name", header: "Aberto por", kind: "text", readOnly: true },
-    { key: "created_at", header: "Aberto em", kind: "text", readOnly: true, render: (ticket) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(ticket.created_at)}</span> },
+    { key: "created_at", header: "Aberto em", kind: "date", readOnly: true, render: (ticket) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(ticket.created_at)}</span> },
   ];
 
   if (selectedTicket) {
@@ -235,9 +236,7 @@ export default function SupportPage() {
             ) : (
               <>
                 {canEditTicket && (
-                  <button type="button" onClick={() => { setForm({ subject: selectedTicket.subject, description: selectedTicket.description ?? "", priority: selectedTicket.priority }); setEditError(""); setEditing(true); }} className={BUTTON}>
-                    <Pencil size={14} /> Editar
-                  </button>
+                  <IconButton label="Editar" icon={TABLE_ICONS.edit} onClick={() => { setForm({ subject: selectedTicket.subject, description: selectedTicket.description ?? "", priority: selectedTicket.priority }); setEditError(""); setEditing(true); }} />
                 )}
                 {canReopen && (
                   <button type="button" onClick={() => reopenMutation.mutate(selectedTicket)} className={BUTTON}>

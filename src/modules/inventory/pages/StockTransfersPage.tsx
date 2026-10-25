@@ -68,7 +68,7 @@ export default function StockTransfersPage() {
   );
 
   const columns: EditableColumn<TransferTableRow>[] = [
-    { key: "created_at", header: "Data", kind: "text", readOnly: true, render: (row) => <span className="whitespace-nowrap text-muted-foreground">{row.created_at ? formatDateTime(row.created_at) : "—"}</span> },
+    { key: "created_at", header: "Data", kind: "date", readOnly: true, render: (row) => <span className="whitespace-nowrap text-muted-foreground">{row.created_at ? formatDateTime(row.created_at) : "—"}</span> },
     { key: "from_location_id", header: "De (origem)", kind: "select", required: true, options: locationOptions, render: (row) => row.from_name ?? "—" },
     { key: "to_location_id", header: "Para (destino)", kind: "select", required: true, options: locationOptions, render: (row) => row.to_name ?? "—" },
     {

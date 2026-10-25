@@ -1,5 +1,6 @@
 // Histórico de importações (import_batches): quando, qual cadastro, arquivo, resultado e os erros de cada uma. O detalhe
-// abre na própria página, abaixo da lista (sem gaveta lateral, como o resto do app depois do redesign).
+// abre na própria página, abaixo da lista (sem gaveta lateral, como o resto do app depois do redesign). Clique no
+// cabeçalho ordena; Filtrar (ao lado da busca) filtra por coluna.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +8,8 @@ import { FileUp, History } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
 import { canSeeImportBatch, entityLabel } from "@/lib/importexport/access";
@@ -35,6 +37,9 @@ const when = (value: string | null | undefined) => (value ? formatDateTime(/[zZ]
 
 const MODE_LABEL: Record<string, string> = { "skip-errors": "Importar as linhas certas", "all-or-nothing": "Tudo ou nada" };
 
+const TH = "px-3 py-2 text-xs";
+const fileLabel = (batch: ImportBatch) => `${batch.filename ?? ""}${batch.sheet_name ? ` · ${batch.sheet_name}` : ""}` || null;
+
 export default function ImportHistoryPage() {
   const session = useRequiredSession();
   const role = session.membership.role as Role;
@@ -52,7 +57,24 @@ export default function ImportHistoryPage() {
 
   const entityKeys = useMemo(() => [...new Set(batches.map((batch) => batch.entity))].sort((a, b) => entityLabel(a).localeCompare(entityLabel(b), "pt-BR")), [batches]);
   const term = search.trim().toLowerCase();
-  const visible = batches.filter((batch) => (!entityFilter || batch.entity === entityFilter) && (!term || `${batch.filename ?? ""} ${entityLabel(batch.entity)}`.toLowerCase().includes(term)));
+  const visible = useMemo(
+    () => batches.filter((batch) => (!entityFilter || batch.entity === entityFilter) && (!term || `${batch.filename ?? ""} ${entityLabel(batch.entity)}`.toLowerCase().includes(term))),
+    [batches, entityFilter, term],
+  );
+  const columns = useMemo<SortFilterColumn<ImportBatch>[]>(
+    () => [
+      { key: "created_at", header: "Quando", kind: "datetime" },
+      { key: "entity", header: "Cadastro", kind: "select", options: entityKeys.map((key) => ({ value: key, label: entityLabel(key) })) },
+      { key: "filename", header: "Arquivo", kind: "text", sortValue: fileLabel },
+      { key: "status", header: "Situação", kind: "select", sortValue: (batch) => statusLabel(batch.status) },
+      { key: "rows_total", header: "Linhas", kind: "integer" },
+      { key: "inserted", header: "Novos", kind: "integer" },
+      { key: "updated", header: "Atualizados", kind: "integer" },
+      { key: "rows_err", header: "Com erro", kind: "integer" },
+    ],
+    [entityKeys],
+  );
+  const view = useSortFilter(visible, columns);
 
   return (
     <div className="space-y-5">
@@ -68,6 +90,7 @@ export default function ImportHistoryPage() {
         }
       />
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar pelo arquivo ou cadastro...">
+        {batches.length > 0 && <TableFilterButton view={view} />}
         {entityKeys.length > 1 && (
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Cadastro</span>
@@ -86,42 +109,41 @@ export default function ImportHistoryPage() {
       ) : visible.length === 0 ? (
         <EmptyState icon={History} title={batches.length === 0 ? "Nenhuma importação ainda" : "Nada encontrado"} description={batches.length === 0 ? "As importações e simulações aparecem aqui, com o relatório de erros." : "Mude a busca ou o filtro."} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-3 py-2 font-medium">Quando</th>
-                <th scope="col" className="px-3 py-2 font-medium">Cadastro</th>
-                <th scope="col" className="px-3 py-2 font-medium">Arquivo</th>
-                <th scope="col" className="px-3 py-2 font-medium">Situação</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Linhas</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Novos</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Atualizados</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Com erro</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((batch) => (
-                <tr key={batch.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSelected(batch)}>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(batch); }} className="text-left font-medium hover:underline">
-                      {when(batch.created_at)}
-                    </button>
-                  </td>
-                  <td className="px-3 py-2">{entityLabel(batch.entity)}</td>
-                  <td className="max-w-[16rem] truncate px-3 py-2 text-muted-foreground" title={batch.filename ?? undefined}>
-                    {batch.filename ?? "—"}
-                    {batch.sheet_name ? ` · ${batch.sheet_name}` : ""}
-                  </td>
-                  <td className="px-3 py-2"><StatusBadge status={batch.status} /></td>
-                  <td className="px-3 py-2 text-right tabular-nums">{batch.rows_total.toLocaleString("pt-BR")}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{batch.inserted.toLocaleString("pt-BR")}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{batch.updated.toLocaleString("pt-BR")}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{batch.rows_err.toLocaleString("pt-BR")}</td>
+        <div className="rounded-lg border">
+          <TableFilterBar view={view} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  {columns.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "integer" ? "right" : "left"} className={TH} />
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {view.rows.map((batch) => (
+                  <tr key={batch.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSelected(batch)}>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(batch); }} className="text-left font-medium hover:underline">
+                        {when(batch.created_at)}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2">{entityLabel(batch.entity)}</td>
+                    <td className="max-w-[16rem] truncate px-3 py-2 text-muted-foreground" title={batch.filename ?? undefined}>
+                      {batch.filename ?? "—"}
+                      {batch.sheet_name ? ` · ${batch.sheet_name}` : ""}
+                    </td>
+                    <td className="px-3 py-2"><StatusBadge status={batch.status} /></td>
+                    <td className="px-3 py-2 text-right tabular-nums">{batch.rows_total.toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{batch.inserted.toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{batch.updated.toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{batch.rows_err.toLocaleString("pt-BR")}</td>
+                  </tr>
+                ))}
+                {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

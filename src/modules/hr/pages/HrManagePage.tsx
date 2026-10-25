@@ -12,7 +12,7 @@ import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { useLabel } from "@/lib/labels/useLabel";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { confirmAction } from "@/lib/confirm";
 import { cn, formatDay, todayIso } from "@/lib/utils";
@@ -181,8 +181,9 @@ export default function HrManagePage() {
     {
       key: "status",
       header: "Situação",
-      kind: "text",
+      kind: "select",
       readOnly: true,
+      sortValue: (employee) => statusLabel(isOnVacation(requests, employee.id, today) ? "em_ferias" : employee.status === "ativo" ? "active" : employee.status),
       render: (employee) => (
         <span className="inline-flex flex-wrap gap-1.5">
           <StatusBadge status={isOnVacation(requests, employee.id, today) ? "em_ferias" : employee.status === "ativo" ? "active" : employee.status} />

@@ -140,6 +140,29 @@ describe("ImportsPage", () => {
     expect(activities).toHaveLength(1);
   });
 
+  it("prévia ordena pelo cabeçalho e filtra por coluna", async () => {
+    await renderPage(<ImportsPage />, "ceo", "/imports?entity=customers");
+    await until(() => text().includes("Arraste a planilha"), "envio do arquivo");
+    await upload(new File([CSV], "clientes.csv", { type: "text/csv" }));
+    await until(() => container.querySelectorAll('[data-erro="sim"]').length === 2, "prévia com erros");
+    const preview = container.querySelector<HTMLElement>("section[aria-labelledby='previa-titulo']")!;
+    const names = () => [...preview.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td")[1]?.textContent);
+    expect(names()).toEqual(["Padaria Pão Quente Ltda", "Mercado Bom Preço", "Ana Souza"]);
+    await click(preview.querySelector("th [data-sort-key='field:name']"));
+    expect(names()).toEqual(["Ana Souza", "Mercado Bom Preço", "Padaria Pão Quente Ltda"]);
+    await click(preview.querySelector("th [data-sort-key='field:credit_limit']"));
+    await click(preview.querySelector("th [data-sort-key='field:credit_limit']"));
+    expect(names()[0]).toBe("Padaria Pão Quente Ltda");
+
+    await click([...preview.querySelectorAll("button")].find((item) => item.getAttribute("aria-label") === "Filtrar"));
+    const problems = preview.querySelector<HTMLInputElement>("[aria-label='Problemas: contém']")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(problems, "ok");
+      problems.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(names()).toEqual(["Padaria Pão Quente Ltda"]);
+  });
+
   it("simula sem gravar e importa depois pelo botão do resultado", async () => {
     const { db, companyId } = await renderPage(<ImportsPage />, "ceo", "/imports?entity=customers");
     await until(() => text().includes("Arraste a planilha"), "envio do arquivo");
@@ -180,6 +203,35 @@ describe("ImportHistoryPage", () => {
     expect(detail).toContain("Preço de venda: valor inválido");
     expect(detail).toContain("→ Preço de venda");
     expect(detail).toContain("Baixar relatório de erros (CSV)");
+  });
+
+  it("ordena pelo cabeçalho (Com erro pelo número) e filtra Situação pelo rótulo e Linhas por faixa", async () => {
+    await renderPage(<ImportHistoryPage />, "ceo", "/imports/historico", async (db, companyId) => {
+      const batch = (id: string, filename: string, status: string, total: number, errors: number, at: string) =>
+        db.execute(
+          "INSERT INTO import_batches (id, company_id, entity, filename, format, mode, status, rows_total, rows_ok, rows_err, inserted, updated, errors_json, mapping_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          [id, companyId, "customers", filename, "csv", "skip-errors", status, total, total - errors, errors, total - errors, 0, "[]", "{}", at],
+        );
+      await batch("b-1", "janeiro.csv", "concluida", 120, 0, "2026-01-05 10:00:00");
+      await batch("b-2", "fevereiro.csv", "com_erros", 9, 2, "2026-02-05 10:00:00");
+      await batch("b-3", "marco.csv", "com_erros", 30, 10, "2026-03-05 10:00:00");
+    });
+    await until(() => container.querySelectorAll("tbody tr").length === 3, "três importações");
+    const files = () => [...container.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td")[2]?.textContent);
+    expect(files()).toEqual(["marco.csv", "fevereiro.csv", "janeiro.csv"]);
+    await click(container.querySelector("th [data-sort-key='rows_err']"));
+    expect(files()).toEqual(["janeiro.csv", "fevereiro.csv", "marco.csv"]);
+
+    await click([...container.querySelectorAll("button")].find((item) => item.getAttribute("aria-label") === "Filtrar"));
+    const done = [...container.querySelectorAll("[data-filter-bar] label")].find((label) => label.textContent === "Com erros")!;
+    await click(done.querySelector("input"));
+    expect(files()).toEqual(["fevereiro.csv", "marco.csv"]);
+    const min = container.querySelector<HTMLInputElement>('[aria-label="Linhas: mínimo"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(min, "10");
+    await act(async () => {
+      min.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(files()).toEqual(["marco.csv"]);
   });
 
   it("só mostra importações de cadastros que o papel pode ver (os erros trazem CPF, valores, nomes)", async () => {

@@ -128,6 +128,19 @@ describe("BackupPage", () => {
     for (const card of cards) expect(card.querySelectorAll("p").length).toBeLessThanOrEqual(2);
   });
 
+  it("ordena pelo cabeçalho (Data pela cronologia) e filtra o Tipo pelo rótulo", async () => {
+    await render();
+    await until(() => text().includes("Backups guardados (2)"), "lista");
+    const kinds = () => [...container.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td")[1]?.textContent);
+    expect(kinds()).toEqual(["Automático (diário)", "Manual"]);
+    await click(container.querySelector<HTMLElement>("th [data-sort-key='created_at']")!);
+    expect(kinds()).toEqual(["Manual", "Automático (diário)"]);
+    await click(button("Filtrar"));
+    const manual = [...container.querySelectorAll("[data-filter-bar] label")].find((label) => label.textContent === "Manual")!;
+    await click(manual.querySelector("input")!);
+    expect(kinds()).toEqual(["Manual"]);
+  });
+
   it("faz backup agora e registra no histórico", async () => {
     await render();
     await until(() => text().includes("Backups guardados (2)"), "lista");

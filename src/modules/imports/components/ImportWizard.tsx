@@ -4,13 +4,14 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FileSpreadsheet, FileUp, FlaskConical, Loader2, Upload } from "lucide-react";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterButton, useSortFilter, type SortFilterColumn, type SortKind } from "@/components/shared/table";
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { errorMessage, errorsToCsv, type ImportRowError } from "@/lib/importexport/errors";
 import { exportFilename, templateFor, type ExportFormat } from "@/lib/importexport/export";
 import { parseFile, type ParsedFile } from "@/lib/importexport/parse";
-import type { ImportEntity } from "@/lib/importexport/registry";
+import type { FieldKind, ImportEntity } from "@/lib/importexport/registry";
 import { missingRequired, runImport, suggestMapping, validateRows, type ColumnMapping, type ImportProgress, type ImportResult } from "@/lib/importexport/runImport";
 import { saveBlob } from "@/lib/importexport/saveFile";
 import { cn } from "@/lib/utils";
@@ -391,44 +392,84 @@ interface PreviewTableProps {
   total: number;
 }
 
-/** As primeiras linhas como vão entrar: célula com problema em vermelho (o motivo no título e na última coluna). */
+interface PreviewRow {
+  row: Record<string, string>;
+  number: number;
+  errors: ImportRowError[];
+}
+
+/** Como a prévia (texto cru do arquivo) compara cada tipo de campo: valor e data pelo que significam, o resto como texto. */
+function previewKind(kind: FieldKind): SortKind {
+  if (kind === "money") return "money";
+  if (kind === "number") return "number";
+  if (kind === "int") return "integer";
+  if (kind === "date") return "date";
+  return "text";
+}
+
+const PREVIEW_TH = "px-3 py-2";
+
+/**
+ * As primeiras linhas como vão entrar: célula com problema em vermelho (o motivo no título e na última coluna). Clique no
+ * cabeçalho ordena pelo tipo do campo e Filtrar filtra por coluna (Problemas: "OK" ou o motivo).
+ */
 function PreviewTable({ entity, mapping, rows, rowNumbers, errors, total }: PreviewTableProps) {
-  const fields = entity.fields.filter((field) => mapping[field.key]);
-  const byRow = new Map<number, ImportRowError[]>();
-  for (const error of errors) byRow.set(error.row, [...(byRow.get(error.row) ?? []), error]);
-  const rowsWithErrors = byRow.size;
+  const fields = useMemo(() => entity.fields.filter((field) => mapping[field.key]), [entity, mapping]);
+  const previewRows = useMemo<PreviewRow[]>(() => {
+    const byRow = new Map<number, ImportRowError[]>();
+    for (const error of errors) byRow.set(error.row, [...(byRow.get(error.row) ?? []), error]);
+    return rows.map((row, index) => {
+      const number = rowNumbers[index] ?? index + 2;
+      return { row, number, errors: byRow.get(number) ?? [] };
+    });
+  }, [rows, rowNumbers, errors]);
+  const columns = useMemo<SortFilterColumn<PreviewRow>[]>(
+    () => [
+      { key: "number", header: "Linha", kind: "integer", sortValue: (item) => item.number },
+      ...fields.map<SortFilterColumn<PreviewRow>>((field) => ({
+        key: `field:${field.key}`,
+        header: field.label,
+        kind: previewKind(field.kind),
+        sortValue: (item) => item.row[mapping[field.key]!] || null,
+      })),
+      { key: "problems", header: "Problemas", kind: "text", sortValue: (item) => (item.errors.length ? item.errors.map((error) => error.message).join(" · ") : "OK") },
+    ],
+    [fields, mapping],
+  );
+  const view = useSortFilter(previewRows, columns);
+  const rowsWithErrors = new Set(errors.map((error) => error.row)).size;
 
   return (
     <section aria-labelledby="previa-titulo" className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 id="previa-titulo" className="font-semibold">Prévia</h3>
-        <p className="text-xs text-muted-foreground">
-          {Math.min(rows.length, total)} primeiras de {total.toLocaleString("pt-BR")} linhas ·{" "}
-          <span className={rowsWithErrors ? "font-medium text-status-danger dark:text-red-400" : undefined}>
-            {rowsWithErrors === 0 ? "nenhum erro nelas" : `${rowsWithErrors} com erro`}
-          </span>
-          . Referências (cliente, fornecedor...) são conferidas ao simular ou importar.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {Math.min(rows.length, total)} primeiras de {total.toLocaleString("pt-BR")} linhas ·{" "}
+            <span className={rowsWithErrors ? "font-medium text-status-danger dark:text-red-400" : undefined}>
+              {rowsWithErrors === 0 ? "nenhum erro nelas" : `${rowsWithErrors} com erro`}
+            </span>
+            . Referências (cliente, fornecedor...) são conferidas ao simular ou importar.
+          </p>
+          {fields.length > 0 && <TableFilterButton view={view} />}
+        </div>
       </div>
       {fields.length === 0 ? (
         <p className="rounded-lg border px-3 py-4 text-sm text-muted-foreground">Escolha ao menos uma coluna para ver a prévia.</p>
       ) : (
-        <div className="max-h-96 overflow-auto rounded-lg border">
-          <table className="w-full whitespace-nowrap text-sm">
-            <thead className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-3 py-2 font-medium">Linha</th>
-                {fields.map((field) => (
-                  <th key={field.key} scope="col" className="px-3 py-2 font-medium">{field.label}</th>
-                ))}
-                <th scope="col" className="px-3 py-2 font-medium">Problemas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => {
-                const number = rowNumbers[index] ?? index + 2;
-                const rowErrors = byRow.get(number) ?? [];
-                return (
+        <>
+          <TableFilterBar view={view} className="rounded-lg border" />
+          <div className="max-h-96 overflow-auto rounded-lg border">
+            <table className="w-full whitespace-nowrap text-sm">
+              <thead className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
+                <tr>
+                  {columns.map((column) => (
+                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} className={PREVIEW_TH} />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {view.rows.map(({ row, number, errors: rowErrors }) => (
                   <tr key={number} className={cn("border-t", rowErrors.length > 0 && "bg-status-danger/5")}>
                     <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{number}</td>
                     {fields.map((field) => {
@@ -443,11 +484,12 @@ function PreviewTable({ entity, mapping, rows, rowNumbers, errors, total }: Prev
                       {rowErrors.length === 0 ? <span className="text-status-success dark:text-green-400">OK</span> : rowErrors.map((error) => error.message).join(" · ")}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+                {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );

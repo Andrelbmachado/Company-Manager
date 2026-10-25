@@ -119,3 +119,28 @@ describe("itens do pedido na tabela", () => {
     expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 });
+
+describe("faturas do pedido", () => {
+  it("ordenam pelo cabeçalho e filtram o status pelo rótulo mostrado", async () => {
+    const { cancelInvoice, confirmSalesOrder, createSalesOrder, invoiceSalesOrder } = await import("@/lib/erp/orders");
+    const id = await createSalesOrder(testDb(), { companyId: fx.companyId, customerId: fx.customerId, items: [{ productId: fx.products.mouse, qty: 1 }] });
+    await confirmSalesOrder(testDb(), id, { companyId: fx.companyId });
+    const first = await invoiceSalesOrder(testDb(), id, { companyId: fx.companyId, installments: 1, issueDate: "2020-01-10" });
+    await cancelInvoice(testDb(), first.invoiceId, { companyId: fx.companyId, reason: "Valor errado" });
+    await invoiceSalesOrder(testDb(), id, { companyId: fx.companyId, installments: 2, issueDate: "2999-01-10" });
+    page = await open("ceo", `/sales/pedidos/${id}`);
+    await until(() => text().includes("FAT-00002"), "faturas do pedido");
+    const section = page.container.querySelector<HTMLElement>("section[aria-label='Faturas']")!;
+    const invoices = () => [...section.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent);
+    await click(section.querySelector("th [data-sort-key='number']"));
+    await click(section.querySelector("th [data-sort-key='number']"));
+    expect(invoices()).toEqual(["FAT-00002", "FAT-00001"]);
+
+    await click(buttonIn(section, "Filtrar"));
+    const status = [...section.querySelectorAll("[data-filter-bar] fieldset")].find((item) => item.querySelector("legend")?.textContent === "Status")!;
+    const choices = [...status.querySelectorAll("label")];
+    expect(choices.map((label) => label.textContent)).toEqual(["Cancelada", "Emitida"]);
+    await click(choices[0].querySelector("input"));
+    expect(invoices()).toEqual(["FAT-00001"]);
+  });
+});

@@ -174,6 +174,32 @@ describe("DocumentsPage", () => {
   });
 });
 
+describe("DocumentsPage — anexos ordenam e filtram", () => {
+  it("Registro ordena e filtra pelo nome mostrado (não pelo código do registro)", async () => {
+    const db = testDb();
+    await db.execute("INSERT INTO customers (id, company_id, type, name) VALUES (?,?,?,?)", ["cli-1", C, "PJ", "NorteLog"]);
+    await db.execute("INSERT INTO customers (id, company_id, type, name) VALUES (?,?,?,?)", ["cli-2", C, "PJ", "Aurora Ltda"]);
+    await saveFile(C, new File(["a"], "Contrato assinado.pdf"), { userId: "test-user-ceo", entityType: "customer", entityId: "cli-1" });
+    await saveFile(C, new File(["b"], "Proposta.pdf"), { userId: "test-user-ceo", entityType: "customer", entityId: "cli-2" });
+
+    await render("comercial");
+    await until(() => text().includes("Compartilhados"), "pastas");
+    await click(container.querySelector("#tab-documentos-anexos"));
+    await until(() => text().includes("Aurora Ltda") && text().includes("NorteLog"), "anexos com o nome do registro");
+    const panel = container.querySelector<HTMLElement>("#painel-documentos-anexos")!;
+    const files = () => [...panel.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent?.trim());
+    await click(panel.querySelector("th [data-sort-key='owner']"));
+    expect(files()).toEqual(["Proposta.pdf", "Contrato assinado.pdf"]);
+    await click(panel.querySelector("button[aria-label='Filtrar']"));
+    const owner = panel.querySelector<HTMLInputElement>("[aria-label='Registro: contém']")!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(owner, "norte");
+    await act(async () => {
+      owner.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(files()).toEqual(["Contrato assinado.pdf"]);
+  });
+});
+
 describe("DocumentsPage — pastas de nuvem", () => {
   const byLabel = (label: string) => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 

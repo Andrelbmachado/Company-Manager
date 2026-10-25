@@ -111,7 +111,7 @@ describe("PackagesPanel", () => {
     const { page } = await open();
     const table = page.container.querySelector<HTMLTableElement>('table[aria-label="Comparativo dos pacotes"]')!;
     expect(table).not.toBeNull();
-    const columns = [...table.querySelectorAll("thead th[data-package-column]")];
+    const columns = [...table.querySelectorAll("thead th")].slice(1);
     expect(columns.map((column) => column.textContent)).toEqual(["Básico", "Essencial", "Premium"]);
 
     const expected = packageFeatures(SITE_PACKAGES);
@@ -125,6 +125,23 @@ describe("PackagesPanel", () => {
         [expected[index].basico, expected[index].essencial, expected[index].premium].map((included) => (included ? "Incluído" : "Não incluído")),
       );
     }
+  });
+
+  it("comparativo ordena pelo cabeçalho e filtra função e pacote (incluído ou não)", async () => {
+    const { page } = await open();
+    const table = page.container.querySelector<HTMLTableElement>('table[aria-label="Comparativo dos pacotes"]')!;
+    const expected = packageFeatures(SITE_PACKAGES);
+    const features = () => [...table.querySelectorAll("tbody tr")].map((row) => row.querySelector("th")?.textContent);
+    await click(table.querySelector("th [data-sort-key='pacote:basico']"));
+    expect(features()).toEqual([...expected.filter((item) => item.basico), ...expected.filter((item) => !item.basico)].map((item) => item.feature));
+
+    const section = table.closest("section")!;
+    await click(section.querySelector("button[aria-label='Filtrar']"));
+    const basico = [...section.querySelectorAll("[data-filter-bar] fieldset")].find((item) => item.querySelector("legend")?.textContent === "Básico")!;
+    const choices = [...basico.querySelectorAll("label")];
+    expect(choices.map((label) => label.textContent)).toEqual(["Incluído", "Não incluído"]);
+    await click(choices[1].querySelector("input"));
+    expect(features()).toEqual(expected.filter((item) => !item.basico).map((item) => item.feature));
   });
 
   it("preços por segmento numa tabela editável; sem permissão, Editar e Adicionar ficam desativados", async () => {

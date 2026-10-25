@@ -150,4 +150,30 @@ describe("PurchaseOrderPage", () => {
     expect(text()).toContain("A definir");
     expect(text()).not.toContain("Fornecedor removido");
   });
+
+  it("recebimentos e contas a pagar do pedido ordenam pelo cabeçalho e filtram por coluna", async () => {
+    const { approvePurchaseOrder, receivePurchaseOrder } = await import("@/lib/erp/receiving");
+    const id = await createPurchaseOrder(testDb(), { companyId: fx.companyId, supplierId: fx.supplierId, items: [{ productId: fx.products.mouse, qty: 10 }] });
+    await approvePurchaseOrder(testDb(), id, { companyId: fx.companyId });
+    const [line] = await lines(id);
+    await receivePurchaseOrder(testDb(), id, [{ itemId: line.id, qty: 4, locationId: fx.emptyLocationId }], { companyId: fx.companyId, receivedDate: "2026-01-05", supplierInvoiceNumber: "NF-B", installments: 2 });
+    await receivePurchaseOrder(testDb(), id, [{ itemId: line.id, qty: 6, locationId: fx.emptyLocationId }], { companyId: fx.companyId, receivedDate: "2026-02-10", supplierInvoiceNumber: "NF-A", installments: 1 });
+    page = await open("ceo", `/purchasing/pedidos/${id}`);
+    await until(() => text().includes("REC-00002") && Boolean(page.container.querySelector("section[aria-label='Contas a pagar'] tbody")), "recebimentos e contas");
+
+    const receipts = panel("Recebimentos");
+    const receiptNumbers = () => [...receipts.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent);
+    expect(receiptNumbers()).toEqual(["REC-00002", "REC-00001"]);
+    await click(receipts.querySelector("th [data-sort-key='received_at']"));
+    expect(receiptNumbers()).toEqual(["REC-00001", "REC-00002"]);
+    await click(receipts.querySelector("th [data-sort-key='supplier_invoice_number']"));
+    expect(receiptNumbers()).toEqual(["REC-00002", "REC-00001"]);
+
+    const payables = panel("Contas a pagar");
+    const amounts = () => [...payables.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td")[3]?.textContent?.replace(/\s/g, " "));
+    expect(amounts()).toHaveLength(3);
+    await click(buttonIn(payables, "Filtrar"));
+    await typeInto(payables.querySelector("[aria-label='Valor: mínimo']"), "100");
+    expect(amounts()).toEqual(["R$ 240,00"]);
+  });
 });

@@ -12,9 +12,10 @@ import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ChartLegend, LineAreaChart, type LineAreaSeries } from "@/components/shared/charts/LineAreaChart";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, useSortFilter, type SortFilterColumn } from "@/components/shared/table";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { ErrorNote, Field, Money, errorMessage, inputClass, td, th, useFinanceLookups } from "../components/financeShared";
+import { ErrorNote, Field, Money, errorMessage, inputClass, td, useFinanceLookups } from "../components/financeShared";
 
 type Preset = "mes" | "30" | "90" | "mes-passado" | "ano" | "personalizado";
 type Grouping = "day" | "week" | "month";
@@ -72,6 +73,15 @@ interface Period {
   balance: number;
 }
 
+// Período ordena pela data de início (e filtra pelo intervalo de datas); os valores pelo número.
+const PERIOD_COLUMNS: SortFilterColumn<Period>[] = [
+  { key: "period", header: "Período", kind: "date", sortValue: (period) => period.from },
+  { key: "in", header: "Entradas", kind: "money" },
+  { key: "out", header: "Saídas", kind: "money" },
+  { key: "result", header: "Resultado", kind: "money", sortValue: (period) => roundMoney(period.in - period.out) },
+  { key: "balance", header: "Saldo", kind: "money" },
+];
+
 function periodsOf(days: CashflowDay[], grouping: Grouping): Period[] {
   if (grouping === "day") return days.map((day) => ({ key: day.date, label: formatDay(day.date).slice(0, 5), from: day.date, to: day.date, in: day.in, out: day.out, balance: day.balance }));
   return groupCashflow(days, grouping).map((period) => ({
@@ -118,6 +128,7 @@ export default function CashflowPage() {
   const selected = periods.find((period) => period.key === selectedKey) ?? null;
   const selectedEvents = selected ? events.filter((event) => event.date >= selected.from && event.date <= selected.to) : [];
   const tableRows = periods.filter((period) => effectiveGrouping !== "day" || period.in !== 0 || period.out !== 0);
+  const tableView = useSortFilter(tableRows, PERIOD_COLUMNS);
 
   const choosePreset = (value: Preset) => {
     setPreset(value);
@@ -200,33 +211,36 @@ export default function CashflowPage() {
               {tableRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum movimento no período.</p>
               ) : (
-                <div className="overflow-x-auto rounded-xl border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/30">
-                      <tr>
-                        <th className={th}>Período</th>
-                        <th className={cn(th, "text-right")}>Entradas</th>
-                        <th className={cn(th, "text-right")}>Saídas</th>
-                        <th className={cn(th, "text-right")}>Resultado</th>
-                        <th className={cn(th, "text-right")}>Saldo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {tableRows.map((period) => (
-                        <tr
-                          key={period.key}
-                          onClick={() => setSelectedKey(period.key === selectedKey ? null : period.key)}
-                          className={cn("cursor-pointer hover:bg-muted/20", period.key === selectedKey && "bg-muted/40")}
-                        >
-                          <td className={td}>{effectiveGrouping === "day" ? formatDay(period.from) : period.label}</td>
-                          <td className={cn(td, "text-right")}><Money value={period.in} /></td>
-                          <td className={cn(td, "text-right")}><Money value={period.out} /></td>
-                          <td className={cn(td, "text-right")}><Money value={period.in - period.out} signed /></td>
-                          <td className={cn(td, "text-right font-medium", period.balance < 0 && "text-red-700 dark:text-red-400")}><Money value={period.balance} /></td>
+                <div className="rounded-xl border">
+                  <TableFilterToolbar view={tableView} />
+                  <TableFilterBar view={tableView} />
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/30">
+                        <tr>
+                          {PERIOD_COLUMNS.map((column) => (
+                            <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={tableView.sort} onSort={tableView.toggleSort} align={column.kind === "money" ? "right" : "left"} className="px-4 py-3 text-sm" />
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y">
+                        {tableView.rows.map((period) => (
+                          <tr
+                            key={period.key}
+                            onClick={() => setSelectedKey(period.key === selectedKey ? null : period.key)}
+                            className={cn("cursor-pointer hover:bg-muted/20", period.key === selectedKey && "bg-muted/40")}
+                          >
+                            <td className={td}>{effectiveGrouping === "day" ? formatDay(period.from) : period.label}</td>
+                            <td className={cn(td, "text-right")}><Money value={period.in} /></td>
+                            <td className={cn(td, "text-right")}><Money value={period.out} /></td>
+                            <td className={cn(td, "text-right")}><Money value={period.in - period.out} signed /></td>
+                            <td className={cn(td, "text-right font-medium", period.balance < 0 && "text-red-700 dark:text-red-400")}><Money value={period.balance} /></td>
+                          </tr>
+                        ))}
+                        {!tableView.rows.length && <NoFilterMatchRow colSpan={PERIOD_COLUMNS.length} />}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
               {effectiveGrouping === "day" && <p className="text-xs text-muted-foreground">Dias sem movimento ficam fora da tabela. Clique num período para ver os movimentos.</p>}

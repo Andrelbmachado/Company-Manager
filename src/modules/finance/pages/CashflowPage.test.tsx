@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { addBankAccount, addReceivable, addSettlement } from "@/test/financeFixtures";
-import { click, plain, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { click, plain, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
 import { todayIso } from "@/lib/utils";
 import { CHART_MARGIN, X_PADDING, seriesColor } from "@/components/shared/charts/LineAreaChart";
 import { pathXs, stubChartSize } from "@/test/charts";
@@ -79,5 +79,31 @@ describe("CashflowPage", () => {
     const legend = [...chart.querySelectorAll("li")].map((item) => item.textContent?.trim());
     expect(legend).toEqual(["Entradas", "Saídas", "Saldo"]);
     expect(chart.querySelector("li:last-child line")?.getAttribute("stroke")).toBe(seriesColor(0));
+  });
+
+  it("tabela por período ordena pelo cabeçalho e filtra por coluna", async () => {
+    const db = testDb();
+    const { companyId } = await insertTestCompany(db, { companyId: "empresa-fluxo", roles: ["financeiro"] });
+    const month = todayIso().slice(0, 7);
+    await addBankAccount(db, companyId, { id: "banco", name: "Banco Principal", opening_balance: 1000, opening_date: "2020-01-01", is_default: 1 });
+    await addReceivable(db, companyId, { id: "r1", description: "Venda balcão", amount: 500, status: "recebida", received_amount: 500, received_at: `${month}-01` });
+    await addSettlement(db, companyId, { id: "s1", receivable_id: "r1", amount: 500, paid_at: `${month}-01`, bank_account_id: "banco" });
+    await addReceivable(db, companyId, { id: "r3", description: "Serviço avulso", amount: 200, status: "recebida", received_amount: 200, received_at: `${month}-02` });
+    await addSettlement(db, companyId, { id: "s3", receivable_id: "r3", amount: 200, paid_at: `${month}-02`, bank_account_id: "banco" });
+
+    page = await renderPage(<CashflowPage />, { companyId });
+    const view = page;
+    await until(() => view.container.querySelectorAll("tbody tr").length === 2, "dois dias com movimento");
+    const days = () => [...view.container.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent?.slice(0, 2));
+    expect(days()).toEqual(["01", "02"]);
+    await click(view.container.querySelector("th [data-sort-key='in']"));
+    expect(days()).toEqual(["02", "01"]);
+    await click(view.container.querySelector("th [data-sort-key='period']"));
+    await click(view.container.querySelector("th [data-sort-key='period']"));
+    expect(days()).toEqual(["02", "01"]);
+
+    await click(view.button("Filtrar"));
+    await type(view.container.querySelector("[aria-label='Entradas: mínimo']"), "300");
+    expect(days()).toEqual(["01"]);
   });
 });

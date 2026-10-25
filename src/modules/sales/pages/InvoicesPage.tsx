@@ -8,7 +8,7 @@ import { EditableTable, type EditableColumn, type EditableTableChanges } from "@
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatCard } from "@/components/shared/StatCard";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { StatusBadge, statusLabel } from "@/components/shared/StatusBadge";
 import { useRequiredSession } from "@/hooks/useSession";
 import { saveInvoiceRows } from "@/lib/commercial/salesEdits";
 import { getDb } from "@/lib/db/client";
@@ -111,13 +111,13 @@ export default function InvoicesPage() {
         })),
       render: (row) => <span className="text-muted-foreground">{orderLabel(row.sales_order_id)}</span>,
     },
-    { key: "customer_id", header: "Cliente", kind: "text", readOnly: true, render: (row) => (row.customer_id ? customersById.get(row.customer_id)?.name ?? "Cliente removido" : "—") },
+    { key: "customer_id", header: "Cliente", kind: "text", readOnly: true, sortValue: (row) => (row.customer_id ? customersById.get(row.customer_id)?.name ?? "Cliente removido" : null), render: (row) => (row.customer_id ? customersById.get(row.customer_id)?.name ?? "Cliente removido" : "—") },
     { key: "issue_date", header: "Emissão", kind: "date" },
     { key: "installments", header: "Parcelas", kind: "number", width: 80, placeholder: "do pedido" },
     { key: "payment_method", header: "Forma de pagamento", kind: "select", options: PAYMENT_METHODS.map((method) => ({ value: method.value, label: method.label })), render: (row) => paymentMethodLabel(row.payment_method) },
     { key: "fiscal_number", header: "Nota fiscal", kind: "text", width: 110 },
     { key: "next_due", header: "Próx. vencimento", kind: "date", readOnly: true, render: (row) => <span className={row.display === "vencida" ? "text-destructive" : "text-muted-foreground"}>{row.display === "cancelada" || row.display === "paga" ? "—" : formatDay(row.next_due)}</span> },
-    { key: "display", header: "Status", kind: "text", readOnly: true, render: (row) => <StatusBadge status={row.display} /> },
+    { key: "display", header: "Status", kind: "select", readOnly: true, sortValue: (row) => statusLabel(row.display), render: (row) => <StatusBadge status={row.display} /> },
     { key: "total", header: "Total", kind: "money", readOnly: true, render: (row) => <span className="tabular-nums">{formatCurrency(Number(row.total))}</span> },
     { key: "open_amount", header: "Em aberto", kind: "money", readOnly: true, render: (row) => <span className={cn("font-medium tabular-nums")}>{row.display === "cancelada" ? "—" : formatCurrency(row.open_amount)}</span> },
   ];

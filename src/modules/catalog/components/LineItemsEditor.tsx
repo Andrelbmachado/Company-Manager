@@ -1,11 +1,12 @@
 // Itens de pedido (venda ou compra): produto do catálogo (ou item de estoque) ou linha avulsa, quantidade, preço,
 // desconto em R$ e imposto em %. O preço vem sugerido (tabela de preço na venda, custo na compra) até a pessoa digitar
 // outro; a validação de verdade fica em computeLines/quoteItems na gravação.
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+import { IconButton, TABLE_ICONS } from "@/components/shared/table";
 import { lineTotal } from "@/lib/money";
 import { formatCurrency } from "@/lib/utils";
-import { BUTTON, INPUT, num } from "./tradeKit";
+import { INPUT, num } from "./tradeKit";
 
 export interface EditableLine {
   key: string;
@@ -151,9 +152,7 @@ export function LineItemsEditor({ lines, onChange, options, suggestPrice, priceL
           </tbody>
         </table>
       </div>
-      <button type="button" disabled={disabled} onClick={() => onChange([...lines, newLine()])} className={BUTTON}>
-        <Plus size={14} /> Adicionar item
-      </button>
+      <IconButton label="Adicionar item" icon={TABLE_ICONS.add} disabled={disabled} onClick={() => onChange([...lines, newLine()])} />
     </div>
   );
 }

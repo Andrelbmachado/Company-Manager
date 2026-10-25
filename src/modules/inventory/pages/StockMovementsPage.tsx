@@ -115,7 +115,7 @@ export default function StockMovementsPage() {
   );
 
   const columns: EditableColumn<MovementTableRow>[] = [
-    { key: "created_at", header: "Data", kind: "text", readOnly: true, render: (row) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(row.created_at)}</span> },
+    { key: "created_at", header: "Data", kind: "date", readOnly: true, render: (row) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(row.created_at)}</span> },
     { key: "kind", header: "Tipo", kind: "select", required: true, options: KIND_OPTIONS, render: (row) => <MovementTypeBadge type={row.type} /> },
     {
       key: "item_id",
@@ -159,6 +159,7 @@ export default function StockMovementsPage() {
       header: "Origem",
       kind: "text",
       readOnly: true,
+      sortValue: (row) => movementOriginLabel(row.ref_type),
       render: (row) => {
         const path = movementOriginPath(row.ref_type, row.ref_id);
         return path ? <Link to={path} className="text-primary-text hover:underline">{movementOriginLabel(row.ref_type)}</Link> : <span className="text-muted-foreground">{movementOriginLabel(row.ref_type)}</span>;

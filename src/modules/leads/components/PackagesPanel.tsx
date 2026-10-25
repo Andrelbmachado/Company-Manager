@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check, Package, X } from "lucide-react";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { NoFilterMatchRow, SortableHeader, TableFilterBar, TableFilterToolbar, useSortFilter, type ChoiceOption, type SortFilterColumn } from "@/components/shared/table";
 import { useRequiredSession } from "@/hooks/useSession";
 import { getDb } from "@/lib/db/client";
 import {
@@ -21,12 +22,18 @@ import {
   segmentPriceRows,
   startingPrices,
   type PackageCode,
+  type PackageFeatureRow,
   type SegmentPriceRow,
 } from "@/lib/prospecting/packages";
 import type { Lead, PackagePrice, Role, ServicePackage } from "@/types";
 
 const DEFAULT_NAMES: Record<PackageCode, string> = { basico: "Básico", essencial: "Essencial", premium: "Premium" };
 const NO_LEADS: Lead[] = [];
+/** Comparativo: cada pacote ordena e filtra por incluído / não incluído (o mesmo texto que o leitor de tela ouve). */
+const INCLUDED_CHOICES: ChoiceOption[] = [
+  { value: "true", label: "Incluído" },
+  { value: "false", label: "Não incluído" },
+];
 /** Preço grande que cabe no card mesmo na janela mínima do app (1024 px, três cards lado a lado). */
 const PRICE_VALUE = "whitespace-nowrap font-display text-[clamp(1.75rem,2.6vw,2.5rem)] font-bold leading-tight tracking-tight tabular-nums";
 
@@ -71,6 +78,20 @@ export function PackagesPanel({ packages, prices, leads = NO_LEADS }: { packages
   const qc = useQueryClient();
 
   const features = useMemo(() => packageFeatures(packages), [packages]);
+  const featureColumns = useMemo<SortFilterColumn<PackageFeatureRow>[]>(
+    () => [
+      { key: "feature", header: "Função", kind: "text" },
+      ...PACKAGE_CODES.map<SortFilterColumn<PackageFeatureRow>>((code) => ({
+        key: `pacote:${code}`,
+        header: packages.find((pkg) => pkg.code === code)?.name ?? DEFAULT_NAMES[code],
+        kind: "select",
+        options: INCLUDED_CHOICES,
+        sortValue: (row) => String(row[code]),
+      })),
+    ],
+    [packages],
+  );
+  const featureView = useSortFilter(features, featureColumns);
   const rows = useMemo(() => segmentPriceRows(packages, prices, leads), [packages, prices, leads]);
   const columns = useMemo<EditableColumn<SegmentPriceRow>[]>(
     () => [
@@ -89,8 +110,6 @@ export function PackagesPanel({ packages, prices, leads = NO_LEADS }: { packages
     return <EmptyState icon={Package} title="Nenhum pacote cadastrado" description="Os pacotes são importados junto com os leads." />;
   }
 
-  const nameOf = (code: PackageCode) => packages.find((pkg) => pkg.code === code)?.name ?? DEFAULT_NAMES[code];
-
   async function save(changes: EditableTableChanges<SegmentPriceRow>) {
     await saveSegmentPrices(await getDb(), companyId, { role: session.membership.role as Role }, changes);
   }
@@ -104,36 +123,44 @@ export function PackagesPanel({ packages, prices, leads = NO_LEADS }: { packages
       </section>
 
       {features.length > 0 && (
-        <section className="mx-auto w-full max-w-5xl overflow-x-auto rounded-xl border bg-card">
-          <table aria-label="Comparativo dos pacotes" className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  Função
-                </th>
-                {PACKAGE_CODES.map((code) => (
-                  <th key={code} scope="col" data-package-column={code} className="w-28 px-4 py-3 text-center font-semibold">
-                    {nameOf(code)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {features.map((row) => (
-                <tr key={row.feature}>
-                  <th scope="row" className="px-4 py-2.5 text-left font-normal">
-                    {row.feature}
-                  </th>
-                  {PACKAGE_CODES.map((code) => (
-                    <td key={code} data-included={String(row[code])} className="px-4 py-2.5 text-center">
-                      {row[code] ? <Check aria-hidden="true" size={16} className="mx-auto" /> : <X aria-hidden="true" size={16} className="mx-auto text-muted-foreground" />}
-                      <span className="sr-only">{row[code] ? "Incluído" : "Não incluído"}</span>
-                    </td>
+        <section className="mx-auto w-full max-w-5xl rounded-xl border bg-card">
+          <TableFilterToolbar view={featureView} />
+          <TableFilterBar view={featureView} />
+          <div className="overflow-x-auto">
+            <table aria-label="Comparativo dos pacotes" className="w-full text-sm">
+              <thead className="bg-muted/30">
+                <tr>
+                  {featureColumns.map((column) => (
+                    <SortableHeader
+                      key={column.key}
+                      label={column.header}
+                      sortKey={column.key}
+                      sort={featureView.sort}
+                      onSort={featureView.toggleSort}
+                      align={column.key === "feature" ? "left" : "center"}
+                      className={column.key === "feature" ? "px-4 py-3 text-sm" : "w-28 px-4 py-3 text-sm font-semibold text-foreground"}
+                    />
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {featureView.rows.map((row) => (
+                  <tr key={row.feature}>
+                    <th scope="row" className="px-4 py-2.5 text-left font-normal">
+                      {row.feature}
+                    </th>
+                    {PACKAGE_CODES.map((code) => (
+                      <td key={code} data-included={String(row[code])} className="px-4 py-2.5 text-center">
+                        {row[code] ? <Check aria-hidden="true" size={16} className="mx-auto" /> : <X aria-hidden="true" size={16} className="mx-auto text-muted-foreground" />}
+                        <span className="sr-only">{row[code] ? "Incluído" : "Não incluído"}</span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {!featureView.rows.length && <NoFilterMatchRow colSpan={featureColumns.length} />}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

@@ -74,7 +74,6 @@ export default function EmploymentCyclePage() {
 
   async function saveAdmissions(changes: EditableTableChanges<AdmissionRow>) {
     const db = await getDb();
-    if (changes.created.length && !canCreate) throw new Error("Seu perfil não tem permissão para iniciar admissões.");
     const admissions: AdmissionInput[] = changes.created.map((fields) => ({
       name: String(fields.name ?? ""),
       email: String(fields.email ?? ""),
@@ -84,7 +83,7 @@ export default function EmploymentCyclePage() {
       contract_type: (fields.contract_type ?? "") as ContractType | "",
     }));
     // Tudo conferido antes da primeira escrita: se falhar, a tabela mantém as linhas e nada fica gravado pela metade.
-    await checkAdmissions(db, companyId, admissions);
+    await checkAdmissions(db, companyId, role, admissions);
     if (changes.updated.length) await saveEmployeeRows(db, companyId, role, { created: [], updated: changes.updated }, today);
     for (const admission of admissions) {
       const result = await startAdmission(db, companyId, admission, session.user.id);

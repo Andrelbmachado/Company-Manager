@@ -5,7 +5,8 @@
 // Funções com `db` recebem o banco; SQL nos padrões do banco demo (contas e filtros no TypeScript).
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
-import type { ContractType, Employee, HrTask } from "@/types";
+import { can } from "@/lib/permissions/rbac";
+import type { ContractType, Employee, HrTask, Role } from "@/types";
 
 export type CycleKind = "admissao" | "desligamento";
 
@@ -101,11 +102,12 @@ function admissionProblem(input: AdmissionInput): string | null {
 }
 
 /**
- * Confere várias admissões (linhas novas da tabela) antes de gravar a primeira: regras de cada uma, e-mail repetido no
- * lote ou de quem já tem ficha. Se a gravação falhasse no meio, a tabela manteria as linhas e salvar de novo
- * duplicaria as admissões já gravadas.
+ * Confere várias admissões (linhas novas da tabela) antes de gravar a primeira: permissão (`create` em `hr_admin`),
+ * regras de cada uma, e-mail repetido no lote ou de quem já tem ficha. Se a gravação falhasse no meio, a tabela
+ * manteria as linhas e salvar de novo duplicaria as admissões já gravadas.
  */
-export async function checkAdmissions(db: DatabaseLike, companyId: string, inputs: readonly AdmissionInput[]): Promise<void> {
+export async function checkAdmissions(db: DatabaseLike, companyId: string, role: Role, inputs: readonly AdmissionInput[]): Promise<void> {
+  if (inputs.length && !can(role, "create", "hr_admin")) throw new Error("Seu perfil não tem permissão para iniciar admissões.");
   for (const input of inputs) {
     const problem = admissionProblem(input);
     if (problem) throw new Error(problem);

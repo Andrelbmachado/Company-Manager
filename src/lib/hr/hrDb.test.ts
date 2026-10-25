@@ -132,10 +132,11 @@ describe("admissão e desligamento", () => {
   it("várias admissões na mesma gravação: confere todas antes de gravar a primeira", async () => {
     const base = { department: "", position: "", hire_date: "2026-11-02", contract_type: "" as const };
     await startAdmission(db, C, { ...base, name: "Rafael", email: "rafael@empresa.com" }, RH);
-    await expect(checkAdmissions(db, C, [{ ...base, name: "Bia", email: "" }, { ...base, name: "Sem data", email: "", hire_date: "" }])).rejects.toThrow(/data de início/);
-    await expect(checkAdmissions(db, C, [{ ...base, name: "Bia", email: "bia@empresa.com" }, { ...base, name: "Bia Souza", email: "BIA@empresa.com" }])).rejects.toThrow(/mais de uma admissão/);
-    await expect(checkAdmissions(db, C, [{ ...base, name: "Bia", email: "" }, { ...base, name: "Outro", email: "Rafael@Empresa.com" }])).rejects.toThrow(/Rafael/);
-    await checkAdmissions(db, C, [{ ...base, name: "Bia", email: "" }, { ...base, name: "Caio", email: "caio@empresa.com" }]);
+    await expect(checkAdmissions(db, C, "rh", [{ ...base, name: "Bia", email: "" }, { ...base, name: "Sem data", email: "", hire_date: "" }])).rejects.toThrow(/data de início/);
+    await expect(checkAdmissions(db, C, "rh", [{ ...base, name: "Bia", email: "bia@empresa.com" }, { ...base, name: "Bia Souza", email: "BIA@empresa.com" }])).rejects.toThrow(/mais de uma admissão/);
+    await expect(checkAdmissions(db, C, "rh", [{ ...base, name: "Bia", email: "" }, { ...base, name: "Outro", email: "Rafael@Empresa.com" }])).rejects.toThrow(/Rafael/);
+    await checkAdmissions(db, C, "rh", [{ ...base, name: "Bia", email: "" }, { ...base, name: "Caio", email: "caio@empresa.com" }]);
+    await expect(checkAdmissions(db, C, "tecnico", [{ ...base, name: "Bia", email: "" }])).rejects.toThrow(/permissão/);
     expect((await employees()).map((employee) => employee.name)).toEqual(["Rafael"]);
   });
 

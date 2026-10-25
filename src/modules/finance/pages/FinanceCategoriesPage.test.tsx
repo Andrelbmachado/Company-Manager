@@ -1,11 +1,12 @@
 // Plano de contas na tela: árvore com linha da DRE herdada, subcategoria adicionada na própria tabela, tipo da
-// categoria pai conferido, exclusão recusada com filhas, desativar na tabela e centros de custo.
+// categoria pai conferido, exclusão recusada com filhas, desativar na tabela, centros de custo e rascunho que não se
+// perde ao trocar de aba.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { addCategory, addPayable } from "@/test/financeFixtures";
 import { choose, click, findButton, renderPage, until, type RenderedPage } from "@/test/pageHarness";
-import { addRow, editCell, saveError, saveTable, startEditing, tableOf } from "../testing/tableActions";
+import { addRow, cellField, editCell, rowOf, saveError, saveTable, startEditing, tableOf } from "../testing/tableActions";
 import FinanceCategoriesPage from "./FinanceCategoriesPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -67,6 +68,23 @@ describe("FinanceCategoriesPage", () => {
     await click(view.button("Confirmar exclusão"));
     await until(() => view.text().includes("em uso"), "recusa excluir centro em uso");
     expect(document.querySelector("[role=dialog]")).toBeNull();
+  });
+
+  it("linha nova do plano de contas continua lá depois de abrir Centros de custo", async () => {
+    const db = testDb();
+    const { companyId } = await insertTestCompany(db, { companyId: "empresa-plano-abas", roles: ["financeiro"] });
+    await addCategory(db, companyId, { id: "desp", name: "Despesas administrativas", code: "4", kind: "despesa", dre_group: "despesa" });
+    page = await renderPage(<FinanceCategoriesPage />, { companyId });
+    const view = page;
+    await until(() => view.text().includes("Despesas administrativas"), "categoria na árvore");
+    const table = tableOf(view.container, "finance");
+    await addRow(table);
+    await editCell(table, "nova", "name", "Aluguel");
+
+    await click(view.button("Centros de custo"));
+    expect(rowOf(tableOf(view.container, "finance"), "nova")).toBeNull();
+    await click(view.button("Plano de contas"));
+    expect(cellField(tableOf(view.container, "finance"), "nova", "name").value).toBe("Aluguel");
   });
 
   it("auditor só consulta", async () => {

@@ -2,8 +2,10 @@
 // linha (id gravado ou "nova") e coluna, digitar ou escolher e salvar esperando o fim do modo edição.
 import { choose, click, findButton, type, until } from "@/test/pageHarness";
 
+/** Tabela à vista (abas e Lista | Calendário escondem a outra tabela sem desmontá-la); se todas estão escondidas, a primeira. */
 export function tableOf(scope: ParentNode, resource?: string): HTMLElement {
-  const table = scope.querySelector<HTMLElement>(resource ? `[data-editable-table="${resource}"]` : "[data-editable-table]");
+  const tables = [...scope.querySelectorAll<HTMLElement>(resource ? `[data-editable-table="${resource}"]` : "[data-editable-table]")];
+  const table = tables.find((element) => !element.closest("[hidden]")) ?? tables[0];
   if (!table) throw new Error(`tabela editável ${resource ?? ""} não encontrada`);
   return table;
 }

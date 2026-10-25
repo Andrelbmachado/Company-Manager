@@ -128,36 +128,36 @@ export default function FinanceCategoriesPage() {
       </div>
       <ErrorNote message={remove.error ? errorMessage(remove.error) : null} />
 
+      {/* As duas tabelas ficam montadas (só a da aba aberta aparece): trocar de aba não perde o rascunho em silêncio. */}
       <TabPanel idPrefix="plano-de-contas" id={tab}>
-        {tab === "plano" ? (
-          <div className="space-y-3">
-            <EditableTable<CategoryRow>
-              resource="finance"
-              label="Plano de contas"
-              rows={categoryRows}
-              columns={columns}
-              newRow={() => ({ kind: kindFilter || "despesa", active: 1 })}
-              onSave={saveCategories}
-              onRefresh={() => qc.invalidateQueries({ queryKey: ["finance_categories", companyId] })}
-              emptyMessage={kindFilter ? "Nenhuma categoria." : "Nenhuma categoria. Adicione as categorias de receita e de despesa (com código, ex.: 3, 3.1, 4, 4.1) para classificar os lançamentos e montar a DRE."}
-              actions={
-                <Field label="Tipo" className="flex-row items-center gap-2">
-                  <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value as "" | FinanceCategoryKind)} className={inputClass}>
-                    <option value="">Receitas e despesas</option>
-                    <option value="receita">Receitas</option>
-                    <option value="despesa">Despesas</option>
-                  </select>
-                </Field>
-              }
-              rowActions={
-                canDelete
-                  ? (row) => <ConfirmButton label="" ariaLabel={`Excluir ${row.name}`} confirmLabel="Confirmar exclusão" icon={<Trash2 size={15} aria-hidden="true" />} busy={remove.isPending} onConfirm={() => remove.mutate({ type: "category", id: row.id })} />
-                  : undefined
-              }
-            />
-            <p className="text-sm text-muted-foreground">Linha da DRE vazia herda da categoria pai (ou do tipo). Categoria inativa não aparece para novos lançamentos, mas continua na DRE dos antigos.</p>
-          </div>
-        ) : (
+        <div hidden={tab !== "plano"} className="space-y-3">
+          <EditableTable<CategoryRow>
+            resource="finance"
+            label="Plano de contas"
+            rows={categoryRows}
+            columns={columns}
+            newRow={() => ({ kind: kindFilter || "despesa", active: 1 })}
+            onSave={saveCategories}
+            onRefresh={() => qc.invalidateQueries({ queryKey: ["finance_categories", companyId] })}
+            emptyMessage={kindFilter ? "Nenhuma categoria." : "Nenhuma categoria. Adicione as categorias de receita e de despesa (com código, ex.: 3, 3.1, 4, 4.1) para classificar os lançamentos e montar a DRE."}
+            actions={
+              <Field label="Tipo" className="flex-row items-center gap-2">
+                <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value as "" | FinanceCategoryKind)} className={inputClass}>
+                  <option value="">Receitas e despesas</option>
+                  <option value="receita">Receitas</option>
+                  <option value="despesa">Despesas</option>
+                </select>
+              </Field>
+            }
+            rowActions={
+              canDelete
+                ? (row) => <ConfirmButton label="" ariaLabel={`Excluir ${row.name}`} confirmLabel="Confirmar exclusão" icon={<Trash2 size={15} aria-hidden="true" />} busy={remove.isPending} onConfirm={() => remove.mutate({ type: "category", id: row.id })} />
+                : undefined
+            }
+          />
+          <p className="text-sm text-muted-foreground">Linha da DRE vazia herda da categoria pai (ou do tipo). Categoria inativa não aparece para novos lançamentos, mas continua na DRE dos antigos.</p>
+        </div>
+        <div hidden={tab !== "centros"}>
           <EditableTable<CostCenterRow>
             resource="finance"
             label="Centros de custo"
@@ -172,7 +172,7 @@ export default function FinanceCategoriesPage() {
                 : undefined
             }
           />
-        )}
+        </div>
       </TabPanel>
     </div>
   );

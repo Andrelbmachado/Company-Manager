@@ -206,7 +206,7 @@ export function ImportWizard({ entities, initialEntity, lockEntity, onImported, 
           const index = steps.indexOf(label);
           return (
             <li key={label} aria-current={index === step ? "step" : undefined} className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1", index === step ? "border-primary bg-primary/10 font-semibold text-foreground" : index < step ? "text-foreground" : "text-muted-foreground")}>
-              <span className={cn("flex h-4 w-4 items-center justify-center rounded-full text-[10px]", index <= step ? "bg-primary text-primary-foreground" : "bg-muted")}>{visibleSteps.indexOf(label) + 1}</span>
+              <span className={cn("flex h-4 w-4 items-center justify-center rounded-full text-caption", index <= step ? "bg-primary text-primary-foreground" : "bg-muted")}>{visibleSteps.indexOf(label) + 1}</span>
               {label}
             </li>
           );

@@ -124,7 +124,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
               <span
                 aria-label={unread ? `${unread} não lida` : "nenhuma não lida"}
                 className={cn(
-                  "min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold",
+                  "min-w-5 rounded-full px-1.5 text-center text-caption font-semibold",
                   unread ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground",
                 )}
               >
@@ -142,7 +142,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
                         ? "A equipe de Estoque abriu o ticket “Leitor de código sem conexão”."
                         : "Seu ticket “Acesso ao sistema interno” recebeu uma nova atualização."}
                     </span>
-                    <span className="mt-1.5 block text-[11px] text-muted-foreground">Há 8 minutos</span>
+                    <span className="mt-1.5 block text-caption text-muted-foreground">Há 8 minutos</span>
                   </span>
                 </button>
                 <button

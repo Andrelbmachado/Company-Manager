@@ -32,7 +32,7 @@ function validity(list: PriceList): string {
 
 function Pill({ children, tone = "muted" }: { children: string; tone?: "muted" | "primary" | "danger" }) {
   return (
-    <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-semibold", tone === "primary" ? "bg-primary/15 text-primary-text" : tone === "danger" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground")}>
+    <span className={cn("rounded px-1.5 py-0.5 text-caption font-semibold", tone === "primary" ? "bg-primary/15 text-primary-text" : tone === "danger" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground")}>
       {children}
     </span>
   );

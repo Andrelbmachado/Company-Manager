@@ -205,7 +205,7 @@ export default function PipelineBoardPage() {
                             {closed ? formatDay(opp.closed_at) : opp.expected_close_date ? `Fecha ${formatDay(opp.expected_close_date)}` : "Sem previsão"}
                           </span>
                           {opp.owner_id && (
-                            <span title={names.get(opp.owner_id) ?? undefined} className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+                            <span title={names.get(opp.owner_id) ?? undefined} className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-caption font-semibold">
                               {initialsOf(names.get(opp.owner_id))}
                             </span>
                           )}

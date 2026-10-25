@@ -138,7 +138,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               placeholder="Buscar módulos e páginas..."
               className="flex h-12 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
             />
-            <kbd className="rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">esc</kbd>
+            <kbd className="rounded border bg-background px-1.5 text-caption font-medium text-muted-foreground">esc</kbd>
           </div>
           {/* Até 20rem, mas nunca além da janela (pt de 14vh + campo + rodapé, que quebra linha na janela estreita):
               numa janela baixa a lista encolhe. */}
@@ -167,7 +167,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               })}
             </Command.Group>
           </Command.List>
-          <div className="flex gap-4 border-t px-3 py-2 text-[10px] text-muted-foreground">
+          <div className="flex gap-4 border-t px-3 py-2 text-caption text-muted-foreground">
             <span>↑↓ navegar</span>
             <span>↵ selecionar</span>
             <span>esc fechar</span>

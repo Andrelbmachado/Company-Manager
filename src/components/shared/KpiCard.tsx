@@ -68,7 +68,7 @@ export function KpiCard({ title, value, className }: KpiCardProps) {
 
   return (
     <div className={cn("kpi-card flex min-w-0 flex-col gap-3 p-5", className)}>
-      <p className="text-[13px] font-medium text-muted-foreground">{title}</p>
+      <p className="text-body font-medium text-muted-foreground">{title}</p>
       <p
         ref={valueRef}
         data-kpi-value=""

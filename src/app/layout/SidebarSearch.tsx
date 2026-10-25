@@ -19,7 +19,7 @@ export function SidebarSearch({ collapsed, onOpen }: { collapsed: boolean; onOpe
       {!collapsed && (
         <>
           <span className="flex-1 text-left">Buscar</span>
-          <kbd className="rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">⌘K</kbd>
+          <kbd className="rounded border bg-background px-1.5 text-caption font-medium text-muted-foreground">⌘K</kbd>
         </>
       )}
     </button>

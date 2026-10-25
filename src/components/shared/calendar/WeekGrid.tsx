@@ -67,7 +67,7 @@ export function WeekGrid({ days, today, positioned, nowMinute, hourHeight = 48, 
       </div>
 
       <div className="flex border-b">
-        <div className="flex w-14 shrink-0 items-center justify-end pr-2 text-[10px] text-muted-foreground">Dia inteiro</div>
+        <div className="flex w-14 shrink-0 items-center justify-end pr-2 text-caption text-muted-foreground">Dia inteiro</div>
         <div className="relative flex-1" style={{ height: Math.max(allDayRows, 1) * ALL_DAY_ROW + 6 }}>
           <div className="absolute inset-0 grid" style={columns}>
             {days.map((day) => (
@@ -104,7 +104,7 @@ export function WeekGrid({ days, today, positioned, nowMinute, hourHeight = 48, 
         <div className="relative flex" style={{ height: 24 * hourHeight }}>
           <div className="relative w-14 shrink-0">
             {HOURS.slice(1).map((hour) => (
-              <span key={hour} className="absolute right-2 -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" style={{ top: hour * hourHeight }}>
+              <span key={hour} className="absolute right-2 -translate-y-1/2 text-caption tabular-nums text-muted-foreground" style={{ top: hour * hourHeight }}>
                 {formatMinute(hour * 60)}
               </span>
             ))}

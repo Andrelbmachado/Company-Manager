@@ -1,7 +1,8 @@
 // Travas da varredura do pedido de 2026-10-25, para não voltarem:
 // - item 8: página sem subtítulo (PageHeader não tem descrição; nada de saudação com nome, papel ou empresa);
 // - item 9: sem texto de ajuda (estado vazio curto, sem descrição; frases de instrução do pedido não voltam);
-// - item 10: toda <table> visível ordena pelo cabeçalho (SortableHeader, nada de <th> com texto) e tem filtro.
+// - item 10: toda <table> visível ordena pelo cabeçalho (SortableHeader, nada de <th> com texto) e tem filtro;
+// - item 1: parágrafo sem tamanho de título nem tamanho fixo (text-[13px]): só os tokens do tema.
 // Os botões só com ícone (itens 12 e 13) estão em iconButtonsGuard.test.ts e o gráfico de linha fora do componente
 // compartilhado (itens 2 e 3) em components/shared/charts/LineAreaChart.test.tsx. project-manager fica de fora.
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -184,6 +185,22 @@ describe("item 10: toda tabela ordena pelo cabeçalho e tem filtro", () => {
           .map(({ file }) => file.path),
       ),
     ];
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("item 1: texto corrido no tamanho dos tokens", () => {
+  it("parágrafo não usa tamanho de título (text-base, text-lg, text-xl...)", () => {
+    const offenders = files.flatMap((file) =>
+      elements(file, "p")
+        .filter((node) => /\btext-(base|lg|xl|[2-9]xl)\b/.test(className(opening(node)!)))
+        .map((node) => where(file, node)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("nenhum tamanho de texto fixo (text-[13px], text-[1.75rem]): só os tamanhos do tema", () => {
+    const offenders = files.flatMap((file) => [...file.text.matchAll(/\btext-\[\d+(\.\d+)?(px|rem|em)\]/g)].map((match) => `${file.path} ${match[0]}`));
     expect(offenders).toEqual([]);
   });
 });

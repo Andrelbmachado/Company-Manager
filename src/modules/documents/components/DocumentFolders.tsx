@@ -55,7 +55,7 @@ export function DocumentFolders({ role, companyId, userId, canUpload, canEdit, c
         <span className="flex h-full flex-col items-center justify-center">
           <FolderIcon cloud />
           <span className="mt-3 w-full truncate text-sm font-medium">{folder.label}</span>
-          <span className="text-[11px] text-muted-foreground">{(CLOUD_PROVIDERS[folder.provider] ?? CLOUD_PROVIDERS.outro).label}</span>
+          <span className="text-caption text-muted-foreground">{(CLOUD_PROVIDERS[folder.provider] ?? CLOUD_PROVIDERS.outro).label}</span>
         </span>
       </button>
     ),

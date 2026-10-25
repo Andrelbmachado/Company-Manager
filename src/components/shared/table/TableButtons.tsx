@@ -73,7 +73,7 @@ export function FilterButton({ open, onToggle, activeCount, controls, disabled, 
       <ListFilter aria-hidden="true" size={16} />
       <span className="sr-only">Filtrar</span>
       {activeCount > 0 && (
-        <span aria-hidden="true" data-filter-count="" className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+        <span aria-hidden="true" data-filter-count="" className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-caption font-semibold leading-none text-primary-foreground">
           {activeCount}
         </span>
       )}

@@ -250,8 +250,8 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
                 <span className="flex h-full flex-col items-center justify-start pt-1">
                   <FileTypeIcon name={entry.name} size={40} strokeWidth={1.5} className="shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5" />
                   <span className="mt-3 line-clamp-2 w-full break-words text-sm font-medium leading-snug" title={entry.name}>{entry.name}</span>
-                  <span className="mt-1 text-[11px] text-muted-foreground">{entry.cloudOnly ? "Só na nuvem" : formatBytes(entry.size)}</span>
-                  {entry.modified && <span className="text-[11px] text-muted-foreground">{formatTimestamp(entry.modified)}</span>}
+                  <span className="mt-1 text-caption text-muted-foreground">{entry.cloudOnly ? "Só na nuvem" : formatBytes(entry.size)}</span>
+                  {entry.modified && <span className="text-caption text-muted-foreground">{formatTimestamp(entry.modified)}</span>}
                 </span>
               )}
             </button>

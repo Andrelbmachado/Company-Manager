@@ -83,10 +83,12 @@ export function ViewSwitch({ value, onChange, label = "Visualização" }: { valu
           key={option.id}
           type="button"
           aria-pressed={value === option.id}
+          aria-label={option.text}
+          title={option.text}
           onClick={() => onChange(option.id)}
           className={cn("inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-sm font-medium transition-colors", value === option.id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
         >
-          {option.icon} {option.text}
+          {option.icon} <span className="hidden sm:inline">{option.text}</span>
         </button>
       ))}
     </div>

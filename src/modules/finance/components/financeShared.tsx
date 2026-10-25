@@ -8,7 +8,7 @@ import { isTrue } from "@/lib/erp/financeCommon";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { BankAccount, BankAccountKind, CostCenter, Customer, FinanceCategory, Supplier } from "@/types";
 
-export const inputClass = "h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
+export const inputClass = "h-9 min-w-0 max-w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 export const primaryButton = "flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50";
 export const secondaryButton = "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 export const dangerButton = "flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50";
@@ -207,7 +207,7 @@ export function ConfirmButton({ label, confirmLabel, onConfirm, icon, disabled, 
 /** Campo com rótulo para filtros e formulários no próprio lugar. */
 export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <label className={cn("flex flex-col gap-1 text-xs font-medium text-muted-foreground", className)}>
+    <label className={cn("flex min-w-0 max-w-full flex-col gap-1 text-xs font-medium text-muted-foreground", className)}>
       {label}
       {children}
     </label>

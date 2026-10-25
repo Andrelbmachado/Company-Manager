@@ -253,17 +253,17 @@ export default function FinancePage() {
 
       <TabPanel idPrefix="financeiro" id={tab}>
         <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar descrição, ${partyLabel.toLowerCase()} ou documento`}>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
             Situação
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className={inputClass}>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className={`${inputClass} min-w-0`}>
               {STATUS_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           {view === "lista" && (
             <>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
                 Vencimento em
-                <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className={inputClass} />
+                <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className={`${inputClass} min-w-0 flex-1`} />
               </label>
               {month && <button type="button" onClick={() => setMonth("")} className={secondaryButton}>Todos os meses</button>}
             </>

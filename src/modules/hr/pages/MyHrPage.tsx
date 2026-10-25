@@ -137,7 +137,7 @@ export default function MyHrPage() {
             <ul className="divide-y">
               {sortedAnnouncements.map((item) => (
                 <li key={item.id} className="space-y-1.5 px-5 py-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={item.category} className="shrink-0" />
                     {item.pinned ? <span className="text-xs font-semibold text-primary-text">Fixado</span> : null}
                     <span className="ml-auto text-xs text-muted-foreground">{formatDay(item.published_at)}</span>

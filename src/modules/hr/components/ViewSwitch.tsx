@@ -17,10 +17,12 @@ export function ViewSwitch({ value, onChange, label = "Visão", className }: { v
           key={id}
           type="button"
           aria-pressed={value === id}
+          aria-label={text}
+          title={text}
           onClick={() => onChange(id)}
           className={cn("inline-flex items-center gap-1.5 rounded px-3 py-1 text-sm font-medium transition-colors", value === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
         >
-          <Icon size={14} aria-hidden="true" /> {text}
+          <Icon size={14} aria-hidden="true" /> <span className="hidden sm:inline">{text}</span>
         </button>
       ))}
     </div>

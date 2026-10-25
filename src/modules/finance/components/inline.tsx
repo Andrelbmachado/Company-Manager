@@ -60,10 +60,12 @@ export function ViewToggle({ value, onChange }: { value: ListOrCalendar; onChang
     <button
       type="button"
       aria-pressed={value === id}
+      aria-label={label}
+      title={label}
       onClick={() => onChange(id)}
       className={cn("inline-flex h-8 items-center gap-1.5 px-3 text-sm font-medium transition-colors", value === id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
     >
-      {icon} {label}
+      {icon} <span className="hidden sm:inline">{label}</span>
     </button>
   );
   return (

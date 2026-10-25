@@ -282,7 +282,7 @@ export function OverdueFollowUps({ userId, limit = 6, className, actions }: { us
   const canComplete = can("edit", "crm_activities");
   return (
     <section className={cn(CARD, "p-5", className)} aria-label="Follow-ups atrasados">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <AlarmClock size={16} aria-hidden="true" /> Follow-ups atrasados
           {overdue.length > 0 && <span className="rounded-md bg-status-danger px-1.5 py-0.5 text-xs font-semibold text-white">{overdue.length}</span>}

@@ -176,15 +176,15 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
   return (
     <div className="space-y-4">
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, categoria, endereço...">
-        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar por status" className={selectClass}>
+        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar por status" className={`${selectClass} min-w-0 max-w-full`}>
           <option value="">Todos os status</option>
           {LEAD_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filtrar por categoria" className={selectClass}>
+        <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filtrar por categoria" className={`${selectClass} min-w-0 max-w-full`}>
           <option value="">Todas as categorias</option>
           {categories.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>
-        <select value={presence} onChange={(event) => setPresence(event.target.value)} aria-label="Filtrar por presença online" className={selectClass}>
+        <select value={presence} onChange={(event) => setPresence(event.target.value)} aria-label="Filtrar por presença online" className={`${selectClass} min-w-0 max-w-full`}>
           <option value="">Toda presença online</option>
           {Object.entries(PRESENCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>

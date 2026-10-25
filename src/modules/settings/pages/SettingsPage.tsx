@@ -62,9 +62,9 @@ export default function SettingsPage() {
 
       {/* Senha da própria conta */}
       <div className="rounded-xl border bg-card p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
               <LockKeyhole size={18} className="text-primary-text" />
             </div>
             <h3 className="text-sm font-semibold">Senha</h3>

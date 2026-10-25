@@ -11,7 +11,7 @@ interface PageHeaderProps {
 export function PageHeader({ title, actions, className }: PageHeaderProps) {
   return (
     <div className={cn("flex flex-wrap items-end justify-between gap-4 pb-6", className)}>
-      <h1 className="min-w-0 text-large-title font-bold tracking-tight">{title}</h1>
+      <h1 className="min-w-0 max-w-full truncate text-large-title font-bold tracking-tight" title={title}>{title}</h1>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );

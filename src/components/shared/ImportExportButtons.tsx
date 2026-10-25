@@ -45,7 +45,7 @@ export function ImportExportButtons(props: ImportExportButtonsProps) {
   if (!session || !role || !entity) {
     const reason = !entity ? "Este cadastro não tem importação" : "Entre no sistema para importar ou exportar";
     return (
-      <div className={cn("flex items-center gap-2", props.className)} data-entity={props.entity}>
+      <div className={cn("flex flex-wrap items-center gap-2", props.className)} data-entity={props.entity}>
         <button type="button" className={BUTTON} disabled title={reason} aria-label={`Importar planilha (${reason.toLowerCase()})`}>
           <Upload size={14} aria-hidden="true" /> Importar
         </button>
@@ -61,7 +61,7 @@ export function ImportExportButtons(props: ImportExportButtonsProps) {
   if (!canImport && !canExport) return null;
 
   return (
-    <div className={cn("flex items-center gap-2", props.className)} data-entity={props.entity}>
+    <div className={cn("flex flex-wrap items-center gap-2", props.className)} data-entity={props.entity}>
       {canImport && (
         <button type="button" className={BUTTON} onClick={() => setImporting(true)} aria-label={`Importar planilha de ${entity.label.toLowerCase()}`}>
           <Upload size={14} aria-hidden="true" /> Importar

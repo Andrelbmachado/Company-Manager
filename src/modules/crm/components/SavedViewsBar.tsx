@@ -51,9 +51,9 @@ export function SavedViewsBar({ entityType, current, hasFilters, onApply, canSha
     },
   });
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Bookmark size={14} aria-hidden="true" />
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+      <label className="flex min-w-0 max-w-full items-center gap-1.5 text-sm text-muted-foreground">
+        <Bookmark size={14} aria-hidden="true" className="shrink-0" />
         <select
           value={selected}
           onChange={(event) => {
@@ -61,7 +61,7 @@ export function SavedViewsBar({ entityType, current, hasFilters, onApply, canSha
             onApply(views.find((view) => view.id === event.target.value) ?? null);
           }}
           aria-label="Segmento salvo"
-          className={SELECT}
+          className={cn(SELECT, "min-w-0 max-w-full")}
         >
           <option value="">Segmentos salvos…</option>
           {views.map((view) => (

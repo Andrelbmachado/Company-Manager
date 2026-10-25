@@ -203,8 +203,8 @@ function DemoModeSwitch() {
 
   return (
     <section aria-labelledby="demo-mode-title" className="rounded-xl border bg-card p-5 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <FlaskConical size={18} className="text-primary-text" />
           </div>

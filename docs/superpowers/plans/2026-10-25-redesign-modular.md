@@ -127,8 +127,8 @@ Conexão sem servidor próprio: cada fonte é um **link iCal** (Google Agenda: "
 **Interfaces:**
 - Produces: `parseIcs(text, range): CalendarItem[]` (expande recorrências no intervalo), `syncSource(db, sourceId, fetcher = fetch): Promise<{ added: number; updated: number; removed: number }>` (upsert por `uid`), `buildCompanyFeed(db, companyId): Promise<string>` (iCal com ausências e reuniões).
 
-- [ ] **Step 1:** Testes com fixtures `.ics`: evento semanal com `RRULE` gera 4 ocorrências no mês; evento com `TZID=America/Sao_Paulo` às 09:00 fica 09:00 local; sincronizar duas vezes não duplica; evento removido na fonte some; URL que responde 404 grava `last_error` e não apaga eventos antigos.
-- [ ] **Step 2:** FAIL → implementar (tela com `CalendarView`, lista de fontes em `EditableTable`, filtro por funcionário, botão "Exportar agenda da empresa") → PASS. Commit `feat(calendar): agendas por link iCal e agenda da empresa exportável`.
+- [x] **Step 1:** Testes com fixtures `.ics`: evento semanal com `RRULE` gera 4 ocorrências no mês; evento com `TZID=America/Sao_Paulo` às 09:00 fica 09:00 local; sincronizar duas vezes não duplica; evento removido na fonte some; URL que responde 404 grava `last_error` e não apaga eventos antigos.
+- [x] **Step 2:** FAIL → implementar (tela com `CalendarView`, lista de fontes em `EditableTable`, filtro por funcionário, botão "Exportar agenda da empresa") → PASS. Commit `feat(calendar): agendas por link iCal e agenda da empresa exportável`.
 
 ### Task 6: Edição na tabela em todos os módulos (paralelo, um agente por grupo)
 
@@ -138,9 +138,9 @@ Conexão sem servidor próprio: cada fonte é um **link iCal** (Google Agenda: "
 
 Em cada tela do grupo: toda lista vira `EditableTable` com Editar/Adicionar/Atualizar; remover o uso de `CrudDialog`/`DetailDrawer` para editar (fichas como a do cliente passam a ter campos editáveis no próprio lugar); cards do topo só com título + número grande; tudo que é data/agenda (férias, banco de horas, cronograma de projeto, follow-ups do CRM, vencimentos do financeiro, ordens de serviço agendadas) ganha a visão `CalendarView` ao lado da lista. Grupo (c) acrescenta **Fornecedores** no grupo Logística da sidebar, apontando para a lista de fornecedores das Compras.
 
-- [ ] **Step 1:** Teste de contrato por grupo (`src/modules/<grupo>/editing.test.tsx`): cada página do grupo renderiza um `EditableTable` e nenhum `role="dialog"` aparece ao clicar em Editar ou Adicionar.
-- [ ] **Step 2:** `rg "CrudDialog|DetailDrawer" src/modules/<pastas do grupo>` → nenhum uso para edição.
-- [ ] **Step 3:** FAIL → migrar telas → PASS. Commit por grupo `refactor(<grupo>): edição direto na tabela`.
+- [x] **Step 1:** Teste de contrato por grupo (`src/modules/<grupo>/editing.test.tsx`): cada página do grupo renderiza um `EditableTable` e nenhum `role="dialog"` aparece ao clicar em Editar ou Adicionar.
+- [x] **Step 2:** `rg "CrudDialog|DetailDrawer" src/modules/<pastas do grupo>` → nenhum uso para edição.
+- [x] **Step 3:** FAIL → migrar telas → PASS. Commit por grupo `refactor(<grupo>): edição direto na tabela`.
 
 ### Task 7: Prospecção com várias campanhas e cards enxutos
 
@@ -161,8 +161,8 @@ Em cada tela do grupo: toda lista vira `EditableTable` com Editar/Adicionar/Atua
 - Três cards (Básico, Essencial, Premium) centralizados; ordem dentro do card: nome → resumo → lista curta → **preço por último, grande**. Abaixo, tabela comparativa: uma linha por função, uma coluna por pacote, ✓ ou ✕.
 - **Interfaces:** `packageFeatures(): { feature: string; basico: boolean; essencial: boolean; premium: boolean }[]` derivado dos dados de pacotes existentes (`src/types/index.ts`/`referral.ts`), sem duplicar preços.
 
-- [ ] **Step 1:** Teste: a tabela tem uma linha por função e exatamente 3 colunas de pacote; preço é o último elemento de texto de cada card.
-- [ ] **Step 2:** FAIL → implementar → PASS. Commit `feat(leads): pacotes centralizados com tabela comparativa`.
+- [x] **Step 1:** Teste: a tabela tem uma linha por função e exatamente 3 colunas de pacote; preço é o último elemento de texto de cada card.
+- [x] **Step 2:** FAIL → implementar → PASS. Commit `feat(leads): pacotes centralizados com tabela comparativa`.
 
 ### Task 9: Documentos — nuvem e pastas monocromáticas
 
@@ -200,6 +200,7 @@ Conexão sem login de terceiros: o botão **Conectar nuvem** abre o seletor de p
 - **Fase A (sequencial, no branch principal):** Tarefa 0 → 1 → 2 → 3 (tocam arquivos compartilhados).
 - **Fase B (paralela, worktree por tarefa):** 4, 5, 6a, 6b, 6c, 6d, 7, 8, 9, 10 — cada uma com implementador e revisor; nenhuma edita `routes.tsx`, `Sidebar.tsx`, `rbac.ts`, `demo.ts`, `lib.rs`, `types/index.ts` (a Tarefa 2 já registra rotas, nav e tabelas).
 - **Fase C:** juntar os branches (com autorização), Tarefa 11, reinstalar com `npm run install:app`.
+  - Branches juntados em `feat/crm-erp-completo` (merge `--no-ff` de r4, r5, r6a, r6b, r6c, r6d, r7, r8, r9, r10, nesta ordem). Integração: plugin HTTP registrado no `lib.rs`; Fornecedores ficou com a tela da 6c; linha nova da tabela de leads entra na prospecção escolhida; histórico de importações sem `DetailDrawer` (nenhuma tela usa `CrudDialog`/`DetailDrawer`, com trava em teste); `AGENTS.md` com as camadas de gravação de cada grupo e o contrato dos pacotes. Falta a Tarefa 11.
 
 ## Cobertura
 

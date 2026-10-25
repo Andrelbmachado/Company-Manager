@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionContext } from "@/hooks/useSession";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
+import { saveAreaLabels } from "@/lib/labels/store";
 import { addDays, addMonths, monthLabel, monthOf } from "@/lib/reports/common";
 import { todayIso } from "@/lib/utils";
 import type { Role, Session } from "@/types";
@@ -187,6 +188,12 @@ describe("DRE", () => {
 });
 
 describe("visão geral", () => {
+  it("o título é o rótulo do módulo na área da empresa (editável em Configurações)", async () => {
+    await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.reports": "Indicadores" } });
+    await render(<ReportsPage />, "ceo");
+    await until(() => container.querySelector("h1")?.textContent === "Indicadores", "título com o rótulo da área");
+  });
+
   it("só mostra os relatórios que o papel pode abrir", async () => {
     await render(<ReportsPage />, "comercial");
     const links = () => Array.from(container.querySelectorAll("a")).map((link) => link.textContent ?? "");

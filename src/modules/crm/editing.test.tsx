@@ -59,6 +59,12 @@ describe("CRM: edição direto na tabela", () => {
     await expectInlineEditing(page.container, ["customers"]);
   });
 
+  it("clientes: título da página é o rótulo do módulo na área da empresa (editável em Configurações)", async () => {
+    await saveAreaLabels(testDb(), companyId, { role: "ceo", userId: USER }, { overrides: { "module.crm": "Carteira de clientes" } });
+    page = await open("/crm", "/crm", <CrmPage />);
+    await until(() => page!.container.querySelector("h1")?.textContent === "Carteira de clientes", "título com o rótulo da área");
+  });
+
   it("ficha do cliente: cadastro editável no lugar e abas em tabela", async () => {
     page = await open("/crm/clientes/cust-1", "/crm/clientes/:id", <CustomerDetailPage />);
     await until(() => page!.container.querySelector("h1")?.textContent === "Clínica Vida", "ficha carregada");

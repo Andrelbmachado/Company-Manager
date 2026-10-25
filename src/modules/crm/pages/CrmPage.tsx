@@ -10,6 +10,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { saveCustomerRows } from "@/lib/commercial/crmEdits";
 import { getDb } from "@/lib/db/client";
+import { useLabel } from "@/lib/labels/useLabel";
 import { pipelineSummary } from "@/lib/crm/queries";
 import { filterCustomers, parseCustomerFilters, type CustomerFilters } from "@/lib/crm/segments";
 import { formatCurrency } from "@/lib/utils";
@@ -26,6 +27,7 @@ const MANAGERS = new Set(["ceo", "admin", "gerente"]);
 /** Clientes: tabela editável com busca, segmentos salvos, tags, indicadores do funil e follow-ups atrasados. */
 export default function CrmPage() {
   const { companyId, userId, role, can } = useCrmSession();
+  const title = useLabel("module.crm");
   const actor = useEditActor();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -92,7 +94,7 @@ export default function CrmPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Clientes"
+        title={title}
         description="Cadastro, segmentos e acompanhamento comercial"
         actions={
           <>

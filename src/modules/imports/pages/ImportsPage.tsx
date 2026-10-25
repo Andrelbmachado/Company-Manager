@@ -7,12 +7,14 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { useRequiredSession } from "@/hooks/useSession";
 import { importableEntities } from "@/lib/importexport/access";
+import { useLabel } from "@/lib/labels/useLabel";
 import { can } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
 import { ImportWizard } from "../components/ImportWizard";
 
 export default function ImportsPage() {
   const session = useRequiredSession();
+  const title = useLabel("module.imports");
   const role = session.membership.role as Role;
   const [params] = useSearchParams();
   const entities = useMemo(() => importableEntities(role), [role]);
@@ -21,7 +23,7 @@ export default function ImportsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Importar dados"
+        title={title}
         description="Traga planilhas (CSV ou Excel) de clientes, produtos, fornecedores, contas e mais. Linhas que já existem são atualizadas, não duplicadas."
         actions={
           can(role, "view", "imports") ? (

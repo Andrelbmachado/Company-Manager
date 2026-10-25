@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionContext } from "@/hooks/useSession";
+import { saveAreaLabels } from "@/lib/labels/store";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import type { Role, Session } from "@/types";
@@ -97,6 +98,13 @@ const CSV = [
 ].join("\r\n");
 
 describe("ImportsPage", () => {
+  it("o título é o rótulo do módulo na área da empresa (editável em Configurações)", async () => {
+    await renderPage(<ImportsPage />, "ceo", "/imports", async (db, companyId) => {
+      await saveAreaLabels(db, companyId, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.imports": "Trazer planilhas" } });
+    });
+    await until(() => container.querySelector("h1")?.textContent === "Trazer planilhas", "título com o rótulo da área");
+  });
+
   it("lista só os cadastros que o papel pode criar", async () => {
     await renderPage(<ImportsPage />, "comercial");
     await until(() => text().includes("O que você vai importar?"), "escolha do cadastro");

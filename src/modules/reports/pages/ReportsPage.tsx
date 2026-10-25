@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { canOpenSubpage, SUBPAGES } from "@/app/subpages";
 import { useRequiredSession } from "@/hooks/useSession";
+import { useLabel } from "@/lib/labels/useLabel";
 import { can } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
 
@@ -17,6 +18,7 @@ const DETAILS: Record<string, { icon: LucideIcon; description: string }> = {
 /** Visão geral dos relatórios: só os que o papel pode abrir (cada um exige ver os dados de origem). */
 export default function ReportsPage() {
   const session = useRequiredSession();
+  const title = useLabel("module.reports");
   const role = session.membership.role as Role;
   const pages = SUBPAGES.filter((page) => page.module === "reports" && canOpenSubpage(role, page));
   const canExport = can(role, "export", "reports");
@@ -24,7 +26,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Relatórios"
+        title={title}
         description={canExport ? "Escolha um relatório. Todos exportam em CSV, Excel e PDF (pela impressão)." : "Escolha um relatório. Exportar fica com quem tem permissão de exportar relatórios."}
       />
       {pages.length === 0 ? (

@@ -240,8 +240,10 @@ export function parseIcs(text: string, range: CalendarRange, options: ParseIcsOp
     return `sem-uid-${shortHash(`${textOf(component, "summary", MAX_TITLE) ?? ""}|${start}`)}`;
   };
 
+  // Sem `exceptions`, o ICAL.Event liga ao evento TODAS as exceções (RECURRENCE-ID) do arquivo, de qualquer UID, e
+  // a exceção de um evento substituía a ocorrência de outro no mesmo horário (além de custar O(n²) no arquivo).
   const readSingle = (component: IcalComponent, key: string) => {
-    const event: IcalEvent = new ICAL.Event(component);
+    const event: IcalEvent = new ICAL.Event(component, { exceptions: [] });
     const startTz = tzidOf(component, "dtstart");
     const start = momentOf(event.startDate, startTz, timeZone);
     const end = momentOf(event.endDate, component.hasProperty("dtend") ? (tzidOf(component, "dtend") ?? startTz) : startTz, timeZone);
@@ -258,19 +260,27 @@ export function parseIcs(text: string, range: CalendarRange, options: ParseIcsOp
         continue;
       }
       const uid = baseUid(component);
-      const event: IcalEvent = new ICAL.Event(component);
-      if (!event.isRecurring()) {
+      if (!component.hasProperty("rrule") && !component.hasProperty("rdate")) {
         readSingle(component, uid);
         continue;
       }
-      for (const exception of exceptions.get(rawUid) ?? []) event.relateException(exception);
+      const event: IcalEvent = new ICAL.Event(component, { exceptions: exceptions.get(rawUid) ?? [] });
       exceptions.delete(rawUid);
       const startTz = tzidOf(component, "dtstart");
       const iterator = event.iterator();
+      // Atalho sem as contas de fuso (Intl) para as ocorrências que terminam bem antes do período: uma reunião diária
+      // desde 2015 percorre milhares delas a cada sincronização. O dia de parede do evento difere do dia de São Paulo
+      // em no máximo 1 dia, daí a folga; ocorrência com exceção (RECURRENCE-ID) segue o caminho completo.
+      const spanDays = Math.ceil(Math.max(0, event.duration.toSeconds()) / 86_400) + 1;
+      const exceptionIds = event.exceptions as unknown as Record<string, unknown>;
+      const hasExceptions = Object.keys(exceptionIds).length > 0;
+      const canSkip = event.rangeExceptions.length === 0;
+      const isException = (time: IcalTime) => time.toString() in exceptionIds || time.convertToZone(ICAL.Timezone.utcTimezone).toString() in exceptionIds;
       readable++;
       for (let index = 0; index < MAX_ITERATIONS; index++) {
         const next = iterator.next();
         if (!next) break;
+        if (canSkip && addDays(dayOf(next), spanDays) < bounds.startDay && !(hasExceptions && isException(next))) continue;
         const original = momentOf(next, startTz, timeZone);
         if (beyond(original, bounds)) break;
         const details = event.getOccurrenceDetails(next);

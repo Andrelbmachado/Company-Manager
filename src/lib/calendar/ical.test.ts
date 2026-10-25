@@ -79,6 +79,109 @@ describe("parseIcs", () => {
     expect(parseIcs(fixture("recorrencias.ics"), OUT_NOV).find((item) => item.title === "Sem UID")?.uid).toBe(semUid[0].uid);
   });
 
+  it("exceção (movida ou cancelada) de um evento não vaza para outro evento recorrente no mesmo horário", () => {
+    const daily = (uid: string, title: string) => [
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      "DTSTART;TZID=America/Sao_Paulo:20261026T090000",
+      "DTEND;TZID=America/Sao_Paulo:20261026T093000",
+      "RRULE:FREQ=DAILY;COUNT=5",
+      `SUMMARY:${title}`,
+      "END:VEVENT",
+    ];
+    const text = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      ...daily("evento-a", "A diário"),
+      ...daily("evento-b", "B diário"),
+      "BEGIN:VEVENT",
+      "UID:evento-b",
+      "RECURRENCE-ID;TZID=America/Sao_Paulo:20261028T090000",
+      "DTSTART;TZID=America/Sao_Paulo:20261028T150000",
+      "DTEND;TZID=America/Sao_Paulo:20261028T153000",
+      "SUMMARY:B movido",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:evento-b",
+      "RECURRENCE-ID;TZID=America/Sao_Paulo:20261030T090000",
+      "DTSTART;TZID=America/Sao_Paulo:20261030T090000",
+      "STATUS:CANCELLED",
+      "SUMMARY:B diário",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const items = parseIcs(text, OUTUBRO);
+    const a = items.filter((item) => item.uid.startsWith("evento-a::"));
+    expect(a.map((item) => [item.title, item.start])).toEqual([
+      ["A diário", "2026-10-26T12:00:00.000Z"],
+      ["A diário", "2026-10-27T12:00:00.000Z"],
+      ["A diário", "2026-10-28T12:00:00.000Z"],
+      ["A diário", "2026-10-29T12:00:00.000Z"],
+      ["A diário", "2026-10-30T12:00:00.000Z"],
+    ]);
+    const b = items.filter((item) => item.uid.startsWith("evento-b::"));
+    expect(b.map((item) => [item.title, item.start])).toEqual([
+      ["B diário", "2026-10-26T12:00:00.000Z"],
+      ["B diário", "2026-10-27T12:00:00.000Z"],
+      ["B movido", "2026-10-28T18:00:00.000Z"],
+      ["B diário", "2026-10-29T12:00:00.000Z"],
+    ]);
+  });
+
+  it("recorrência antiga: horário certo depois do fim do horário de verão de SP, ocorrência que começou antes do período e exceção antiga movida para dentro", () => {
+    const text = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:semanal-2018",
+      "DTSTART;TZID=America/Sao_Paulo:20180102T090000",
+      "DTEND;TZID=America/Sao_Paulo:20180102T100000",
+      "RRULE:FREQ=WEEKLY;BYDAY=TU",
+      "SUMMARY:Semanal desde 2018",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:semanal-2018",
+      "RECURRENCE-ID;TZID=America/Sao_Paulo:20180109T090000",
+      "DTSTART;TZID=America/Sao_Paulo:20261008T100000",
+      "DTEND;TZID=America/Sao_Paulo:20261008T110000",
+      "SUMMARY:Semanal (remarcada)",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:plantao",
+      "DTSTART;VALUE=DATE:20260929",
+      "DTEND;VALUE=DATE:20261002",
+      "RRULE:FREQ=WEEKLY;COUNT=2",
+      "SUMMARY:Plantão",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:viagem",
+      "DTSTART;TZID=America/Sao_Paulo:20260922T220000",
+      "DURATION:PT220H",
+      "RRULE:FREQ=MONTHLY;COUNT=2",
+      "SUMMARY:Viagem",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const items = parseIcs(text, OUTUBRO);
+    expect(items.filter((item) => item.title === "Semanal desde 2018").map((item) => item.start)).toEqual([
+      "2026-10-06T12:00:00.000Z",
+      "2026-10-13T12:00:00.000Z",
+      "2026-10-20T12:00:00.000Z",
+      "2026-10-27T12:00:00.000Z",
+    ]);
+    // 09/01/2018 09:00 era horário de verão em SP (UTC−2): a chave guarda o início original.
+    expect(items.find((item) => item.title === "Semanal (remarcada)")).toMatchObject({ start: "2026-10-08T13:00:00.000Z", uid: "semanal-2018::2018-01-09T11:00:00.000Z" });
+    expect(items.filter((item) => item.title === "Plantão").map((item) => [item.start, item.end])).toEqual([
+      ["2026-09-29", "2026-10-02"],
+      ["2026-10-06", "2026-10-09"],
+    ]);
+    // 220 h a partir de 22/09 22:00: termina em 02/10 02:00 (SP) e ainda toca outubro.
+    expect(items.filter((item) => item.title === "Viagem").map((item) => [item.start, item.end])).toEqual([
+      ["2026-09-23T01:00:00.000Z", "2026-10-02T05:00:00.000Z"],
+      ["2026-10-23T01:00:00.000Z", "2026-11-01T05:00:00.000Z"],
+    ]);
+  });
+
   it("aceita CRLF, linhas dobradas e chaves repetidas (a segunda ganha sufixo)", () => {
     const text = [
       "BEGIN:VCALENDAR",

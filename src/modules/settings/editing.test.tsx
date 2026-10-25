@@ -7,6 +7,7 @@ import { choose, click, findButton, renderPage, type as typeInto, until, type Re
 import { listUsersAccess } from "./usersAccess";
 import SettingsPage from "./pages/SettingsPage";
 import AuditPage from "./pages/AuditPage";
+import { saveAreaLabels } from "@/lib/labels/store";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
 
@@ -76,5 +77,12 @@ describe("Auditoria sem painel lateral", () => {
     expect(page.text()).toContain("Teste financeiro");
     await click(page.container.querySelector("tbody tr"));
     noDialog();
+  });
+
+  it("o título vem do rótulo da área (Configurações)", async () => {
+    await insertTestCompany(testDb());
+    await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.audit": "Histórico de ações" } });
+    page = await renderPage(<AuditPage />, { companyId: C, role: "auditor" });
+    await until(() => page!.container.querySelector("h1")?.textContent === "Histórico de ações", "título do módulo");
   });
 });

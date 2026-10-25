@@ -7,6 +7,7 @@ import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { choose, click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { createProjectRepository, type Project } from "@/modules/project-manager";
+import { saveAreaLabels } from "@/lib/labels/store";
 import type { Role } from "@/types";
 import ProjectsPage from "./pages/ProjectsPage";
 
@@ -78,5 +79,12 @@ describe("Projetos: edição direto na tabela", () => {
     await click(findButton(page!.container, "Painel"));
     await until(() => page!.text().includes("Plano em etapas"), "painel do módulo");
     expect(table()).toBeNull();
+  });
+
+  it("o título vem do rótulo da área (advocacia chama de Processos)", async () => {
+    await insertTestCompany(testDb());
+    await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { profile: "advocacia" });
+    await open("gerente");
+    await until(() => page!.container.querySelector("h1")?.textContent === "Processos", "título do perfil de área");
   });
 });

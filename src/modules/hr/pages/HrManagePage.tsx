@@ -11,6 +11,7 @@ import { EditableTable, type EditableColumn, type EditableTableChanges } from "@
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { useLabel } from "@/lib/labels/useLabel";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { confirmAction } from "@/lib/confirm";
@@ -53,6 +54,7 @@ const BTN_REFUSE = "flex items-center gap-1 rounded-md bg-status-danger px-2.5 p
 /** Gestão de RH: colaboradores, solicitações, comunicados e pendências, tudo editável na tabela. Sem dados de salário. */
 export default function HrManagePage() {
   const session = useRequiredSession();
+  const title = useLabel("module.hr_manage");
   const qc = useQueryClient();
   const companyId = session.company.id;
   const actor = { role: session.membership.role as Role, userId: session.user.id };
@@ -220,7 +222,7 @@ export default function HrManagePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Gestão de RH" description="Colaboradores, solicitações, comunicados e pendências. Esta área é só do RH e da diretoria; os demais setores veem o Meu RH." />
+      <PageHeader title={title} description="Colaboradores, solicitações, comunicados e pendências. Esta área é só do RH e da diretoria; os demais setores veem o Meu RH." />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Colaboradores ativos" value={active.length} />

@@ -6,6 +6,7 @@ import { insertTestCompany } from "@/test/sqlite";
 import { click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { createMemoryFileBackend } from "@/lib/files/backend";
 import { listFolderDocuments, saveFile, setFileBackend } from "@/lib/files/store";
+import { saveAreaLabels } from "@/lib/labels/store";
 import DocumentsPage from "./pages/DocumentsPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -76,5 +77,12 @@ describe("Documentos: metadados direto na tabela", () => {
     await until(() => page!.text().includes("Política.pdf"), "arquivo");
     expect(findButton(table()!, "Editar")?.disabled).toBe(true);
     expect(findButton(table()!, "Adicionar")?.disabled).toBe(true);
+  });
+
+  it("o título vem do rótulo da área (Configurações)", async () => {
+    await insertTestCompany(testDb());
+    await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.documents": "Arquivos" } });
+    page = await renderPage(<DocumentsPage />, { companyId: C, role: "ceo" });
+    await until(() => page!.container.querySelector("h1")?.textContent === "Arquivos", "título do módulo");
   });
 });

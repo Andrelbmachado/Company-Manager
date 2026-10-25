@@ -9,6 +9,7 @@ import { EditableTable, type EditableColumn, type EditableTableChanges } from "@
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { useLabel } from "@/lib/labels/useLabel";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { ensureMyEmployee, fetchAnnouncements, fetchMyHrTasks, fetchMyRequests } from "@/lib/hr/queries";
@@ -26,6 +27,7 @@ const STATUSES = [
 /** "Meu RH": a área de RH de qualquer colaborador (férias, solicitações, comunicados e pendências do próprio cadastro). */
 export default function MyHrPage() {
   const session = useRequiredSession();
+  const title = useLabel("module.hr");
   const qc = useQueryClient();
   const companyId = session.company.id;
   const today = todayIso();
@@ -72,7 +74,7 @@ export default function MyHrPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Meu RH" description={`${me.name}, ${me.position ?? "colaborador"} em ${me.department ?? "sua área"}. Aqui ficam suas férias, solicitações, comunicados e pendências.`} />
+      <PageHeader title={title} description={`${me.name}, ${me.position ?? "colaborador"} em ${me.department ?? "sua área"}. Aqui ficam suas férias, solicitações, comunicados e pendências.`} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Férias disponíveis" value={`${balance.available} dias`} />

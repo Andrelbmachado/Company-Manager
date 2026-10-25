@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { useLabel } from "@/lib/labels/useLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDateTime } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const TH = "px-4 py-3 text-left font-medium text-muted-foreground";
 
 export default function AuditPage() {
   const session = useRequiredSession();
+  const title = useLabel("module.audit");
 
   const { data, isLoading } = useQuery({
     queryKey: ["audit-logs", session.company.id],
@@ -37,7 +39,7 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Auditoria" description="Trilha imutável de ações sensíveis" />
+      <PageHeader title={title} description="Trilha imutável de ações sensíveis" />
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-muted/30" />)}</div>

@@ -10,6 +10,7 @@ import { CalendarView } from "@/components/shared/CalendarView";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { useLabel } from "@/lib/labels/useLabel";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { createProjectRepository, ProjectManagerModule } from "@/modules/project-manager";
@@ -68,6 +69,7 @@ export default function ProjectsPage() {
 
 function ProjectsHub({ db, panel }: { db: DatabaseLike; panel: ReactNode }) {
   const session = useRequiredSession();
+  const title = useLabel("module.projects");
   const qc = useQueryClient();
   const companyId = session.company.id;
   const [view, setView] = useState<View>("tabela");
@@ -127,7 +129,7 @@ function ProjectsHub({ db, panel }: { db: DatabaseLike; panel: ReactNode }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Projetos"
+        title={title}
         description="Nome, status, orçamento e datas se editam na tabela; o plano em etapas e as tarefas ficam na página de cada projeto. Importar e exportar do app Project Manager fica no Painel."
         actions={switcher}
         className="pb-0"

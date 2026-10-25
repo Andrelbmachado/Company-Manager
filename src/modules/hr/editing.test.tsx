@@ -9,6 +9,7 @@ import { todayIso } from "@/lib/utils";
 import { emptyEmployeeInput, saveEmployee } from "@/lib/hr/employees";
 import { addTimeEntry } from "@/lib/hr/timebank";
 import { saveRequestRows } from "@/lib/hr/tableEdits";
+import { saveAreaLabels } from "@/lib/labels/store";
 import type { Employee, HrRequest, HrTask, Role } from "@/types";
 import HrManagePage from "./pages/HrManagePage";
 import TimeBankPage from "./pages/TimeBankPage";
@@ -242,5 +243,18 @@ describe("Ficha do colaborador", () => {
     await click(findButton(page.container, "Registrar desligamento"));
     noDialog();
     expect(page.container.querySelector("[data-termination-form]")?.getAttribute("aria-label")).toBe("Registrar desligamento de Davi Costa");
+  });
+});
+
+describe("Títulos vêm dos rótulos da área (Configurações)", () => {
+  it("Gestão de RH e Meu RH usam o nome que a empresa deu ao módulo", async () => {
+    await insertTestCompany(testDb());
+    await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.hr_manage": "Pessoas e Cultura", "module.hr": "Meu espaço" } });
+    await employee("Teste tecnico", { email: "tecnico@teste.local" });
+    page = await renderPage(<HrManagePage />, { companyId: C, role: "rh", path: "/hr/manage" });
+    await until(() => page!.container.querySelector("h1")?.textContent === "Pessoas e Cultura", "título da Gestão de RH");
+    page.unmount();
+    page = await renderPage(<MyHrPage />, { companyId: C, role: "tecnico" });
+    await until(() => page!.container.querySelector("h1")?.textContent === "Meu espaço", "título do Meu RH");
   });
 });

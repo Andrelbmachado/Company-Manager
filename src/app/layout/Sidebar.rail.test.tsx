@@ -172,4 +172,16 @@ describe("Sidebar recolhida (trilho de ícones)", () => {
     await resizeWindow(1280);
     expect(isRail()).toBe(true);
   });
+
+  it("estreitar a janela não grava uma largura menor: ao alargar, a sidebar volta à largura escolhida", async () => {
+    await resizeWindow(1280);
+    localStorage.setItem("cm_sidebar_width", "300");
+    await openSidebar();
+    expect(aside().style.width).toBe("300px");
+    await resizeWindow(700);
+    await resizeWindow(1000);
+    // 33% de 1000 = 330: a largura escolhida cabe de novo.
+    expect(aside().style.width).toBe("300px");
+    expect(localStorage.getItem("cm_sidebar_width")).toBe("300");
+  });
 });

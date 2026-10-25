@@ -95,13 +95,16 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const location = useLocation();
   const asideRef = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(() => readStored(SIDEBAR_COLLAPSED_KEY) === "true");
-  const [width, setWidth] = useState(() => clampSidebarWidth(Number(readStored(SIDEBAR_WIDTH_KEY)) || DEFAULT_WIDTH));
-  const [narrow, setNarrow] = useState(() => isNarrowWindow());
+  // Largura escolhida pela pessoa (só o arraste grava); a janela só limita na hora de desenhar, então estreitar e
+  // alargar de novo devolve a largura escolhida.
+  const [width, setWidth] = useState(() => Number(readStored(SIDEBAR_WIDTH_KEY)) || DEFAULT_WIDTH);
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [resizing, setResizing] = useState(false);
   const { label } = useAreaLabels();
   const role = session.membership.role as Role;
   const allowed = new Set(visibleModules(role));
+  const narrow = windowWidth < AUTO_RAIL_BELOW;
   const overlay = narrow && overlayOpen;
   const rail = narrow ? !overlayOpen : collapsed;
 
@@ -117,12 +120,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
 
   useEffect(() => {
     function onResize() {
-      setNarrow(isNarrowWindow());
-      setWidth((currentWidth) => {
-        const nextWidth = clampSidebarWidth(currentWidth);
-        writeStored(SIDEBAR_WIDTH_KEY, String(nextWidth));
-        return nextWidth;
-      });
+      setWindowWidth(window.innerWidth);
     }
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -148,7 +146,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
     if (!resizing) return;
 
     function handlePointerMove(event: PointerEvent) {
-      const nextWidth = clampSidebarWidth(event.clientX);
+      const nextWidth = clampSidebarWidth(event.clientX, window.innerWidth);
       setWidth(nextWidth);
       writeStored(SIDEBAR_WIDTH_KEY, String(nextWidth));
     }
@@ -181,7 +179,11 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   }
 
   const toggleLabel = rail ? "Expandir sidebar" : "Minimizar sidebar";
-  const asideWidth = rail ? RAIL_WIDTH : overlay ? Math.min(Math.max(width, MIN_WIDTH), window.innerWidth - 40) : width;
+  const asideWidth = rail
+    ? RAIL_WIDTH
+    : overlay
+      ? Math.min(Math.max(width, MIN_WIDTH), windowWidth - 40)
+      : clampSidebarWidth(width, windowWidth);
 
   return (
     <>
@@ -285,12 +287,8 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   );
 }
 
-function clampSidebarWidth(width: number): number {
-  return Math.min(Math.max(width, MIN_WIDTH), Math.floor(window.innerWidth * 0.33));
-}
-
-function isNarrowWindow(): boolean {
-  return window.innerWidth < AUTO_RAIL_BELOW;
+function clampSidebarWidth(width: number, windowWidth: number): number {
+  return Math.min(Math.max(width, MIN_WIDTH), Math.floor(windowWidth * 0.33));
 }
 
 // localStorage pode falhar (janela privada, armazenamento bloqueado): a sidebar abre no padrão e segue funcionando.

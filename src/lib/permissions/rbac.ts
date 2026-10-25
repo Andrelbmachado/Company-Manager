@@ -172,7 +172,8 @@ export const PERMISSIONS: PermissionMap = {
  * CRM/ERP (migration 0008), mesclado em PERMISSIONS por papel. CEO e admin já têm tudo pelo "*".
  * `reports` libera o módulo de Relatórios; cada relatório ainda confere `view` no recurso de origem
  * (ex.: DRE exige `finance`). `imports` libera a tela de importação; importar uma entidade também exige
- * `create` no recurso dela (ex.: importar clientes exige `create` em `customers`).
+ * `create` e `edit` no recurso dela, porque a importação atualiza o que já existe (ex.: importar clientes exige
+ * `create` e `edit` em `customers`; quem só abre chamado não importa chamados).
  */
 const ERP_PERMISSIONS: PermissionMap = {
   gerente: {

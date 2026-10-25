@@ -1,11 +1,12 @@
-// Quem pode importar e exportar cada cadastro: importar exige `create` em `imports` e no recurso do cadastro;
-// exportar exige `export` no recurso (as mesmas regras do RBAC das telas).
+// Quem pode importar e exportar cada cadastro: importar exige `create` em `imports` e `create` + `edit` no recurso do
+// cadastro (a importação atualiza o registro que já existe com a mesma chave); exportar exige `export` no recurso (as
+// mesmas regras do RBAC das telas).
 import { can } from "@/lib/permissions/rbac";
 import type { Role } from "@/types";
 import { getEntity, registry, type ImportEntity } from "./registry";
 
 export function canImportEntity(role: Role, entity: ImportEntity<unknown>): boolean {
-  return can(role, "create", "imports") && can(role, "create", entity.resource);
+  return can(role, "create", "imports") && can(role, "create", entity.resource) && can(role, "edit", entity.resource);
 }
 
 export function canExportEntity(role: Role, entity: ImportEntity<unknown>): boolean {

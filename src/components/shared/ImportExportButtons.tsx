@@ -32,7 +32,8 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
 /**
  * Botões "Importar" e "Exportar" das listas (use no `actions` do PageHeader ou ao lado do PageToolbar).
  * Importar abre o assistente com o cadastro já escolhido; Exportar baixa todos os registros em Excel ou CSV.
- * Cada botão só aparece para quem tem a permissão (importar: `create` em `imports` e no recurso; exportar: `export`).
+ * Cada botão só aparece para quem tem a permissão (importar: `create` em `imports` e `create` + `edit` no recurso;
+ * exportar: `export`).
  */
 export function ImportExportButtons(props: ImportExportButtonsProps) {
   const { session } = useSession();

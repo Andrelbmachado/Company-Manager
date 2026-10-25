@@ -65,7 +65,7 @@ export interface ImportEntity<T> {
   label: string;
   /** Frase curta para a escolha da entidade na tela de importação. */
   description?: string;
-  /** Recurso do RBAC: importar exige `create` nele (e `view` em `imports` para abrir a tela). */
+  /** Recurso do RBAC: importar exige `create` e `edit` nele (atualiza o que já existe) e `create` em `imports`. */
   resource: Resource;
   fields: FieldDef[];
   schema: ZodType<T>;

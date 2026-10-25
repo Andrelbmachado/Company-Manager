@@ -1,4 +1,4 @@
-// Importar dados: escolhe o cadastro (só os que o papel pode criar), envia a planilha, confere colunas e prévia,
+// Importar dados: escolhe o cadastro (só os que o papel pode criar e editar), envia a planilha, confere colunas e prévia,
 // simula ou importa. `?entity=customers` já abre com o cadastro escolhido.
 import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";

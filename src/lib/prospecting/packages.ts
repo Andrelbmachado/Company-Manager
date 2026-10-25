@@ -223,12 +223,15 @@ export async function saveSegmentPrices(
       }
     }
     const note = "feature_note" in change ? noteValue(change.feature_note) : undefined;
+    // O escopo só é gravado no Essencial e no Premium: sem preço de nenhum dos dois no segmento, ele sumiria em silêncio.
+    let scopeTarget = false;
     for (const pkg of packages) {
       const price = active.find((item) => item.package_id === pkg.id && item.segment === current);
       const setupKey = segmentPriceKey(pkg.code, "setup");
       const monthlyKey = segmentPriceKey(pkg.code, "monthly");
       const hasSetup = setupKey in change;
       const hasMonthly = monthlyKey in change;
+      if (MANAGER_PACKAGE_CODES.includes(pkg.code) && (price || hasSetup || hasMonthly)) scopeTarget = true;
       if (price) {
         const values = {
           segment,
@@ -243,6 +246,10 @@ export async function saveSegmentPrices(
         const fallbackNote = note !== undefined ? note : (active.find((item) => item.segment === current && item.feature_note)?.feature_note ?? null);
         addPrice(pkg, segment, priceValue(change[setupKey], pkg, "setup", current), priceValue(change[monthlyKey], pkg, "monthly", current), fallbackNote);
       }
+    }
+    if (note !== undefined && !scopeTarget) {
+      const currentNote = packages.map((pkg) => active.find((item) => item.package_id === pkg.id && item.segment === current)?.feature_note).find(Boolean) ?? null;
+      if (note !== currentNote) throw new Error(`Para gravar o escopo do gerenciador em ${current}, informe também a implantação e a mensalidade do Essencial ou do Premium.`);
     }
   }
 

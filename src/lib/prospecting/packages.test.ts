@@ -188,6 +188,23 @@ describe("saveSegmentPrices (SQLite real)", () => {
     expect(pet.premium.feature_note).toBe("Agenda e vacinas");
   });
 
+  it("escopo do gerenciador num segmento sem Essencial nem Premium é recusado em vez de sumir em silêncio", async () => {
+    const before = await prices();
+    await expect(saveSegmentPrices(db, companyId, actor, { updated: [{ id: "Buffet", feature_note: "Cardápio e eventos" }], created: [] })).rejects.toThrow(
+      /Essencial ou do Premium/,
+    );
+    expect(await prices()).toEqual(before);
+
+    // Com o preço do Essencial na mesma alteração, o escopo vai junto (e continua fora do Básico).
+    await saveSegmentPrices(db, companyId, actor, {
+      updated: [{ id: "Buffet", feature_note: "Cardápio e eventos", essencial_setup: 3000, essencial_monthly: 199 }],
+      created: [],
+    });
+    const buffet = await bySegment("Buffet");
+    expect(buffet.essencial).toMatchObject({ setup_price: 3000, monthly_price: 199, feature_note: "Cardápio e eventos" });
+    expect(buffet.basico.feature_note).toBeNull();
+  });
+
   it("preço que faltava num segmento é criado quando vêm implantação e mensalidade; só um dos dois é erro", async () => {
     await expect(saveSegmentPrices(db, companyId, actor, { updated: [{ id: "Buffet", essencial_setup: 3000 }], created: [] })).rejects.toThrow(/Essencial/);
     expect(await bySegment("Buffet")).not.toHaveProperty("essencial");

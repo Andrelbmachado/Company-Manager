@@ -1,28 +1,41 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, UserMinus } from "lucide-react";
+import { Save, UserMinus } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
+import { CalendarView } from "@/components/shared/CalendarView";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FileAttachments } from "@/components/shared/FileAttachments";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatCard } from "@/components/shared/StatCard";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { fetchEmployees, fetchHrTasks, fetchRequests } from "@/lib/hr/queries";
-import { REQUEST_TYPE_LABEL, tenureLabel, vacationBalance } from "@/lib/hr/rules";
+import { REQUEST_TYPES, tenureLabel, vacationBalance } from "@/lib/hr/rules";
 import { CONTRACT_LABEL, CONTRACT_TYPES, EMPLOYEE_STATUSES, emptyEmployeeInput, employeeToInput, fetchEmployee, saveEmployee, type EmployeeAddress, type EmployeeInput } from "@/lib/hr/employees";
 import { cycleCases, setTaskDone, startTermination } from "@/lib/hr/employment";
-import { addTimeEntry, fetchEmployeeTimeEntries, formatMinutes, parseDuration, timeBankSummary } from "@/lib/hr/timebank";
+import { fetchEmployeeTimeEntries, formatMinutes, parseDuration, timeBankSummary } from "@/lib/hr/timebank";
+import { requestCalendarItems, saveRequestRows, saveTaskRows, saveTimeEntryRows, timeEntryCalendarItems, timeEntryRows, type TimeEntryRow } from "@/lib/hr/tableEdits";
 import { CycleCaseCard } from "../components/CycleCaseCard";
-import { TerminationDialog, type TerminationDraft } from "../components/TerminationDialog";
-import { TimeEntryDialog, type TimeEntryDraft } from "../components/TimeEntryDialog";
-import { BTN_PRIMARY, BTN_SECONDARY, BackLink, ErrorAlert, INPUT, Notice, Panel, TH, balanceTone, errorMessage } from "../components/hrUi";
-import type { ContractType, Employee, EmployeeStatus } from "@/types";
+import { TerminationForm, type TerminationDraft } from "../components/TerminationForm";
+import { ViewSwitch, type ListOrCalendar } from "../components/ViewSwitch";
+import { BTN_PRIMARY, BTN_SECONDARY, BackLink, ErrorAlert, INPUT, Notice, balanceTone, errorMessage } from "../components/hrUi";
+import type { ContractType, Employee, EmployeeStatus, HrRequest, HrTask, Role } from "@/types";
+
+const REQUEST_STATUSES = [
+  { value: "pendente", label: "Pendente" },
+  { value: "aprovada", label: "Aprovada" },
+  { value: "recusada", label: "Recusada" },
+];
+const TASK_STATUSES = [
+  { value: "pendente", label: "Pendente" },
+  { value: "concluida", label: "Concluída" },
+];
 
 type Tab = "dados" | "ferias" | "horas" | "ciclo" | "documentos";
 
@@ -71,8 +84,11 @@ export default function EmployeeDetailPage() {
   const [journey, setJourney] = useState("8h00");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [dialog, setDialog] = useState<"termination" | "hours" | null>(null);
-  const [dialogError, setDialogError] = useState("");
+  const [terminating, setTerminating] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [requestView, setRequestView] = useState<ListOrCalendar>("lista");
+  const [hoursView, setHoursView] = useState<ListOrCalendar>("lista");
+  const actor = { role: session.membership.role as Role, userId: session.user.id };
 
   const { data: employee, isLoading } = useQuery({
     queryKey: ["hr", "employee", companyId, id],
@@ -145,24 +161,50 @@ export default function EmployeeDetailPage() {
       const result = await startTermination(await getDb(), companyId, id, draft, session.user.id, today);
       await emit({ type: "employee.termination_registered", companyId, actorId: session.user.id, entityType: "employee", entityId: id, title: `Desligamento ${result.effective ? "registrado" : `agendado para ${formatDay(draft.date)}`}: ${employee?.name ?? ""}`, module: "hr_manage" });
     },
-    onSuccess: () => { void refresh(); setDialog(null); setDialogError(""); setTab("ciclo"); },
-    onError: (cause) => setDialogError(errorMessage(cause)),
+    onSuccess: () => { void refresh(); setTerminating(false); setFormError(""); setTab("ciclo"); },
+    onError: (cause) => setFormError(errorMessage(cause)),
   });
 
-  const launch = useMutation({
-    mutationFn: async (draft: TimeEntryDraft) => {
-      const entryId = await addTimeEntry(await getDb(), companyId, { ...draft, employeeId: id }, session.user.id, today, session.user.id);
-      await emit({ type: "hr_time_entry.created", companyId, actorId: session.user.id, entityType: "hr_time_entry", entityId: entryId, title: `Banco de horas: ${employee?.name ?? "colaborador"} ${formatMinutes(draft.minutes ?? 0)}`, module: "hr_manage" });
-    },
-    onSuccess: () => { void refresh(); setDialog(null); setDialogError(""); },
-    onError: (cause) => setDialogError(errorMessage(cause)),
-  });
+  async function saveHours(changes: EditableTableChanges<TimeEntryRow>) {
+    const { created } = await saveTimeEntryRows(await getDb(), companyId, actor, changes, today, { mode: "rh", employeeId: id });
+    for (const entryId of created) await emit({ type: "hr_time_entry.created", companyId, actorId: session.user.id, entityType: "hr_time_entry", entityId: entryId, title: `Banco de horas: ${employee?.name ?? "colaborador"}`, module: "hr_manage" });
+  }
+
+  async function saveRequests(changes: EditableTableChanges<HrRequest>) {
+    const { created } = await saveRequestRows(await getDb(), companyId, actor, changes, today, { employeeId: id });
+    for (const requestId of created) await emit({ type: "hr_request.created", companyId, actorId: session.user.id, entityType: "hr_request", entityId: requestId, title: `Solicitação registrada pelo RH: ${employee?.name ?? ""}`, module: "hr_manage" });
+  }
+
+  async function saveOtherTasks(changes: EditableTableChanges<HrTask>) {
+    await saveTaskRows(await getDb(), companyId, actor, { created: changes.created.map((fields) => ({ ...fields, employee_id: id })), updated: changes.updated }, [id]);
+  }
 
   const toggle = useMutation({
     mutationFn: async ({ taskId, done }: { taskId: string; done: boolean }) => setTaskDone(await getDb(), companyId, taskId, done),
     onSuccess: () => void refresh(),
     onError: (cause) => setError(errorMessage(cause)),
   });
+
+  const hourRows = timeEntryRows(entries);
+  const requestColumns: EditableColumn<HrRequest>[] = [
+    { key: "type", header: "Tipo", kind: "select", options: REQUEST_TYPES, required: true },
+    { key: "start_date", header: "Início", kind: "date", required: true },
+    { key: "end_date", header: "Fim", kind: "date", required: true },
+    { key: "days", header: "Dias", kind: "number", readOnly: true },
+    { key: "reason", header: "Motivo", kind: "text" },
+    { key: "status", header: "Status", kind: "select", options: REQUEST_STATUSES, readOnly: true, render: (request) => <StatusBadge status={request.status} tone={request.status === "aprovada" ? "success" : undefined} /> },
+  ];
+  const hourColumns: EditableColumn<TimeEntryRow>[] = [
+    { key: "entry_date", header: "Data", kind: "date", required: true },
+    { key: "hours", header: "Horas", kind: "text", required: true, placeholder: "1:30 ou -0:30", render: (entry) => <span className={cn("font-medium tabular-nums", balanceTone(entry.minutes))}>{entry.hours}</span> },
+    { key: "reason", header: "Motivo", kind: "text", required: true },
+    { key: "status", header: "Status", kind: "select", options: REQUEST_STATUSES, readOnly: true, render: (entry) => <StatusBadge status={entry.status} tone={entry.status === "aprovada" ? "success" : undefined} /> },
+  ];
+  const taskColumns: EditableColumn<HrTask>[] = [
+    { key: "title", header: "Pendência", kind: "text", required: true },
+    { key: "due_date", header: "Prazo", kind: "date" },
+    { key: "status", header: "Status", kind: "select", options: TASK_STATUSES, required: true, render: (task) => <StatusBadge status={task.status} /> },
+  ];
 
   const back = <BackLink to="/hr/manage">Colaboradores</BackLink>;
 
@@ -258,7 +300,7 @@ export default function EmployeeDetailPage() {
         title={title}
         description={description}
         className="pb-2"
-        actions={canTerminate ? <button type="button" onClick={() => { setDialogError(""); setDialog("termination"); }} className={BTN_SECONDARY}><UserMinus size={14} /> Registrar desligamento</button> : undefined}
+        actions={canTerminate && !terminating ? <button type="button" onClick={() => { setFormError(""); setTerminating(true); }} className={BTN_SECONDARY}><UserMinus size={14} /> Registrar desligamento</button> : undefined}
       />
 
       {employee && (
@@ -274,6 +316,9 @@ export default function EmployeeDetailPage() {
       )}
 
       <ErrorAlert message={error} onClose={() => setError("")} />
+      {terminating && employee && (
+        <TerminationForm today={today} employee={{ id: employee.id, name: employee.name }} busy={terminate.isPending} error={formError} onCancel={() => { setTerminating(false); setFormError(""); }} onSubmit={(draft) => terminate.mutate(draft)} />
+      )}
       {notice && !error && <Notice>{notice}</Notice>}
 
       {isNew ? (
@@ -291,62 +336,55 @@ export default function EmployeeDetailPage() {
             {tab === "ferias" && balance && (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <StatCard title={`Férias disponíveis em ${year}`} value={`${balance.available} dias`} />
-                  <StatCard title="Aprovadas no ano" value={`${balance.used} dias`} />
-                  <StatCard title="Em análise" value={`${balance.pending} dias`} />
+                  <KpiCard title={`Férias disponíveis em ${year}`} value={`${balance.available} dias`} />
+                  <KpiCard title="Aprovadas no ano" value={`${balance.used} dias`} />
+                  <KpiCard title="Em análise" value={`${balance.pending} dias`} />
                 </div>
-                <Panel title="Solicitações" actions={<Link to="/hr/manage" className="text-sm font-medium text-primary-text hover:underline">Decidir em Gestão de RH</Link>}>
-                  {myRequests.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhuma solicitação. O colaborador pede férias, folgas e envia atestados pelo Meu RH.</p> : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted"><tr>{["Tipo", "Período", "Dias", "Motivo", "Status"].map((h) => <th key={h} className={TH}>{h}</th>)}</tr></thead>
-                        <tbody className="divide-y">
-                          {myRequests.map((request) => (
-                            <tr key={request.id}>
-                              <td className="px-4 py-3 font-medium">{REQUEST_TYPE_LABEL[request.type]}</td>
-                              <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDay(request.start_date)} a {formatDay(request.end_date)}</td>
-                              <td className="px-4 py-3 tabular-nums">{request.days}</td>
-                              <td className="max-w-64 truncate px-4 py-3 text-muted-foreground">{request.reason ?? "—"}</td>
-                              <td className="px-4 py-3"><StatusBadge status={request.status} tone={request.status === "aprovada" ? "success" : undefined} /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </Panel>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Link to="/hr/manage" className="text-sm font-medium text-primary-text hover:underline">Decidir em Gestão de RH</Link>
+                  <ViewSwitch value={requestView} onChange={setRequestView} label="Ver solicitações em" />
+                </div>
+                {requestView === "lista" ? (
+                  <EditableTable<HrRequest>
+                    resource="hr_admin"
+                    label={`Solicitações de ${employee.name}`}
+                    title="Solicitações"
+                    rows={myRequests}
+                    columns={requestColumns}
+                    newRow={() => ({ type: "ferias" })}
+                    onSave={saveRequests}
+                    onRefresh={refresh}
+                    emptyMessage="Nenhuma solicitação. O colaborador pede férias, folgas e envia atestados pelo Meu RH; o RH também registra aqui com Adicionar."
+                  />
+                ) : (
+                  <CalendarView items={requestCalendarItems(myRequests, new Map([[employee.id, employee.name]]))} label={`Férias e folgas de ${employee.name}`} />
+                )}
               </>
             )}
 
             {tab === "horas" && (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <StatCard title="Saldo" value={<span className={balanceTone(hours.balance)}>{formatMinutes(hours.balance)}</span>} />
-                  <StatCard title="Horas extras aprovadas" value={formatMinutes(hours.credits, { signed: false })} />
-                  <StatCard title="Em análise" value={hours.pendingCount} />
+                  <KpiCard title="Saldo" value={<span className={balanceTone(hours.balance)}>{formatMinutes(hours.balance)}</span>} />
+                  <KpiCard title="Horas extras aprovadas" value={formatMinutes(hours.credits, { signed: false })} />
+                  <KpiCard title="Em análise" value={hours.pendingCount} />
                 </div>
-                <Panel
-                  title="Lançamentos"
-                  actions={canCreate && employee.status !== "desligado" ? <button type="button" onClick={() => { setDialogError(""); setDialog("hours"); }} className={BTN_PRIMARY}><Plus size={14} /> Lançar horas</button> : undefined}
-                >
-                  {entries.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhum lançamento no banco de horas.</p> : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted"><tr>{["Data", "Horas", "Motivo", "Status"].map((h) => <th key={h} className={TH}>{h}</th>)}</tr></thead>
-                        <tbody className="divide-y">
-                          {entries.map((entry) => (
-                            <tr key={entry.id}>
-                              <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDay(entry.entry_date)}</td>
-                              <td className={cn("px-4 py-3 font-medium tabular-nums", balanceTone(entry.minutes))}>{formatMinutes(entry.minutes)}</td>
-                              <td className="max-w-72 truncate px-4 py-3 text-muted-foreground">{entry.reason ?? "—"}</td>
-                              <td className="px-4 py-3"><StatusBadge status={entry.status} tone={entry.status === "aprovada" ? "success" : undefined} /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </Panel>
+                <div className="flex justify-end"><ViewSwitch value={hoursView} onChange={setHoursView} label="Ver lançamentos em" /></div>
+                {hoursView === "lista" ? (
+                  <EditableTable<TimeEntryRow>
+                    resource="hr_admin"
+                    label={`Banco de horas de ${employee.name}`}
+                    title="Lançamentos"
+                    rows={hourRows}
+                    columns={hourColumns}
+                    newRow={() => ({ entry_date: today })}
+                    onSave={saveHours}
+                    onRefresh={refresh}
+                    emptyMessage="Nenhum lançamento no banco de horas. Adicionar lança já aprovado (1:30 = hora extra, -0:30 = compensação)."
+                  />
+                ) : (
+                  <CalendarView items={timeEntryCalendarItems(hourRows, new Map([[employee.id, employee.name]]))} label={`Banco de horas de ${employee.name}`} />
+                )}
               </>
             )}
 
@@ -361,18 +399,17 @@ export default function EmployeeDetailPage() {
                     ))}
                   </div>
                 )}
-                {otherTasks.length > 0 && (
-                  <Panel title="Outras pendências">
-                    <ul className="divide-y">
-                      {otherTasks.map((task) => (
-                        <li key={task.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-                          <span className={cn(task.status === "concluida" && "text-muted-foreground line-through")}>{task.title}</span>
-                          <span className="flex items-center gap-2 text-xs text-muted-foreground">{task.due_date ? `prazo ${formatDay(task.due_date)}` : "sem prazo"}<StatusBadge status={task.status} /></span>
-                        </li>
-                      ))}
-                    </ul>
-                  </Panel>
-                )}
+                <EditableTable<HrTask>
+                  resource="hr_admin"
+                  label={`Outras pendências de ${employee.name}`}
+                  title="Outras pendências"
+                  rows={otherTasks}
+                  columns={taskColumns}
+                  newRow={() => ({ status: "pendente" })}
+                  onSave={saveOtherTasks}
+                  onRefresh={refresh}
+                  emptyMessage="Nenhuma outra pendência. Adicionar pede um documento, treinamento ou atualização a esta pessoa."
+                />
               </>
             )}
 
@@ -381,21 +418,6 @@ export default function EmployeeDetailPage() {
         </>
       )}
 
-      {dialog === "termination" && employee && (
-        <TerminationDialog today={today} employee={{ id: employee.id, name: employee.name }} busy={terminate.isPending} error={dialogError} onClose={() => setDialog(null)} onSubmit={(draft) => terminate.mutate(draft)} />
-      )}
-      {dialog === "hours" && employee && (
-        <TimeEntryDialog
-          title={`Lançar horas para ${employee.name}`}
-          today={today}
-          employeeId={employee.id}
-          busy={launch.isPending}
-          error={dialogError}
-          help="Lançado pelo RH, já entra aprovado no saldo."
-          onClose={() => setDialog(null)}
-          onSubmit={(draft) => launch.mutate(draft)}
-        />
-      )}
     </div>
   );
 }

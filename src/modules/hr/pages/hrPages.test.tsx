@@ -100,6 +100,28 @@ function clickable(label: string): HTMLElement {
   return found;
 }
 
+/** Campo de uma célula da EditableTable pelo aria-label ("Horas (nova linha)", "Status (linha 1)"). */
+function cell(label: string): HTMLInputElement | HTMLSelectElement {
+  const found = container.querySelector<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`);
+  if (!found) throw new Error(`Célula não encontrada: ${label}`);
+  return found;
+}
+
+async function setCell(label: string, value: string): Promise<void> {
+  const element = cell(label);
+  const proto = element instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(element, value);
+    element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+  });
+}
+
+function tableButton(label: string): HTMLButtonElement {
+  const found = Array.from(container.querySelectorAll<HTMLButtonElement>("[data-editable-table] button")).find((button) => button.textContent?.trim() === label);
+  if (!found) throw new Error(`Botão da tabela não encontrado: ${label}`);
+  return found;
+}
+
 async function click(target: string | HTMLElement): Promise<void> {
   const element = typeof target === "string" ? clickable(target) : target;
   await act(async () => {
@@ -122,19 +144,22 @@ describe("Banco de horas da equipe (RH)", () => {
     expect(container.querySelector("h1")?.textContent).toBe("Banco de horas da equipe");
     await waitFor(() => has("Fechamento") && !!container.querySelector("a[href$='/hr/manage/colaboradores/" + ana + "']"), "lançamento pendente");
 
+    await click("Aguardando aprovação (1)");
     await click("Aprovar");
     await waitFor(() => has("Nenhum lançamento aguardando"), "aprovação");
     const [entry] = await db.select<HrTimeEntry[]>("SELECT * FROM hr_time_entries WHERE id=?", [pending]);
     expect(entry).toMatchObject({ status: "aprovada", decided_by: "test-user-rh" });
     expect(has("+1h30")).toBe(true);
 
-    await click("Lançar horas");
-    await fill("Tipo", "debito");
-    await fill("Duração", "0:30");
-    await fill("Motivo", "Saída antecipada");
-    await waitFor(() => has("Vai lançar −0h30"), "prévia da duração");
-    await click(Array.from(container.querySelectorAll<HTMLElement>("[role=dialog] button")).find((button) => button.textContent === "Lançar")!);
-    await waitFor(() => !container.querySelector("[role=dialog]"), "diálogo fechado");
+    // Lançamento do RH direto na tabela (sem diálogo): entra já aprovado.
+    await click("Todos");
+    await click(tableButton("Adicionar"));
+    expect(container.querySelector("[role=dialog]")).toBeNull();
+    await setCell("Colaborador (nova linha)", ana);
+    await setCell("Horas (nova linha)", "-0:30");
+    await setCell("Motivo (nova linha)", "Saída antecipada");
+    await click(tableButton("Salvar"));
+    await waitFor(() => has("1 linha salva"), "lançamento salvo");
     const rows = await db.select<HrTimeEntry[]>("SELECT * FROM hr_time_entries WHERE company_id=? AND employee_id=? ORDER BY minutes", [C, ana]);
     expect(rows.map((row) => [row.minutes, row.status])).toEqual([[-30, "aprovada"], [90, "aprovada"]]);
     await waitFor(() => has("+1h00"), "saldo atualizado");
@@ -149,10 +174,11 @@ describe("Meu banco de horas (qualquer colaborador)", () => {
     expect(container.querySelector("h1")?.textContent).toBe("Meu banco de horas");
     await waitFor(() => has("Nenhum lançamento ainda"), "extrato vazio");
 
-    await click("Informar horas");
-    await fill("Duração", "1h15");
-    await fill("Motivo", "Plantão do servidor");
-    await click("Enviar para o RH");
+    await click(tableButton("Adicionar"));
+    expect(container.querySelector("[role=dialog]")).toBeNull();
+    await setCell("Horas (nova linha)", "1h15");
+    await setCell("Motivo (nova linha)", "Plantão do servidor");
+    await click(tableButton("Salvar"));
     await waitFor(() => has("Plantão do servidor"), "lançamento no extrato");
     const [entry] = await db.select<HrTimeEntry[]>("SELECT * FROM hr_time_entries WHERE company_id=?", [C]);
     expect(entry).toMatchObject({ minutes: 75, status: "pendente", decided_by: null });
@@ -228,9 +254,16 @@ describe("Ficha do colaborador", () => {
     expect(text().toLowerCase()).not.toContain("salário");
 
     await click("Registrar desligamento");
-    await fill("Motivo", "Acordo entre as partes");
-    await click(Array.from(container.querySelectorAll<HTMLElement>("[role=dialog] button")).find((button) => button.textContent === "Registrar desligamento")!);
-    await waitFor(() => !container.querySelector("[role=dialog]") && has("Formalizar o desligamento"), "checklist de saída");
+    expect(container.querySelector("[role=dialog]")).toBeNull();
+    const form = container.querySelector<HTMLFormElement>("[data-termination-form]")!;
+    expect(form.getAttribute("aria-label")).toBe("Registrar desligamento de Davi Costa");
+    const reason = Array.from(form.querySelectorAll("label")).find((label) => label.firstChild?.textContent === "Motivo")!.querySelector("select")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(reason, "Acordo entre as partes");
+      reason.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await click(Array.from(form.querySelectorAll<HTMLElement>("button")).find((button) => button.textContent === "Confirmar desligamento")!);
+    await waitFor(() => !container.querySelector("[data-termination-form]") && has("Formalizar o desligamento"), "checklist de saída");
     expect((await db.select<Employee[]>("SELECT * FROM employees WHERE id=?", [id]))[0]).toMatchObject({ status: "desligado", termination_reason: "Acordo entre as partes" });
 
     const first = container.querySelector<HTMLInputElement>("input[type=checkbox][aria-label^='Formalizar']")!;
@@ -285,26 +318,28 @@ describe("Admissões e desligamentos", () => {
     await waitFor(() => !has("Fábio Melo"), "desligamento cancelado");
     expect((await db.select<Employee[]>("SELECT * FROM employees WHERE id=?", [later]))[0]).toMatchObject({ status: "ativo", termination_date: null });
 
-    await click("Nova admissão");
-    await fill("Nome completo", "Gabi Nunes");
-    await fill("Data de início", "2099-03-01");
-    await click("Iniciar admissão");
+    await click(tableButton("Adicionar"));
+    expect(container.querySelector("[role=dialog]")).toBeNull();
+    await setCell("Nome completo (nova linha)", "Gabi Nunes");
+    await setCell("Data de início (nova linha)", "01/03/2099");
+    await click(tableButton("Salvar"));
     await waitFor(() => has("Gabi Nunes") && has("Receber documentos pessoais"), "admissão na lista");
     const [gabi] = await db.select<Employee[]>("SELECT * FROM employees WHERE company_id=? AND name=?", [C, "Gabi Nunes"]);
     expect(await db.select("SELECT * FROM hr_tasks WHERE employee_id=? AND category='admissao'", [gabi.id])).toHaveLength(6);
   });
 
-  it("quem só vê não marca itens nem abre diálogos", async () => {
+  it("quem só vê não adiciona admissão nem registra desligamento", async () => {
     const db = testDb();
     await insertTestCompany(db);
     await render("tecnico", "/hr/manage/admissoes", "/hr/manage/admissoes", <EmploymentCyclePage />);
     await waitFor(() => has("Nenhum processo em andamento"), "lista vazia");
-    expect(() => clickable("Nova admissão")).toThrow();
+    expect(tableButton("Adicionar").disabled).toBe(true);
+    expect(() => clickable("Registrar desligamento")).toThrow();
   });
 });
 
 describe("Gestão de RH (lista)", () => {
-  it("colaboradores abrem a ficha; novo colaborador vai para a ficha nova; importar fica no contrato", async () => {
+  it("colaboradores abrem a ficha; novo colaborador entra pela tabela; importar fica no contrato", async () => {
     const db = testDb();
     await insertTestCompany(db);
     const id = await newEmployee("Helena Dias");
@@ -313,7 +348,7 @@ describe("Gestão de RH (lista)", () => {
     await click("Colaboradores");
     await waitFor(() => has("Helena Dias"), "lista");
     expect(clickable("Helena Dias").getAttribute("href")).toBe(`/hr/manage/colaboradores/${id}`);
-    expect(clickable("Novo colaborador").getAttribute("href")).toBe("/hr/manage/colaboradores/nova");
+    expect(tableButton("Adicionar").disabled).toBe(false);
     expect(container.querySelector("[data-entity='employees']")).not.toBeNull();
 
     await click("Pendências");

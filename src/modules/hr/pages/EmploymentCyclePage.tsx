@@ -1,41 +1,47 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserMinus, UserPlus } from "lucide-react";
+import { UserMinus } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
-import { CrudDialog } from "@/components/shared/CrudDialog";
+import { CalendarView } from "@/components/shared/CalendarView";
+import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatCard } from "@/components/shared/StatCard";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { fetchEmployees, fetchHrTasks } from "@/lib/hr/queries";
 import { CONTRACT_TYPES } from "@/lib/hr/employees";
 import { applyDueTerminations, cancelTermination, cycleCases, setTaskDone, startAdmission, startTermination, type CycleCase } from "@/lib/hr/employment";
+import { saveEmployeeRows, taskCalendarItems } from "@/lib/hr/tableEdits";
 import { CycleCaseCard } from "../components/CycleCaseCard";
-import { TerminationDialog, type TerminationDraft } from "../components/TerminationDialog";
-import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, DialogError, ErrorAlert, errorMessage } from "../components/hrUi";
-import type { ContractType } from "@/types";
+import { TerminationForm, type TerminationDraft } from "../components/TerminationForm";
+import { ViewSwitch, type ListOrCalendar } from "../components/ViewSwitch";
+import { BTN_SECONDARY, BTN_SMALL, ErrorAlert, errorMessage } from "../components/hrUi";
+import type { ContractType, Employee, Role } from "@/types";
 
 type Filter = "andamento" | "concluidos";
-type Dialog = "admission" | "termination" | null;
+type AdmissionRow = Employee & { checklist: string };
 
-const EMPTY_ADMISSION = { name: "", email: "", department: "", position: "", hire_date: "", contract_type: "clt" };
-
-/** Gestão de RH > Admissões e desligamentos: checklist de entrada e de saída de cada colaborador. */
+/**
+ * Gestão de RH > Admissões e desligamentos: admissões numa EditableTable (Adicionar inicia a admissão com o
+ * checklist), desligamento num formulário no próprio lugar e os checklists de cada processo, também no calendário.
+ */
 export default function EmploymentCyclePage() {
   const session = useRequiredSession();
   const qc = useQueryClient();
   const companyId = session.company.id;
+  const role = session.membership.role as Role;
   const today = todayIso();
   const canCreate = usePermission("create", "hr_admin");
   const canEdit = usePermission("edit", "hr_admin");
   const [filter, setFilter] = useState<Filter>("andamento");
-  const [dialog, setDialog] = useState<Dialog>(null);
-  const [admission, setAdmission] = useState<Record<string, string>>(EMPTY_ADMISSION);
+  const [view, setView] = useState<ListOrCalendar>("lista");
+  const [terminating, setTerminating] = useState(false);
   const [error, setError] = useState("");
-  const [dialogError, setDialogError] = useState("");
+  const [formError, setFormError] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["hr", "cycle", companyId, today],
@@ -46,16 +52,19 @@ export default function EmploymentCyclePage() {
       return { employees, cases: cycleCases(employees, tasks, today) };
     },
   });
-  const employees = data?.employees ?? [];
-  const cases = data?.cases ?? [];
+  const employees = useMemo(() => data?.employees ?? [], [data]);
+  const cases = useMemo(() => data?.cases ?? [], [data]);
+  const names = useMemo(() => new Map(employees.map((employee) => [employee.id, employee.name])), [employees]);
   const open = cases.filter((item) => !item.complete);
   const finished = cases.filter((item) => item.complete);
   const shown = filter === "andamento" ? open : finished;
   const lateItems = open.reduce((sum, item) => sum + item.late, 0);
   const canLeave = employees.filter((employee) => employee.status !== "desligado" && !employee.termination_date);
+  const admissions = shown.filter((item) => item.kind === "admissao");
+  const terminations = shown.filter((item) => item.kind === "desligamento");
+  const admissionRows: AdmissionRow[] = admissions.map((item) => ({ ...item.employee, checklist: `${item.done} de ${item.total} itens${item.late ? ` (${item.late} em atraso)` : ""}` }));
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["hr"] });
-  const closeDialog = () => { setDialog(null); setDialogError(""); };
 
   const toggle = useMutation({
     mutationFn: async ({ taskId, done }: { taskId: string; done: boolean }) => setTaskDone(await getDb(), companyId, taskId, done),
@@ -63,24 +72,32 @@ export default function EmploymentCyclePage() {
     onError: (cause) => setError(errorMessage(cause)),
   });
 
-  const admit = useMutation({
-    mutationFn: async () => {
-      const { name, email, department, position, hire_date, contract_type } = admission;
-      const result = await startAdmission(await getDb(), companyId, { name, email, department, position, hire_date, contract_type: contract_type as ContractType }, session.user.id);
-      await emit({ type: "employee.admission_started", companyId, actorId: session.user.id, entityType: "employee", entityId: result.employeeId, title: `Admissão iniciada: ${admission.name.trim()}`, module: "hr_manage" });
-    },
-    onSuccess: () => { void refresh(); closeDialog(); setAdmission(EMPTY_ADMISSION); setFilter("andamento"); },
-    onError: (cause) => setDialogError(errorMessage(cause)),
-  });
+  async function saveAdmissions(changes: EditableTableChanges<AdmissionRow>) {
+    const db = await getDb();
+    if (changes.created.length && !canCreate) throw new Error("Seu perfil não tem permissão para iniciar admissões.");
+    for (const fields of changes.created) {
+      const result = await startAdmission(db, companyId, {
+        name: String(fields.name ?? ""),
+        email: String(fields.email ?? ""),
+        department: String(fields.department ?? ""),
+        position: String(fields.position ?? ""),
+        hire_date: String(fields.hire_date ?? ""),
+        contract_type: (fields.contract_type ?? "") as ContractType | "",
+      }, session.user.id);
+      await emit({ type: "employee.admission_started", companyId, actorId: session.user.id, entityType: "employee", entityId: result.employeeId, title: `Admissão iniciada: ${String(fields.name ?? "").trim()}`, module: "hr_manage" });
+    }
+    if (changes.updated.length) await saveEmployeeRows(db, companyId, role, { created: [], updated: changes.updated }, today);
+    if (changes.created.length) setFilter("andamento");
+  }
 
   const terminate = useMutation({
     mutationFn: async (draft: TerminationDraft) => {
+      if (!canCreate) throw new Error("Seu perfil não tem permissão para registrar desligamentos.");
       const result = await startTermination(await getDb(), companyId, draft.employeeId, draft, session.user.id, today);
-      const name = employees.find((employee) => employee.id === draft.employeeId)?.name ?? "colaborador";
-      await emit({ type: "employee.termination_registered", companyId, actorId: session.user.id, entityType: "employee", entityId: draft.employeeId, title: `Desligamento ${result.effective ? "registrado" : `agendado para ${formatDay(draft.date)}`}: ${name}`, module: "hr_manage" });
+      await emit({ type: "employee.termination_registered", companyId, actorId: session.user.id, entityType: "employee", entityId: draft.employeeId, title: `Desligamento ${result.effective ? "registrado" : `agendado para ${formatDay(draft.date)}`}: ${names.get(draft.employeeId) ?? "colaborador"}`, module: "hr_manage" });
     },
-    onSuccess: () => { void refresh(); closeDialog(); setFilter("andamento"); },
-    onError: (cause) => setDialogError(errorMessage(cause)),
+    onSuccess: () => { void refresh(); setTerminating(false); setFormError(""); setFilter("andamento"); },
+    onError: (cause) => setFormError(errorMessage(cause)),
   });
 
   const cancel = useMutation({
@@ -91,9 +108,6 @@ export default function EmploymentCyclePage() {
     onSuccess: () => { void refresh(); setError(""); },
     onError: (cause) => setError(errorMessage(cause)),
   });
-
-  const admissions = shown.filter((item) => item.kind === "admissao");
-  const terminations = shown.filter((item) => item.kind === "desligamento");
 
   const renderCase = (item: CycleCase) => (
     <CycleCaseCard
@@ -110,44 +124,80 @@ export default function EmploymentCyclePage() {
     />
   );
 
+  const admissionColumns: EditableColumn<AdmissionRow>[] = [
+    { key: "name", header: "Nome completo", kind: "text", required: true, render: (employee) => <Link to={`/hr/manage/colaboradores/${employee.id}`} className="font-medium hover:underline">{employee.name}</Link> },
+    { key: "email", header: "E-mail", kind: "email" },
+    { key: "department", header: "Setor", kind: "text" },
+    { key: "position", header: "Cargo", kind: "text" },
+    { key: "hire_date", header: "Data de início", kind: "date", required: true },
+    { key: "contract_type", header: "Contrato", kind: "select", options: CONTRACT_TYPES },
+    { key: "checklist", header: "Checklist", kind: "text", readOnly: true },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Admissões e desligamentos"
         description="Cada entrada e cada saída tem um checklist com prazos contados a partir da data de início ou de saída."
-        actions={canCreate ? (
-          <>
-            <button type="button" onClick={() => { setDialogError(""); setDialog("termination"); }} disabled={canLeave.length === 0} className={BTN_SECONDARY}><UserMinus size={14} /> Registrar desligamento</button>
-            <button type="button" onClick={() => { setDialogError(""); setAdmission(EMPTY_ADMISSION); setDialog("admission"); }} className={BTN_PRIMARY}><UserPlus size={14} /> Nova admissão</button>
-          </>
+        actions={canCreate && !terminating ? (
+          <button type="button" onClick={() => { setFormError(""); setTerminating(true); }} disabled={canLeave.length === 0} className={BTN_SECONDARY}><UserMinus size={14} /> Registrar desligamento</button>
         ) : undefined}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Admissões em andamento" value={open.filter((item) => item.kind === "admissao").length} />
-        <StatCard title="Desligamentos em andamento" value={open.filter((item) => item.kind === "desligamento").length} />
-        <StatCard title="Itens em atraso" value={lateItems} />
-        <StatCard title="Processos concluídos" value={finished.length} />
+        <KpiCard title="Admissões em andamento" value={open.filter((item) => item.kind === "admissao").length} />
+        <KpiCard title="Desligamentos em andamento" value={open.filter((item) => item.kind === "desligamento").length} />
+        <KpiCard title="Itens em atraso" value={lateItems} />
+        <KpiCard title="Processos concluídos" value={finished.length} />
       </div>
 
       <ErrorAlert message={error} onClose={() => setError("")} />
 
-      <div className="flex gap-2" role="group" aria-label="Mostrar processos">
-        {(["andamento", "concluidos"] as const).map((value) => (
-          <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", filter === value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
-            {value === "andamento" ? `Em andamento (${open.length})` : `Concluídos (${finished.length})`}
-          </button>
-        ))}
+      {terminating && (
+        <TerminationForm
+          today={today}
+          employees={canLeave.map((employee) => ({ id: employee.id, name: employee.name }))}
+          busy={terminate.isPending}
+          error={formError}
+          onCancel={() => { setTerminating(false); setFormError(""); }}
+          onSubmit={(draft) => terminate.mutate(draft)}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2" role="group" aria-label="Mostrar processos">
+          {(["andamento", "concluidos"] as const).map((value) => (
+            <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", filter === value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
+              {value === "andamento" ? `Em andamento (${open.length})` : `Concluídos (${finished.length})`}
+            </button>
+          ))}
+        </div>
+        <ViewSwitch value={view} onChange={setView} label="Ver checklists em" />
       </div>
 
-      {isLoading ? <div className="h-36 animate-pulse rounded-xl border bg-card" /> : shown.length === 0 ? (
+      <EditableTable<AdmissionRow>
+        resource="hr_admin"
+        label="Admissões"
+        title="Admissões"
+        rows={admissionRows}
+        columns={admissionColumns}
+        loading={isLoading}
+        newRow={() => ({ contract_type: "clt" })}
+        onSave={saveAdmissions}
+        onRefresh={refresh}
+        emptyMessage={`Nenhuma admissão ${filter === "andamento" ? "em andamento" : "concluída"}. Adicionar inicia uma admissão com o checklist de entrada (documentos, exame, contrato, acessos, integração e avaliação de experiência).`}
+      />
+
+      {view === "calendario" ? (
+        <CalendarView items={taskCalendarItems(shown.flatMap((item) => item.tasks), names)} label="Prazos dos checklists" />
+      ) : isLoading ? <div className="h-36 animate-pulse rounded-xl border bg-card" /> : shown.length === 0 ? (
         <EmptyState
           title={filter === "andamento" ? "Nenhum processo em andamento" : "Nenhum processo concluído"}
-          description={filter === "andamento" && canCreate ? "Use “Nova admissão” quando alguém for entrar e “Registrar desligamento” quando alguém for sair." : undefined}
+          description={filter === "andamento" && canCreate ? "Adicione uma admissão na tabela quando alguém for entrar e use “Registrar desligamento” quando alguém for sair." : undefined}
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <section aria-label="Admissões" className="space-y-3">
+          <section aria-label="Checklists de admissão" className="space-y-3">
             <h2 className="font-bold">Admissões <span className="font-normal text-muted-foreground">({admissions.length})</span></h2>
             {admissions.length === 0 ? <p className="rounded-xl border bg-card px-5 py-6 text-sm text-muted-foreground">Nenhuma admissão {filter === "andamento" ? "em andamento" : "concluída"}.</p> : admissions.map(renderCase)}
           </section>
@@ -156,39 +206,6 @@ export default function EmploymentCyclePage() {
             {terminations.length === 0 ? <p className="rounded-xl border bg-card px-5 py-6 text-sm text-muted-foreground">Nenhum desligamento {filter === "andamento" ? "em andamento" : "concluído"}.</p> : terminations.map(renderCase)}
           </section>
         </div>
-      )}
-
-      {dialog === "admission" && (
-        <CrudDialog
-          title="Nova admissão"
-          fields={[
-            { key: "name", label: "Nome completo", required: true },
-            { key: "email", label: "E-mail", type: "email" },
-            { key: "department", label: "Setor" },
-            { key: "position", label: "Cargo" },
-            { key: "hire_date", label: "Data de início", type: "date", required: true },
-            { key: "contract_type", label: "Contrato", type: "select", options: CONTRACT_TYPES },
-          ]}
-          values={admission}
-          onChange={(key, value) => setAdmission((current) => ({ ...current, [key]: value }))}
-          onClose={closeDialog}
-          onSubmit={() => admit.mutate()}
-          busy={admit.isPending}
-          submitLabel="Iniciar admissão"
-        >
-          <p className="mt-3 text-xs text-muted-foreground">Cria o cadastro e o checklist de entrada (documentos, exame admissional, contrato, acessos, integração e avaliação de experiência). O resto da ficha você completa depois.</p>
-          <DialogError message={dialogError} />
-        </CrudDialog>
-      )}
-      {dialog === "termination" && (
-        <TerminationDialog
-          today={today}
-          employees={canLeave.map((employee) => ({ id: employee.id, name: employee.name }))}
-          busy={terminate.isPending}
-          error={dialogError}
-          onClose={closeDialog}
-          onSubmit={(draft) => terminate.mutate(draft)}
-        />
       )}
     </div>
   );

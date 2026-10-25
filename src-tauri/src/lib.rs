@@ -2,6 +2,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod auth;
 mod backup;
+mod claude_code;
 mod legacy_db;
 
 #[tauri::command]
@@ -123,7 +124,9 @@ pub fn run() {
             auth::verify_password,
             backup::backup_db,
             backup::restore_db,
-            backup::list_backups
+            backup::list_backups,
+            claude_code::claude_code_status,
+            claude_code::claude_code_ask
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

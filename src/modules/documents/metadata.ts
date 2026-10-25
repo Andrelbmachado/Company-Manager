@@ -61,13 +61,28 @@ export async function saveDocumentMetadata(companyId: string, actor: DocumentAct
   const db = await getDb();
   const now = new Date().toISOString();
 
+  // O lote inteiro é conferido antes da primeira escrita: se uma linha falhasse depois de outras gravadas, a tabela
+  // manteria os rascunhos e salvar de novo esbarraria nos registros já criados ("Já existe ... nesta pasta").
+  const updates: { fields: DocumentMetaFields; doc: DocumentRow; title: string | null }[] = [];
   for (const fields of changes.updated) {
-    let doc = await loadFolderDocument(companyId, fields.id);
+    const doc = await loadFolderDocument(companyId, fields.id);
     if (!canSeeFolder(actor.role, documentFolder(doc))) throw new Error("Sua área não tem acesso a este documento.");
-    if ("title" in fields) {
-      const title = cleanTitle(fields.title);
-      if (title !== doc.title) doc = await renameDocument(doc, title, actor.userId);
-    }
+    updates.push({ fields, doc, title: "title" in fields ? cleanTitle(fields.title) : null });
+  }
+  const titles: string[] = [];
+  const keys = new Set<string>();
+  for (const fields of changes.created) {
+    const title = cleanTitle(fields.title);
+    if (keys.has(titleKey(title))) throw new Error(`"${title}" está em mais de uma linha nova.`);
+    keys.add(titleKey(title));
+    await assertFreeTitle(companyId, target, title);
+    titles.push(title);
+  }
+
+  for (const update of updates) {
+    const { fields, title } = update;
+    let doc = update.doc;
+    if (title !== null && title !== doc.title) doc = await renameDocument(doc, title, actor.userId);
     if ("description" in fields) {
       const description = cleanDescription(fields.description);
       for (const version of await listVersions(doc)) {
@@ -78,9 +93,8 @@ export async function saveDocumentMetadata(companyId: string, actor: DocumentAct
   }
 
   const created: DocumentRow[] = [];
-  for (const fields of changes.created) {
-    const title = cleanTitle(fields.title);
-    await assertFreeTitle(companyId, target, title);
+  for (const [index, fields] of changes.created.entries()) {
+    const title = titles[index];
     const row: DocumentRow = {
       id: uuidv4(),
       company_id: companyId,

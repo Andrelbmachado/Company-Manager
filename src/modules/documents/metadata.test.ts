@@ -53,6 +53,17 @@ describe("metadados de documentos na tabela", () => {
     await expect(saveDocumentMetadata(C, comercial, "Comercial", { created: [], updated: [{ id: "nao-existe", title: "E.pdf" }] })).rejects.toThrow(/não encontrado/);
   });
 
+  it("lote com nome repetido ou vazio não grava nenhuma linha", async () => {
+    await insertTestCompany(testDb());
+    const sheet = await saveFile(C, new File(["v1"], "Tabela.xlsx"), { userId: "test-user-comercial", folder: "Comercial" });
+    await expect(saveDocumentMetadata(C, comercial, "Comercial", { created: [{ title: "Ata.pdf" }, { title: "ata.PDF" }], updated: [] })).rejects.toThrow(/mais de uma linha/);
+    await expect(saveDocumentMetadata(C, comercial, "Comercial", { created: [{ title: "Ata.pdf" }, { title: " " }], updated: [{ id: sheet.id, description: "Vigente" }] })).rejects.toThrow(/nome/);
+    await expect(saveDocumentMetadata(C, comercial, "Comercial", { created: [], updated: [{ id: sheet.id, description: "Vigente" }, { id: "nao-existe", title: "X.pdf" }] })).rejects.toThrow(/não encontrado/);
+    const docs = await listFolderDocuments(C);
+    expect(docs.map((doc) => doc.title)).toEqual(["Tabela.xlsx"]);
+    expect(docs[0].description ?? null).toBeNull();
+  });
+
   it("funciona no banco demo do navegador", async () => {
     vi.resetModules();
     vi.doMock("@/lib/db/client", async () => {

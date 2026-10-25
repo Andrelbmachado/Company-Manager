@@ -173,6 +173,32 @@ describe("Sidebar recolhida (trilho de ícones)", () => {
     expect(isRail()).toBe(true);
   });
 
+  it("na janela pequena (1/5 × 1/3 da tela) os menus da conta e do assistente não passam da janela: rolam por dentro", async () => {
+    // No trilho o menu da conta (w-72) abria ao lado e, numa janela de 294 px, o switch Tema escuro ficava fora dela;
+    // expandida, o menu abre para cima e a parte de cima sumia numa janela de 318 px de altura.
+    const fitsWindow = (id: string) => {
+      const names = document.getElementById(id)?.className.split(/\s+/) ?? [];
+      expect(names.some((name) => /^max-w-\[calc\(100vw-[\d.]+rem\)\]$/.test(name)), `${id}: largura limitada à janela`).toBe(true);
+      expect(names.some((name) => /^max-h-\[calc\(100vh-[\d.]+rem\)\]$/.test(name)), `${id}: altura limitada à janela`).toBe(true);
+      expect(names, `${id}: rola por dentro`).toContain("overflow-y-auto");
+    };
+
+    localStorage.setItem(COLLAPSED_KEY, "true");
+    await openSidebar();
+    await click(control("Abrir menu da conta"));
+    fitsWindow("account-menu");
+    await click(control("Assistente de IA"));
+    fitsWindow("assistant-menu");
+    page!.unmount();
+
+    localStorage.setItem(COLLAPSED_KEY, "false");
+    await openSidebar();
+    await click(control("Abrir menu da conta"));
+    fitsWindow("account-menu");
+    await click(control("Assistente de IA"));
+    fitsWindow("assistant-menu");
+  });
+
   it("estreitar a janela não grava uma largura menor: ao alargar, a sidebar volta à largura escolhida", async () => {
     await resizeWindow(1280);
     localStorage.setItem("cm_sidebar_width", "300");

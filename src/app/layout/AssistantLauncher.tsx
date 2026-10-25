@@ -68,8 +68,11 @@ export function AssistantLauncher({ collapsed }: { collapsed: boolean }) {
           id="assistant-menu"
           aria-label="Conversas do assistente"
           className={cn(
-            "absolute z-50 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl",
-            collapsed ? "left-full top-0 ml-2 w-64" : "left-0 right-0 top-full mt-1",
+            "absolute z-50 overflow-y-auto overscroll-contain rounded-xl border bg-popover text-popover-foreground shadow-xl",
+            // Janela pequena (até 1/5 × 1/3 da tela): o menu não passa da janela; as conversas rolam por dentro.
+            collapsed
+              ? "left-full top-0 ml-2 w-64 max-h-[calc(100vh-7rem)] max-w-[calc(100vw-4.5rem)]"
+              : "left-0 right-0 top-full mt-1 max-h-[calc(100vh-9rem)] max-w-[calc(100vw-1.5rem)]",
           )}
         >
           <div className="p-1.5">

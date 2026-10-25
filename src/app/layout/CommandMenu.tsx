@@ -140,7 +140,9 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             />
             <kbd className="rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">esc</kbd>
           </div>
-          <Command.List className="max-h-80 overflow-y-auto p-2">
+          {/* Até 20rem, mas nunca além da janela (pt de 14vh + campo + rodapé, que quebra linha na janela estreita):
+              numa janela baixa a lista encolhe. */}
+          <Command.List className="max-h-[min(20rem,calc(86vh-7.5rem))] overflow-y-auto p-2">
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
               Nenhum resultado encontrado.
             </Command.Empty>

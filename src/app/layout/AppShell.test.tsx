@@ -1,5 +1,5 @@
 // Shell sem top bar: busca, Assistente de IA e navegação na sidebar; conta (tema, notificações, sair) no rodapé.
-import { act } from "react";
+import { act, lazy } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
@@ -123,6 +123,23 @@ describe("AppShell", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
     });
     expect(document.querySelector("[role=dialog][aria-label=Buscar]")).not.toBeNull();
+  });
+
+  it("página que ainda está carregando (lazy) não esconde a sidebar: só o conteúdo mostra o carregando", async () => {
+    // Na primeira visita a cada módulo o código da página é baixado sob demanda; antes, o carregando ocupava a janela
+    // toda e a sidebar sumia até a página chegar.
+    const Pending = lazy(() => new Promise<{ default: () => JSX.Element }>(() => {}));
+    page = await renderPage(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<Pending />} />
+        </Route>
+      </Routes>,
+      { companyId: COMPANY, role: "comercial" },
+    );
+    expect(byName(sidebar(), "Buscar")).toBeDefined();
+    expect(byName(sidebar(), "Abrir menu da conta")).toBeDefined();
+    expect(document.querySelector("main [data-page-loading]")).not.toBeNull();
   });
 
   it("o Assistente de IA lista as conversas do usuário e abre cada uma", async () => {

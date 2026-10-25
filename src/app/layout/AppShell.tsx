@@ -1,13 +1,23 @@
 import { Outlet } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { CommandMenu } from "./CommandMenu";
 import { ModuleNav } from "./ModuleNav";
 import { useProspectingBootstrap } from "@/hooks/useProspectingBootstrap";
 
+/** Carregando da página (o código de cada módulo vem sob demanda na primeira visita), só na área do conteúdo. */
+function PageLoading() {
+  return (
+    <div data-page-loading="" role="status" aria-label="Carregando" className="flex min-h-[50vh] items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
 /**
  * Casca do app sem top bar: a sidebar tem busca, Assistente de IA, navegação e conta (tema, notificações, sair);
- * o conteúdo ocupa a altura toda da janela.
+ * o conteúdo ocupa a altura toda da janela. A página carrega dentro do próprio Suspense: na primeira visita a um
+ * módulo a sidebar e as abas ficam na tela (o Suspense das rotas, fora da casca, cobria a janela toda).
  */
 export function AppShell() {
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -35,7 +45,9 @@ export function AppShell() {
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="min-h-full p-6">
           <ModuleNav />
-          <Outlet />
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
 

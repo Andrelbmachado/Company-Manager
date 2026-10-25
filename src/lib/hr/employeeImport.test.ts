@@ -100,6 +100,40 @@ describe("entidade de colaboradores", () => {
     expect((await fetchEmployee(db, C, id))?.status).toBe("ativo");
   });
 
+  const importWithExit = (rows: Record<string, string>[]) =>
+    runImport("employees", { ...MAPPING, termination_date: "Desligamento", termination_reason: "Motivo" }, rows, { db, companyId: C, userId: null, mode: "all-or-nothing", dryRun: false });
+
+  it("data de desligamento futura na planilha agenda, como na ficha: continua ativo até a data", async () => {
+    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, TODAY);
+    expect(
+      await importWithExit([
+        { Nome: "Ana Lima", "E-mail": "ana@x.com", Desligamento: "31/12/2099", Motivo: "Pedido de demissão" },
+        { Nome: "Bruno Reis", "E-mail": "bruno@x.com", Desligamento: "31/12/2099" },
+        { Nome: "Carla Dias", "E-mail": "carla@x.com", Desligamento: "01/10/2026" },
+      ]),
+    ).toMatchObject({ errors: [], inserted: 2, updated: 1 });
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "ativo", termination_date: "2099-12-31", termination_reason: "Pedido de demissão" });
+    const [, bruno, carla] = await employees();
+    expect(bruno).toMatchObject({ name: "Bruno Reis", status: "ativo", termination_date: "2099-12-31" });
+    // Data passada sem a coluna Situação: já desligado.
+    expect(carla).toMatchObject({ name: "Carla Dias", status: "desligado", termination_date: "2026-10-01" });
+    expect(await applyDueTerminations(db, C, TODAY)).toBe(0);
+    expect(await applyDueTerminations(db, C, "2099-12-31")).toBe(2);
+  });
+
+  it("planilha exportada que volta o desligado para Ativo (com a data e o motivo antigos) também é readmissão", async () => {
+    const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, TODAY);
+    await startTermination(db, C, id, { date: "2026-10-01", reason: "Pedido de demissão" }, "test-user-rh", TODAY);
+    await applyDueTerminations(db, C, TODAY);
+    expect(
+      await importWithExit([{ Nome: "Ana Lima", "E-mail": "ana@x.com", Situação: "Ativo", Desligamento: "01/10/2026", Motivo: "Pedido de demissão" }]),
+    ).toMatchObject({ errors: [], inserted: 0, updated: 1 });
+    expect(await fetchEmployee(db, C, id)).toMatchObject({ status: "ativo", termination_date: null, termination_reason: null });
+    expect(await db.select("SELECT id FROM hr_tasks WHERE company_id=? AND employee_id=? AND category='desligamento' AND deleted_at IS NULL", [C, id])).toEqual([]);
+    expect(await applyDueTerminations(db, C, TODAY)).toBe(0);
+    expect((await fetchEmployee(db, C, id))?.status).toBe("ativo");
+  });
+
   it("falha no meio desfaz também a readmissão (diário da importação)", async () => {
     const { id } = await saveEmployee(db, C, { ...emptyEmployeeInput(), name: "Ana Lima", email: "ana@x.com", hire_date: "2020-01-10" }, null, TODAY);
     await startTermination(db, C, id, { date: "2026-10-01", reason: "Pedido de demissão" }, "test-user-rh", TODAY);

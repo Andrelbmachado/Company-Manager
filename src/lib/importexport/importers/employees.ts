@@ -1,9 +1,12 @@
 // Colaboradores (Gestão de RH): entidade única de importação/exportação do RH (botões da Gestão de RH e tela de
 // importações). Identifica por CPF, depois e-mail (o cadastro que o Meu RH criou no primeiro acesso só tem e-mail),
-// depois nome. Célula vazia não apaga. Sem salário: remuneração é da Folha. Desligado que a planilha volta para outra
-// situação é readmissão, como na ficha (clearTermination): o desligamento e as tarefas de desligamento saem, senão
-// applyDueTerminations desligaria a pessoa de novo pela data antiga.
+// depois nome. Célula vazia não apaga. Sem salário: remuneração é da Folha. Data de desligamento sem a coluna Situação
+// segue a ficha (startTermination): hoje ou passada desliga já; futura agenda (continua na situação atual e
+// applyDueTerminations desliga na data). Desligado que a planilha volta para outra situação é readmissão, como na ficha
+// (clearTermination), mesmo com a data antiga na linha (planilha exportada e reimportada): o desligamento e as tarefas
+// de desligamento saem, senão applyDueTerminations desligaria a pessoa de novo pela data antiga.
 import { z } from "zod";
+import { todayIso } from "@/lib/utils";
 import type { FieldDef } from "../registry";
 import { decimal, integer, isoDate, oneOf, optionalText, requiredText } from "../schema";
 import { ADDRESS_FIELDS, addressColumn, addressExport, defineTableEntity, emailKey } from "../tableEntity";
@@ -108,7 +111,7 @@ export const entity = defineTableEntity<EmployeeImportRow>({
     department: row.department,
     position: row.position,
     contract_type: row.contract_type,
-    status: row.status ?? (row.termination_date ? "desligado" : undefined),
+    status: row.status ?? (row.termination_date && row.termination_date <= todayIso() ? "desligado" : undefined),
     vacation_days_entitled: row.vacation_days_entitled,
     daily_minutes: row.daily_hours === undefined ? undefined : Math.round(row.daily_hours * 60),
     termination_date: row.termination_date,
@@ -120,7 +123,10 @@ export const entity = defineTableEntity<EmployeeImportRow>({
   }),
   insertDefaults: () => ({ status: "ativo", vacation_days_entitled: 30, daily_minutes: 480 }),
   afterWrite: async (db, companyId, written, context) => {
-    const readmitted = written.filter(({ row, existing }) => existing?.status === "desligado" && !!row.status && row.status !== "desligado" && !row.termination_date);
+    const today = todayIso();
+    const readmitted = written.filter(
+      ({ row, existing }) => existing?.status === "desligado" && !!row.status && row.status !== "desligado" && (!row.termination_date || row.termination_date <= today),
+    );
     if (readmitted.length === 0) return;
     const now = sqliteNow();
     await updateRows(
@@ -128,7 +134,7 @@ export const entity = defineTableEntity<EmployeeImportRow>({
       "employees",
       companyId,
       readmitted
-        .filter(({ existing }) => existing!.termination_date != null || existing!.termination_reason != null)
+        .filter(({ row, existing }) => existing!.termination_date != null || existing!.termination_reason != null || !!row.termination_date || !!row.termination_reason)
         .map(({ id, existing }) => ({
           id,
           values: { termination_date: null, termination_reason: null },

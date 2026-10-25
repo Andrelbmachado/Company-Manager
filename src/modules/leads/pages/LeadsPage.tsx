@@ -113,8 +113,13 @@ export default function LeadsPage() {
   }
 
   // Leads novos da planilha entram na campanha aberta; os que já existiam continuam onde estavam.
+  // Se a campanha sumiu nesse meio-tempo, os leads sem campanha vão para a padrão na leitura seguinte.
   async function afterImport() {
-    if (campaign && (canCreate || canEdit)) await assignLeadsWithoutCampaign(await getDb(), companyId, campaign.id);
+    try {
+      if (campaign && (canCreate || canEdit)) await assignLeadsWithoutCampaign(await getDb(), companyId, campaign.id);
+    } catch {
+      // ensureDefaultCampaign (consulta das campanhas) cobre esse caso.
+    }
     await qc.invalidateQueries({ queryKey: ["leads", companyId] });
   }
 

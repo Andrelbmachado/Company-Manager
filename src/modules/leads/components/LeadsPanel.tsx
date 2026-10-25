@@ -1,6 +1,6 @@
 // Leads da prospecção numa tabela editável (Editar muda status, pacote, potencial, data de abordagem...; Adicionar
-// cadastra o lead na campanha padrão). Os detalhes (contato, converter em oportunidade, indicação) abrem num painel
-// na própria página, abaixo da tabela.
+// cadastra o lead na prospecção escolhida no topo da página, ou na padrão se não houver nenhuma). Os detalhes (contato,
+// converter em oportunidade, indicação) abrem num painel na própria página, abaixo da tabela.
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import { saveLeadRows } from "@/lib/commercial/leadEdits";
 import { convertLeadToOpportunity } from "@/lib/crm/convert";
 import { fetchOpportunities } from "@/lib/crm/queries";
 import { InfoGrid, InfoItem, InlinePanel, ROW_ACTION, useEditActor } from "@/modules/catalog/components/inline";
+import { useCurrentCampaign } from "../campaignContext";
 import { ReferralBox } from "./ReferralBox";
 import {
   LEAD_STATUSES,
@@ -51,6 +52,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
   const canEdit = usePermission("edit", "leads");
   const canCreateOpportunity = usePermission("create", "opportunities");
   const navigate = useNavigate();
+  const campaign = useCurrentCampaign();
   // Mesma consulta (e chave) da lista de oportunidades do CRM: diz se o lead já virou oportunidade.
   const { data: opportunities = [] } = useQuery({
     queryKey: ["opportunities", companyId],
@@ -203,8 +205,8 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         loading={loading}
         onSave={save}
         onRefresh={() => qc.invalidateQueries({ queryKey: ["leads", companyId] })}
-        newRow={() => ({ status: "novo" })}
-        emptyMessage={leads.length ? "Nenhum lead encontrado: ajuste os filtros para ver mais resultados." : "Nenhum lead ainda. Use Adicionar para cadastrar; os leads de prospecção também são importados no primeiro acesso do CEO, da Administração, da Gerência ou do Comercial."}
+        newRow={() => ({ status: "novo", ...(campaign ? { campaign_id: campaign.id } : {}) })}
+        emptyMessage={leads.length ? "Nenhum lead encontrado: ajuste os filtros para ver mais resultados." : "Esta prospecção ainda não tem leads. Use Adicionar para cadastrar ou Importar, no topo da página, para trazer uma planilha."}
         rowActions={(lead) => (
           <button type="button" className={ROW_ACTION} aria-label={`Detalhes de ${lead.name}`} aria-pressed={selectedId === lead.id} onClick={() => setSelectedId((current) => (current === lead.id ? null : lead.id))}>
             <Info size={13} /> Detalhes

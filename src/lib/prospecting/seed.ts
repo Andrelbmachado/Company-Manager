@@ -200,7 +200,7 @@ async function runSeed(session: Session): Promise<boolean> {
   return true;
 }
 
-/** Grava (upsert) a previsão de receita de cada cenário. Usado pelo seed e por "Recalcular". */
+/** Grava (upsert) a previsão de receita de cada cenário. Usado pelo seed (a aba Previsão de receita calcula na hora). */
 export async function saveForecasts(
   db: DatabaseLike,
   companyId: string,

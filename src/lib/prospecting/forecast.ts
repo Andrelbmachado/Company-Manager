@@ -1,4 +1,5 @@
-// Previsão de receita por cenário de conversão. Função pura — usada pelo seed e pelo botão "Recalcular".
+// Previsão de receita por cenário de conversão. Função pura — usada pelo seed e pela aba Previsão de receita, que
+// calcula na hora com os leads da prospecção escolhida.
 // Todos os valores são ESTIMATIVAS derivadas da tabela de pacotes (service_packages / package_prices).
 
 export interface ForecastLead {

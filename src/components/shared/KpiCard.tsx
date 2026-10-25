@@ -12,7 +12,8 @@ const MIN_VALUE_PX = 20;
 
 /**
  * Card do topo das telas: só o título e o número grande (nada de texto embaixo do número). Valor comprido
- * (ex.: R$ 1.234.567,89 num card estreito) encolhe até caber, em vez de vazar ou ser cortado.
+ * (ex.: R$ 1.234.567,89 num card estreito) encolhe até caber; texto que nem com 20 px cabe (nome, assunto) é
+ * cortado com reticências, com o valor inteiro na dica, em vez de vazar por cima dos cards vizinhos.
  */
 export function KpiCard({ title, value, className }: KpiCardProps) {
   const valueRef = useRef<HTMLParagraphElement>(null);
@@ -38,7 +39,12 @@ export function KpiCard({ title, value, className }: KpiCardProps) {
   return (
     <div className={cn("kpi-card flex min-w-0 flex-col gap-3 p-5", className)}>
       <p className="text-[13px] font-medium text-muted-foreground">{title}</p>
-      <p ref={valueRef} data-kpi-value="" className="whitespace-nowrap font-display text-[clamp(2rem,3vw,3rem)] font-bold leading-none tracking-tight tabular-nums">
+      <p
+        ref={valueRef}
+        data-kpi-value=""
+        title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}
+        className="overflow-hidden text-ellipsis whitespace-nowrap font-display text-[clamp(2rem,3vw,3rem)] font-bold leading-none tracking-tight tabular-nums"
+      >
         {value}
       </p>
     </div>

@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
+import { useLabel } from "@/lib/labels/useLabel";
 import type { Role } from "@/types";
 import { AttachmentsBrowser } from "../components/AttachmentsBrowser";
 import { DocumentFolders } from "../components/DocumentFolders";
@@ -24,12 +25,14 @@ export default function DocumentsPage() {
   const canUpload = usePermission("attach", "documents");
   const canEdit = usePermission("edit", "documents");
   const canDelete = usePermission("delete", "documents");
+  // Mesmo rótulo da sidebar e da busca (perfil de área, editável em Configurações > Área da empresa).
+  const title = useLabel("module.documents");
   const [tab, setTab] = useState<TabId>("pastas");
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Documentos"
+        title={title}
         description={canUpload ? "Pastas e arquivos da sua área: envie, arraste, visualize, baixe e acompanhe as versões." : "Pastas e arquivos compartilhados com a sua área."}
         className="pb-2"
       />

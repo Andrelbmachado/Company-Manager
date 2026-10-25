@@ -11,8 +11,10 @@ import { SessionContext } from "@/hooks/useSession";
 import { createMemoryFileBackend } from "@/lib/files/backend";
 import { setCloudEnv, setCloudFs } from "@/lib/files/cloudFolders";
 import { saveFile, setFileBackend } from "@/lib/files/store";
+import { saveAreaLabels } from "@/lib/labels/store";
 import { createNodeCloudFs, createTempHome, type TempHome } from "@/test/cloudFs";
 import { useTestDb } from "@/test/mockDb";
+import { type as typeInto } from "@/test/pageHarness";
 import { insertTestCompany } from "@/test/sqlite";
 import type { CloudFolder, DocumentRow, Role, Session } from "@/types";
 import DocumentsPage from "./DocumentsPage";
@@ -60,7 +62,7 @@ async function legacy(id: string, title: string, filePath: string, version = 1) 
 
 beforeEach(async () => {
   setFileBackend(createMemoryFileBackend());
-  await insertTestCompany(testDb(), { roles: ["ceo", "comercial", "rh"] });
+  await insertTestCompany(testDb(), { roles: ["ceo", "comercial", "rh", "auditor"] });
   await legacy("d-com", "Contrato NorteLog.pdf", "/Comercial/Contratos/Contrato NorteLog.pdf", 2);
   await legacy("d-fin", "Fechamento.pdf", "/Financeiro/Fechamento.pdf");
   await legacy("d-ti", "Relatório.pdf", "/TI e Operações/Relatório.pdf");
@@ -111,6 +113,12 @@ async function click(element: Element | null | undefined) {
 }
 
 describe("DocumentsPage", () => {
+  it("o título da página é o rótulo do módulo na área da empresa (editável em Configurações)", async () => {
+    await saveAreaLabels(testDb(), C, { role: "ceo", userId: "test-user-ceo" }, { overrides: { "module.documents": "Arquivos da empresa" } });
+    await render("comercial");
+    await until(() => container.querySelector("h1")?.textContent === "Arquivos da empresa", "título com o rótulo da área");
+  });
+
   it("o comercial vê só Comercial e Compartilhados, e o envio na raiz vai para /Comercial", async () => {
     await render("comercial");
     await until(() => text().includes("Compartilhados"), "pastas");
@@ -262,5 +270,41 @@ describe("DocumentsPage — pastas de nuvem", () => {
     await until(() => text().includes("“Empresa” já estava conectada"), "aviso de acesso liberado");
     expect(container.querySelector('section[aria-label="Conectar nuvem"] [role="alert"]')).toBeNull();
     expect(await testDb().select<CloudFolder[]>("SELECT * FROM cloud_folders WHERE company_id=?", [C])).toHaveLength(1);
+  });
+
+  const connectedTable = () => container.querySelector('[data-editable-table="documents"]');
+  const tableButton = (label: string) => [...(connectedTable()?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find((element) => element.textContent?.trim() === label);
+
+  it("Auditoria só consulta as pastas conectadas: Editar e Adicionar desativados com a dica, sem Desconectar nem Escolher pasta", async () => {
+    await connectRow("nuvem-com", "test-user-comercial", home.at(...ICLOUD, "Empresa"), "Empresa");
+    await render("auditor");
+    await until(() => container.querySelector('[data-cloud-folder="Empresa"]') !== null, "pasta conectada (Auditoria vê todas)");
+    await click(buttonWith("Conectar nuvem"));
+    await until(() => connectedTable()?.textContent?.includes("Empresa") ?? false, "tabela das pastas conectadas");
+    expect(text()).toContain("Seu perfil consulta as pastas conectadas, mas não conecta pastas novas.");
+    for (const label of ["Editar", "Adicionar"]) {
+      expect(tableButton(label)?.disabled, label).toBe(true);
+      expect(tableButton(label)?.title, label).toMatch(/não tem permissão/);
+    }
+    expect(tableButton("Atualizar")?.disabled).toBe(false);
+    expect(byLabel("Desconectar Empresa")).toBeNull();
+    expect(byLabel("Escolher pasta: iCloud Drive")).toBeNull();
+  });
+
+  it("renomeia a pasta conectada na própria tabela, sem abrir diálogo, e a grade passa a mostrar o nome novo", async () => {
+    const root = home.at(...ICLOUD, "Empresa");
+    await connectRow("nuvem-com", "test-user-comercial", root, "Empresa");
+    await render("comercial");
+    await until(() => container.querySelector('[data-cloud-folder="Empresa"]') !== null, "pasta conectada");
+    await click(buttonWith("Conectar nuvem"));
+    await until(() => connectedTable()?.textContent?.includes("Empresa") ?? false, "tabela das pastas conectadas");
+
+    await click(tableButton("Editar"));
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await typeInto(connectedTable()!.querySelector('input[aria-label="Nome (linha 1)"]'), "Contratos da empresa");
+    await click(tableButton("Salvar"));
+    await until(() => container.querySelector('[data-cloud-folder="Contratos da empresa"]') !== null, "nome novo na grade");
+    const [row] = await testDb().select<CloudFolder[]>("SELECT * FROM cloud_folders WHERE id=?", ["nuvem-com"]);
+    expect(row).toMatchObject({ label: "Contratos da empresa", local_path: root, provider: "icloud" });
   });
 });

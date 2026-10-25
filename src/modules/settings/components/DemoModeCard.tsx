@@ -20,37 +20,82 @@ interface DemoModeState {
   left: DemoRowCount;
 }
 
-const TABLE_LABELS: Record<string, string> = {
-  customers: "clientes",
-  contacts: "contatos",
-  opportunities: "oportunidades",
-  proposals: "propostas",
-  suppliers: "fornecedores",
-  payables: "contas a pagar",
-  receivables: "contas a receber",
-  cost_centers: "centros de custo",
-  finance_categories: "categorias financeiras",
+/**
+ * Nome em português de cada tabela que a limpeza alcança (tem `id` e `company_id`), para o aviso do que ficou: qualquer
+ * uma pode ficar presa a um dado de verdade. O teste confere que nenhuma falta (tabela nova = linha nova aqui).
+ */
+export const DEMO_TABLE_LABELS: Record<string, string> = {
+  activities: "histórico de atividades",
+  approval_flows: "fluxos de aprovação",
+  approvals: "aprovações",
+  assistant_conversations: "conversas do assistente",
+  attachments: "anexos",
+  audit_logs: "registros de auditoria",
+  automation_rules: "regras de automação",
   bank_accounts: "contas bancárias",
-  recurring_entries: "recorrências",
-  inventory_items: "itens de estoque",
-  stock_locations: "locais de estoque",
-  stock_balances: "saldos de estoque",
-  products: "produtos",
-  price_lists: "tabelas de preço",
-  projects: "projetos",
-  project_stages: "etapas de projeto",
-  tasks: "tarefas",
+  bank_transactions: "lançamentos do extrato",
+  calendar_events: "eventos da agenda",
+  calendar_sources: "agendas conectadas",
+  cloud_folders: "pastas na nuvem",
+  contacts: "contatos",
+  cost_centers: "centros de custo",
+  crm_activities: "atividades do CRM",
+  custodies: "custódias",
+  customers: "clientes",
+  departments: "departamentos",
+  documents: "documentos",
+  employee_compensation: "remunerações",
   employees: "colaboradores",
-  sales_orders: "pedidos de venda",
+  entity_tags: "tags aplicadas",
+  finance_categories: "categorias financeiras",
+  finance_settlements: "baixas financeiras",
+  goods_receipt_items: "itens de recebimento",
+  goods_receipts: "recebimentos de compra",
+  hr_announcements: "comunicados do RH",
+  hr_requests: "solicitações de RH",
+  hr_tasks: "pendências de RH",
+  hr_time_entries: "lançamentos do banco de horas",
+  import_batches: "importações",
+  inventory_count_items: "itens de contagem",
+  inventory_counts: "contagens de inventário",
+  inventory_items: "itens de estoque",
+  invoice_items: "itens de fatura",
   invoices: "faturas",
+  notifications: "notificações",
+  opportunities: "oportunidades",
+  package_prices: "preços de pacotes",
+  payables: "contas a pagar",
+  price_list_items: "itens de tabelas de preço",
+  price_lists: "tabelas de preço",
+  products: "produtos",
+  project_stages: "etapas de projeto",
+  projects: "projetos",
+  proposal_items: "itens de proposta",
+  proposals: "propostas",
+  prospecting_campaigns: "campanhas de prospecção",
+  purchase_order_items: "itens de pedido de compra",
   purchase_orders: "pedidos de compra",
+  receivables: "contas a receber",
+  recurring_entries: "recorrências",
+  revenue_forecasts: "previsões de receita",
+  revenue_scenarios: "cenários de receita",
+  sales_order_items: "itens de pedido de venda",
+  sales_orders: "pedidos de venda",
+  saved_views: "visões salvas",
+  service_packages: "pacotes de serviço",
+  settings: "configurações",
+  stock_balances: "saldos de estoque",
+  stock_locations: "locais de estoque",
+  stock_movements: "movimentações de estoque",
+  suppliers: "fornecedores",
+  tags: "tags",
+  tasks: "tarefas",
   tickets: "chamados",
   work_orders: "ordens de serviço",
-  documents: "documentos",
-  settings: "configurações",
 };
 
-const AREA_LABELS: Record<string, string> = {
+/** Nome de cada seed de área (src/lib/dev/seeds/<area>.ts), para o aviso de exemplos que não foram criados. */
+export const DEMO_AREA_LABELS: Record<string, string> = {
   catalog: "Catálogo",
   crm: "CRM",
   finance: "Financeiro",
@@ -65,11 +110,21 @@ const AREA_LABELS: Record<string, string> = {
 const number = (n: number) => n.toLocaleString("pt-BR");
 const records = (n: number) => `${number(n)} ${n === 1 ? "registro" : "registros"} de exemplo`;
 
+/** Contagem por tabela em texto, com os nomes em português (tabela sem nome conhecido entra em "outros registros"). */
 function tableDetail(byTable: Record<string, number>): string {
-  return Object.entries(byTable)
+  const byLabel = new Map<string, number>();
+  for (const [table, n] of Object.entries(byTable)) {
+    const label = DEMO_TABLE_LABELS[table] ?? "outros registros";
+    byLabel.set(label, (byLabel.get(label) ?? 0) + n);
+  }
+  return [...byLabel]
     .sort(([, a], [, b]) => b - a)
-    .map(([table, n]) => `${TABLE_LABELS[table] ?? table.replace(/_/g, " ")}: ${number(n)}`)
+    .map(([label, n]) => `${label}: ${number(n)}`)
     .join(", ");
+}
+
+function areaNames(failed: { name: string }[]): string {
+  return [...new Set(failed.map((area) => DEMO_AREA_LABELS[area.name] ?? "outros módulos"))].join(", ");
 }
 
 function describeResult(result: DemoModeResult, on: boolean): string {
@@ -78,7 +133,7 @@ function describeResult(result: DemoModeResult, on: boolean): string {
     let text = inserted > 0
       ? `Modo demonstração ligado: ${records(inserted)} ${inserted === 1 ? "adicionado" : "adicionados"}.`
       : "Modo demonstração ligado. Os dados de exemplo já estavam no banco.";
-    if (result.failed?.length) text += ` Não foi possível criar os exemplos de: ${result.failed.map((area) => AREA_LABELS[area.name] ?? area.name).join(", ")}.`;
+    if (result.failed?.length) text += ` Não foi possível criar os exemplos de: ${areaNames(result.failed)}.`;
     return text;
   }
   const removed = result.removed ?? 0;

@@ -5,6 +5,7 @@ import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { choose, click, findButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { loadInitiatives, saveInitiativeChanges } from "@/lib/products/initiatives";
+import { todayIso } from "@/lib/utils";
 import ProductDevelopmentPage from "./pages/ProductDevelopmentPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -51,12 +52,14 @@ describe("Desenvolvimento de Produtos: edição direto na tabela", () => {
 
   it("os marcos aparecem no calendário", async () => {
     await insertTestCompany(testDb());
-    await saveInitiativeChanges(testDb(), C, "ceo", { created: [{ name: "Portal", type: "digital", next_milestone: "Beta interno", milestone_date: "2026-11-10" }], updated: [] });
+    // Marco no mês corrente: o calendário abre no mês de hoje.
+    await saveInitiativeChanges(testDb(), C, "ceo", { created: [{ name: "Portal", type: "digital", next_milestone: "Beta interno", milestone_date: todayIso() }], updated: [] });
     page = await renderPage(<ProductDevelopmentPage />, { companyId: C, role: "gerente" });
     await until(() => page!.text().includes("Portal"), "lista");
     expect(findButton(table()!, "Adicionar")?.disabled).toBe(true);
     await click(findButton(page.container, "Calendário"));
     await until(() => !!page!.container.querySelector("[data-calendar-view]"), "calendário");
+    expect(page.container.querySelector("[data-calendar-view]")?.textContent).toContain("Portal: Beta interno");
     expect(page.container.querySelector("[data-editable-table]")).toBeNull();
   });
 });

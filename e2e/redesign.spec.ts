@@ -171,6 +171,16 @@ test.describe("redesign modular", () => {
     await expect(chart.locator(".recharts-line-curve")).toHaveCount(3);
     await expect(chart.locator(".recharts-line-curve").nth(2)).toHaveAttribute("stroke-dasharray", "6 5");
     await expect(chart.locator("[data-legend]")).toHaveText(["Resultado do mês", "Acumulado no ano", "Previsão de receita"]);
+    // Cada linha com a sua cor e um gradiente da mesma cor embaixo; o último ponto não encosta na borda direita.
+    const strokes = await chart.locator(".recharts-line-curve").evaluateAll((curves) => curves.map((curve) => getComputedStyle(curve).stroke));
+    expect(new Set(strokes).size).toBe(3);
+    await expect(chart.locator(".recharts-area-area")).toHaveCount(3);
+    await expect(chart.locator(".recharts-area-area").first()).toHaveAttribute("fill", /^url\(#line-area-/);
+    const gap = await chart.locator(".recharts-line-curve").nth(2).evaluate((curve) => {
+      const svg = (curve as SVGGraphicsElement).ownerSVGElement!.getBoundingClientRect();
+      return svg.right - curve.getBoundingClientRect().right;
+    });
+    expect(gap).toBeGreaterThanOrEqual(24);
 
     expect(errors).toEqual([]);
   });

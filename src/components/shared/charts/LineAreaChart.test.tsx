@@ -1,12 +1,13 @@
 // Gráfico de linha compartilhado: cor própria por série (paleta --chart-1..6), gradiente da cor da linha embaixo de
 // cada uma (id único por gráfico), previsão tracejada e respiro nas bordas para o primeiro e o último ponto.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Bar } from "recharts";
+import { pathXs } from "@/test/charts";
 import { CHART_MARGIN, CHART_PALETTE_SIZE, ChartLegend, LineAreaChart, X_PADDING, seriesColor, type LineAreaSeries } from "./LineAreaChart";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -50,11 +51,6 @@ const chart = (series = SERIES, extra?: ReactNode) => (
     {extra}
   </LineAreaChart>
 );
-
-/** Coordenadas x do traço da linha ("M x,y L x,y ..."). */
-function pathXs(d: string | null): number[] {
-  return [...(d ?? "").matchAll(/[ML]\s*(-?[\d.]+)[ ,](-?[\d.]+)/g)].map((match) => Number(match[1]));
-}
 
 describe("LineAreaChart", () => {
   it("cada série tem uma cor própria da paleta de séries", () => {
@@ -100,9 +96,12 @@ describe("LineAreaChart", () => {
       expect(gradient.getAttribute("y1")).toBe("0");
       expect(gradient.getAttribute("y2")).toBe("1");
       const stops = [...gradient.querySelectorAll("stop")];
-      expect(stops.map((stop) => stop.getAttribute("stop-color"))).toEqual([seriesColor(index), seriesColor(index)]);
-      expect(Number(stops[0].getAttribute("stop-opacity"))).toBeGreaterThan(0);
-      expect(Number(stops[1].getAttribute("stop-opacity"))).toBe(0);
+      expect(stops.length).toBeGreaterThanOrEqual(2);
+      for (const stop of stops) expect(stop.getAttribute("stop-color")).toBe(seriesColor(index));
+      const opacities = stops.map((stop) => Number(stop.getAttribute("stop-opacity")));
+      expect(opacities[0]).toBeGreaterThan(0);
+      expect(opacities[opacities.length - 1]).toBe(0);
+      expect([...opacities].sort((a, b) => b - a)).toEqual(opacities);
     });
   });
 
@@ -188,5 +187,26 @@ describe("tokens da paleta de séries", () => {
       });
       expect(new Set(values).size).toBe(6);
     }
+  });
+});
+
+describe("uso do LineAreaChart", () => {
+  const src = path.resolve(__dirname, "../../..");
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const full = path.join(dir, name);
+      if (statSync(full).isDirectory()) return name === "project-manager" ? [] : files(full);
+      return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [full] : [];
+    });
+
+  it("nenhuma tela desenha linha ou área do recharts direto (todo gráfico de linha passa pelo componente)", () => {
+    const offenders = files(src)
+      .filter((file) => !file.includes(`${path.sep}components${path.sep}shared${path.sep}charts${path.sep}`))
+      .filter((file) => {
+        const imports = [...readFileSync(file, "utf8").matchAll(/import\s*\{([^}]*)\}\s*from\s*"recharts"/g)].flatMap((match) => match[1].split(",").map((name) => name.trim()));
+        return imports.some((name) => ["Line", "LineChart", "Area", "AreaChart"].includes(name));
+      })
+      .map((file) => path.relative(src, file));
+    expect(offenders).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@
 // (contas em aberto), agrupado por dia, semana ou mês. O cálculo fica em lib/erp/cashflow.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar } from "recharts";
 import { Landmark } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { cashEvents, cashflow, groupCashflow, type CashEvent, type CashflowDay } from "@/lib/erp/cashflow";
@@ -11,6 +11,7 @@ import { roundMoney, sumMoney } from "@/lib/money";
 import { cn, formatCurrency, formatDay, todayIso } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ChartLegend, LineAreaChart, type LineAreaSeries } from "@/components/shared/charts/LineAreaChart";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ErrorNote, Field, Money, errorMessage, inputClass, td, th, useFinanceLookups } from "../components/financeShared";
@@ -26,6 +27,10 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: "ano", label: "Este ano" },
   { value: "personalizado", label: "Personalizado" },
 ];
+/** Saldo em linha (cor da paleta de séries, gradiente embaixo); entradas e saídas em barras verde e vermelha. */
+const BALANCE_SERIES: LineAreaSeries[] = [{ key: "balance", label: "Saldo" }];
+const axisMoney = (value: number) => formatCurrency(value).replace(/,\d{2}$/, "");
+
 const GROUPINGS: { value: Grouping; label: string }[] = [
   { value: "day", label: "Dia" },
   { value: "week", label: "Semana" },
@@ -182,28 +187,14 @@ export default function CashflowPage() {
           ) : (
             <>
               <section aria-label="Gráfico do fluxo de caixa" className="space-y-3 rounded-xl border p-4">
-                <ul className="flex flex-wrap gap-4 text-xs text-muted-foreground" aria-label="Legenda">
+                <ChartLegend series={BALANCE_SERIES} label="Legenda">
                   <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-600 dark:bg-emerald-400" aria-hidden="true" /> Entradas</li>
                   <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-600 dark:bg-red-400" aria-hidden="true" /> Saídas</li>
-                  <li className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-primary" aria-hidden="true" /> Saldo</li>
-                </ul>
-                <div className="h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={periods} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} minTickGap={12} />
-                      <YAxis tickLine={false} axisLine={false} width={80} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(value: number) => formatCurrency(value).replace(/,\d{2}$/, "")} />
-                      <Tooltip
-                        formatter={(value: number) => formatCurrency(value)}
-                        contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                      />
-                      <Bar dataKey="in" name="Entradas" fill="currentColor" className="text-emerald-600 dark:text-emerald-400" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="out" name="Saídas" fill="currentColor" className="text-red-600 dark:text-red-400" radius={[3, 3, 0, 0]} />
-                      <Line type="linear" dataKey="balance" name="Saldo" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                </ChartLegend>
+                <LineAreaChart className="h-72" data={periods} xKey="label" series={BALANCE_SERIES} yAxisWidth={80} minTickGap={12} formatValue={formatCurrency} formatAxis={axisMoney}>
+                  <Bar dataKey="in" name="Entradas" fill="currentColor" className="text-emerald-600 dark:text-emerald-400" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                  <Bar dataKey="out" name="Saídas" fill="currentColor" className="text-red-600 dark:text-red-400" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                </LineAreaChart>
               </section>
 
               {tableRows.length === 0 ? (

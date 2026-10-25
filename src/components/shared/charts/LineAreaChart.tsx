@@ -96,7 +96,8 @@ export function LineAreaChart({
           const color = colorOf(item, index);
           return (
             <linearGradient key={item.key} id={gradientId(index)} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={item.dashed ? 0.16 : 0.32} />
+              <stop offset="0%" stopColor={color} stopOpacity={item.dashed ? 0.14 : 0.28} />
+              <stop offset="55%" stopColor={color} stopOpacity={item.dashed ? 0.04 : 0.08} />
               <stop offset="100%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           );

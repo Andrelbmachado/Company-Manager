@@ -7,6 +7,7 @@ import { expectInlineEditing, expectNoDialog } from "@/test/inlineEditing";
 import { confirmSalesOrder, createSalesOrder, invoiceSalesOrder } from "@/lib/erp/orders";
 import { seedTradeFixture, type TradeFixture } from "@/lib/erp/tradeFixtures";
 import { buttonIn, click, mountPage, until, type Mounted } from "@/modules/catalog/testHarness";
+import { addRow, cellField, editCell, tableOf } from "@/modules/finance/testing/tableActions";
 import InvoicesPage from "./pages/InvoicesPage";
 import SalesOrderPage from "./pages/SalesOrderPage";
 import SalesPage from "./pages/SalesPage";
@@ -63,5 +64,16 @@ describe("Vendas: edição direto na tabela", () => {
     await until(() => text().includes("Editar pedido PV-00002"), "editor do pedido na página");
     expectNoDialog("Editar pedido");
     expect(page.container.querySelector("select[aria-label='Produto do item 1']")).not.toBeNull();
+  });
+
+  it("pedido novo continua na tabela depois de ver o calendário", async () => {
+    page = await open("/sales");
+    await until(() => text().includes("PV-00002"), "lista de pedidos");
+    await addRow(tableOf(page.container, "sales_orders"));
+    await editCell(tableOf(page.container, "sales_orders"), "nova", "customer_id", fx.customerId);
+    await click(buttonIn(page.container, "Calendário"));
+    await until(() => Boolean(page.container.querySelector("[data-calendar-view]")), "calendário dos pedidos");
+    await click(buttonIn(page.container, "Lista"));
+    expect(cellField(tableOf(page.container, "sales_orders"), "nova", "customer_id").value).toBe(fx.customerId);
   });
 });

@@ -142,41 +142,60 @@ function CustomerRecord({ id }: { id: string }) {
 
       <div><TabList tabs={tabs} value={tab} onChange={setTab} label="Seções da ficha do cliente" idPrefix="cliente" /></div>
 
-      <TabPanel idPrefix="cliente" id={tab}>
-        {tab === "resumo" && (
-          <>
-            <SummaryTab customerId={customer.id} />
-            {editing ? (
-              <CustomerForm customer={customer} onClose={() => setEditing(false)} />
-            ) : (
-            <section className={cn(CARD, "p-5")} aria-label="Cadastro">
-              <h2 className="mb-4 font-semibold">Cadastro</h2>
-              <DetailGrid>
-                <DetailItem label={customer.type === "PF" ? "CPF" : "CNPJ"} value={customer.document} />
-                <DetailItem label="Inscrição estadual" value={customer.state_registration} />
-                <DetailItem label="E-mail" value={customer.email ? <a href={`mailto:${customer.email}`} className={LINK}>{customer.email}</a> : null} />
-                <DetailItem label="Telefone" value={customer.phone} />
-                <DetailItem label="Site" value={customer.website} />
-                <DetailItem label="Origem" value={customer.source} />
-                <DetailItem label="Responsável" value={customer.owner_id ? names.get(customer.owner_id) : null} />
-                <DetailItem label="Cliente desde" value={formatDay(customer.created_at)} />
-                <DetailItem label="Condição de pagamento" value={customer.payment_terms} />
-                <DetailItem label="Limite de crédito" value={customer.credit_limit != null ? formatCurrency(Number(customer.credit_limit)) : null} />
-                <DetailItem label="Tabela de preço" value={priceList?.name ?? (customer.price_list_id ? "—" : "Preço do catálogo")} />
-                <DetailItem label="Endereço" value={formatAddress(customer.address_json) || null} />
-              </DetailGrid>
-              {customer.notes && <div className="mt-4"><DetailItem label="Observações" value={<span className="whitespace-pre-line">{customer.notes}</span>} /></div>}
-            </section>
-            )}
-          </>
-        )}
-        {tab === "contatos" && <ContactsTab customerId={customer.id} />}
-        {tab === "oportunidades" && <OpportunitiesTab customerId={customer.id} creating={newOpportunity} onCreatingChange={setNewOpportunity} />}
-        {tab === "propostas" && <ProposalsTab customerId={customer.id} />}
-        {tab === "atividades" && <ActivityTimeline filter={{ customerId: customer.id }} entity={{ type: "customer", id: customer.id, customerId: customer.id }} showEntity title="Linha do tempo do cliente" />}
-        {tab === "documentos" && <FileAttachments entityType="customer" entityId={customer.id} canEdit={can("attach", "customers")} />}
-        {tab === "financeiro" && <FinanceTab customerId={customer.id} creditLimit={customer.credit_limit ?? null} paymentTerms={customer.payment_terms ?? null} />}
-      </TabPanel>
+      {/* Resumo e as abas com tabela ficam montados (só escondidos): trocar de aba não perde em silêncio o cadastro em edição nem o rascunho das tabelas. */}
+      <div hidden={tab !== "resumo"}>
+        <TabPanel idPrefix="cliente" id="resumo">
+          <SummaryTab customerId={customer.id} />
+          {editing ? (
+            <CustomerForm customer={customer} onClose={() => setEditing(false)} />
+          ) : (
+          <section className={cn(CARD, "p-5")} aria-label="Cadastro">
+            <h2 className="mb-4 font-semibold">Cadastro</h2>
+            <DetailGrid>
+              <DetailItem label={customer.type === "PF" ? "CPF" : "CNPJ"} value={customer.document} />
+              <DetailItem label="Inscrição estadual" value={customer.state_registration} />
+              <DetailItem label="E-mail" value={customer.email ? <a href={`mailto:${customer.email}`} className={LINK}>{customer.email}</a> : null} />
+              <DetailItem label="Telefone" value={customer.phone} />
+              <DetailItem label="Site" value={customer.website} />
+              <DetailItem label="Origem" value={customer.source} />
+              <DetailItem label="Responsável" value={customer.owner_id ? names.get(customer.owner_id) : null} />
+              <DetailItem label="Cliente desde" value={formatDay(customer.created_at)} />
+              <DetailItem label="Condição de pagamento" value={customer.payment_terms} />
+              <DetailItem label="Limite de crédito" value={customer.credit_limit != null ? formatCurrency(Number(customer.credit_limit)) : null} />
+              <DetailItem label="Tabela de preço" value={priceList?.name ?? (customer.price_list_id ? "—" : "Preço do catálogo")} />
+              <DetailItem label="Endereço" value={formatAddress(customer.address_json) || null} />
+            </DetailGrid>
+            {customer.notes && <div className="mt-4"><DetailItem label="Observações" value={<span className="whitespace-pre-line">{customer.notes}</span>} /></div>}
+          </section>
+          )}
+        </TabPanel>
+      </div>
+      <div hidden={tab !== "contatos"}>
+        <TabPanel idPrefix="cliente" id="contatos"><ContactsTab customerId={customer.id} /></TabPanel>
+      </div>
+      {can("view", "opportunities") && (
+        <div hidden={tab !== "oportunidades"}>
+          <TabPanel idPrefix="cliente" id="oportunidades"><OpportunitiesTab customerId={customer.id} creating={newOpportunity} onCreatingChange={setNewOpportunity} /></TabPanel>
+        </div>
+      )}
+      {can("view", "proposals") && (
+        <div hidden={tab !== "propostas"}>
+          <TabPanel idPrefix="cliente" id="propostas"><ProposalsTab customerId={customer.id} /></TabPanel>
+        </div>
+      )}
+      {can("view", "crm_activities") && (
+        <div hidden={tab !== "atividades"}>
+          <TabPanel idPrefix="cliente" id="atividades">
+            <ActivityTimeline filter={{ customerId: customer.id }} entity={{ type: "customer", id: customer.id, customerId: customer.id }} showEntity title="Linha do tempo do cliente" />
+          </TabPanel>
+        </div>
+      )}
+      {tab === "documentos" && (
+        <TabPanel idPrefix="cliente" id="documentos"><FileAttachments entityType="customer" entityId={customer.id} canEdit={can("attach", "customers")} /></TabPanel>
+      )}
+      {tab === "financeiro" && (
+        <TabPanel idPrefix="cliente" id="financeiro"><FinanceTab customerId={customer.id} creditLimit={customer.credit_limit ?? null} paymentTerms={customer.payment_terms ?? null} /></TabPanel>
+      )}
 
     </div>
   );

@@ -169,14 +169,33 @@ export default function LeadsPage() {
       <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções da prospecção" idPrefix="leads" />
 
       <CurrentCampaignContext.Provider value={campaign}>
-        <TabPanel idPrefix="leads" id={tab}>
-          {tab === "leads" && <LeadsPanel leads={campaignLeads} packages={packages} loading={isLoading || campaignsQuery.isPending} />}
-          {tab === "cronograma" && <SchedulePanel key={campaign?.id ?? "nenhuma"} leads={campaignLeads} />}
-          {tab === "pacotes" && <PackagesPanel packages={packages} prices={prices} leads={campaignLeads} />}
-          {/* O programa de indicação conta os fechados de quem indicou em todas as prospecções. */}
-          {tab === "indicacoes" && <ReferralPanel leads={leads} />}
-          {tab === "previsao" && <ForecastPanel scenarios={scenarios} leads={campaignLeads} />}
-        </TabPanel>
+        {/* Leads e Pacotes (as abas com tabela) ficam montadas, só escondidas: trocar de aba não perde em silêncio o rascunho. */}
+        <div hidden={tab !== "leads"}>
+          <TabPanel idPrefix="leads" id="leads">
+            <LeadsPanel leads={campaignLeads} packages={packages} loading={isLoading || campaignsQuery.isPending} />
+          </TabPanel>
+        </div>
+        {tab === "cronograma" && (
+          <TabPanel idPrefix="leads" id="cronograma">
+            <SchedulePanel key={campaign?.id ?? "nenhuma"} leads={campaignLeads} />
+          </TabPanel>
+        )}
+        <div hidden={tab !== "pacotes"}>
+          <TabPanel idPrefix="leads" id="pacotes">
+            <PackagesPanel packages={packages} prices={prices} leads={campaignLeads} />
+          </TabPanel>
+        </div>
+        {/* O programa de indicação conta os fechados de quem indicou em todas as prospecções. */}
+        {tab === "indicacoes" && (
+          <TabPanel idPrefix="leads" id="indicacoes">
+            <ReferralPanel leads={leads} />
+          </TabPanel>
+        )}
+        {tab === "previsao" && (
+          <TabPanel idPrefix="leads" id="previsao">
+            <ForecastPanel scenarios={scenarios} leads={campaignLeads} />
+          </TabPanel>
+        )}
       </CurrentCampaignContext.Provider>
     </div>
   );

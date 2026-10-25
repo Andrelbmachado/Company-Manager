@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { expectInlineEditing, expectNoDialog } from "@/test/inlineEditing";
-import { click, findButton, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { click, fieldIn, findButton, findShownButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { addRow, cellField, editCell, tableOf } from "@/modules/finance/testing/tableActions";
 import { createActivity } from "@/lib/crm/activities";
 import { saveProposal } from "@/lib/crm/proposals";
 import { saveAreaLabels } from "@/lib/labels/store";
@@ -135,5 +136,40 @@ describe("CRM: edição direto na tabela", () => {
     page = await open("/crm/propostas", "/crm/propostas", <ProposalsPage />);
     await until(() => page!.text().includes("Proposta do site"), "lista de propostas");
     await expectInlineEditing(page.container, ["proposals"]);
+  });
+});
+
+describe("CRM: trocar de aba ou ver o calendário não perde o rascunho", () => {
+  it("ficha do cliente: contato novo e cadastro em edição continuam depois de trocar de aba", async () => {
+    page = await open("/crm/clientes/cust-1", "/crm/clientes/:id", <CustomerDetailPage />);
+    await until(() => page!.container.querySelector("h1")?.textContent === "Clínica Vida", "ficha carregada");
+    await click(findButton(page.container, "Editar cadastro"));
+    const form = () => page!.container.querySelector<HTMLFormElement>("form[aria-label='Editar cadastro de Clínica Vida']");
+    await until(() => Boolean(form()), "cadastro em edição");
+    await typeInto(fieldIn(form()!, "Segmento"), "Odontologia");
+
+    await click(tab("Contatos"));
+    await until(() => page!.text().includes("Ana Souza") && Boolean(page!.container.querySelector('[data-editable-table="customers"]')), "aba de contatos");
+    await addRow(tableOf(page.container, "customers"));
+    await editCell(tableOf(page.container, "customers"), "nova", "name", "Bruno Lima");
+
+    await click(tab("Oportunidades"));
+    await click(tab("Contatos"));
+    expect(cellField(tableOf(page.container, "customers"), "nova", "name").value).toBe("Bruno Lima");
+    await click(tab("Resumo"));
+    expect(form()).not.toBeNull();
+    expect((fieldIn(form()!, "Segmento") as HTMLInputElement).value).toBe("Odontologia");
+    expect(await testDb().select("SELECT * FROM contacts WHERE company_id=? AND name=?", [companyId, "Bruno Lima"])).toHaveLength(0);
+  });
+
+  it("atividades: linha nova continua na tabela depois de ver o calendário", async () => {
+    page = await open("/crm/atividades", "/crm/atividades", <ActivitiesPage />);
+    await until(() => page!.text().includes("Ligar para a Clínica Vida"), "lista de atividades");
+    await addRow(tableOf(page.container, "crm_activities"));
+    await editCell(tableOf(page.container, "crm_activities"), "nova", "subject", "Enviar contrato");
+    await click(findShownButton(page.container, "Calendário"));
+    await until(() => Boolean(page!.container.querySelector("[aria-label='Agenda do CRM']")), "calendário das atividades");
+    await click(findShownButton(page.container, "Lista"));
+    expect(cellField(tableOf(page.container, "crm_activities"), "nova", "subject").value).toBe("Enviar contrato");
   });
 });

@@ -115,7 +115,17 @@ export default function ActivitiesPage() {
         </select>
       </PageToolbar>
 
-      {view === "calendario" ? (
+      {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
+      <div hidden={view !== "lista"}>
+        <ActivitiesTable
+          activities={filtered}
+          loading={isLoading}
+          showEntity
+          title="Atividades"
+          emptyMessage={activities.length ? (state === "atrasada" ? "Nenhum follow-up atrasado. Tudo em dia." : "Nenhuma atividade com esses filtros.") : undefined}
+        />
+      </div>
+      {view === "calendario" && (
         <CalendarView
           items={calendarItems}
           label="Agenda do CRM"
@@ -124,14 +134,6 @@ export default function ActivitiesPage() {
             const href = activity ? entityHref(activity.entity_type, activity.entity_id, activity.customer_id) : null;
             if (href) navigate(href);
           }}
-        />
-      ) : (
-        <ActivitiesTable
-          activities={filtered}
-          loading={isLoading}
-          showEntity
-          title="Atividades"
-          emptyMessage={activities.length ? (state === "atrasada" ? "Nenhum follow-up atrasado. Tudo em dia." : "Nenhuma atividade com esses filtros.") : undefined}
         />
       )}
     </div>

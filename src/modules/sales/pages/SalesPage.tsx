@@ -135,42 +135,40 @@ export default function SalesPage() {
         <StatCard title="A entregar" value={toDeliver.length} />
       </div>
 
-      {view === "calendario" ? (
-        <CalendarView items={calendarItems} label="Entregas dos pedidos" onSelect={(item) => navigate(`/sales/pedidos/${item.id}`)} />
-      ) : (
-        <>
-          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou cliente...">
-            <select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`${INPUT} w-44`}>
-              {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </PageToolbar>
+      {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
+      <div hidden={view !== "lista"} className="space-y-5">
+        <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou cliente...">
+          <select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`${INPUT} w-44`}>
+            {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </PageToolbar>
 
-          {created && (
-            <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-              Pedido {createdOrder ? formatSequence("sales_orders", createdOrder.number) : ""} criado como rascunho: abra para incluir os itens.
-              <button type="button" className="font-medium underline" onClick={() => navigate(`/sales/pedidos/${created}`)}>Abrir pedido</button>
-            </p>
+        {created && (
+          <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+            Pedido {createdOrder ? formatSequence("sales_orders", createdOrder.number) : ""} criado como rascunho: abra para incluir os itens.
+            <button type="button" className="font-medium underline" onClick={() => navigate(`/sales/pedidos/${created}`)}>Abrir pedido</button>
+          </p>
+        )}
+
+        <EditableTable<SalesOrder>
+          resource="sales_orders"
+          title="Pedidos de venda"
+          label="Pedidos de venda"
+          rows={filtered}
+          columns={columns}
+          loading={isLoading}
+          onSave={save}
+          onRefresh={() => refreshTrade(qc)}
+          newRow={() => ({ order_date: todayIso(), installments: 1 })}
+          emptyMessage={orders.length ? "Nenhum pedido neste filtro: mude o status ou a busca." : "Nenhum pedido de venda. Use Adicionar, inclua os itens no pedido, confirme e fature: as parcelas vão para contas a receber."}
+          rowActions={(order) => (
+            <button type="button" className={ROW_ACTION} aria-label={`Abrir pedido ${formatSequence("sales_orders", order.number)}`} onClick={() => navigate(`/sales/pedidos/${order.id}`)}>
+              <ExternalLink size={13} /> Abrir
+            </button>
           )}
-
-          <EditableTable<SalesOrder>
-            resource="sales_orders"
-            title="Pedidos de venda"
-            label="Pedidos de venda"
-            rows={filtered}
-            columns={columns}
-            loading={isLoading}
-            onSave={save}
-            onRefresh={() => refreshTrade(qc)}
-            newRow={() => ({ order_date: todayIso(), installments: 1 })}
-            emptyMessage={orders.length ? "Nenhum pedido neste filtro: mude o status ou a busca." : "Nenhum pedido de venda. Use Adicionar, inclua os itens no pedido, confirme e fature: as parcelas vão para contas a receber."}
-            rowActions={(order) => (
-              <button type="button" className={ROW_ACTION} aria-label={`Abrir pedido ${formatSequence("sales_orders", order.number)}`} onClick={() => navigate(`/sales/pedidos/${order.id}`)}>
-                <ExternalLink size={13} /> Abrir
-              </button>
-            )}
-          />
-        </>
-      )}
+        />
+      </div>
+      {view === "calendario" && <CalendarView items={calendarItems} label="Entregas dos pedidos" onSelect={(item) => navigate(`/sales/pedidos/${item.id}`)} />}
     </div>
   );
 }

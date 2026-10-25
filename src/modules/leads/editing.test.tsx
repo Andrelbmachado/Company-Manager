@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { expectInlineEditing, expectNoDialog } from "@/test/inlineEditing";
-import { click, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { click, findButton, renderPage, until, type RenderedPage } from "@/test/pageHarness";
+import { addRow, cellField, editCell, tableOf } from "@/modules/finance/testing/tableActions";
 import LeadsPage from "./pages/LeadsPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -44,5 +45,17 @@ describe("Prospecção: edição direto na tabela", () => {
     const links = [...page.container.querySelectorAll("button")].filter((button) => button.textContent?.includes("(15) 99999-0000"));
     expect(links).toHaveLength(2);
     for (const link of links) expect(link.className).not.toMatch(/emerald|green-\d/);
+  });
+
+  it("lead novo continua na tabela depois de abrir outra aba e voltar", async () => {
+    page = await renderPage(<LeadsPage />, { companyId, role: "ceo", path: "/leads" });
+    await until(() => page!.text().includes("Pet Shop Amigo"), "lista de leads");
+    await addRow(tableOf(page.container, "leads"));
+    await editCell(tableOf(page.container, "leads"), "nova", "name", "Clínica Nova");
+    await click(findButton(page.container, "Pacotes e preços"));
+    await click(findButton(page.container, "Cronograma de abordagem"));
+    await click(findButton(page.container, "Leads"));
+    expect(cellField(tableOf(page.container, "leads"), "nova", "name").value).toBe("Clínica Nova");
+    expect(await testDb().select("SELECT * FROM leads WHERE company_id=? AND name=?", [companyId, "Clínica Nova"])).toHaveLength(0);
   });
 });

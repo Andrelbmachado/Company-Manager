@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { CLOUD_FULL_ACCESS_ROLES } from "@/lib/files/cloudFolders";
+import { ROLE_LABELS } from "@/lib/permissions/rbac";
+import type { Role } from "@/types";
 import { canSeeFolder, defaultRoot, visibleRoots } from "./access";
 
 describe("pastas por setor", () => {
@@ -25,5 +28,9 @@ describe("pastas por setor", () => {
     expect(defaultRoot("tecnico")).toBe("TI e Operações");
     expect(visibleRoots("produtos")).toEqual(["Desenvolvimento de Produtos", "Compartilhados"]);
     expect(visibleRoots("ceo")).toBe("*");
+  });
+
+  it("quem vê todas as pastas também vê todas as pastas de nuvem conectadas (mesma lista nos dois lugares)", () => {
+    expect((Object.keys(ROLE_LABELS) as Role[]).filter((role) => visibleRoots(role) === "*").sort()).toEqual([...CLOUD_FULL_ACCESS_ROLES].sort());
   });
 });

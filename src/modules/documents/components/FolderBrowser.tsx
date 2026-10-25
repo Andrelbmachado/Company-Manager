@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FolderPlus, Upload } from "lucide-react";
 import { CrudDialog } from "@/components/shared/CrudDialog";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { DocumentRow, Role } from "@/types";
 import { canSeeFolder, defaultRoot, foldName, visibleRoots } from "../access";
 import { DocumentDrawer } from "./DocumentDrawer";
+import { FolderIcon } from "./FolderIcon";
 
 interface FolderBrowserProps {
   role: Role;
@@ -24,13 +25,19 @@ interface FolderBrowserProps {
   canEdit: boolean;
   /** delete em documents: excluir documento ou versão. */
   canDelete: boolean;
+  /** Só na raiz: botões a mais na barra (ex.: Conectar nuvem). */
+  rootActions?: ReactNode;
+  /** Só na raiz: painel logo abaixo da barra (ex.: Conectar nuvem aberto). */
+  rootPanel?: ReactNode;
+  /** Só na raiz: itens a mais na grade, depois das pastas internas (ex.: pastas de nuvem conectadas); a busca filtra por `name`. */
+  rootTiles?: { key: string; name: string; element: ReactNode }[];
 }
 
 const split = (folder: string) => folder.split("/").filter(Boolean);
 const startsWith = (values: string[], prefix: string[]) => prefix.every((value, index) => values[index] === value);
 
 /** Pastas e arquivos (versão atual) que o setor enxerga, com envio por botão ou arrastando para a pasta aberta. */
-export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, canDelete }: FolderBrowserProps) {
+export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, canDelete, rootActions, rootPanel, rootTiles = [] }: FolderBrowserProps) {
   const uploadInput = useRef<HTMLInputElement>(null);
   const [path, setPath] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -84,6 +91,8 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
     [visibleDocs, path, needle],
   );
 
+  const tiles = path.length === 0 ? rootTiles.filter((tile) => foldName(tile.name).includes(needle)) : [];
+
   const roots = visibleRoots(role);
   const canCreateFolder = canUpload && (path.length > 0 || roots === "*");
 
@@ -99,6 +108,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
   return (
     <div {...drop.bind} className={cn("relative space-y-4 rounded-lg", drop.isDragging && "ring-2 ring-primary/40")}>
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar nesta pasta e nas subpastas...">
+        {path.length === 0 && rootActions}
         {canCreateFolder && (
           <button type="button" onClick={() => setCreatingFolder(true)} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
             <FolderPlus size={14} aria-hidden="true" /> Nova pasta
@@ -124,6 +134,8 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         )}
       </PageToolbar>
 
+      {path.length === 0 && rootPanel}
+
       <nav aria-label="Caminho da pasta" className="flex flex-wrap items-center gap-1 text-sm">
         <button type="button" onClick={() => setPath([])} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Documentos /</button>
         {path.map((segment, index) => (
@@ -145,7 +157,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         </div>
       ) : error ? (
         <p role="alert" className="text-sm text-destructive">Não foi possível carregar os documentos.</p>
-      ) : folders.length === 0 && files.length === 0 ? (
+      ) : folders.length === 0 && files.length === 0 && tiles.length === 0 ? (
         <div className="flex min-h-60 flex-col items-center justify-center rounded-lg border border-dashed text-center">
           <FolderIcon />
           <p className="mt-3 text-sm font-medium">{search ? "Nada encontrado" : "Esta pasta está vazia"}</p>
@@ -161,6 +173,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
               </span>
             </button>
           ))}
+          {tiles.map((tile) => <Fragment key={tile.key}>{tile.element}</Fragment>)}
           {files.map((file) => {
             const relative = split(documentFolder(file)).slice(path.length).join("/");
             return (
@@ -208,15 +221,5 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
         </CrudDialog>
       )}
     </div>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <span aria-hidden="true" className="relative block h-12 w-16 transition-transform group-hover:-translate-y-0.5">
-      <span className="absolute left-1 top-1 h-4 w-7 rounded-t-md bg-blue-400" />
-      <span className="absolute inset-x-0 bottom-0 h-10 rounded-md bg-gradient-to-b from-blue-300 to-blue-500 shadow-sm" />
-      <span className="absolute inset-x-1 bottom-1 h-8 rounded bg-gradient-to-b from-blue-200/80 to-blue-400/30" />
-    </span>
   );
 }

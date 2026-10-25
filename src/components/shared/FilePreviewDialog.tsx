@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Loader2, X } from "lucide-react";
 import { decodeText, formatBytes, previewKind, previewMime } from "@/lib/files/format";
 import { describeFileError, downloadFile, openFile, readBlobBytes } from "@/lib/files/store";
@@ -10,13 +10,42 @@ const TEXT_PREVIEW_BYTES = 256 * 1024;
 
 type Loaded = { status: "loading" } | { status: "error"; message: string } | { status: "url"; url: string } | { status: "text"; text: string; truncated: boolean };
 
+/** Arquivo a pré-visualizar: documento guardado (FilePreviewDialog) ou arquivo de uma pasta de nuvem conectada. */
+export interface FilePreviewSource {
+  title: string;
+  /** Linha abaixo do título (tipo, versão, tamanho...). */
+  subtitle?: string;
+  mime?: string | null;
+  load(): Promise<Blob>;
+  /** Sem download: o botão Baixar fica desativado. */
+  download?: () => Promise<unknown>;
+  /** Mensagem de erro para a tela (padrão: a dos documentos). */
+  describeError?: (error: unknown) => string;
+}
+
+/** Pré-visualização de um documento guardado no app. */
+export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose: () => void }) {
+  const source = useMemo<FilePreviewSource>(
+    () => ({
+      title: doc.title,
+      subtitle: [doc.type, `v${doc.version}`, doc.size_bytes ? formatBytes(doc.size_bytes) : null].filter(Boolean).join(" · "),
+      mime: doc.mime,
+      load: () => openFile(doc),
+      download: doc.storage_key ? () => downloadFile(doc) : undefined,
+    }),
+    [doc],
+  );
+  return <FilePreview source={source} onClose={onClose} />;
+}
+
 /**
  * Pré-visualização de PDF, imagem e texto. O blob ganha o tipo da pré-visualização (nunca o informado pelo arquivo),
  * então um HTML disfarçado de .pdf não roda como página dentro do app.
  */
-export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose: () => void }) {
+export function FilePreview({ source, onClose }: { source: FilePreviewSource; onClose: () => void }) {
   const panel = useModalFocus<HTMLDivElement>(onClose);
-  const kind = previewKind(doc);
+  const kind = previewKind(source);
+  const describe = source.describeError ?? describeFileError;
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -30,7 +59,7 @@ export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose:
     setLoaded({ status: "loading" });
     (async () => {
       try {
-        const blob = await openFile(doc);
+        const blob = await source.load();
         if (kind === "text") {
           const bytes = await readBlobBytes(blob);
           const truncated = bytes.byteLength > TEXT_PREVIEW_BYTES;
@@ -38,24 +67,26 @@ export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose:
           return;
         }
         if (cancelled) return;
-        url = URL.createObjectURL(new Blob([blob], { type: previewMime(kind, doc) }));
+        url = URL.createObjectURL(new Blob([blob], { type: previewMime(kind, source) }));
         setLoaded({ status: "url", url });
       } catch (error) {
-        if (!cancelled) setLoaded({ status: "error", message: describeFileError(error) });
+        if (!cancelled) setLoaded({ status: "error", message: describe(error) });
       }
     })();
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [doc, kind]);
+    // describe vem de source: muda junto.
+  }, [source, kind]);
 
   async function download() {
+    if (!source.download) return;
     setDownloadError(null);
     try {
-      await downloadFile(doc);
+      await source.download();
     } catch (error) {
-      setDownloadError(describeFileError(error));
+      setDownloadError(describe(error));
     }
   }
 
@@ -65,19 +96,17 @@ export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose:
         ref={panel}
         role="dialog"
         aria-modal="true"
-        aria-label={`Pré-visualização: ${doc.title}`}
+        aria-label={`Pré-visualização: ${source.title}`}
         className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
           <div className="min-w-0">
-            <h2 className="truncate font-semibold">{doc.title}</h2>
-            <p className="text-xs text-muted-foreground">
-              {[doc.type, `v${doc.version}`, doc.size_bytes ? formatBytes(doc.size_bytes) : null].filter(Boolean).join(" · ")}
-            </p>
+            <h2 className="truncate font-semibold">{source.title}</h2>
+            {source.subtitle && <p className="text-xs text-muted-foreground">{source.subtitle}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button type="button" onClick={download} disabled={!doc.storage_key} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50">
+            <button type="button" onClick={download} disabled={!source.download} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50">
               <Download size={14} aria-hidden="true" /> Baixar
             </button>
             <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X size={17} /></button>
@@ -90,9 +119,9 @@ export function FilePreviewDialog({ doc, onClose }: { doc: DocumentRow; onClose:
           )}
           {loaded.status === "error" && <p role="alert" className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">{loaded.message}</p>}
           {loaded.status === "url" && kind === "image" && (
-            <div className="flex h-full items-center justify-center p-4"><img src={loaded.url} alt={doc.title} className="max-h-full max-w-full object-contain" /></div>
+            <div className="flex h-full items-center justify-center p-4"><img src={loaded.url} alt={source.title} className="max-h-full max-w-full object-contain" /></div>
           )}
-          {loaded.status === "url" && kind === "pdf" && <iframe src={loaded.url} title={doc.title} className="h-full w-full bg-white" />}
+          {loaded.status === "url" && kind === "pdf" && <iframe src={loaded.url} title={source.title} className="h-full w-full bg-white" />}
           {loaded.status === "text" && (
             <div className="p-4">
               <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">{loaded.text}</pre>

@@ -157,4 +157,26 @@ describe("AppShell", () => {
     await click(byName(sidebar(), "Nova conversa"));
     await until(() => document.querySelector("[data-testid=conversa]")?.textContent === "nova", "nova conversa");
   });
+
+  it("só a área de conteúdo rola: a casca tem a altura da janela e nada fora do main e da lista de módulos rola", async () => {
+    // Rolar entre a sidebar e o conteúdo levava a janela inteira para cima (só o fundo aparecia): a casca não rola,
+    // o main e a lista de módulos rolam sozinhos e não passam a rolagem adiante (overscroll contido).
+    await openShell();
+    const shell = sidebar().parentElement!;
+    const classes = (element: Element) => element.getAttribute("class")?.split(/\s+/) ?? [];
+    expect(classes(shell)).toEqual(expect.arrayContaining(["h-full", "overflow-hidden"]));
+    expect(classes(shell)).not.toContain("h-screen");
+
+    const main = shell.querySelector("main")!;
+    expect(main.parentElement).toBe(shell);
+    expect(classes(main)).toEqual(expect.arrayContaining(["min-w-0", "flex-1", "overflow-y-auto", "overscroll-contain"]));
+
+    const nav = sidebar().querySelector("nav[aria-label=Módulos]")!;
+    expect(classes(nav)).toEqual(expect.arrayContaining(["overflow-y-auto", "overscroll-contain"]));
+
+    const scrollers = [shell, ...shell.querySelectorAll("*")].filter((element) =>
+      classes(element).some((name) => /^overflow(-[xy])?-(auto|scroll)$/.test(name)),
+    );
+    expect(scrollers).toEqual([nav, main]);
+  });
 });

@@ -104,6 +104,16 @@
   html {
     font-family: "Public Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+  /*
+   * A janela não rola: só a área de conteúdo (main do AppShell) e as telas de fora da casca (login, setup), cada
+   * uma no próprio contêiner. Sem isso, rolar sobre a borda da sidebar levava a casca inteira para cima (elástico
+   * do WebKit no macOS) e só o fundo aparecia.
+   */
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-size: var(--text-body);

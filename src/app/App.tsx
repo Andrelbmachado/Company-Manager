@@ -3,6 +3,7 @@ import { BrowserRouter } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { SessionContext } from "@/hooks/useSession";
 import { AppRoutes } from "./routes";
+import { ScrollScreen } from "./layout/ScrollScreen";
 import { clearSession, getSession } from "@/lib/auth/session";
 import { mustChangePassword, revalidateSession } from "@/lib/auth/login";
 import { upgradeLegacyPasswords } from "@/lib/auth/password";
@@ -72,7 +73,7 @@ export default function App() {
     <SessionContext.Provider value={{ session, setSession }}>
       <BrowserRouter>
         {/* Troca de senha obrigatória: nenhuma tela do app abre antes dela. */}
-        {passwordChangeRequired ? <ChangePasswordPage /> : <AppRoutes />}
+        {passwordChangeRequired ? <ScrollScreen><ChangePasswordPage /></ScrollScreen> : <AppRoutes />}
       </BrowserRouter>
     </SessionContext.Provider>
   );

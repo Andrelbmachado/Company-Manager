@@ -186,7 +186,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       </div>
 
       {/* Nav */}
-      <nav aria-label="Módulos" className="flex-1 overflow-y-auto px-2.5 py-3">
+      <nav aria-label="Módulos" className="flex-1 overflow-y-auto overscroll-contain px-2.5 py-3">
         {Object.entries(groups).map(([group, items]) => (
           <div key={group} className="mb-5 space-y-1">
             <p className={cn("px-2.5 pb-1.5 text-xs font-semibold text-muted-foreground", collapsed && "hidden")}>

@@ -1,4 +1,5 @@
-// Base visual do app (globals.css + tailwind.config.js): tipografia de texto corrido no padrão do macOS.
+// Base visual do app (globals.css + tailwind.config.js): tipografia de texto corrido no padrão do macOS e a janela
+// travada (só a área de conteúdo rola; html, body e #root nunca rolam nem "puxam" a casca para cima).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,5 +72,14 @@ describe("tipografia (padrão Apple para macOS)", () => {
     expect(theme.fontSize.title2[0]).toBe("var(--text-title2)");
     expect(theme.fontSize.title1[0]).toBe("var(--text-title1)");
     expect(theme.fontSize["large-title"][0]).toBe("var(--text-large-title)");
+  });
+});
+
+describe("janela travada: só a área de conteúdo rola", () => {
+  it("html, body e #root têm a altura da janela, sem rolagem e sem o elástico do macOS", () => {
+    const root = rule(css, "html, body, #root");
+    expect(root).toMatch(/height:\s*100%/);
+    expect(root).toMatch(/overflow:\s*hidden/);
+    expect(root).toMatch(/overscroll-behavior:\s*none/);
   });
 });

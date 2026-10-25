@@ -39,10 +39,12 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    // Altura da janela (#root = 100%) e sem rolagem: só o main (e a lista de módulos da sidebar) rola, com o overscroll
+    // contido para a rolagem não passar para a janela (o elástico do macOS levava a casca inteira para cima).
+    <div className="flex h-full overflow-hidden bg-background">
       <Sidebar onSearch={() => setCmdOpen(true)} />
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="min-h-full p-6">
           <ModuleNav />
           <Suspense fallback={<PageLoading />}>

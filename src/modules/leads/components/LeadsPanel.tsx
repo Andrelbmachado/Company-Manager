@@ -194,7 +194,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         </label>
       </PageToolbar>
 
-      {!loading && leads.length > 0 && <p className="text-xs text-muted-foreground">{filtered.length} de {leads.length} leads · ordenados por prioridade de abordagem</p>}
+      {!loading && leads.length > 0 && <p className="text-xs text-muted-foreground">{filtered.length} de {leads.length} leads</p>}
 
       <EditableTable<Lead>
         resource="leads"
@@ -206,7 +206,7 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         onSave={save}
         onRefresh={() => qc.invalidateQueries({ queryKey: ["leads", companyId] })}
         newRow={() => ({ status: "novo", ...(campaign ? { campaign_id: campaign.id } : {}) })}
-        emptyMessage={leads.length ? "Nenhum lead encontrado: ajuste os filtros para ver mais resultados." : "Esta prospecção ainda não tem leads. Use Adicionar para cadastrar ou Importar, no topo da página, para trazer uma planilha."}
+        emptyMessage={leads.length ? "Nenhum lead encontrado" : "Nenhum lead"}
         rowActions={(lead) => (
           <button type="button" className={ROW_ACTION} aria-label={`Detalhes de ${lead.name}`} aria-pressed={selectedId === lead.id} onClick={() => setSelectedId((current) => (current === lead.id ? null : lead.id))}>
             <Info size={13} /> Detalhes
@@ -253,11 +253,6 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
                   <Target size={14} />
                   {opportunityOf(selected) ? "Abrir oportunidade no funil" : "Converter em oportunidade"}
                 </button>
-                <p className="text-xs text-muted-foreground">
-                  {opportunityOf(selected)
-                    ? "Este lead já está no funil de vendas do CRM."
-                    : "Cria a oportunidade no funil de vendas (etapa Qualificação) com o potencial estimado. O cliente é cadastrado quando o negócio for ganho."}
-                </p>
                 {convertMutation.error && <p role="alert" className="text-sm text-destructive">{convertMutation.error instanceof Error ? convertMutation.error.message : String(convertMutation.error)}</p>}
               </div>
             )}

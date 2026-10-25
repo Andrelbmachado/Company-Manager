@@ -235,8 +235,7 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
       ) : visible.length === 0 ? (
         <div className="flex min-h-60 flex-col items-center justify-center rounded-lg border border-dashed text-center">
           <FolderIcon cloud />
-          <p className="mt-3 text-sm font-medium">{search ? "Nada encontrado" : "Esta pasta está vazia"}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{canUpload ? "Arraste arquivos para cá ou use Enviar arquivos." : "Nenhum arquivo nesta pasta."}</p>
+          <p className="mt-3 text-sm font-medium">{search ? "Nada encontrado" : "Pasta vazia"}</p>
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">

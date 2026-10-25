@@ -33,7 +33,6 @@ export default function DocumentsPage() {
     <div className="space-y-5">
       <PageHeader
         title={title}
-        description={canUpload ? "Pastas e arquivos da sua área: envie, arraste, visualize, baixe e acompanhe as versões." : "Pastas e arquivos compartilhados com a sua área."}
         className="pb-2"
       />
       <div>

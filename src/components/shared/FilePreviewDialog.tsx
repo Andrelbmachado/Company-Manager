@@ -125,7 +125,7 @@ export function FilePreview({ source, onClose }: { source: FilePreviewSource; on
           {loaded.status === "text" && (
             <div className="p-4">
               <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">{loaded.text}</pre>
-              {loaded.truncated && <p className="mt-3 text-xs text-muted-foreground">Mostrando os primeiros {formatBytes(TEXT_PREVIEW_BYTES)}. Baixe o arquivo para ver tudo.</p>}
+              {loaded.truncated && <p className="mt-3 text-xs text-muted-foreground">Primeiros {formatBytes(TEXT_PREVIEW_BYTES)}</p>}
             </div>
           )}
         </div>

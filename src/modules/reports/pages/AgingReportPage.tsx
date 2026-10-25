@@ -47,7 +47,7 @@ export default function AgingReportPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Contas a receber e a pagar" description="Saldo em aberto (valor menos o já recebido ou pago) por faixa de atraso na data-base." actions={<ExportButtons table={table} />} />
+      <PageHeader title="Contas a receber e a pagar" actions={<ExportButtons table={table} />} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <TabList tabs={SIDES} value={side} onChange={setSide} label="Contas a receber ou a pagar" idPrefix="aging-lado" />
@@ -94,11 +94,8 @@ export default function AgingReportPage() {
               <TabList tabs={views} value={view} onChange={setView} label="Visão do aging" idPrefix="aging-visao" />
             </div>
             <TabPanel idPrefix="aging-visao" id={view}>
-              <ReportDataTable table={table} empty={side === "receber" ? "Nenhuma conta a receber em aberto." : "Nenhuma conta a pagar em aberto."} />
+              <ReportDataTable table={table} empty={side === "receber" ? "Nenhuma conta a receber em aberto" : "Nenhuma conta a pagar em aberto"} />
             </TabPanel>
-            <p className="text-xs text-muted-foreground">
-              Data-base passada: vale o saldo daquele dia (baixas feitas depois são desfeitas e contas emitidas depois ficam fora). Hoje ou adiante: saldo atual, só os dias de atraso mudam.
-            </p>
           </TabPanel>
         )}
       </ReportState>

@@ -23,7 +23,7 @@ import { assertCan } from "@/lib/inventory/permission";
 import { loadStockSnapshot } from "@/lib/inventory/queries";
 import { formatQty, roundQty } from "@/lib/inventory/stock";
 import { lineTotal, sumMoney } from "@/lib/money";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { BUTTON_OUTLINE, BUTTON_PRIMARY, emitSafely, ErrorBanner, errorText, inventoryKeys, normalizeSearch, TableSkeleton, useActor, useInvalidateInventory } from "../components/inventoryUi";
 
 type View = "todos" | "pendentes" | "divergentes";
@@ -130,7 +130,7 @@ function CountSheet({ countId }: { countId: string }) {
     return (
       <div className="space-y-6">
         <BackLink />
-        <PageHeader title="Contagem de inventário" description="Carregando a contagem..." />
+        <PageHeader title="Contagem de inventário" />
         <TableSkeleton rows={6} />
       </div>
     );
@@ -140,7 +140,7 @@ function CountSheet({ countId }: { countId: string }) {
       <div className="space-y-6">
         <BackLink />
         <PageHeader title="Contagem de inventário" />
-        <EmptyState icon={ClipboardCheck} title="Contagem não encontrada" description="Ela pode ter sido removida, ou o link está incompleto." />
+        <EmptyState icon={ClipboardCheck} title="Contagem não encontrada" />
       </div>
     );
   }
@@ -258,7 +258,6 @@ function CountSheet({ countId }: { countId: string }) {
       <BackLink />
       <PageHeader
         title={`Contagem ${label}`}
-        description={`${count.location_name ?? "Sem local"} · iniciada em ${formatDateTime(count.started_at)}${count.counted_by_name ? ` por ${count.counted_by_name}` : ""}${count.finished_at ? ` · concluída em ${formatDateTime(count.finished_at)}` : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2 print:hidden">
             <StatusBadge status={count.status} />
@@ -296,7 +295,7 @@ function CountSheet({ countId }: { countId: string }) {
       <ErrorBanner message={error} onClose={() => setError(null)} />
       {editable && pending > 0 && (
         <p className="text-sm text-muted-foreground print:hidden">
-          Faltam <strong className="text-foreground">{pending}</strong> {pending === 1 ? "item" : "itens"} sem contagem. Use Editar, digite a quantidade encontrada (0 se não achou) e salve; a conclusão ajusta pelo saldo do momento.
+          Faltam <strong className="text-foreground">{pending}</strong> {pending === 1 ? "item" : "itens"} sem contagem
         </p>
       )}
 
@@ -336,7 +335,7 @@ function CountSheet({ countId }: { countId: string }) {
           onSave={save}
           onRefresh={() => detailQuery.refetch()}
           newRow={() => ({ id: uuidv4(), item_id: "", counted_qty: null })}
-          emptyMessage={lines.length === 0 ? "Nenhum item nesta contagem. Use Adicionar para incluir os itens a contar." : "Nenhum item neste filtro."}
+          emptyMessage={lines.length === 0 ? "Nenhum item nesta contagem" : "Nenhum item neste filtro"}
           rowActions={
             editable
               ? (row) => (

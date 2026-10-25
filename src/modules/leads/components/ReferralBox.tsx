@@ -81,18 +81,17 @@ export function ReferralBox({ lead, canEdit, suggestions, onSaved }: ReferralBox
           <p>
             <span className={granted ? "font-semibold text-emerald-700 dark:text-emerald-400" : "font-semibold text-amber-700 dark:text-amber-400"}>
               {granted ? "Benefício concedido" : "Benefício pendente"}
-            </span>{" "}
-            <span className="text-muted-foreground">{granted ? "o indicado fechou o negócio." : "só vale quando o indicado fechar (contrato assinado e pago)."}</span>
+            </span>
           </p>
           <p className="text-muted-foreground">
-            Indicado: {REFERRAL_RULES.referredSetupDiscount * 100}% de desconto no setup, {formatMoney(discount)} sobre {formatMoney(lead.estimated_setup)}.
+            Desconto do indicado: {formatMoney(discount)} ({REFERRAL_RULES.referredSetupDiscount * 100}% de {formatMoney(lead.estimated_setup)})
           </p>
           <p className="text-muted-foreground">
-            Quem indicou ({lead.referred_by}): {REFERRAL_RULES.monthsPerClosed} mês grátis na mensalidade por indicado fechado, com bônus nos níveis da aba Indicações.
+            Quem indicou: {lead.referred_by} · {REFERRAL_RULES.monthsPerClosed} mês grátis por indicado fechado
           </p>
         </div>
       ) : (
-        <p className="mt-3 text-sm text-muted-foreground">Sem indicação. Se este lead veio de alguém, registre quem indicou: os benefícios só valem se ele fechar.</p>
+        <p className="mt-3 text-sm text-muted-foreground">Sem indicação</p>
       )}
     </section>
   );

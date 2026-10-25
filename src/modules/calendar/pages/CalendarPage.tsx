@@ -135,7 +135,6 @@ export default function CalendarPage() {
     <div className="space-y-6">
       <PageHeader
         title={title}
-        description="Ausências, reuniões e agendas conectadas por link (Google Agenda, iCloud, Outlook)."
         className="pb-0"
         actions={
           <>
@@ -161,8 +160,7 @@ export default function CalendarPage() {
             <p>
               <button type="button" className="font-medium text-destructive underline-offset-2 hover:underline" onClick={() => setTab("agendas")}>
                 {failing === 1 ? "1 agenda com erro" : `${failing} agendas com erro`}
-              </button>{" "}
-              <span className="text-muted-foreground">— o motivo aparece em Agendas conectadas; os eventos já lidos continuam no calendário.</span>
+              </button>
             </p>
           )}
           {data.error && <p role="alert" className="font-medium text-destructive">{message(data.error, "Não foi possível carregar o calendário.")}</p>}

@@ -113,7 +113,7 @@ export default function ProposalEditorPage() {
     return (
       <div>
         <PageHeader title="Nova proposta" />
-        <EmptyState icon={FilePen} title="Sem permissão para criar propostas" />
+        <EmptyState icon={FilePen} title="Sem permissão" />
       </div>
     );
   }
@@ -121,7 +121,7 @@ export default function ProposalEditorPage() {
     return (
       <div>
         <PageHeader title="Proposta" />
-        <EmptyState icon={FilePen} title="Proposta não encontrada" description="Ela pode ter sido excluída." action={<Link to="/crm/propostas" className={BTN_SECONDARY}><ArrowLeft size={14} /> Voltar às propostas</Link>} />
+        <EmptyState icon={FilePen} title="Proposta não encontrada" action={<Link to="/crm/propostas" className={BTN_SECONDARY}><ArrowLeft size={14} /> Voltar às propostas</Link>} />
       </div>
     );
   }
@@ -313,7 +313,6 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
         <PageHeader
           className="pb-0 pt-2"
           title={proposal ? `${formatSequence("proposals", proposal.number)}${Number(proposal.version ?? 1) > 1 ? ` · versão ${proposal.version}` : ""}` : "Nova proposta"}
-          description={proposal ? [header.title, customer?.name].filter(Boolean).join(" · ") : "Monte a proposta com itens do catálogo e condições"}
           actions={
             <>
               {proposal && <StatusBadge status={status} />}
@@ -342,10 +341,13 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
 
       {proposal && proposal.status !== "rascunho" && (
         <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-          {status === "expirada" ? "A validade desta proposta venceu. " : ""}
-          Só o rascunho pode ser editado.{actions.includes("revise") ? " Use “Revisar (nova versão)” para mudar itens ou condições." : ""}
-          {proposal.sent_at ? ` Enviada em ${formatDay(proposal.sent_at)}.` : ""}
-          {proposal.decided_at && proposal.status !== "enviada" ? ` Resposta em ${formatDay(proposal.decided_at)}.` : ""}
+          {[
+            status === "expirada" ? "Validade vencida" : "Só leitura",
+            proposal.sent_at ? `Enviada em ${formatDay(proposal.sent_at)}` : "",
+            proposal.decided_at && proposal.status !== "enviada" ? `Resposta em ${formatDay(proposal.decided_at)}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       )}
       {error && <p role="alert" className="text-sm text-destructive">{errorText(error)}</p>}
@@ -387,7 +389,7 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
           Condições de pagamento
           <input value={header.payment_terms} onChange={(event) => change({ payment_terms: event.target.value })} disabled={!editable} className={cn(INPUT, "font-normal")} placeholder="Ex.: 50% na aprovação e 50% na entrega" />
         </label>
-        {priceList?.list && <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">Preços dos produtos pela tabela de preço "{priceList.list.name}".</p>}
+        {priceList?.list && <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">Tabela de preço: {priceList.list.name}</p>}
       </section>
 
       <section className={cn(CARD, "overflow-hidden")} aria-label="Itens da proposta">
@@ -404,7 +406,7 @@ function ProposalEditor({ proposal, items: savedItems, defaults, products, oppor
           )}
         </div>
         {items.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">{editable ? "Adicione itens do catálogo ou um item avulso." : "Sem itens."}</p>
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">Sem itens.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

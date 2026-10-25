@@ -126,6 +126,6 @@ describe("CRM: edição no lugar até o banco", () => {
     await click(findButton(page.container, "Concluir"));
     expectNoDialog("Concluir follow-up");
     await until(async () => Boolean((await one("SELECT done_at FROM crm_activities WHERE id=?", [id]))?.done_at), "follow-up concluído");
-    await until(() => page!.text().includes("Nenhum follow-up atrasado"), "lista vazia");
+    await until(() => page!.text().includes("Tudo em dia"), "lista vazia");
   });
 });

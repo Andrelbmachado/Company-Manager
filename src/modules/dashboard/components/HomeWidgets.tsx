@@ -71,7 +71,7 @@ export function HomeListCard({ widget, result, loading }: { widget: HomeWidget; 
       ) : errorText(result) ? (
         <p role="alert" className={cn("px-5 py-6 text-sm", TONE_TEXT.danger)}>{errorText(result)}</p>
       ) : items.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-muted-foreground">{metric?.hint ?? widget.description}</p>
+        <p className="px-5 py-6 text-sm text-muted-foreground">{metric?.hint ?? "Nada pendente"}</p>
       ) : (
         <>
           <ul className="divide-y">
@@ -93,8 +93,9 @@ export function HomeListCard({ widget, result, loading }: { widget: HomeWidget; 
 }
 
 /**
- * Cor por série (tokens do tema, monocromático como o BalanceChart): entrada no primário e saída em cinza médio.
- * Saída de dinheiro não é estado de erro, então não usa o vermelho do destructive. Chamados em primário claro.
+ * Cor por série das barras (tokens do tema, monocromáticas: a paleta --chart-* é só dos gráficos de linha, no
+ * LineAreaChart): entrada no primário e saída em cinza médio. Saída de dinheiro não é estado de erro, então não usa o
+ * vermelho do destructive. Chamados em primário claro.
  */
 export const SERIES_COLORS: Record<string, string> = {
   entradas: "hsl(var(--primary))",
@@ -162,10 +163,7 @@ export function HomeShortcuts({ widgets }: { widgets: HomeWidget[] }) {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Icon size={17} aria-hidden="true" />
               </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">{widget.title}</span>
-                <span className="block truncate text-xs text-muted-foreground">{widget.description}</span>
-              </span>
+              <span className="min-w-0 truncate text-sm font-semibold">{widget.title}</span>
             </Link>
           </li>
         );

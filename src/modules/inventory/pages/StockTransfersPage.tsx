@@ -116,11 +116,11 @@ export default function StockTransfersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Transferências" description="Envio de itens entre locais de estoque. O saldo da origem é conferido na hora: nenhum local fica negativo." />
-      {locations.length < 2 && snapshot && <p className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">Para transferir, cadastre pelo menos dois locais em Estoque › Locais.</p>}
+      <PageHeader title="Transferências" />
+      {locations.length < 2 && snapshot && <p className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">Cadastre dois locais para transferir</p>}
       {presetItem && itemById.get(presetItem) && (
         <p className="text-sm text-muted-foreground">
-          Use Adicionar para transferir <strong className="text-foreground">{itemById.get(presetItem)!.name}</strong>: a linha nova já vem com o item e a origem onde ele tem mais saldo.
+          Transferir: <strong className="text-foreground">{itemById.get(presetItem)!.name}</strong>
         </p>
       )}
 
@@ -138,9 +138,8 @@ export default function StockTransfersPage() {
         onSave={save}
         onRefresh={() => movementsQuery.refetch()}
         newRow={newRow}
-        emptyMessage={transfers.length === 0 ? "Nenhuma transferência ainda." : "Nenhuma transferência encontrada."}
+        emptyMessage={transfers.length === 0 ? "Nenhuma transferência ainda" : "Nenhuma transferência encontrada"}
       />
-      <p className="text-xs text-muted-foreground">Linhas novas com a mesma origem, destino e observação viram uma transferência só. Transferência gravada não muda (em Editar só a observação é gravada): para desfazer, transfira de volta.</p>
     </div>
   );
 }

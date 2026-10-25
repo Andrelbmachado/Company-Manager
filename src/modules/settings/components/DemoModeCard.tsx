@@ -208,10 +208,7 @@ function DemoModeSwitch() {
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <FlaskConical size={18} className="text-primary-text" />
           </div>
-          <div>
-            <h3 id="demo-mode-title" className="text-sm font-semibold">Modo demonstração</h3>
-            <p className="text-xs text-muted-foreground">Preenche os módulos com dados de exemplo para conhecer o sistema. Leads nunca são tocados.</p>
-          </div>
+          <h3 id="demo-mode-title" className="text-sm font-semibold">Modo demonstração</h3>
         </div>
         <button
           type="button"
@@ -247,17 +244,12 @@ function DemoModeSwitch() {
       {left && left.total > 0 && (
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <p>
-            Ainda há {records(left.total)} ({tableDetail(left.byTable)}): {left.total === 1 ? "fica" : "ficam"} enquanto algum dado seu apontar para {left.total === 1 ? "ele" : "eles"}.
+            Restam {records(left.total)} ({tableDetail(left.byTable)})
           </p>
           <button type="button" onClick={() => void change(false)} className="rounded-md border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
             Remover agora
           </button>
         </div>
-      )}
-      {!desktop && (
-        <p className="text-xs text-muted-foreground">
-          No navegador o banco inteiro já é de demonstração (empresa TechFlow). O switch liga e desliga os dados de exemplo no app desktop.
-        </p>
       )}
     </section>
   );

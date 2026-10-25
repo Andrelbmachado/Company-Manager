@@ -84,9 +84,9 @@ function NewSalesOrder({ customerId }: { customerId: string }) {
   return (
     <div className="space-y-5">
       <BackLink />
-      <PageHeader title="Novo pedido de venda" description="Escolha o cliente e os itens. O preço vem da tabela do cliente (ou da padrão) e pode ser ajustado." />
+      <PageHeader title="Novo pedido de venda" />
       {!canCreate ? (
-        <EmptyState icon={ShoppingCart} title="Sem permissão para criar pedidos" description="Seu papel pode consultar os pedidos de venda, mas não criar." />
+        <EmptyState icon={ShoppingCart} title="Sem permissão" />
       ) : (
         <SalesOrderEditor
           companyId={companyId}
@@ -265,7 +265,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
       <div className="space-y-5">
         <BackLink />
         <PageHeader title="Pedido de venda" />
-        <EmptyState icon={ShoppingCart} title="Pedido não encontrado" description={query.error ? errorMessage(query.error) : "Ele pode ter sido excluído."} />
+        <EmptyState icon={ShoppingCart} title={query.error ? errorMessage(query.error) : "Pedido não encontrado"} />
       </div>
     );
   }
@@ -295,7 +295,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
     return (
       <div className="space-y-5">
         <BackLink />
-        <PageHeader title={`Editar pedido ${label}`} description={order.status === "confirmado" ? "Pedido confirmado: dá para mudar até ser faturado." : "Rascunho."} />
+        <PageHeader title={`Editar pedido ${label}`} />
         <SalesOrderEditor
           companyId={companyId}
           initialForm={salesOrderFormFrom(order)}
@@ -320,7 +320,6 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
       <BackLink />
       <PageHeader
         title={`Pedido ${label}`}
-        description={customer ? `${customer.name} · ${formatDay(order.order_date)}` : formatDay(order.order_date)}
         actions={
           <>
             {editable && <IconButton label="Editar pedido" icon={TABLE_ICONS.edit} onClick={() => setEditing(true)} />}
@@ -384,7 +383,6 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
         <InlinePanel title={`Cancelar pedido ${label}?`} label={`Cancelar pedido ${label}`} onClose={() => setPanel(null)}>
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); cancel.mutate(); }}>
             <Field label="Motivo" className="max-w-xl"><textarea rows={2} required className={`${INPUT} h-auto py-2`} {...field("reason")} /></Field>
-            <p className="text-xs text-muted-foreground">O pedido fica no histórico como cancelado. Pedido faturado precisa ter a fatura cancelada antes.</p>
             <ErrorNote error={cancel.error} />
             <div className="flex gap-2">
               <button type="submit" className={DANGER} disabled={cancel.isPending || !(form.reason ?? "").trim()}><Ban size={14} /> Cancelar pedido</button>
@@ -429,7 +427,7 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
             onSave={saveItems}
             onRefresh={() => refreshTrade(qc)}
             newRow={() => ({ qty: 1 })}
-            emptyMessage="Pedido sem itens: use Adicionar. Com produto escolhido, preço, descrição e imposto vêm da tabela do cliente se ficarem em branco."
+            emptyMessage="Pedido sem itens"
             rowActions={canEdit ? (item) => (
               <button type="button" className={ROW_DANGER} aria-label={`Remover item ${item.description}`} onClick={() => void removeItem(item)}>
                 <Trash2 size={13} /> Remover
@@ -453,14 +451,14 @@ function ExistingSalesOrder({ orderId }: { orderId: string }) {
 
       {canSeeInvoices && (
         <Section title="Faturas">
-          {orderInvoices.length === 0 ? <p className="text-sm text-muted-foreground">{order.status === "rascunho" ? "Confirme o pedido para poder faturar." : "Ainda não faturado."}</p> : (
+          {orderInvoices.length === 0 ? <p className="text-sm text-muted-foreground">Não faturado</p> : (
             <OrderInvoicesTable invoices={orderInvoices} receivables={receivables} today={today} />
           )}
         </Section>
       )}
 
       <Section title="Saídas do estoque">
-        {movements.length === 0 ? <p className="text-sm text-muted-foreground">{order.status === "entregue" ? "Nenhum item deste pedido movimenta estoque." : "A saída acontece na entrega."}</p> : (
+        {movements.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma saída</p> : (
           <ul className="divide-y rounded-xl border text-sm">
             {movements.map((movement) => {
               const item = itemsById.get(movement.item_id);
@@ -575,7 +573,7 @@ function DeliveryPreview({ order, items, locationId, productsById, itemsById, ba
     const product = item.product_id ? productsById.get(item.product_id) : undefined;
     if (product?.kind === "produto" && product.inventory_item_id) needs.set(product.inventory_item_id, roundQty((needs.get(product.inventory_item_id) ?? 0) + Number(item.qty)));
   }
-  if (needs.size === 0) return <p className="mt-4 text-sm text-muted-foreground">Nenhum item deste pedido movimenta estoque (serviços ou produtos sem item de estoque). O pedido só fica como entregue.</p>;
+  if (needs.size === 0) return <p className="mt-4 text-sm text-muted-foreground">Nenhum item movimenta estoque.</p>;
   return (
     <div className="mt-4 space-y-2">
       <p className="text-sm font-medium">Saída do estoque{order.status === "confirmado" ? "" : " (pedido já faturado)"}</p>

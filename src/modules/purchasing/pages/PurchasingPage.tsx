@@ -181,23 +181,20 @@ export default function PurchasingPage() {
           newRow={() => ({ order_date: today, installments: 1, first_qty: 1 })}
           onSave={save}
           onRefresh={() => Promise.all([qc.invalidateQueries({ queryKey: ["purchase_orders", companyId] }), qc.invalidateQueries({ queryKey: ["suppliers", companyId] })])}
-          emptyMessage={orders.length ? "Nenhum pedido neste filtro." : "Nenhum pedido de compra. Adicione um pedido (fornecedor e 1º item), aprove e receba a mercadoria: o estoque e as contas a pagar são atualizados juntos."}
+          emptyMessage={orders.length ? "Nenhum pedido neste filtro" : "Nenhum pedido de compra"}
           rowActions={(row) => (
             <button type="button" className={BUTTON} onClick={() => navigate(`/purchasing/pedidos/${row.id}`)} aria-label={`Abrir ${row.number}`}>
               Abrir <ArrowRight size={14} aria-hidden="true" />
             </button>
           )}
         />
-        <p className="text-sm text-muted-foreground">
-          Pedido novo nasce em rascunho com o 1º item e abre para incluir os demais. Depois de aprovado, só a previsão de entrega e as observações mudam (para o resto, cancele e crie outro).
-        </p>
       </div>
       {view === "calendario" && (
         <div className="space-y-2">
           <CalendarView items={calendarItems} label="Previsão de entrega dos pedidos" onSelect={(item) => navigate(`/purchasing/pedidos/${item.id}`)} />
           {withoutDate > 0 && (
             <p className="px-1 text-sm text-muted-foreground">
-              {withoutDate === 1 ? "1 pedido sem previsão de entrega não aparece no calendário (veja na Lista)." : `${withoutDate} pedidos sem previsão de entrega não aparecem no calendário (veja na Lista).`}
+              {withoutDate === 1 ? "1 pedido sem previsão de entrega" : `${withoutDate} pedidos sem previsão de entrega`}
             </p>
           )}
         </div>

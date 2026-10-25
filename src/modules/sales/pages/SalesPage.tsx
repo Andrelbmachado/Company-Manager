@@ -127,7 +127,7 @@ export default function SalesPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={title} description="Pedidos de venda: confirmação, faturamento em parcelas (contas a receber) e entrega com baixa no estoque." actions={<ViewSwitch value={view} onChange={setView} label="Ver pedidos em" />} />
+      <PageHeader title={title} actions={<ViewSwitch value={view} onChange={setView} label="Ver pedidos em" />} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Vendido no mês" value={formatCurrency(sumMoney(monthSales.map((order) => Number(order.total))))} />
@@ -146,7 +146,7 @@ export default function SalesPage() {
 
         {created && (
           <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-            Pedido {createdOrder ? formatSequence("sales_orders", createdOrder.number) : ""} criado como rascunho: abra para incluir os itens.
+            Pedido {createdOrder ? formatSequence("sales_orders", createdOrder.number) : ""} criado.
             <button type="button" className="font-medium underline" onClick={() => navigate(`/sales/pedidos/${created}`)}>Abrir pedido</button>
           </p>
         )}
@@ -161,7 +161,7 @@ export default function SalesPage() {
           onSave={save}
           onRefresh={() => refreshTrade(qc)}
           newRow={() => ({ order_date: todayIso(), installments: 1 })}
-          emptyMessage={orders.length ? "Nenhum pedido neste filtro: mude o status ou a busca." : "Nenhum pedido de venda. Use Adicionar, inclua os itens no pedido, confirme e fature: as parcelas vão para contas a receber."}
+          emptyMessage={orders.length ? "Nenhum pedido neste filtro" : "Nenhum pedido de venda"}
           rowActions={(order) => (
             <button type="button" className={ROW_ACTION} aria-label={`Abrir pedido ${formatSequence("sales_orders", order.number)}`} onClick={() => navigate(`/sales/pedidos/${order.id}`)}>
               <ExternalLink size={13} /> Abrir

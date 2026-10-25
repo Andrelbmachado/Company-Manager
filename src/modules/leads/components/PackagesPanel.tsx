@@ -107,7 +107,7 @@ export function PackagesPanel({ packages, prices, leads = NO_LEADS }: { packages
   );
 
   if (packages.length === 0) {
-    return <EmptyState icon={Package} title="Nenhum pacote cadastrado" description="Os pacotes são importados junto com os leads." />;
+    return <EmptyState icon={Package} title="Nenhum pacote cadastrado" />;
   }
 
   async function save(changes: EditableTableChanges<SegmentPriceRow>) {
@@ -173,7 +173,7 @@ export function PackagesPanel({ packages, prices, leads = NO_LEADS }: { packages
         newRow={() => ({ leads: 0, feature_note: null })}
         onSave={save}
         onRefresh={() => qc.invalidateQueries({ queryKey: packagePricesQueryKey(companyId) })}
-        emptyMessage="Nenhum preço cadastrado."
+        emptyMessage="Nenhum preço cadastrado"
       />
     </div>
   );

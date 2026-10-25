@@ -134,7 +134,6 @@ export default function SuppliersPage() {
     <div className="space-y-5">
       <PageHeader
         title={title}
-        description="Cadastro de fornecedores de produtos e serviços, com documento, contato e condição de pagamento."
         actions={<ImportExportButtons entity="suppliers" onImported={() => invalidateTrade(qc)} />}
       />
       <ErrorBanner message={error} onClose={() => setError(null)} />
@@ -150,7 +149,7 @@ export default function SuppliersPage() {
         onSave={save}
         onRefresh={refresh}
         newRow={() => ({ id: uuidv4() })}
-        emptyMessage={rows.length ? "Nenhum fornecedor encontrado." : "Nenhum fornecedor cadastrado. Use Adicionar para cadastrar os fornecedores dos pedidos de compra."}
+        emptyMessage={rows.length ? "Nenhum fornecedor encontrado" : "Nenhum fornecedor cadastrado"}
         rowActions={(row) => (
           <button
             type="button"

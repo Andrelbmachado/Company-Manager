@@ -160,16 +160,13 @@ export default function ReorderPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Reposição"
-        description="Itens cujo saldo (todos os locais) somado ao que já está em pedido de compra ficou igual ou abaixo do estoque mínimo. A sugestão repõe até o estoque máximo (sem máximo, até o dobro do mínimo)."
-      />
+      <PageHeader title="Reposição" />
 
       {created.length > 0 && (
         <div role="status" className="space-y-2 rounded-lg border border-status-success/40 bg-status-success/10 px-4 py-3 text-sm">
           <p className="flex items-center gap-2 font-medium">
             <CheckCircle2 size={16} className="text-status-success" aria-hidden="true" />
-            {created.length === 1 ? "Pedido de compra gerado em rascunho" : `${created.length} pedidos de compra gerados em rascunho`}. Revise, aprove e envie em Compras.
+            {created.length === 1 ? "Pedido de compra gerado em rascunho" : `${created.length} pedidos de compra gerados em rascunho`}
           </p>
           <ul className="space-y-1 pl-6">
             {created.map((order) => (
@@ -195,7 +192,6 @@ export default function ReorderPage() {
         <EmptyState
           icon={PackagePlus}
           title="Nada para repor"
-          description={covered.length > 0 ? "Os itens abaixo do mínimo já têm pedido de compra em aberto que cobre a reposição." : "Nenhum item está no ponto de reposição. Defina o estoque mínimo dos itens para receber sugestões."}
         />
       ) : (
         <>
@@ -297,7 +293,7 @@ export default function ReorderPage() {
             </div>
           ) : (
             <p className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-              Seu acesso não cria pedidos de compra. Envie esta lista para quem compra (Estoque ou Administração).
+              Sem permissão para gerar pedidos
             </p>
           )}
         </>

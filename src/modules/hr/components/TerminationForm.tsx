@@ -66,8 +66,8 @@ export function TerminationForm({ today, employees, employee, busy, error, onCan
       <p className="text-xs text-muted-foreground" aria-live="polite">
         {date
           ? future
-            ? `Fica agendado: a pessoa continua ativa até ${formatDay(date)} e passa a desligada nessa data. O checklist de saída começa agora.`
-            : "A pessoa passa a desligada agora e o checklist de saída é criado."
+            ? `Agendado para ${formatDay(date)}`
+            : "Desligamento imediato"
           : "Informe a data de saída."}
       </p>
       {error && <p role="alert" className="text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}

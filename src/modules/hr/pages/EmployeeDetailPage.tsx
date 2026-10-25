@@ -16,8 +16,8 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { TabList, TabPanel } from "@/components/shared/Tabs";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { fetchEmployees, fetchHrTasks, fetchRequests } from "@/lib/hr/queries";
-import { REQUEST_TYPES, tenureLabel, vacationBalance } from "@/lib/hr/rules";
-import { CONTRACT_LABEL, CONTRACT_TYPES, EMPLOYEE_STATUSES, emptyEmployeeInput, employeeToInput, fetchEmployee, saveEmployee, type EmployeeAddress, type EmployeeInput } from "@/lib/hr/employees";
+import { REQUEST_TYPES, vacationBalance } from "@/lib/hr/rules";
+import { CONTRACT_TYPES, EMPLOYEE_STATUSES, emptyEmployeeInput, employeeToInput, fetchEmployee, saveEmployee, type EmployeeAddress, type EmployeeInput } from "@/lib/hr/employees";
 import { cycleCases, setTaskDone, startTermination } from "@/lib/hr/employment";
 import { fetchEmployeeTimeEntries, formatMinutes, parseDuration, timeBankSummary } from "@/lib/hr/timebank";
 import { requestCalendarItems, saveRequestRows, saveTaskRows, saveTimeEntryRows, timeEntryCalendarItems, timeEntryRows, type TimeEntryRow } from "@/lib/hr/tableEdits";
@@ -213,15 +213,12 @@ export default function EmployeeDetailPage() {
       <div className="space-y-4">
         {back}
         <PageHeader title="Colaborador" />
-        <EmptyState title="Colaborador não encontrado" description="Ele pode ter sido removido. Volte à lista de colaboradores." />
+        <EmptyState title="Colaborador não encontrado" />
       </div>
     );
   }
 
   const title = isNew ? "Novo colaborador" : employee?.name ?? "Colaborador";
-  const description = isNew
-    ? "Cadastre a ficha de quem já trabalha na empresa. Para quem ainda vai entrar, prefira “Nova admissão”, que já cria o checklist de entrada."
-    : employee ? [employee.position, employee.department, employee.contract_type ? CONTRACT_LABEL[employee.contract_type] : null, employee.hire_date ? (employee.hire_date.slice(0, 10) > today ? `começa em ${formatDay(employee.hire_date)}` : `há ${tenureLabel(employee.hire_date, today)}`) : null].filter(Boolean).join(" · ") : undefined;
 
   const dataForm = (
     <form
@@ -298,7 +295,6 @@ export default function EmployeeDetailPage() {
       {back}
       <PageHeader
         title={title}
-        description={description}
         className="pb-2"
         actions={canTerminate && !terminating ? <button type="button" onClick={() => { setFormError(""); setTerminating(true); }} className={BTN_SECONDARY}><UserMinus size={14} /> Registrar desligamento</button> : undefined}
       />
@@ -322,7 +318,7 @@ export default function EmployeeDetailPage() {
       {notice && !error && <Notice>{notice}</Notice>}
 
       {isNew ? (
-        canCreate ? dataForm : <EmptyState title="Sem permissão para cadastrar" description="Peça ao RH para cadastrar o colaborador." />
+        canCreate ? dataForm : <EmptyState title="Sem permissão para cadastrar" />
       ) : !employee ? (
         <div className="h-48 animate-pulse rounded-xl border bg-card" />
       ) : (
@@ -355,7 +351,7 @@ export default function EmployeeDetailPage() {
                     newRow={() => ({ type: "ferias" })}
                     onSave={saveRequests}
                     onRefresh={refresh}
-                    emptyMessage="Nenhuma solicitação. O colaborador pede férias, folgas e envia atestados pelo Meu RH; o RH também registra aqui com Adicionar."
+                    emptyMessage="Nenhuma solicitação"
                   />
                 </div>
                 {requestView === "calendario" && <CalendarView items={requestCalendarItems(myRequests, new Map([[employee.id, employee.name]]))} label={`Férias e folgas de ${employee.name}`} />}
@@ -381,7 +377,7 @@ export default function EmployeeDetailPage() {
                   newRow={() => ({ entry_date: today })}
                   onSave={saveHours}
                   onRefresh={refresh}
-                  emptyMessage="Nenhum lançamento no banco de horas. Adicionar lança já aprovado (1:30 = hora extra, -0:30 = compensação)."
+                  emptyMessage="Nenhum lançamento no banco de horas"
                 />
               </div>
               {hoursView === "calendario" && <CalendarView items={timeEntryCalendarItems(hourRows, new Map([[employee.id, employee.name]]))} label={`Banco de horas de ${employee.name}`} />}
@@ -391,7 +387,7 @@ export default function EmployeeDetailPage() {
           <div hidden={tab !== "ciclo"}>
             <TabPanel idPrefix="colaborador" id="ciclo">
               {cases.length === 0 ? (
-                <EmptyState title="Sem processo de admissão ou desligamento" description="Admissões iniciadas em “Admissões e desligamentos” e desligamentos registrados aqui aparecem com o checklist." />
+                <EmptyState title="Nenhum processo" />
               ) : (
                 <div className="grid gap-4 lg:grid-cols-2">
                   {cases.map((item) => (
@@ -408,7 +404,7 @@ export default function EmployeeDetailPage() {
                 newRow={() => ({ status: "pendente" })}
                 onSave={saveOtherTasks}
                 onRefresh={refresh}
-                emptyMessage="Nenhuma outra pendência. Adicionar pede um documento, treinamento ou atualização a esta pessoa."
+                emptyMessage="Nenhuma outra pendência"
               />
             </TabPanel>
           </div>

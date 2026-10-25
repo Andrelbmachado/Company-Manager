@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { CopyCheck, ExternalLink } from "lucide-react";
+import { CopyCheck, ExternalLink, UserRound } from "lucide-react";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -13,7 +13,7 @@ import { getDb } from "@/lib/db/client";
 import { useLabel } from "@/lib/labels/useLabel";
 import { pipelineSummary } from "@/lib/crm/queries";
 import { filterCustomers, parseCustomerFilters, type CustomerFilters } from "@/lib/crm/segments";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { ROW_ACTION, refreshQueries, useEditActor } from "@/modules/catalog/components/inline";
 import type { Customer, Tag } from "@/types";
 import { OverdueFollowUps } from "../components/Activities";
@@ -95,7 +95,6 @@ export default function CrmPage() {
     <div className="space-y-6">
       <PageHeader
         title={title}
-        description="Cadastro, segmentos e acompanhamento comercial"
         actions={
           <>
             {can("edit", "customers") && (
@@ -120,14 +119,26 @@ export default function CrmPage() {
       </div>
 
       {can("view", "crm_activities") && (
-        <div className="space-y-2">
-          {MANAGERS.has(role) && (
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input type="checkbox" checked={onlyMine} onChange={(event) => setOnlyMine(event.target.checked)} /> Só os meus follow-ups
-            </label>
-          )}
-          <OverdueFollowUps userId={onlyMine ? userId : null} />
-        </div>
+        <OverdueFollowUps
+          userId={onlyMine ? userId : null}
+          actions={
+            MANAGERS.has(role) && (
+              <button
+                type="button"
+                aria-pressed={onlyMine}
+                aria-label="Só os meus follow-ups"
+                title="Só os meus follow-ups"
+                onClick={() => setOnlyMine((current) => !current)}
+                className={cn(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  onlyMine && "border-primary/40 bg-primary/10 text-primary-text",
+                )}
+              >
+                <UserRound aria-hidden="true" size={16} />
+              </button>
+            )
+          }
+        />
       )}
 
       <div className="space-y-4">
@@ -169,7 +180,7 @@ export default function CrmPage() {
 
         {created && (
           <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-            Cliente cadastrado: abra a ficha para completar endereço, contatos e condições.
+            Cliente cadastrado.
             <button type="button" className="font-medium underline" onClick={() => navigate(`/crm/clientes/${created}`)}>Abrir ficha</button>
           </p>
         )}
@@ -184,7 +195,7 @@ export default function CrmPage() {
           onSave={save}
           onRefresh={() => refreshQueries(qc, ["customers", "customer", "duplicates"])}
           newRow={() => ({ type: "PJ", status: "active", owner_id: userId })}
-          emptyMessage={customers.length ? "Nenhum cliente com esses filtros: ajuste a busca ou limpe os filtros." : "Nenhum cliente cadastrado. Use Adicionar ou importe uma planilha."}
+          emptyMessage={customers.length ? "Nenhum cliente com esses filtros" : "Nenhum cliente cadastrado"}
           rowActions={(customer) => (
             <button type="button" className={ROW_ACTION} aria-label={`Abrir ficha de ${customer.name}`} onClick={() => navigate(`/crm/clientes/${customer.id}`)}>
               <ExternalLink size={13} /> Ficha

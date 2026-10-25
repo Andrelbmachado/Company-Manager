@@ -105,7 +105,7 @@ export function OpportunitiesTable({ opportunities, loading, customerId, title =
         onSave={save}
         onRefresh={() => refreshQueries(qc, ["opportunities", "crm-activities"])}
         newRow={() => ({ stage: "novo", owner_id: userId, ...(customerId ? { customer_id: customerId } : {}) })}
-        emptyMessage={emptyMessage ?? "Nenhuma oportunidade. Use Adicionar ou converta um lead da prospecção."}
+        emptyMessage={emptyMessage ?? "Nenhuma oportunidade"}
         rowActions={(opp) => (
           <button type="button" className={ROW_ACTION} aria-label={`Detalhes de ${opp.title}`} aria-pressed={selectedId === opp.id} onClick={() => onSelect(selectedId === opp.id ? null : opp.id)}>
             <Info size={13} /> Detalhes

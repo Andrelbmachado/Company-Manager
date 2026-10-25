@@ -188,7 +188,7 @@ export function SalesOrderEditor({ companyId, initialForm, initialLines, onSave,
             {lists.map((list) => <option key={list.id} value={list.id}>{list.name}{isTrue(list.active) ? "" : " (inativa)"}</option>)}
           </select>
           <span className="block text-xs font-normal text-muted-foreground">
-            {effective.list ? `Preços da tabela "${effective.list.name}" (${effective.origin}); sem preço nela, o do catálogo.` : "Preços do catálogo."}
+            {effective.list ? `${effective.list.name} (${effective.origin})` : "Catálogo"}
           </span>
         </Field>
         <Field label="Data do pedido">

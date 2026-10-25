@@ -92,7 +92,7 @@ export default function WorkOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description="Gestão de OS: cliente, técnico, prazo e custos" />
+      <PageHeader title={title} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Em andamento" value={active.length} />
@@ -127,7 +127,7 @@ export default function WorkOrdersPage() {
             onSave={save}
             onRefresh={() => ordersQuery.refetch()}
             newRow={() => ({ id: uuidv4(), status: "aberta" as const, priority: "media" as const, labor_cost: 0, materials_cost: 0, total_cost: 0 })}
-            emptyMessage={orders.length === 0 ? "Nenhuma ordem de serviço." : "Nenhuma ordem de serviço neste filtro."}
+            emptyMessage={orders.length === 0 ? "Nenhuma ordem de serviço" : "Nenhuma ordem de serviço neste filtro"}
           />
         </TabPanel>
       </div>

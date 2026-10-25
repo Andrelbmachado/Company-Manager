@@ -51,12 +51,12 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description="Trilha imutável de ações sensíveis" />
+      <PageHeader title={title} />
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-muted/30" />)}</div>
       ) : logs.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="Nenhum log de auditoria" description="Ações financeiras, exportações e acessos sensíveis aparecem aqui." />
+        <EmptyState icon={ShieldCheck} title="Nenhum log de auditoria" />
       ) : (
         <div className="rounded-xl border">
           <TableFilterToolbar view={view} />
@@ -87,7 +87,6 @@ export default function AuditPage() {
           </div>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">Eventos de auditoria são imutáveis e não podem ser editados.</p>
     </div>
   );
 }

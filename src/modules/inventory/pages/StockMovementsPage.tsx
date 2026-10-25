@@ -204,7 +204,6 @@ export default function StockMovementsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Movimentações"
-        description="Entradas, saídas, transferências e ajustes de inventário, com a origem de cada lançamento."
         actions={<ImportExportButtons entity="inventory" onImported={() => invalidate()} />}
       />
 
@@ -263,10 +262,10 @@ export default function StockMovementsPage() {
 
       {presetItem && isManualKind(presetKind) && (
         <p className="text-sm text-muted-foreground">
-          Use Adicionar para lançar {presetKind === "saida" ? "a saída" : "a entrada"} de <strong className="text-foreground">{presetItem.name}</strong>: a linha nova já vem com o item e o tipo.
+          {presetKind === "saida" ? "Saída" : "Entrada"}: <strong className="text-foreground">{presetItem.name}</strong>
         </p>
       )}
-      {locations.length === 0 && !movementsQuery.isLoading && <p className="text-sm text-muted-foreground">Cadastre um local de estoque antes de movimentar (Estoque › Locais).</p>}
+      {locations.length === 0 && !movementsQuery.isLoading && <p className="text-sm text-muted-foreground">Nenhum local de estoque</p>}
 
       <EditableTable
         resource="inventory"
@@ -283,7 +282,7 @@ export default function StockMovementsPage() {
           item_id: itemFilter !== "all" ? itemFilter : "",
           location_id: locationFilter !== "all" ? locationFilter : locations[0]?.id ?? "",
         })}
-        emptyMessage={movements.length === 0 ? "Nenhuma movimentação ainda. Entradas de compra, saídas de venda, transferências e ajustes de inventário aparecem aqui." : "Nenhuma movimentação encontrada."}
+        emptyMessage={movements.length === 0 ? "Nenhuma movimentação ainda" : "Nenhuma movimentação encontrada"}
       />
       {filtered.length > visible && (
         <div className="text-center">
@@ -292,7 +291,6 @@ export default function StockMovementsPage() {
           </button>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">Lançamento gravado não muda (o saldo já foi acertado): em Editar só a observação é gravada. Para corrigir, lance um ajuste ou o movimento contrário.</p>
     </div>
   );
 }

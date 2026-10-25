@@ -118,7 +118,7 @@ export default function BankAccountsPage() {
         newRow={() => ({ kind: "corrente", opening_balance: 0, is_default: accounts.length === 0 ? 1 : 0, active: 1 })}
         onSave={save}
         onRefresh={() => qc.invalidateQueries({ queryKey: ["bank_accounts", companyId] })}
-        emptyMessage="Nenhuma conta bancária. Adicione as contas e o caixa da empresa para ver saldos, fluxo de caixa e conciliar extratos."
+        emptyMessage="Nenhuma conta bancária"
         rowActions={(row) => (
           <span className="flex justify-end gap-1.5">
             <button type="button" onClick={() => navigate(`/finance/conciliacao?conta=${row.id}`)} className={secondaryButton} aria-label={`Conciliar ${row.name}`}>
@@ -130,7 +130,6 @@ export default function BankAccountsPage() {
           </span>
         )}
       />
-      <p className="text-sm text-muted-foreground">O saldo inicial vale a partir da data informada; movimentos anteriores a ela não entram no saldo. Conta com movimento não se exclui: desmarque Ativa.</p>
     </div>
   );
 }

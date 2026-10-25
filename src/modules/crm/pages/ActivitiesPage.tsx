@@ -89,7 +89,6 @@ export default function ActivitiesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Atividades"
-        description="Ligações, reuniões, e-mails e tarefas com clientes"
         actions={<ViewSwitch value={view} onChange={setView} label="Ver atividades em" />}
       />
 
@@ -122,7 +121,7 @@ export default function ActivitiesPage() {
           loading={isLoading}
           showEntity
           title="Atividades"
-          emptyMessage={activities.length ? (state === "atrasada" ? "Nenhum follow-up atrasado. Tudo em dia." : "Nenhuma atividade com esses filtros.") : undefined}
+          emptyMessage={activities.length ? (state === "atrasada" ? "Nenhum follow-up atrasado" : "Nenhuma atividade com esses filtros") : undefined}
         />
       </div>
       {view === "calendario" && (

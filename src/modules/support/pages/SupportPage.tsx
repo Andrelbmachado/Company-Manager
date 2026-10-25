@@ -262,7 +262,7 @@ export default function SupportPage() {
             {loadingTimeline ? (
               <div className="h-28 animate-pulse rounded-lg bg-muted/40" />
             ) : timeline.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma atividade registrada neste ticket.</p>
+              <p className="text-sm text-muted-foreground">Nenhuma atividade</p>
             ) : (
               <div className="space-y-0">
                 {timeline.map((activity, index) => (
@@ -307,7 +307,6 @@ export default function SupportPage() {
     <div className="space-y-6">
       <PageHeader
         title="Suporte"
-        description="Tickets"
         actions={<ImportExportButtons entity="tickets" onImported={() => void refreshTickets()} />}
       />
 
@@ -335,7 +334,7 @@ export default function SupportPage() {
         newRow={() => ({ priority: "media", status: "aberto" })}
         onSave={saveTable}
         onRefresh={() => ticketsQuery.refetch()}
-        emptyMessage={filter === "all" ? "Nenhum ticket. Use Adicionar para abrir um." : "Nenhum ticket com este status."}
+        emptyMessage={filter === "all" ? "Nenhum ticket" : "Nenhum ticket com este status"}
       />
     </div>
   );

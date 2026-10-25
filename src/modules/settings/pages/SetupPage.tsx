@@ -138,14 +138,13 @@ export default function SetupPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted-foreground">Todas entram com a senha inicial que você definiu e escolhem uma senha nova no primeiro acesso. Para criar mais contas ou trocar o papel de alguém: Configurações, Usuários e acessos.</p>
             </div>
           )}
 
           {sectorError && (
             <p role="alert" className="flex items-start gap-2 rounded-md border border-status-warning bg-background px-3 py-2 text-left text-sm">
               <TriangleAlert size={16} className="mt-0.5 shrink-0 text-status-warning" />
-              <span>As contas dos setores não foram criadas ({sectorError}). Crie-as depois em Configurações, Usuários e acessos.</span>
+              <span>As contas dos setores não foram criadas ({sectorError}).</span>
             </p>
           )}
 
@@ -232,7 +231,7 @@ export default function SetupPage() {
                 <span>
                   <span className="font-medium">Criar também uma conta para cada setor</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {SECTOR_ROLES.map((role) => ROLE_LABELS[role]).join(", ")}. E-mails como {roleAccountEmail("financeiro", sectorDomain || ROLE_ACCOUNT_DOMAIN)}, todos com a mesma senha inicial, que cada pessoa troca no primeiro acesso.
+                    Ex.: {roleAccountEmail("financeiro", sectorDomain || ROLE_ACCOUNT_DOMAIN)}
                   </span>
                 </span>
               </label>
@@ -255,9 +254,6 @@ export default function SetupPage() {
                 <input id="setup-prospecting" type="checkbox" checked={withProspecting} onChange={(e) => setWithProspecting(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input accent-primary" />
                 <span>
                   <span className="font-medium">Incluir a prospecção de sites da LeadingSites (Sorocaba)</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Projeto “Desenvolvimento de Site” com leads, pacotes e previsão de receita prontos. Deixe desmarcado para começar a empresa sem dados.
-                  </span>
                 </span>
               </label>
             </fieldset>

@@ -41,7 +41,7 @@ export function SchedulePanel({ leads }: { leads: Lead[] }) {
           {selected ? (
             <LeadOutreach key={`${selected.id}:${selected.outreach_date ?? ""}`} lead={selected} />
           ) : (
-            <p className="text-sm text-muted-foreground">{items.length ? "Escolha um lead no calendário." : "Nenhum lead desta prospecção tem data de abordagem."}</p>
+            <p className="text-sm text-muted-foreground">{items.length ? "Nenhum lead escolhido" : "Nenhum lead agendado"}</p>
           )}
         </section>
       </div>

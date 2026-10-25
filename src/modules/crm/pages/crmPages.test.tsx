@@ -133,7 +133,6 @@ describe("telas do CRM", () => {
     await until(() => text().includes("Faturado"), "aba financeiro");
     expect(text()).toContain("R$ 900,00");
     expect(text()).not.toMatch(/Recebido|Em aberto|Vencido/);
-    expect(text()).toContain("Recebimentos e valores vencidos aparecem para quem tem acesso ao financeiro.");
 
     await click([...container.querySelectorAll("[role=tab]")].find((tab) => tab.textContent === "Contatos"));
     await until(() => text().includes("Nenhum contato"), "aba de contatos");

@@ -1,4 +1,4 @@
-import { Building2, LogOut, ShieldCheck } from "lucide-react";
+import { Building2, LogOut } from "lucide-react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
 import { logout, sessionAfterPasswordChange } from "@/lib/auth/login";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
@@ -10,7 +10,6 @@ import { ChangePasswordForm } from "../components/ChangePasswordForm";
 export default function ChangePasswordPage() {
   const session = useRequiredSession();
   const { setSession } = useSession();
-  const firstName = session.user.name.split(" ")[0];
 
   function handleLogout() {
     logout();
@@ -25,15 +24,7 @@ export default function ChangePasswordPage() {
           <span className="font-display text-lg font-bold tracking-tight">Company Manager</span>
         </div>
 
-        <div className="mb-5 flex items-start gap-3 rounded-lg border bg-muted/40 p-3.5">
-          <ShieldCheck size={20} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">
-            Por segurança, a senha desta conta precisa ser trocada antes de continuar. A senha nova é só sua: ninguém da empresa fica sabendo dela.
-          </p>
-        </div>
-
-        <h1 className="font-display text-[1.6rem] font-bold leading-tight tracking-tight">Escolha uma senha nova</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Olá, {firstName}. Você entrou como <strong className="text-foreground">{session.user.email}</strong>.</p>
+        <h1 className="font-display text-large-title font-bold tracking-tight">Escolha uma senha nova</h1>
 
         <div className="mt-6">
           <ChangePasswordForm session={session} requireCurrent={false} submitLabel="Salvar e continuar" onDone={() => setSession(sessionAfterPasswordChange(session))} />

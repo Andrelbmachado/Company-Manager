@@ -15,9 +15,8 @@ it("renderiza um componente compartilhado no jsdom", async () => {
   document.body.appendChild(container);
   const root = createRoot(container);
   await act(async () => {
-    root.render(<EmptyState title="Nenhum cliente" description="Cadastre o primeiro cliente." />);
+    root.render(<EmptyState title="Nenhum cliente" />);
   });
   expect(container.textContent).toContain("Nenhum cliente");
-  expect(container.textContent).toContain("Cadastre o primeiro cliente.");
   act(() => root.unmount());
 });

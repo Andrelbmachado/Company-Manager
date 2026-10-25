@@ -139,7 +139,7 @@ export default function FinanceCategoriesPage() {
             newRow={() => ({ kind: kindFilter || "despesa", active: 1 })}
             onSave={saveCategories}
             onRefresh={() => qc.invalidateQueries({ queryKey: ["finance_categories", companyId] })}
-            emptyMessage={kindFilter ? "Nenhuma categoria." : "Nenhuma categoria. Adicione as categorias de receita e de despesa (com código, ex.: 3, 3.1, 4, 4.1) para classificar os lançamentos e montar a DRE."}
+            emptyMessage={kindFilter ? "Nenhuma categoria" : "Nenhuma categoria"}
             actions={
               <Field label="Tipo" className="flex-row items-center gap-2">
                 <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value as "" | FinanceCategoryKind)} className={inputClass}>
@@ -155,7 +155,6 @@ export default function FinanceCategoriesPage() {
                 : undefined
             }
           />
-          <p className="text-sm text-muted-foreground">Linha da DRE vazia herda da categoria pai (ou do tipo). Categoria inativa não aparece para novos lançamentos, mas continua na DRE dos antigos.</p>
         </div>
         <div hidden={tab !== "centros"}>
           <EditableTable<CostCenterRow>
@@ -165,7 +164,7 @@ export default function FinanceCategoriesPage() {
             columns={costCenterColumns}
             onSave={saveCostCenters}
             onRefresh={() => qc.invalidateQueries({ queryKey: ["cost_centers", companyId] })}
-            emptyMessage="Nenhum centro de custo. Centros de custo separam despesas por área (ex.: Comercial, Produção, TI)."
+            emptyMessage="Nenhum centro de custo"
             rowActions={
               canDelete
                 ? (row) => <ConfirmButton label="" ariaLabel={`Excluir ${row.name}`} confirmLabel="Confirmar exclusão" icon={<Trash2 size={15} aria-hidden="true" />} busy={remove.isPending} onConfirm={() => remove.mutate({ type: "costCenter", id: row.id })} />

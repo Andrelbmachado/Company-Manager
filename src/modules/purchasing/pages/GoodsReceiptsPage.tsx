@@ -125,16 +125,13 @@ export default function GoodsReceiptsPage() {
         loading={receiptsQuery.isLoading}
         onSave={save}
         onRefresh={() => qc.invalidateQueries({ queryKey: ["goods_receipts", companyId] })}
-        emptyMessage={receipts.length ? "Nenhum recebimento neste filtro. Mude a busca ou o status." : "Nenhum recebimento. Adicione um recebimento escolhendo o pedido de compra aprovado quando a mercadoria chegar."}
+        emptyMessage={receipts.length ? "Nenhum recebimento neste filtro" : "Nenhum recebimento"}
         rowActions={(row) => (
           <button type="button" className={BUTTON} onClick={() => select(row.id)} aria-label={`Ficha de ${row.number}`}>
             <FileText size={14} aria-hidden="true" /> Ficha
           </button>
         )}
       />
-      <p className="text-sm text-muted-foreground">
-        Recebimento novo dá entrada de tudo o que falta do pedido, no local de entrada do pedido, e gera as contas a pagar. Para receber em parte ou escolher o local de cada item, use Receber mercadoria na tela do pedido.
-      </p>
 
       {selected && (
         <ReceiptPanel
@@ -200,9 +197,6 @@ function ReceiptPanel({ receipt, supplier, orderLabel, canReverse, canSeePayable
         {receipt.reversed_at && <InfoItem label="Estornado em" value={formatDay(receipt.reversed_at)} />}
       </InfoGrid>
       {receipt.notes && <p className="whitespace-pre-wrap text-sm">{receipt.notes}</p>}
-      {canReverse && receipt.status === "conferido" && (
-        <p className="text-xs text-muted-foreground">Estornar tira a mercadoria do estoque, faz o pedido voltar a esperar esses itens e cancela as contas a pagar deste recebimento. Não dá para estornar com conta já paga ou sem saldo no estoque.</p>
-      )}
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Itens recebidos</h3>

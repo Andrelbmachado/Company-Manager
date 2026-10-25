@@ -55,8 +55,7 @@ export default function InvoicePage() {
         <PageHeader title="Nova fatura" />
         <EmptyState
           icon={Receipt}
-          title="Faturas nascem dos pedidos de venda"
-          description="Abra um pedido confirmado e use Faturar (ou Adicionar na lista de faturas): a fatura copia os itens e gera as parcelas em contas a receber."
+          title="Fature pelo pedido"
           action={<button type="button" className={PRIMARY} onClick={() => navigate("/sales")}>Ver pedidos de venda</button>}
         />
       </div>
@@ -120,7 +119,7 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       <div className="space-y-5">
         <BackLink />
         <PageHeader title="Fatura" />
-        <EmptyState icon={Receipt} title="Fatura não encontrada" description={query.error ? errorMessage(query.error) : "Ela pode ter sido excluída."} />
+        <EmptyState icon={Receipt} title={query.error ? errorMessage(query.error) : "Fatura não encontrada"} />
       </div>
     );
   }
@@ -137,7 +136,6 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       <BackLink />
       <PageHeader
         title={`Fatura ${label}`}
-        description={customer ? `${customer.name} · emitida em ${formatDay(invoice.issue_date)}` : `Emitida em ${formatDay(invoice.issue_date)}`}
         actions={
           <>
             {canSeeFinance && status !== "cancelada" && <Link to="/finance" className={BUTTON}>Receber no Financeiro</Link>}
@@ -150,7 +148,6 @@ function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
         <InlinePanel title={`Cancelar fatura ${label}?`} label={`Cancelar fatura ${label}`} onClose={() => setConfirmCancel(false)}>
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); cancel.mutate(label); }}>
             <Field label="Motivo" className="max-w-xl"><textarea rows={2} required className={`${INPUT} h-auto py-2`} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
-            <p className="text-xs text-muted-foreground">As parcelas em contas a receber são canceladas e o pedido pode ser faturado de novo. Só dá para cancelar se nenhuma parcela foi recebida.</p>
             <ErrorNote error={cancel.error} />
             <div className="flex gap-2">
               <button type="submit" className={DANGER} disabled={cancel.isPending || !reason.trim()}><Ban size={14} /> Cancelar fatura</button>

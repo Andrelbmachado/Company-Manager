@@ -71,13 +71,8 @@ export function UsersAccess() {
     <div className="space-y-4 rounded-xl border bg-card p-5">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted"><Users size={18} className="text-muted-foreground" /></div>
-        <div>
-          <h3 className="text-sm font-bold">Usuários e acessos</h3>
-          <p className="text-xs text-muted-foreground">
-            O papel da conta define quais telas o colaborador vê. Conta nova recebe uma senha temporária.
-            {pendingCount > 0 && ` ${pendingCount === 1 ? "1 conta ainda precisa" : `${pendingCount} contas ainda precisam`} trocar a senha.`}
-          </p>
-        </div>
+        <h3 className="text-sm font-bold">Usuários e acessos</h3>
+        {pendingCount > 0 && <span className="text-xs text-muted-foreground">{pendingCount === 1 ? "1 troca de senha pendente" : `${pendingCount} trocas de senha pendentes`}</span>}
       </div>
 
       <EditableTable<UserAccessRow>
@@ -97,7 +92,7 @@ export function UsersAccess() {
             </button>
           ) : null
         }
-        emptyMessage="Nenhuma conta nesta empresa."
+        emptyMessage="Nenhuma conta nesta empresa"
       />
 
       {logins.length > 0 && (
@@ -105,10 +100,9 @@ export function UsersAccess() {
           {logins.map((login) => (
             <p key={login.userId}>
               Conta de {login.name} criada. Login: <strong>{login.email}</strong> · Senha temporária: <code className="rounded bg-background px-1.5 py-0.5 font-mono">{login.password}</code>
-              {login.mustChange ? " (no primeiro acesso a pessoa escolhe outra)." : "."}
             </p>
           ))}
-          <p className="text-xs">Passe a senha para a pessoa agora: ela não aparece de novo.</p>
+          <p className="text-xs">A senha não aparece de novo.</p>
         </div>
       )}
       {notice && <p role="status" className="text-sm font-medium text-status-success dark:text-green-400">{notice}</p>}
@@ -169,7 +163,6 @@ function PasswordReset({ row, self, onCancel, onSubmit }: { row: UserAccessRow; 
           <input type="checkbox" checked={mustChange} onChange={(event) => setMustChange(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-input accent-primary" />
           <span>
             Pedir para a pessoa trocar esta senha no próximo acesso
-            <span className="block text-xs text-muted-foreground">A pessoa entra com a senha que você definiu e escolhe uma só dela antes de usar o sistema.</span>
           </span>
         </label>
       )}

@@ -19,7 +19,7 @@ export default function StockReportPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Giro de estoque" description="Giro = saídas ÷ saldo médio do período. Cobertura = quantos dias o saldo final dura no ritmo de saída." actions={<ExportButtons table={table} />} />
+      <PageHeader title="Giro de estoque" actions={<ExportButtons table={table} />} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <DateRangeFilter idPrefix="estoque" value={range} onChange={setRange} />
@@ -38,10 +38,7 @@ export default function StockReportPage() {
               <StatCard title="Itens parados" value={report.totals.idleItems} />
               <StatCard title="Valor parado" value={formatCurrency(report.totals.idleValue)} />
             </StatGrid>
-            <ReportDataTable table={table} empty={onlyIdle ? "Nenhum item parado no período." : "Nenhum item cadastrado no estoque."} />
-            <p className="text-xs text-muted-foreground">
-              Saídas não incluem transferências entre locais nem ajustes de inventário. O saldo de cada data é reconstruído a partir do saldo atual e das movimentações.
-            </p>
+            <ReportDataTable table={table} empty={onlyIdle ? "Nenhum item parado no período" : "Nenhum item cadastrado no estoque"} />
           </>
         )}
       </ReportState>

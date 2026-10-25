@@ -100,6 +100,6 @@ describe("FinanceCategoriesPage", () => {
     expect(findButton(table, "Adicionar")?.disabled).toBe(true);
     expect(view.button("Excluir Vendas")).toBeUndefined();
     await choose(view.container.querySelector("select"), "despesa");
-    await until(() => view.text().includes("Nenhuma categoria."), "filtro por tipo");
+    await until(() => view.text().includes("Nenhuma categoria"), "filtro por tipo");
   });
 });

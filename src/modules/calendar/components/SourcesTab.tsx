@@ -8,7 +8,6 @@ import { getDb } from "@/lib/db/client";
 import { confirmAction } from "@/lib/confirm";
 import { emit } from "@/lib/events/bus";
 import { canDeleteSource, canManageSource, saveSources, deleteSource, type CalendarActor, type SourceInput } from "@/lib/calendar/store";
-import { SYNC_INTERVAL_MINUTES } from "@/lib/calendar/sync";
 import { formatDateTime } from "@/lib/utils";
 import type { CalendarSource } from "@/types";
 import { COMPANY_OWNER, ownerUserId, ownerValue } from "../eventRows";
@@ -117,18 +116,14 @@ export function SourcesTab({ actor, sources, people, canEdit, syncing, loading, 
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Como pegar o link da agenda (formato iCal, .ics)</p>
+      <details className="rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground">Como pegar o link (.ics)</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>Google Agenda: Configurações → escolha a agenda → Integrar agenda → “Endereço secreto no formato iCal”.</li>
           <li>iCloud: app Calendário → compartilhar a agenda → marque “Agenda pública” → copie o link (webcal://).</li>
           <li>Outlook: Configurações → Calendário → Calendários compartilhados → Publicar um calendário → link ICS.</li>
         </ul>
-        <p className="mt-2">
-          O app lê o link ao abrir o Calendário e a cada {SYNC_INTERVAL_MINUTES} minutos, só para leitura: mudanças são feitas na agenda de origem. Os eventos aparecem para todos
-          que abrem o Calendário.
-        </p>
-      </div>
+      </details>
       {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
       <EditableTable<SourceRow>
         resource="calendar"
@@ -140,7 +135,7 @@ export function SourcesTab({ actor, sources, people, canEdit, syncing, loading, 
         onSave={save}
         onRefresh={onRefresh}
         newRow={() => ({ person: actor.userId })}
-        emptyMessage="Nenhuma agenda conectada. Use Adicionar e cole o link iCal da agenda."
+        emptyMessage="Nenhuma agenda conectada"
         rowActions={(row) => {
           const source = sources.find((item) => item.id === row.id);
           return (

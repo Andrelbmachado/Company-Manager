@@ -80,7 +80,7 @@ export default function StockLocationsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Locais de estoque" description="Depósitos, almoxarifados, lojas e veículos onde ficam os itens. Cada local tem o próprio saldo." />
+      <PageHeader title="Locais de estoque" />
       <ErrorBanner message={error} onClose={() => setError(null)} />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -99,7 +99,7 @@ export default function StockLocationsPage() {
         onSave={save}
         onRefresh={() => locationsQuery.refetch()}
         newRow={() => ({ id: uuidv4(), type: "deposito" })}
-        emptyMessage="Nenhum local cadastrado. Cadastre pelo menos um local para dar entrada, transferir e contar o estoque."
+        emptyMessage="Nenhum local cadastrado"
         rowActions={
           canDelete
             ? (row) => (

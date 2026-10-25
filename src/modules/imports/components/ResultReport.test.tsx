@@ -30,7 +30,7 @@ describe("ResultReport", () => {
   it("ordena os problemas pela linha e filtra todos os erros pela coluna e pelo texto", async () => {
     page = await renderPage(<ResultReport entity={entity} result={result} />, { companyId: "empresa-1" });
     expect(rowNumbers().slice(0, 2)).toEqual(["3", "2"]);
-    expect(page.text()).toContain("Mostrando 100 de 123 problemas");
+    expect(page.text()).toContain("100 de 123 problemas");
     await click(document.querySelector("th [data-sort-key='row']"));
     expect(rowNumbers().slice(0, 3)).toEqual(["2", "3", "10"]);
 

@@ -140,19 +140,13 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
   return (
     <section aria-label="Conectar nuvem" className="space-y-4 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Conectar nuvem</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            O app usa a pasta que o serviço já sincroniza neste Mac: não pede senha nem login. Escolha a pasta inteira ou só a subpasta da empresa.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">A pasta conectada aparece para você e para quem vê todas as pastas dos Documentos (CEO, Administração, Gerência e Auditoria).</p>
-        </div>
+        <h2 className="text-base font-semibold">Conectar nuvem</h2>
         <button type="button" onClick={onClose} aria-label="Fechar Conectar nuvem" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X size={16} /></button>
       </div>
 
       {!desktop ? (
         <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-          Conectar pastas da nuvem é do app desktop: ele lê as pastas que o iCloud Drive, o Google Drive, o OneDrive e o Dropbox sincronizam no Mac. No navegador não há acesso às pastas do computador.
+          Disponível no app desktop.
         </p>
       ) : (
         <>
@@ -162,7 +156,7 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
             </p>
           )}
           {!canConnect ? (
-            <p className="text-sm text-muted-foreground">Seu perfil consulta as pastas conectadas, mas não conecta pastas novas.</p>
+            <p className="text-sm text-muted-foreground">Sem permissão para conectar.</p>
           ) : scan.isLoading ? (
             <p className="text-sm text-muted-foreground">Procurando as pastas de nuvem deste Mac…</p>
           ) : (
@@ -176,7 +170,7 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{info.label}</p>
                       {items.length === 0 ? (
-                        <p className="mt-0.5 text-xs text-muted-foreground">Não encontrado neste Mac. {info.install}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground" title={info.install}>Não encontrado neste Mac.</p>
                       ) : (
                         <ul className="mt-1 space-y-2">
                           {items.map((item) => (
@@ -205,7 +199,7 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
                 <FolderIcon className="h-6 w-8" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{CLOUD_PROVIDERS.outro.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{CLOUD_PROVIDERS.outro.install} Depois de reabrir o app, ela pode pedir para ser escolhida de novo.</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Qualquer pasta do Mac.</p>
                 </div>
                 <button
                   type="button"
@@ -230,7 +224,7 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
             newRow={() => ({ provider: "outro" })}
             onSave={save}
             onRefresh={onChanged}
-            emptyMessage="Nenhuma pasta conectada ainda."
+            emptyMessage="Nenhuma pasta conectada"
             rowActions={(folder) =>
               canManageCloudFolder(role, userId, folder) ? (
                 <button type="button" onClick={() => void disconnect(folder)} aria-label={`Desconectar ${folder.label}`} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -239,7 +233,6 @@ export function CloudConnectPanel({ companyId, role, userId, folders, canConnect
               ) : null
             }
           />
-          <p className="text-xs text-muted-foreground">Pasta digitada fora do iCloud Drive, do Google Drive, do OneDrive e do Dropbox só abre depois de escolhida em “Outra pasta”.</p>
         </>
       )}
     </section>

@@ -158,7 +158,7 @@ export default function CatalogPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={title} description="Produtos e serviços com preço, custo e imposto, usados em vendas, compras e estoque." actions={<ImportExportButtons entity="products" onImported={() => invalidateTrade(qc)} />} />
+      <PageHeader title={title} actions={<ImportExportButtons entity="products" onImported={() => invalidateTrade(qc)} />} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard title="Itens ativos" value={activeProducts.length} />
@@ -189,7 +189,7 @@ export default function CatalogPage() {
         onSave={save}
         onRefresh={() => refreshTrade(qc)}
         newRow={() => ({ kind: "produto", unit: "un", cost: 0, tax_rate: 0, active: 1 })}
-        emptyMessage={products.length ? "Nenhum item encontrado: mude a busca ou os filtros." : "Catálogo vazio: use Adicionar para cadastrar produtos e serviços."}
+        emptyMessage={products.length ? "Nenhum item encontrado" : "Catálogo vazio"}
         rowActions={(row) => (
           <>
             <button type="button" className={ROW_ACTION} aria-label={`Detalhes de ${row.name}`} aria-pressed={selectedId === row.id} onClick={() => setSelectedId(selectedId === row.id ? null : row.id)}>
@@ -232,7 +232,7 @@ export default function CatalogPage() {
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold">Estoque</h3>
                 {!linkedItem ? (
-                  <p className="text-sm text-muted-foreground">Sem item de estoque: vendas não dão baixa e compras não dão entrada.</p>
+                  <p className="text-sm text-muted-foreground">Sem item de estoque.</p>
                 ) : (
                   <>
                     <p className="text-sm">
@@ -255,7 +255,7 @@ export default function CatalogPage() {
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Preços nas tabelas</h3>
               {selectedPrices.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma tabela tem preço especial para este item; vale o preço do catálogo.</p>
+                <p className="text-sm text-muted-foreground">Sem preço especial.</p>
               ) : (
                 <ul className="divide-y rounded-lg border text-sm">
                   {selectedPrices.map((item) => (

@@ -90,7 +90,7 @@ export function EventsTab({ actor, events, people, canEdit, loading, onRefresh }
         onSave={save}
         onRefresh={onRefresh}
         newRow={() => ({ kind: "evento", all_day: 1, start_day: todayIn(), person: actor.userId })}
-        emptyMessage="Nenhum evento criado no app. Use Adicionar ou clique num dia do calendário."
+        emptyMessage="Nenhum evento"
         rowActions={(row) => {
           const event = local.find((item) => item.id === row.id);
           return event && canDeleteEvent(actor, event) ? (
@@ -100,10 +100,6 @@ export function EventsTab({ actor, events, people, canEdit, loading, onRefresh }
           ) : null;
         }}
       />
-      <p className="text-xs text-muted-foreground">
-        Horas no horário de Brasília (09:30, 9h30). Com Dia inteiro marcado, Fim é o último dia e as horas são ignoradas. Ausências aprovadas no RH aparecem no calendário e são
-        alteradas no RH.
-      </p>
     </div>
   );
 }

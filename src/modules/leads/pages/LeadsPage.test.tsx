@@ -116,8 +116,8 @@ describe("Prospecção: várias campanhas e cards enxutos", () => {
     await until(() => campaignSelect(page.container)?.value === created!.id && kpi(page.container, "Leads") === "0", "campanha nova escolhida");
     expect(kpi(page.container, "Potencial no 1º ano")).toBe("R$ 0");
     expect(page.text()).not.toContain("Pet Shop Alfa");
-    // Campanha nova: a lista vazia explica como trazer leads, sem o texto antigo do seed ("primeiro acesso do CEO...").
-    await until(() => page.text().includes("Esta prospecção ainda não tem leads"), "lista vazia da campanha nova");
+    // Campanha nova: lista vazia curta, sem o texto antigo do seed ("primeiro acesso do CEO...").
+    await until(() => page.text().includes("Nenhum lead"), "lista vazia da campanha nova");
     expect(page.text()).not.toContain("primeiro acesso");
   });
 

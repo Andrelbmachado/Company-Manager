@@ -130,13 +130,11 @@ export function WinDialog({ opportunity, proposalId, onClose, onWon }: WinDialog
               </option>
             ))}
           </select>
-          <span className="block text-xs font-normal text-muted-foreground">A proposta escolhida fica como aceita.</span>
         </label>
         <label className="flex items-start gap-2">
           <input type="checkbox" checked={canCreateOrder && createOrder && !!chosenProposal} disabled={!canCreateOrder || !chosenProposal} onChange={(event) => setCreateOrder(event.target.checked)} className="mt-0.5" />
           <span>
             Gerar pedido de venda em rascunho com os itens da proposta
-            {!canCreateOrder && <span className="block text-xs text-muted-foreground">Seu papel não cria pedidos de venda; o setor de vendas pode gerar depois.</span>}
           </span>
         </label>
         {mutation.error && <p role="alert" className="text-destructive">{errorText(mutation.error)}</p>}

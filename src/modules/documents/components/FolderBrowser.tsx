@@ -173,13 +173,12 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
 
       {creatingFolder && (
         <form onSubmit={createFolder} aria-label="Nova pasta" className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
-          <label className="min-w-[14rem] flex-1 space-y-1 text-xs font-medium">
-            Nome da pasta, dentro de /{path.join("/")}
+          <label className="min-w-0 flex-1 space-y-1 text-xs font-medium sm:min-w-[14rem]">
+            Nome da pasta
             <input value={folderName} onChange={(event) => setFolderName(event.target.value)} aria-label="Nome da pasta" placeholder="Ex.: Contratos 2026" required autoFocus className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
           </label>
           <button type="button" onClick={() => { setCreatingFolder(false); setFolderName(""); }} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">Cancelar</button>
           <button type="submit" className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">Criar e abrir</button>
-          <p className="w-full text-xs text-muted-foreground">A pasta passa a existir quando o primeiro arquivo for enviado ou registrado nela.</p>
         </form>
       )}
 
@@ -192,11 +191,10 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
             {segment} /
           </button>
         ))}
-        {canUpload && <span className="ml-auto text-xs text-muted-foreground">Envios, arquivos arrastados e linhas adicionadas vão para /{uploadFolder}</span>}
       </nav>
 
       {!getFileBackend().persistent && canUpload && (
-        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Este navegador não guarda arquivos (sem IndexedDB): os arquivos enviados somem ao recarregar a página.</p>
+        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Este navegador não guarda arquivos.</p>
       )}
       <FileUploadFeedback summary={uploads.summary} onDismiss={uploads.clear} />
 
@@ -227,7 +225,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
             loading={isLoading}
             onSave={save}
             onRefresh={() => qc.invalidateQueries({ queryKey: ["documents", companyId] }).then(() => refetch())}
-            emptyMessage={search ? "Nada encontrado." : canUpload ? "Nenhum arquivo nesta pasta. Arraste arquivos para cá, use Enviar arquivos ou Adicionar." : "Nenhum arquivo nesta pasta."}
+            emptyMessage={search ? "Nada encontrado" : canUpload ? "Nenhum arquivo nesta pasta" : "Nenhum arquivo nesta pasta"}
           />
         </>
       )}

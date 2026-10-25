@@ -144,10 +144,7 @@ export default function AssistantPage() {
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
             <Sparkles size={17} />
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold">{conversation.data?.title ?? "Assistente de IA"}</h1>
-            <p className="truncate text-xs text-muted-foreground">Contexto restrito a {ROLE_LABELS[role]}</p>
-          </div>
+          <h1 className="min-w-0 truncate text-sm font-semibold">{conversation.data?.title ?? "Assistente de IA"}</h1>
         </div>
         <Link
           to="/settings"
@@ -161,8 +158,7 @@ export default function AssistantPage() {
         {notFound ? (
           <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center px-8 text-center">
             <MessageSquareOff size={28} className="text-muted-foreground" />
-            <h2 className="mt-4 text-lg font-semibold">Conversa não encontrada</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Ela pode ter sido excluída ou ser de outra pessoa.</p>
+            <h2 className="mt-4 text-title2 font-semibold">Conversa não encontrada</h2>
             <Link to="/assistant" className="mt-5 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">
               Nova conversa
             </Link>
@@ -174,10 +170,7 @@ export default function AssistantPage() {
             <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border bg-muted/40 text-foreground">
               <Bot size={24} />
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight">Como posso ajudar?</h2>
-            <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-              Consulte dados permitidos para a sua área, resuma documentos ou anexe arquivos para contextualizar a conversa.
-            </p>
+            <h2 className="text-title1 font-semibold tracking-tight">Como posso ajudar?</h2>
             <div className="mt-8 grid w-full gap-2 sm:grid-cols-3">
               {SUGGESTIONS[role].map((suggestion) => (
                 <button
@@ -278,9 +271,6 @@ export default function AssistantPage() {
               </button>
             </div>
           </div>
-          <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            Respostas devem ser validadas antes de orientar decisões operacionais.
-          </p>
         </div>
       )}
     </div>

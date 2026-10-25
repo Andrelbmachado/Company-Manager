@@ -60,10 +60,10 @@ export function ForecastPanel({ scenarios, leads }: ForecastPanelProps) {
   const segmentView = useSortFilter(segments, segmentColumns);
 
   if (scenarios.length === 0) {
-    return <EmptyState icon={TrendingUp} title="Sem cenários de conversão cadastrados" />;
+    return <EmptyState icon={TrendingUp} title="Nenhum cenário" />;
   }
   if (leads.length === 0) {
-    return <EmptyState icon={TrendingUp} title="Nenhum lead nesta prospecção" description="A previsão aparece quando a prospecção tiver leads." />;
+    return <EmptyState icon={TrendingUp} title="Nenhum lead nesta prospecção" />;
   }
 
   return (

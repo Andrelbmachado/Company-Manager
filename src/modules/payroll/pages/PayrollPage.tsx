@@ -83,9 +83,8 @@ export default function PayrollPage() {
         loading={employeesQuery.isLoading || compensationQuery.isLoading}
         onSave={save}
         onRefresh={() => Promise.all([qc.invalidateQueries({ queryKey: ["hr", "employees", companyId] }), qc.invalidateQueries({ queryKey: ["payroll", companyId] })])}
-        emptyMessage={term ? "Nenhum colaborador encontrado." : "Nenhum colaborador. Cadastre os colaboradores em Gestão de RH."}
+        emptyMessage={term ? "Nenhum colaborador encontrado" : "Nenhum colaborador"}
       />
-      <p className="text-sm text-muted-foreground">Só a diretoria e a administração veem esta tela: o RH e o Financeiro não têm acesso. O valor do salário não vai para o histórico de atividades.</p>
     </div>
   );
 }

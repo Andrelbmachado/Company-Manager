@@ -204,7 +204,7 @@ export function ActivitiesTable({ activities, loading, entity, showEntity, title
       onSave={save}
       onRefresh={() => refreshQueries(qc, ["crm-activities", "overdue-follow-ups"])}
       newRow={() => ({ kind: "ligacao", user_id: userId, done: 0 })}
-      emptyMessage={emptyMessage ?? "Nenhuma atividade. Use Adicionar para registrar ligações, reuniões e próximos passos e não perder o follow-up."}
+      emptyMessage={emptyMessage ?? "Nenhuma atividade"}
       rowActions={(row) => {
         const href = showEntity ? entityHref(row.entity_type, row.entity_id, row.customer_id) : null;
         return (
@@ -255,7 +255,7 @@ export function ActivityTimeline({ filter, entity, showEntity, title = "Atividad
  * hora (o resultado pode ser anotado depois na tabela de atividades).
  * Também é o widget "crm.followups" da home por setor (src/modules/dashboard/pages/DashboardPage.tsx).
  */
-export function OverdueFollowUps({ userId, limit = 6, className }: { userId: string | null; limit?: number; className?: string }) {
+export function OverdueFollowUps({ userId, limit = 6, className, actions }: { userId: string | null; limit?: number; className?: string; actions?: ReactNode }) {
   const { companyId, can } = useCrmSession();
   const { names } = useCompanyUsers();
   const entityNames = useEntityNames();
@@ -287,13 +287,16 @@ export function OverdueFollowUps({ userId, limit = 6, className }: { userId: str
           <AlarmClock size={16} aria-hidden="true" /> Follow-ups atrasados
           {overdue.length > 0 && <span className="rounded-md bg-status-danger px-1.5 py-0.5 text-xs font-semibold text-white">{overdue.length}</span>}
         </h2>
-        <Link to="/crm/atividades?estado=atrasada" className={cn(LINK, "text-sm")}>Ver todas</Link>
+        <div className="flex items-center gap-2">
+          {actions}
+          <Link to="/crm/atividades?estado=atrasada" className={cn(LINK, "text-sm")}>Ver todas</Link>
+        </div>
       </div>
       {complete.error && <p role="alert" className="mt-2 text-sm text-destructive">{errorText(complete.error)}</p>}
       {isLoading ? (
         <div className="mt-4 h-16 animate-pulse rounded-lg bg-muted/30" />
       ) : overdue.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">Nenhum follow-up atrasado. Tudo em dia.</p>
+        <p className="mt-3 text-sm text-muted-foreground">Tudo em dia.</p>
       ) : (
         <ul className="mt-1 divide-y">
           {overdue.slice(0, limit).map((activity) => (

@@ -149,7 +149,7 @@ describe("Meu RH: solicitações na tabela", () => {
     await insertTestCompany(testDb());
     await employee("Teste tecnico", { email: "tecnico@teste.local" });
     page = await renderPage(<MyHrPage />, { companyId: C, role: "tecnico" });
-    await until(() => !!table() && page!.text().includes("Você ainda não fez solicitações"), "solicitações vazias");
+    await until(() => !!table() && page!.text().includes("Nenhuma solicitação"), "solicitações vazias");
     onlyTitleAndNumber();
     await click(findButton(table(), "Adicionar"));
     noDialog();

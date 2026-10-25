@@ -111,7 +111,7 @@ describe("DemoModeCard", () => {
     // Baixa de verdade (uuid) numa conta de exemplo: a conta fica, e com ela o recebimento, o pedido e o fornecedor.
     await db.execute("INSERT INTO finance_settlements (id, company_id, payable_id, amount, paid_at) VALUES ('7d2e3f40-0000-4000-8000-000000000001', ?, 'dev-payable-x', 200, '2026-10-20')", [COMPANY]);
     await open("ceo");
-    await eventually(() => /Ainda há 4 registros de exemplo/.test(page!.text()), "aviso do que sobrou");
+    await eventually(() => /Restam 4 registros de exemplo/.test(page!.text()), "aviso do que sobrou");
     expect(page!.text()).toMatch(/recebimentos de compra: 1/);
 
     vi.mocked(confirmAction).mockResolvedValue(true);
@@ -134,7 +134,7 @@ describe("DemoModeCard", () => {
     expect(toggle()?.getAttribute("aria-checked")).toBe("false");
     expect(await isDemoMode(db, COMPANY)).toBe(false);
     expect(await count(db, "customers")).toBeGreaterThan(0);
-    await eventually(() => /Ainda há [\d.]+ registros de exemplo/.test(page!.text()), "aviso do que ficou gravado", 2_000);
+    await eventually(() => /Restam [\d.]+ registros de exemplo/.test(page!.text()), "aviso do que ficou gravado", 2_000);
     expect(findButton(document, "Remover agora")).toBeDefined();
   });
 

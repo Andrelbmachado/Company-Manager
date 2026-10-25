@@ -201,7 +201,7 @@ export default function PriceListsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Tabelas de preço" description="Preços especiais por cliente, canal ou período, com faixas por quantidade. Sem preço na tabela, vale o do catálogo." />
+      <PageHeader title="Tabelas de preço" />
 
       <EditableTable<ListRow>
         resource="products"
@@ -213,7 +213,7 @@ export default function PriceListsPage() {
         onSave={saveLists}
         onRefresh={() => refreshTrade(qc)}
         newRow={() => ({ is_default: lists.length ? 0 : 1, active: 1 })}
-        emptyMessage="Nenhuma tabela de preço. Use Adicionar (ex.: Revenda) e ligue clientes a ela no CRM; os pedidos usam o preço da tabela automaticamente."
+        emptyMessage="Nenhuma tabela de preço"
         rowActions={(row) => (
           <>
             <button type="button" className={ROW_ACTION} aria-label={`Ver preços de ${row.name}`} onClick={() => setSelectedId(row.id)}>
@@ -238,8 +238,8 @@ export default function PriceListsPage() {
         <section aria-label={`Tabela ${selected.name}`} className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {selected.description || validity(selected)} ·{" "}
-            {listCustomers.length === 0 ? "Nenhum cliente ligado a esta tabela." : `Clientes: ${listCustomers.slice(0, 5).map((customer) => customer.name).join(", ")}${listCustomers.length > 5 ? ` e mais ${listCustomers.length - 5}` : ""}.`}
-            {isTrue(selected.is_default) && " Também vale para clientes sem tabela."}
+            {listCustomers.length === 0 ? "Nenhum cliente" : `Clientes: ${listCustomers.slice(0, 5).map((customer) => customer.name).join(", ")}${listCustomers.length > 5 ? ` e mais ${listCustomers.length - 5}` : ""}`}
+            {isTrue(selected.is_default) && " · Padrão"}
           </p>
           <EditableTable<ItemRow>
             key={selected.id}
@@ -251,7 +251,7 @@ export default function PriceListsPage() {
             onSave={saveItems}
             onRefresh={() => refreshTrade(qc)}
             newRow={() => ({ min_qty: 1 })}
-            emptyMessage="Esta tabela ainda não tem preços; os pedidos usam o preço do catálogo."
+            emptyMessage="Nenhum preço"
             actions={
               canEdit ? (
                 <form
@@ -284,7 +284,6 @@ export default function PriceListsPage() {
                 : undefined
             }
           />
-          <p className="text-xs text-muted-foreground">Faixas: cadastre o mesmo produto com quantidades mínimas diferentes (ex.: 1, 10, 50). No pedido vale a maior faixa alcançada.</p>
         </section>
       )}
     </div>

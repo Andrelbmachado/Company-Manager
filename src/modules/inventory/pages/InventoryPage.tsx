@@ -219,7 +219,7 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description="Itens, saldos por local e movimentações" actions={<ImportExportButtons entity="inventory" onImported={() => invalidate()} />} />
+      <PageHeader title={title} actions={<ImportExportButtons entity="inventory" onImported={() => invalidate()} />} />
 
       <ErrorBanner message={error} onClose={() => setError(null)} />
 
@@ -232,7 +232,7 @@ export default function InventoryPage() {
       {atReorderPoint > 0 && (
         <p className="text-sm">
           <AlertTriangle size={14} className="mr-1 inline text-status-danger" aria-hidden="true" />
-          {atReorderPoint} {atReorderPoint === 1 ? "item está" : "itens estão"} no ponto de reposição.{" "}
+          {atReorderPoint} no ponto de reposição ·{" "}
           <Link to="/inventory/reposicao" className="font-medium text-primary-text underline-offset-4 hover:underline">Ver sugestão de compra</Link>
         </p>
       )}
@@ -278,7 +278,7 @@ export default function InventoryPage() {
         onSave={save}
         onRefresh={() => snapshotQuery.refetch()}
         newRow={() => ({ id: uuidv4(), unit: "un", min_stock: 0, cost: 0, quantity: 0 })}
-        emptyMessage={items.length === 0 ? "Nenhum item no estoque. Use Adicionar para cadastrar; o saldo entra por Movimentações (Entrada)." : "Nenhum item encontrado."}
+        emptyMessage={items.length === 0 ? "Nenhum item no estoque" : "Nenhum item encontrado"}
         rowActions={(row) => (
           <span className="inline-flex items-center gap-1">
             <button
@@ -298,7 +298,6 @@ export default function InventoryPage() {
           </span>
         )}
       />
-      <p className="text-xs text-muted-foreground">O saldo muda só por movimentação (entrada, saída, transferência ou inventário). Item novo entra com saldo zero: lance uma Entrada em Movimentações.</p>
 
       {selectedItem && (
         <section aria-label={`Ficha de ${selectedItem.name}`} className="space-y-5 rounded-xl border bg-card p-5">

@@ -122,8 +122,8 @@ describe("Faturas", () => {
     expect(section.textContent).toContain("Nenhum registro com esses filtros.");
   });
 
-  it("'nova' explica que fatura nasce do pedido", async () => {
+  it("'nova' leva aos pedidos: fatura nasce do pedido", async () => {
     page = await mountPage({ companyId: fx.companyId, role: "financeiro", path: "/sales/faturas/nova", routes });
-    await until(() => text().includes("Faturas nascem dos pedidos de venda"), "explicação");
+    await until(() => text().includes("Fature pelo pedido") && text().includes("Ver pedidos de venda"), "atalho para os pedidos");
   });
 });

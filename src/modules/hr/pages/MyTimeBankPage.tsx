@@ -67,7 +67,7 @@ export default function MyTimeBankPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Meu banco de horas" description="Suas horas extras (crédito) e compensações (débito). O que você informa entra no saldo depois que o RH aprova." />
+      <PageHeader title="Meu banco de horas" />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Saldo" value={<span className={balanceTone(summary.balance)}>{formatMinutes(summary.balance)}</span>} />
@@ -94,7 +94,7 @@ export default function MyTimeBankPage() {
           rowActions={(entry) => entry.status === "pendente" ? (
             <button type="button" disabled={withdraw.isPending} onClick={() => withdraw.mutate(entry.id)} className={BTN_SMALL} aria-label={`Retirar lançamento de ${formatDay(entry.entry_date)}`}>Retirar</button>
           ) : null}
-          emptyMessage="Nenhum lançamento ainda. Fez hora extra? Use Adicionar (ex.: 1:30) e o RH aprova; compensação vai com sinal de menos (-2h)."
+          emptyMessage="Nenhum lançamento ainda"
         />
       </div>
       {view === "calendario" && <CalendarView items={timeEntryCalendarItems(rows, names)} label="Meu banco de horas" />}

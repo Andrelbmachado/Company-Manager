@@ -108,14 +108,13 @@ export function CalendarTab({ actor, entries, people, filterOptions, person, onP
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
           Funcionário
-          <select aria-label="Funcionário" value={person} onChange={(event) => onPersonChange(event.target.value)} className={`${FIELD} min-w-[14rem] text-foreground`}>
+          <select aria-label="Funcionário" value={person} onChange={(event) => onPersonChange(event.target.value)} className={`${FIELD} w-full min-w-0 text-foreground sm:w-56`}>
             <option value="">Todos (com os eventos da empresa)</option>
             {filterOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
-        <p className="text-xs text-muted-foreground">{canCreate ? "Clique num dia ou horário vazio para criar um evento." : "Seu perfil só consulta o calendário."}</p>
       </div>
 
       {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}

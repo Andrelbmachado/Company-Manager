@@ -43,14 +43,13 @@ export default function DuplicatesPage() {
         <PageHeader
           className="pt-2"
           title="Clientes duplicados"
-          description="Cadastros com o mesmo CNPJ/CPF, e-mail ou telefone. Ao mesclar, contatos, oportunidades, propostas, atividades, pedidos, faturas e documentos passam para o cadastro que fica."
         />
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{errorText(error)}</p>}
       {isLoading || loadingCustomers ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-32 animate-pulse rounded-xl bg-muted/30" />)}</div>
       ) : groups.length === 0 ? (
-        <EmptyState icon={Merge} title="Nenhum duplicado encontrado" description="Nenhum cliente ativo compartilha documento, e-mail ou telefone com outro." />
+        <EmptyState icon={Merge} title="Nenhum duplicado encontrado" />
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{groups.length} grupo(s) para revisar</p>
@@ -173,7 +172,7 @@ function DuplicateGroupCard({ group, customers }: { group: DuplicateGroup; custo
               <p>
                 {mergeIds.map((id) => customers.get(id)?.name ?? id).join(", ")} {mergeIds.length > 1 ? "serão mesclados" : "será mesclado"} em <strong>{keepName}</strong>.
               </p>
-              <p className="text-muted-foreground">Campos vazios de {keepName} são completados com os dos outros; todo o histórico passa para ele. Os cadastros mesclados saem da lista. Não dá para desfazer pela tela.</p>
+              <p className="text-muted-foreground">Não dá para desfazer.</p>
             </div>
           }
           confirmLabel="Mesclar"
@@ -184,7 +183,7 @@ function DuplicateGroupCard({ group, customers }: { group: DuplicateGroup; custo
         />
       )}
       <div className="sr-only" aria-live="polite">{merge.isSuccess ? "Cadastros mesclados." : ""}</div>
-      {rows.length < ids.length && <p className="px-5 pb-3 text-xs text-muted-foreground">Algum cadastro do grupo não está mais ativo; recarregue a página.</p>}
+      {rows.length < ids.length && <p className="px-5 pb-3 text-xs text-muted-foreground">Recarregue a página: o grupo mudou.</p>}
     </section>
   );
 }

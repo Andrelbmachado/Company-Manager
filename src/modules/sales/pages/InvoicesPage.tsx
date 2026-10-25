@@ -134,7 +134,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Faturas" description="Faturas emitidas a partir dos pedidos de venda. As parcelas ficam em contas a receber; a baixa é feita no Financeiro." />
+      <PageHeader title="Faturas" />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard title="A receber" value={formatCurrency(sumMoney(openRows.map((row) => row.open_amount)))} />
@@ -158,7 +158,7 @@ export default function InvoicesPage() {
         onSave={save}
         onRefresh={() => refreshTrade(qc)}
         newRow={() => ({ issue_date: today })}
-        emptyMessage={invoices.length ? "Nenhuma fatura neste filtro: mude o status ou a busca." : "Nenhuma fatura emitida. Use Adicionar e escolha um pedido confirmado: a fatura copia os itens e gera as parcelas em contas a receber."}
+        emptyMessage={invoices.length ? "Nenhuma fatura neste filtro" : "Nenhuma fatura emitida"}
         rowActions={(row) => (
           <button type="button" className={ROW_ACTION} aria-label={`Abrir fatura ${formatSequence("invoices", row.number)}`} onClick={() => navigate(`/sales/faturas/${row.id}`)}>
             <ExternalLink size={13} /> Abrir

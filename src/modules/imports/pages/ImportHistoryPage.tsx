@@ -80,7 +80,6 @@ export default function ImportHistoryPage() {
     <div className="space-y-5">
       <PageHeader
         title="Histórico de importações"
-        description="Cada importação e simulação feita, com o resultado e o relatório de erros."
         actions={
           can(role, "create", "imports") ? (
             <Link to="/imports" className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
@@ -107,7 +106,7 @@ export default function ImportHistoryPage() {
       {isLoading ? (
         <p className="py-10 text-center text-sm text-muted-foreground">Carregando...</p>
       ) : visible.length === 0 ? (
-        <EmptyState icon={History} title={batches.length === 0 ? "Nenhuma importação ainda" : "Nada encontrado"} description={batches.length === 0 ? "As importações e simulações aparecem aqui, com o relatório de erros." : "Mude a busca ou o filtro."} />
+        <EmptyState icon={History} title={batches.length === 0 ? "Nenhuma importação ainda" : "Nada encontrado"} />
       ) : (
         <div className="rounded-lg border">
           <TableFilterBar view={view} />

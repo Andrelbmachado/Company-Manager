@@ -90,7 +90,7 @@ export default function DrePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="DRE" description="Demonstração do resultado por competência: contas pela competência (ou emissão/vencimento), juros e descontos pelas baixas e tarifas do extrato conciliado." />
+      <PageHeader title="DRE" />
 
       <div className="flex flex-wrap items-end gap-3 border-b pb-4">
         <Field label="Mês">
@@ -122,7 +122,7 @@ export default function DrePage() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Calculando…</p>
       ) : valid && !error && empty ? (
-        <EmptyState icon={Calculator} title="Nada lançado nessa competência" description="Contas a pagar e a receber com competência (ou vencimento) no período aparecem aqui." />
+        <EmptyState icon={Calculator} title="Nada lançado nessa competência" />
       ) : (
         shown.length > 0 && (
           <div className="overflow-x-auto rounded-xl border">

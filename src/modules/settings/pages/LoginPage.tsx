@@ -94,7 +94,7 @@ export default function LoginPage() {
 
         {view === "login" ? (
           <>
-            <h1 className="text-center font-display text-[1.75rem] font-bold leading-tight tracking-tight">Entrar</h1>
+            <h1 className="text-center font-display text-large-title font-bold tracking-tight">Entrar</h1>
 
             {error && <p role="alert" className="mt-5 rounded-lg border border-status-danger bg-background px-3.5 py-2.5 text-sm font-medium text-status-danger dark:text-red-400">{error}</p>}
 
@@ -152,11 +152,8 @@ export default function LoginPage() {
         ) : (
           <>
             <button type="button" onClick={() => setView("login")} className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Voltar para entrar</button>
-            <h1 className="font-display text-[1.75rem] font-bold leading-tight tracking-tight">Esqueci minha senha</h1>
-            <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-              <p>A redefinição por e-mail ainda não está ativa neste sistema. Por enquanto, quem redefine a senha é o CEO ou a Administração da empresa, em Configurações, Usuários e acessos.</p>
-              <p>Peça a ele para redefinir a senha da conta <strong className="text-foreground">{email.trim() || "do seu e-mail"}</strong> e entre de novo com a senha nova.</p>
-            </div>
+            <h1 className="font-display text-large-title font-bold tracking-tight">Esqueci minha senha</h1>
+            <p className="mt-4 text-sm text-muted-foreground">Peça ao CEO ou à Administração para redefinir a senha.</p>
             <button type="button" onClick={() => setView("login")} className="mt-8 flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Voltar para entrar</button>
           </>
         )}

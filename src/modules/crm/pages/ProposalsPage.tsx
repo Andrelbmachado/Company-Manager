@@ -57,7 +57,6 @@ export default function ProposalsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Propostas"
-        description="Propostas comerciais com itens do catálogo, condições e PDF"
         actions={can("create", "proposals") ? <Link to="/crm/propostas/nova" className={BTN_SECONDARY}><FilePlus2 size={14} /> Proposta com itens do catálogo</Link> : undefined}
       />
 
@@ -75,7 +74,7 @@ export default function ProposalsPage() {
         </select>
       </PageToolbar>
 
-      <ProposalsTable proposals={filtered.map((row) => row.proposal)} loading={isLoading} emptyMessage={proposals.length ? "Nenhuma proposta com esses filtros: ajuste a busca." : undefined} />
+      <ProposalsTable proposals={filtered.map((row) => row.proposal)} loading={isLoading} emptyMessage={proposals.length ? "Nenhuma proposta com esses filtros" : undefined} />
     </div>
   );
 }

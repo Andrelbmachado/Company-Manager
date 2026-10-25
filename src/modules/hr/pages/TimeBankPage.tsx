@@ -105,7 +105,7 @@ export default function TimeBankPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Banco de horas da equipe" description="Horas extras (crédito) e compensações (débito) de cada colaborador. Só o que foi aprovado entra no saldo." />
+      <PageHeader title="Banco de horas da equipe" />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Saldo da equipe" value={formatMinutes(team.balance)} />
@@ -149,16 +149,15 @@ export default function TimeBankPage() {
                 <button type="button" disabled={decide.isPending} onClick={() => decide.mutate({ id: entry.id, approve: false })} className="flex items-center gap-1 rounded-md bg-status-danger px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"><X size={13} /> Recusar</button>
               </span>
             ) : null}
-            emptyMessage={onlyPending ? "Nenhum lançamento aguardando. Quando um colaborador informar horas no Meu banco de horas, aparece aqui." : "Nenhum lançamento. Adicionar lança horas já aprovadas (positivo = hora extra, negativo = compensação)."}
+            emptyMessage={onlyPending ? "Nenhum lançamento aguardando" : "Nenhum lançamento"}
           />
         </div>
         {view === "calendario" && <CalendarView items={timeEntryCalendarItems(shown, names)} label="Lançamentos do banco de horas" />}
-        <p className="text-xs text-muted-foreground">Lançado pelo RH já entra aprovado no saldo. Só lançamento em análise pode ser corrigido; para mudar um aprovado, lance um ajuste.</p>
       </section>
 
       <Panel title="Saldo por colaborador" actions={rows.length > 0 ? <TableFilterButton view={balances} /> : undefined}>
         <TableFilterBar view={balances} />
-        {rows.length === 0 ? <EmptyState title="Nenhum colaborador cadastrado" description="Cadastre os colaboradores em Gestão de RH para controlar o banco de horas." /> : (
+        {rows.length === 0 ? <EmptyState title="Nenhum colaborador cadastrado" /> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted">

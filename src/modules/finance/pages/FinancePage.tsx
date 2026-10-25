@@ -294,7 +294,7 @@ export default function FinancePage() {
             <CalendarView items={calendarItems} date={month ? `${month}-01` : undefined} label={tab === "payables" ? "Vencimentos a pagar" : "Vencimentos a receber"} onSelect={(item) => setSelected({ id: item.id, settle: false })} />
             {withoutDueDate > 0 && (
               <p className="px-1 text-sm text-muted-foreground">
-                {withoutDueDate === 1 ? "1 conta sem vencimento não aparece no calendário (veja na Lista)." : `${withoutDueDate} contas sem vencimento não aparecem no calendário (veja na Lista).`}
+                {withoutDueDate === 1 ? "1 conta sem vencimento" : `${withoutDueDate} contas sem vencimento`}
               </p>
             )}
           </div>
@@ -355,7 +355,7 @@ function EntryList({ kind, hidden, entries, loading, lookups, today, statusFilte
         newRow={() => ({ bank_account_id: lookups.defaultBankAccountId, due_date: month ? `${month}-10` : null })}
         onSave={onSave}
         onRefresh={onRefresh}
-        emptyMessage={statusFilter === "abertas" && !term && !month ? "Nada em aberto. Escolha a situação Todas para ver o histórico." : "Nenhuma conta com esses filtros."}
+        emptyMessage={statusFilter === "abertas" && !term && !month ? "Nada em aberto" : "Nenhuma conta com esses filtros"}
         rowActions={(row) => {
           const entry = byId.get(row.id);
           if (!entry) return null;
@@ -469,7 +469,6 @@ function EntryPanel({ entry, lookups, permissions, today, settleOpen, onSettleOp
         <InfoItem label="Origem" value={origin} />
         {payable && <InfoItem label="Aprovação" value={entry.approverId ? "Aprovada" : "Sem aprovação"} />}
       </InfoGrid>
-      <p className="text-xs text-muted-foreground">Descrição, valores, datas e cadastros desta conta se editam na própria tabela (botão Editar).</p>
 
       <section aria-label="Baixas" className="space-y-2">
         <h3 className="text-sm font-semibold">Baixas</h3>

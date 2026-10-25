@@ -4,13 +4,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
 import { useRequiredSession } from "@/hooks/useSession";
 import { useToday } from "@/hooks/useToday";
-import { ROLE_LABELS, can } from "@/lib/permissions/rbac";
+import { can } from "@/lib/permissions/rbac";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { ensureMyEmployee } from "@/lib/hr/queries";
 import { applyDueTerminations } from "@/lib/hr/employment";
 import { cn, formatCurrency, todayIso } from "@/lib/utils";
-import { ROLE_HOME_INTRO, isHrWidget, isPersonalWidget, roleHome, type HomeWidget } from "@/lib/dashboard/roleHomes";
+import { isHrWidget, isPersonalWidget, roleHome, type HomeWidget } from "@/lib/dashboard/roleHomes";
 import { loadHomeMetrics, seesTeamFollowUps, type HomeContext } from "@/lib/dashboard/metrics";
 import { loadDashboardOverview, type Loaded } from "@/lib/dashboard/finance";
 import { useAreaLabels } from "@/lib/labels/useLabel";
@@ -137,7 +137,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={label("module.dashboard")} description={`${ROLE_LABELS[role]} · ${session.company.name}. ${ROLE_HOME_INTRO[role]}`} />
+      <PageHeader title={label("module.dashboard")} />
 
       {overviewCards.length > 0 && (
         <section aria-labelledby="home-resumo" data-overview="" className="space-y-3">

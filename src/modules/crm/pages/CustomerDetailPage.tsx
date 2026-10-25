@@ -42,13 +42,13 @@ export default function CustomerDetailPage() {
       return (
         <div>
           <PageHeader title="Novo cliente" />
-          <EmptyState icon={UserRound} title="Sem permissão para cadastrar clientes" />
+          <EmptyState icon={UserRound} title="Sem permissão" />
         </div>
       );
     }
     return (
       <div className="space-y-6">
-        <PageHeader title="Novo cliente" description="Preencha o cadastro; depois você completa contatos, oportunidades e documentos na ficha." />
+        <PageHeader title="Novo cliente" />
         <CustomerForm onClose={() => navigate("/crm")} onSaved={(newId) => navigate(`/crm/clientes/${newId}`, { replace: true })} />
       </div>
     );
@@ -96,7 +96,7 @@ function CustomerRecord({ id }: { id: string }) {
     return (
       <div>
         <PageHeader title="Ficha do cliente" />
-        <EmptyState icon={UserRound} title="Cliente não encontrado" description="Ele pode ter sido excluído." action={<Link to="/crm" className={BTN_SECONDARY}><ArrowLeft size={14} /> Voltar aos clientes</Link>} />
+        <EmptyState icon={UserRound} title="Cliente não encontrado" action={<Link to="/crm" className={BTN_SECONDARY}><ArrowLeft size={14} /> Voltar aos clientes</Link>} />
       </div>
     );
   }
@@ -107,7 +107,6 @@ function CustomerRecord({ id }: { id: string }) {
         <EmptyState
           icon={UserRound}
           title={customer.merged_into_id ? `${customer.name} foi mesclado em outro cadastro` : `${customer.name} foi excluído`}
-          description={customer.merged_into_id ? "O histórico dele (contatos, oportunidades, propostas e atividades) agora está no cadastro que ficou." : undefined}
           action={
             customer.merged_into_id ? (
               <Link to={`/crm/clientes/${customer.merged_into_id}`} className={BTN_PRIMARY}>Abrir {merged?.name ?? "o cadastro que ficou"}</Link>
@@ -128,7 +127,6 @@ function CustomerRecord({ id }: { id: string }) {
         <PageHeader
           className="pb-3 pt-2"
           title={customer.name}
-          description={[customer.trade_name, customer.type === "PF" ? "Pessoa física" : "Pessoa jurídica", customer.segment].filter(Boolean).join(" · ")}
           actions={
             <>
               <StatusBadge status={customer.status} />
@@ -243,7 +241,7 @@ function OpportunitiesTab({ customerId, creating, onCreatingChange }: { customer
   return (
     <section className="space-y-4" aria-label="Oportunidades">
       {creating && <OpportunityForm defaults={{ customer_id: customerId }} onClose={() => onCreatingChange(false)} onSaved={(id) => setSelected(id)} />}
-      <OpportunitiesTable opportunities={own} loading={isLoading} customerId={customerId} selectedId={selected} onSelect={setSelected} emptyMessage="Nenhuma oportunidade deste cliente. Use Adicionar para abrir uma." />
+      <OpportunitiesTable opportunities={own} loading={isLoading} customerId={customerId} selectedId={selected} onSelect={setSelected} emptyMessage="Nenhuma oportunidade deste cliente" />
     </section>
   );
 }
@@ -259,7 +257,7 @@ function ProposalsTab({ customerId }: { customerId: string }) {
           <Link to={`/crm/propostas/nova?cliente=${customerId}`} className={BTN_SECONDARY}><FilePlus2 size={14} /> Proposta com itens do catálogo</Link>
         </div>
       )}
-      <ProposalsTable proposals={own} loading={isLoading} customerId={customerId} emptyMessage="Nenhuma proposta deste cliente. Use Adicionar para criar o rascunho." />
+      <ProposalsTable proposals={own} loading={isLoading} customerId={customerId} emptyMessage="Nenhuma proposta deste cliente" />
     </section>
   );
 }
@@ -297,9 +295,7 @@ function FinanceTab({ customerId, creditLimit, paymentTerms }: { customerId: str
       )}
       {!seesReceivables && (
         <p className="text-sm text-muted-foreground">
-          {creditLimit != null ? `Limite de crédito ${formatCurrency(creditLimit)}. ` : ""}
-          {paymentTerms ? `Condição de pagamento: ${paymentTerms}. ` : ""}
-          Recebimentos e valores vencidos aparecem para quem tem acesso ao financeiro.
+          {[creditLimit != null ? `Limite de crédito ${formatCurrency(creditLimit)}` : "", paymentTerms ? `Condição de pagamento: ${paymentTerms}` : ""].filter(Boolean).join(" · ")}
         </p>
       )}
     </section>

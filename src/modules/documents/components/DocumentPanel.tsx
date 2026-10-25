@@ -158,7 +158,7 @@ export function DocumentPanel({ doc, onClose, onChanged, canUpload, canEdit, can
 
       {!doc.storage_key && (
         <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          Registro antigo, só com os dados: ainda não há arquivo salvo.{canUpload ? " Use Nova versão para enviar o arquivo." : ""}
+          Sem arquivo salvo.
         </p>
       )}
       <FileUploadFeedback summary={uploads.summary} onDismiss={uploads.clear} />
@@ -178,7 +178,6 @@ export function DocumentPanel({ doc, onClose, onChanged, canUpload, canEdit, can
             Observação
             <textarea value={description} onChange={(event) => setDescription(event.target.value)} aria-label="Observação" rows={3} className={INPUT} />
           </label>
-          <p className="text-xs text-muted-foreground">O nome vale para todas as versões. Barras e caracteres proibidos em nomes de arquivo são trocados.</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setEditing(false)} className={BUTTON}>Cancelar</button>
             <button type="submit" disabled={saveData.isPending} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">

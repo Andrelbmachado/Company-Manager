@@ -89,7 +89,6 @@ describe("FileAttachments", () => {
   it("mostra o estado vazio e, sem permissão, não oferece envio", async () => {
     await render(false);
     await until(() => text().includes("Nenhum anexo"), "estado vazio");
-    expect(text()).toContain("Os arquivos deste registro vão aparecer aqui.");
     expect(container.querySelector("input[type=file]")).toBeNull();
     expect(container.querySelector('[data-entity-id="cli-1"]')).not.toBeNull();
   });
@@ -182,7 +181,7 @@ describe("FileAttachments", () => {
     expect(shown.startsWith("Ata ação ação")).toBe(true);
     expect(shown).not.toContain("Ã");
     expect(longText.startsWith(shown)).toBe(true);
-    expect(preview()!.textContent).toContain("Mostrando os primeiros 256 KB");
+    expect(preview()!.textContent).toContain("Primeiros 256 KB");
     expect(document.querySelector("iframe")).toBeNull();
   });
 });

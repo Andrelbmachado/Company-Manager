@@ -146,7 +146,7 @@ export default function RecurringEntriesPage() {
         newRow={() => ({ kind: "pagar", frequency: "mensal", start_date: today, active: 1 })}
         onSave={save}
         onRefresh={() => qc.invalidateQueries({ queryKey: ["recurring_entries", companyId] })}
-        emptyMessage="Nenhuma recorrência. Adicione o que se repete (aluguel, internet, contratos de clientes) para as contas do mês aparecerem sozinhas."
+        emptyMessage="Nenhuma recorrência"
         rowActions={(row) => (
           <span className="flex justify-end gap-1.5">
             {canEdit && (
@@ -160,9 +160,6 @@ export default function RecurringEntriesPage() {
           </span>
         )}
       />
-      <p className="text-sm text-muted-foreground">
-        Ao abrir o financeiro, as contas do mês são geradas sozinhas, sem duplicar: o primeiro lançamento sai no mês atual (ou no início, se for depois). Semanal: uma conta a cada 7 dias a partir do início.
-      </p>
     </div>
   );
 }

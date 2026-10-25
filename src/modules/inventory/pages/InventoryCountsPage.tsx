@@ -119,7 +119,7 @@ export default function InventoryCountsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Inventário" description="Contagens físicas por local. Ao concluir, as diferenças viram ajustes de estoque (falta e sobra)." />
+      <PageHeader title="Inventário" />
 
       <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, local ou observação...">
         <div role="group" aria-label="Filtrar por situação" className="flex gap-1">
@@ -147,14 +147,13 @@ export default function InventoryCountsPage() {
         onSave={save}
         onRefresh={() => countsQuery.refetch()}
         newRow={() => ({ id: uuidv4(), status: "aberta" as const, location_id: locations.find((location) => !location.open_count_id)?.id ?? "" })}
-        emptyMessage={counts.length === 0 ? "Nenhuma contagem ainda. Use Adicionar para abrir uma contagem num local." : "Nenhuma contagem encontrada."}
+        emptyMessage={counts.length === 0 ? "Nenhuma contagem ainda" : "Nenhuma contagem encontrada"}
         rowActions={(row) => (
           <Link to={`/inventory/inventarios/${row.id}`} className="rounded-md px-2 py-1 text-xs text-primary-text hover:bg-muted">
             {row.status === "aberta" ? "Contar" : "Ver folha"}
           </Link>
         )}
       />
-      <p className="text-xs text-muted-foreground">A contagem entra com todos os itens que têm saldo no local e o saldo do sistema de cada um. Depois de contar, conclua na folha para ajustar o estoque.</p>
     </div>
   );
 }

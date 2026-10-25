@@ -36,7 +36,7 @@ export default function SalesReportPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Relatório de vendas" description="Pedidos confirmados, faturados e entregues no período, pela data do pedido." actions={<ExportButtons table={table} />} />
+      <PageHeader title="Relatório de vendas" actions={<ExportButtons table={table} />} />
 
       <div className="flex flex-wrap items-end gap-3">
         <DateRangeFilter idPrefix="vendas" value={range} onChange={setRange} />
@@ -82,7 +82,7 @@ export default function SalesReportPage() {
                   </ResponsiveContainer>
                 </div>
               )}
-              <ReportDataTable table={table} empty="Nenhuma venda no período." />
+              <ReportDataTable table={table} empty="Nenhuma venda no período" />
             </TabPanel>
           </>
         )}

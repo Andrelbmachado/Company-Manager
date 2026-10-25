@@ -61,7 +61,7 @@ export function ChangePasswordForm({ session, requireCurrent, submitLabel = "Sal
       <div className="space-y-1.5">
         <label htmlFor={`${id}-next`} className="text-sm font-medium">Nova senha</label>
         <input id={`${id}-next`} type={type} autoComplete="new-password" value={next} onChange={(event) => { setError(""); setNext(event.target.value); }} aria-describedby={`${id}-hint`} autoFocus={!requireCurrent} className={field} />
-        <p id={`${id}-hint`} className="text-xs text-muted-foreground">Pelo menos {PASSWORD_MIN_LENGTH} caracteres. Evite repetir a senha de outros sites.</p>
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">Mínimo {PASSWORD_MIN_LENGTH} caracteres</p>
       </div>
       <div className="space-y-1.5">
         <label htmlFor={`${id}-confirm`} className="text-sm font-medium">Confirmar nova senha</label>

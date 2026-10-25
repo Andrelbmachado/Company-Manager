@@ -24,7 +24,6 @@ export default function ImportsPage() {
     <div className="space-y-5">
       <PageHeader
         title={title}
-        description="Traga planilhas (CSV ou Excel) de clientes, produtos, fornecedores, contas e mais. Linhas que já existem são atualizadas, não duplicadas."
         actions={
           can(role, "view", "imports") ? (
             <Link to="/imports/historico" className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
@@ -34,7 +33,7 @@ export default function ImportsPage() {
         }
       />
       {entities.length === 0 ? (
-        <EmptyState icon={FileUp} title="Seu perfil não importa dados" description="Peça a quem administra o sistema para importar a planilha ou liberar o cadastro para o seu perfil." />
+        <EmptyState icon={FileUp} title="Sem permissão" />
       ) : (
         <div className="rounded-xl border bg-card p-5">
           <ImportWizard key={initialEntity ?? "todos"} entities={entities} initialEntity={initialEntity} />

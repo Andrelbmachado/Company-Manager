@@ -53,9 +53,9 @@ function NewPurchaseOrder({ supplierId }: { supplierId: string }) {
   return (
     <div className="space-y-5">
       <BackLink />
-      <PageHeader title="Novo pedido de compra" description="O pedido nasce em rascunho; depois de aprovado, é enviado ao fornecedor e recebido (total ou em partes)." />
+      <PageHeader title="Novo pedido de compra" />
       {!canCreate ? (
-        <EmptyState icon={Truck} title="Sem permissão para criar pedidos de compra" description="Seu papel pode consultar os pedidos, mas não criar." />
+        <EmptyState icon={Truck} title="Sem permissão" />
       ) : (
         <PurchaseOrderEditor
           companyId={companyId}
@@ -157,7 +157,7 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
       <div className="space-y-5">
         <BackLink />
         <PageHeader title="Pedido de compra" />
-        <EmptyState icon={Truck} title="Pedido não encontrado" description={query.error ? errorMessage(query.error) : "Ele pode ter sido excluído."} />
+        <EmptyState icon={Truck} title={query.error ? errorMessage(query.error) : "Pedido não encontrado"} />
       </div>
     );
   }
@@ -183,7 +183,6 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
       <BackLink />
       <PageHeader
         title={`Pedido de compra ${label}`}
-        description={supplier ? `${supplier.name} · ${formatDay(order.order_date)}` : formatDay(order.order_date)}
         actions={
           <>
             {editable && <IconButton label="Editar dados do pedido" icon={TABLE_ICONS.edit} aria-pressed={panel === "header"} onClick={() => open("header")} />}
@@ -238,16 +237,11 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
           newRow={() => ({ qty: 1, discount: 0, tax_rate: 0 })}
           onSave={saveItems}
           onRefresh={() => qc.invalidateQueries({ queryKey: ["purchase_orders", companyId, orderId] })}
-          emptyMessage="Nenhum item."
+          emptyMessage="Nenhum item"
           rowActions={editable ? (row) => (
             <ConfirmButton label="" ariaLabel={`Remover ${row.description ?? "item"}`} confirmLabel="Confirmar remoção" icon={<Trash2 size={14} aria-hidden="true" />} busy={removeItem.isPending} onConfirm={() => removeItem.mutate(row.id)} />
           ) : undefined}
         />
-        <p className="text-sm text-muted-foreground">
-          {draft
-            ? "Custo unitário vazio usa o custo atual do item de estoque (ou do produto). Linha avulsa (sem produto) precisa de descrição e custo e não entra no estoque."
-            : "Depois de aprovado, os itens não mudam: para corrigir, cancele o pedido e crie outro."}
-        </p>
       </Section>
 
       {order.notes && (
@@ -257,14 +251,14 @@ function ExistingPurchaseOrder({ orderId }: { orderId: string }) {
       )}
 
       <Section title="Recebimentos">
-        {orderReceipts.length === 0 ? <p className="text-sm text-muted-foreground">{canReceive(order) ? "Nenhuma mercadoria recebida ainda." : draft ? "Aprove o pedido para poder receber." : "Nenhum recebimento."}</p> : (
+        {orderReceipts.length === 0 ? <p className="text-sm text-muted-foreground">{draft ? "Aguardando aprovação" : "Nenhum recebimento"}</p> : (
           <OrderReceiptsTable receipts={orderReceipts} />
         )}
       </Section>
 
       {canSeePayables && (
         <Section title="Contas a pagar">
-          {orderPayables.length === 0 ? <p className="text-sm text-muted-foreground">As contas a pagar nascem no recebimento.</p> : (
+          {orderPayables.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma conta</p> : (
             <OrderPayablesTable payables={orderPayables} />
           )}
         </Section>
@@ -497,7 +491,7 @@ function ReceivePanel({ order, items, locations, label, onDone }: { order: Purch
 
         <div className="space-y-2">
           <p className="text-sm font-medium">O que chegou</p>
-          {locations.length === 0 && <p className="text-sm text-destructive">Cadastre um local de estoque antes de receber.</p>}
+          {locations.length === 0 && <p className="text-sm text-destructive">Nenhum local de estoque</p>}
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[520px] text-sm">
               <thead className="bg-muted/30 text-xs"><tr><th className="px-3 py-2 text-left font-medium text-muted-foreground">Item</th><th className="px-3 py-2 text-right font-medium text-muted-foreground">Falta</th><th className="w-24 px-3 py-2 text-left font-medium text-muted-foreground">Recebido</th><th className="px-3 py-2 text-left font-medium text-muted-foreground">Local</th></tr></thead>
@@ -523,7 +517,6 @@ function ReceivePanel({ order, items, locations, label, onDone }: { order: Purch
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground">Deixe 0 ou vazio no que não chegou. O custo médio do item é atualizado e as contas a pagar (valor proporcional ao recebido) vão para o Financeiro.</p>
         </div>
 
         <ErrorNote error={receive.error} />
@@ -553,7 +546,6 @@ function CancelPanel({ orderId, label, onDone }: { orderId: string; label: strin
         <Field label="Motivo">
           <textarea rows={2} required value={reason} onChange={(event) => setReason(event.target.value)} className={`${INPUT} h-auto resize-none py-2`} />
         </Field>
-        <p className="text-xs text-muted-foreground">O pedido fica no histórico como cancelado. Com mercadoria recebida, estorne os recebimentos antes.</p>
         <ErrorNote error={cancel.error} />
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" className={BUTTON} onClick={onDone}>Voltar</button>

@@ -205,9 +205,9 @@ export default function ReconciliationPage() {
       <ErrorNote message={undo.error ? errorMessage(undo.error) : null} />
 
       {lookups.bankAccounts.length === 0 ? (
-        <EmptyState icon={ListChecks} title="Nenhuma conta bancária" description="Cadastre uma conta em Contas bancárias para importar o extrato." />
+        <EmptyState icon={ListChecks} title="Nenhuma conta bancária" />
       ) : !account ? (
-        <EmptyState icon={ListChecks} title="Escolha a conta bancária" description="Selecione acima a conta do extrato para conciliar." />
+        <EmptyState icon={ListChecks} title="Escolha a conta bancária" />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -235,7 +235,7 @@ export default function ReconciliationPage() {
               newRow={() => ({ posted_at: today, origin: "Lançamento manual" })}
               onSave={save}
               onRefresh={() => qc.invalidateQueries({ queryKey: ["finance", companyId, "bank-transactions", accountId] })}
-              emptyMessage={tab === "pendente" ? "Nada para conciliar. Importe o extrato do banco ou adicione um lançamento manual." : "Nenhum lançamento."}
+              emptyMessage={tab === "pendente" ? "Nada para conciliar" : "Nenhum lançamento"}
               rowActions={(row) =>
                 tab === "pendente" ? (
                   canEdit && (
@@ -248,7 +248,6 @@ export default function ReconciliationPage() {
                 )
               }
             />
-            <p className="mt-2 text-sm text-muted-foreground">Lançamento manual (ex.: caixa em dinheiro) entra como pendente para conciliar; saída com sinal de menos. Só o manual pendente muda data, descrição e valor.</p>
           </TabPanel>
         </>
       )}
@@ -304,7 +303,7 @@ function TransactionPanel({ transaction, lookups, canEdit, onClose }: { transact
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Procurando…</p>
         ) : suggestions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma conta em aberto {inflow ? "a receber" : "a pagar"}. Categorize ou ignore o lançamento.</p>
+          <p className="text-sm text-muted-foreground">Nenhuma conta em aberto {inflow ? "a receber" : "a pagar"}.</p>
         ) : (
           <ul className="divide-y rounded-lg border">
             {suggestions.map(({ entry, exact, daysApart, sameAccount }) => {
@@ -340,7 +339,6 @@ function TransactionPanel({ transaction, lookups, canEdit, onClose }: { transact
       {canEdit && (
         <section aria-label="Sem conta ligada" className="space-y-2">
           <h3 className="text-sm font-semibold">Sem conta ligada</h3>
-          <p className="text-sm text-muted-foreground">Tarifas, rendimentos e impostos debitados: escolha a categoria e o lançamento entra no caixa e na DRE. Transferências entre contas próprias: ignore.</p>
           <div className="flex flex-wrap items-end gap-2">
             <Field label="Categoria">
               <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className={inputClass}>

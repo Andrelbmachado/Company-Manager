@@ -140,7 +140,6 @@ export default function EmploymentCyclePage() {
     <div className="space-y-6">
       <PageHeader
         title="Admissões e desligamentos"
-        description="Cada entrada e cada saída tem um checklist com prazos contados a partir da data de início ou de saída."
         actions={canCreate && !terminating ? (
           <button type="button" onClick={() => { setFormError(""); setTerminating(true); }} disabled={canLeave.length === 0} className={BTN_SECONDARY}><UserMinus size={14} /> Registrar desligamento</button>
         ) : undefined}
@@ -187,25 +186,22 @@ export default function EmploymentCyclePage() {
         newRow={() => ({ contract_type: "clt" })}
         onSave={saveAdmissions}
         onRefresh={refresh}
-        emptyMessage={`Nenhuma admissão ${filter === "andamento" ? "em andamento" : "concluída"}. Adicionar inicia uma admissão com o checklist de entrada (documentos, exame, contrato, acessos, integração e avaliação de experiência).`}
+        emptyMessage="Nenhuma admissão"
       />
 
       {view === "calendario" ? (
         <CalendarView items={taskCalendarItems(shown.flatMap((item) => item.tasks), names)} label="Prazos dos checklists" />
       ) : isLoading ? <div className="h-36 animate-pulse rounded-xl border bg-card" /> : shown.length === 0 ? (
-        <EmptyState
-          title={filter === "andamento" ? "Nenhum processo em andamento" : "Nenhum processo concluído"}
-          description={filter === "andamento" && canCreate ? "Adicione uma admissão na tabela quando alguém for entrar e use “Registrar desligamento” quando alguém for sair." : undefined}
-        />
+        <EmptyState title={filter === "andamento" ? "Nenhum processo em andamento" : "Nenhum processo concluído"} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <section aria-label="Checklists de admissão" className="space-y-3">
             <h2 className="font-bold">Admissões <span className="font-normal text-muted-foreground">({admissions.length})</span></h2>
-            {admissions.length === 0 ? <p className="rounded-xl border bg-card px-5 py-6 text-sm text-muted-foreground">Nenhuma admissão {filter === "andamento" ? "em andamento" : "concluída"}.</p> : admissions.map(renderCase)}
+            {admissions.length === 0 ? <p className="rounded-xl border bg-card px-5 py-6 text-sm text-muted-foreground">Nenhuma admissão</p> : admissions.map(renderCase)}
           </section>
           <section aria-label="Desligamentos" className="space-y-3">
             <h2 className="font-bold">Desligamentos <span className="font-normal text-muted-foreground">({terminations.length})</span></h2>
-            {terminations.length === 0 ? <p className="rounded-xl border bg-card px-5 py-6 text-sm text-muted-foreground">Nenhum desligamento {filter === "andamento" ? "em andamento" : "concluído"}.</p> : terminations.map(renderCase)}
+            {terminations.length === 0 ? <p className="rounded-xl border bg-card px-5 py-6 text-sm text-muted-foreground">Nenhum desligamento</p> : terminations.map(renderCase)}
           </section>
         </div>
       )}

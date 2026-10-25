@@ -106,7 +106,7 @@ export function ProposalsTable({ proposals, loading, customerId, title = "Propos
       onSave={save}
       onRefresh={() => refreshQueries(qc, ["proposals", "proposal"])}
       newRow={() => (customerId ? { customer_id: customerId } : {})}
-      emptyMessage={emptyMessage ?? "Nenhuma proposta. Use Adicionar para criar o rascunho e abra a proposta para incluir os itens do catálogo."}
+      emptyMessage={emptyMessage ?? "Nenhuma proposta"}
       rowActions={(proposal) => (
         <button type="button" className={ROW_ACTION} aria-label={`Abrir proposta ${formatSequence("proposals", proposal.number)}`} onClick={() => navigate(`/crm/propostas/${proposal.id}`)}>
           <ExternalLink size={13} /> Abrir

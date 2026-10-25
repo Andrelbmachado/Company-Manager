@@ -53,7 +53,7 @@ export function ReferralPanel({ leads }: { leads: Lead[] }) {
       </section>
 
       {referrers.length === 0 ? (
-        <EmptyState icon={Gift} title="Nenhuma indicação registrada" description="Abra um lead e preencha o campo “Indicado por” para começar a contar." />
+        <EmptyState icon={Gift} title="Nenhuma indicação registrada" />
       ) : (
         <>
           <div className="rounded-xl border">

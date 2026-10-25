@@ -223,7 +223,7 @@ export default function HrManagePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description="Colaboradores, solicitações, comunicados e pendências. Esta área é só do RH e da diretoria; os demais setores veem o Meu RH." />
+      <PageHeader title={title} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Colaboradores ativos" value={active.length} />
@@ -265,7 +265,7 @@ export default function HrManagePage() {
                     <button type="button" disabled={decide.isPending} onClick={() => decide.mutate({ id: request.id, approve: false })} className={BTN_REFUSE}><X size={13} /> Recusar</button>
                   </span>
                 ) : null}
-                emptyMessage={filter === "pendente" ? "Nada aguardando decisão. Adicionar registra uma solicitação em nome do colaborador." : "Nenhuma solicitação."}
+                emptyMessage={filter === "pendente" ? "Nada aguardando decisão" : "Nenhuma solicitação"}
               />
             </div>
             {requestView === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Férias, folgas e atestados" />}
@@ -287,7 +287,7 @@ export default function HrManagePage() {
             onRefresh={refresh}
             actions={<ImportExportButtons entity="employees" onImported={() => void refresh()} />}
             rowActions={(employee) => <Link to={`/hr/manage/colaboradores/${employee.id}`} className="inline-block whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">{canEdit ? "Abrir ficha" : "Ver ficha"}</Link>}
-            emptyMessage="Nenhum colaborador cadastrado. Use Adicionar ou Importar."
+            emptyMessage="Nenhum colaborador cadastrado"
           />
         </TabPanel>
       </div>
@@ -307,7 +307,7 @@ export default function HrManagePage() {
             rowActions={canDelete ? (item) => (
               <button type="button" onClick={() => void removeAnnouncement(item)} aria-label={`Remover ${item.title}`} className="rounded-md border p-1.5 text-status-danger hover:bg-muted dark:text-red-400"><Trash2 size={14} /></button>
             ) : undefined}
-            emptyMessage="Nenhum comunicado. Publique avisos e políticas: todos os setores veem no Meu RH."
+            emptyMessage="Nenhum comunicado"
           />
         </TabPanel>
       </div>
@@ -327,7 +327,7 @@ export default function HrManagePage() {
                 newRow={() => ({ employee_id: "todos", status: "pendente" })}
                 onSave={saveTasks}
                 onRefresh={refresh}
-                emptyMessage="Nenhuma pendência. Peça documentos, treinamentos ou atualizações cadastrais a um colaborador ou a todos."
+                emptyMessage="Nenhuma pendência"
               />
             </div>
             {taskView === "calendario" && <CalendarView items={taskCalendarItems(tasks, names)} label="Prazos das pendências" />}

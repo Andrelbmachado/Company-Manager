@@ -215,21 +215,6 @@ export const ROLE_HOMES: Readonly<Record<Role, readonly string[]>> = {
   ],
 };
 
-/** Subtítulo da home de cada setor. */
-export const ROLE_HOME_INTRO: Readonly<Record<Role, string>> = {
-  ceo: "Visão geral: caixa, vendas, funil, pessoas e operação.",
-  admin: "Administração: contas a pagar, pessoas, acessos e backup.",
-  gerente: "Gerência: funil, aprovações de vendas, compras e contas, e a operação.",
-  tecnico: "TI e operações: chamados, ordens de serviço, custódias e trilha de ações.",
-  estoquista: "Estoque: reposição, recebimentos, inventários e custódias.",
-  financeiro: "Financeiro: vencidos, aprovações, faturas, conciliação e fluxo da semana.",
-  rh: "Recursos Humanos: solicitações, banco de horas, admissões e desligamentos.",
-  comercial: "Comercial: funil, follow-ups, propostas e vendas do mês.",
-  atendimento: "Atendimento: chamados, ordens de serviço e clientes.",
-  produtos: "Produtos: projetos, tarefas e catálogo.",
-  auditor: "Auditoria: últimas ações, vencidos, faturas e conciliação.",
-};
-
 /** O papel tem cada permissão que o widget exige (view no recurso e a ação pedida). */
 export function widgetVisible(role: Role, item: HomeWidget): boolean {
   return item.requires.length > 0 && item.requires.every((requirement) => can(role, "view", requirement.resource) && can(role, requirement.action ?? "view", requirement.resource));

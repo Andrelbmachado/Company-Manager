@@ -129,7 +129,6 @@ function ProjectsHub({ db, panel }: { db: DatabaseLike; panel: ReactNode }) {
       <div hidden={view === "painel"} className="space-y-6">
         <PageHeader
           title={title}
-          description="Nome, status, orçamento e datas se editam na tabela; o plano em etapas e as tarefas ficam na página de cada projeto. Importar e exportar do app Project Manager fica no Painel."
           actions={switcher}
           className="pb-0"
         />
@@ -155,7 +154,7 @@ function ProjectsHub({ db, panel }: { db: DatabaseLike; panel: ReactNode }) {
             rowActions={(project) => (
               <Link to={`/projects/${project.id}`} aria-label={`Abrir plano de ${project.name}`} className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted">Abrir plano</Link>
             )}
-            emptyMessage="Nenhum projeto ainda. Use Adicionar e depois abra o projeto para montar o plano em etapas."
+            emptyMessage="Nenhum projeto ainda"
           />
         </div>
         {view === "cronograma" && <CalendarView items={projectCalendarItems(projects, stages, tasks)} label="Cronograma dos projetos" />}

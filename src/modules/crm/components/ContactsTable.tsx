@@ -93,7 +93,7 @@ export function ContactsTable({ contacts, loading, customerId, title = "Contatos
         onSave={save}
         onRefresh={() => refreshQueries(qc, ["contacts", "customers"])}
         newRow={() => (customerId ? { customer_id: customerId } : {})}
-        emptyMessage={emptyMessage ?? (customerId ? "Nenhum contato. Use Adicionar para cadastrar as pessoas com quem você fala neste cliente." : "Nenhum contato. Use Adicionar ou cadastre na ficha de cada cliente.")}
+        emptyMessage={emptyMessage ?? "Nenhum contato"}
         rowActions={
           can("edit", "customers")
             ? (contact) => (

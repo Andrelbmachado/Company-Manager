@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { can, visibleModules } from "@/lib/permissions/rbac";
 import { canOpenSubpage, SUBPAGES } from "@/app/subpages";
 import { TEST_ROLES } from "@/test/sqlite";
-import { HOME_WIDGETS, ROLE_HOME_INTRO, ROLE_HOMES, isPersonalWidget, roleHome, widgetVisible, type HomeWidget } from "./roleHomes";
+import { HOME_WIDGETS, ROLE_HOMES, isPersonalWidget, roleHome, widgetVisible, type HomeWidget } from "./roleHomes";
 import type { Role } from "@/types";
 
 /** Subpágina cuja rota (com :id) casa com o caminho do widget. */
@@ -23,7 +23,6 @@ describe("roleHome", () => {
     expect(TEST_ROLES).toHaveLength(11);
     for (const role of TEST_ROLES) {
       expect(ROLE_HOMES[role], role).toBeDefined();
-      expect(ROLE_HOME_INTRO[role], role).toBeTruthy();
     }
   });
 

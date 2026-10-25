@@ -74,7 +74,7 @@ export default function MyHrPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description={`${me.name}, ${me.position ?? "colaborador"} em ${me.department ?? "sua área"}. Aqui ficam suas férias, solicitações, comunicados e pendências.`} />
+      <PageHeader title={title} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Férias disponíveis" value={`${balance.available} dias`} />
@@ -84,8 +84,7 @@ export default function MyHrPage() {
       </div>
 
       <section aria-label="Minhas solicitações" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">Peça férias, folga ou envie um atestado com Adicionar. Você pode pedir até {balance.available} dia(s) de férias.</p>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <ViewSwitch value={view} onChange={setView} label="Ver solicitações em" />
         </div>
         {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
@@ -100,7 +99,7 @@ export default function MyHrPage() {
             newRow={() => ({ type: "ferias" })}
             onSave={save}
             onRefresh={refresh}
-            emptyMessage="Você ainda não fez solicitações."
+            emptyMessage="Nenhuma solicitação"
           />
         </div>
         {view === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Minhas férias e folgas" />}
@@ -109,7 +108,7 @@ export default function MyHrPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <section className="rounded-xl border bg-card">
           <header className="border-b px-5 py-3"><h2 className="font-bold">Minhas pendências</h2></header>
-          {todos.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhuma pendência. Quando o RH precisar de algo seu, aparece aqui.</p> : (
+          {todos.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhuma pendência</p> : (
             <ul className="divide-y">
               {todos.map((todo) => {
                 const done = todo.status === "concluida";
@@ -134,7 +133,7 @@ export default function MyHrPage() {
 
         <section className="rounded-xl border bg-card">
           <header className="flex items-center gap-2 border-b px-5 py-3"><Megaphone size={16} className="text-muted-foreground" /><h2 className="font-bold">Comunicados do RH</h2></header>
-          {sortedAnnouncements.length === 0 ? <EmptyState title="Sem comunicados" description="Os avisos do RH aparecem aqui." /> : (
+          {sortedAnnouncements.length === 0 ? <EmptyState title="Sem comunicados" /> : (
             <ul className="divide-y">
               {sortedAnnouncements.map((item) => (
                 <li key={item.id} className="space-y-1.5 px-5 py-4">

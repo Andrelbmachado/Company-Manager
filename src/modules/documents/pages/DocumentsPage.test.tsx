@@ -125,7 +125,6 @@ describe("DocumentsPage", () => {
     expect(text()).toContain("Comercial");
     expect(text()).not.toContain("Financeiro");
     expect(text()).not.toContain("TI e Operações");
-    expect(text()).toContain("vão para /Comercial");
 
     const input = container.querySelector<HTMLInputElement>('input[aria-label="Escolher arquivos para enviar"]')!;
     Object.defineProperty(input, "files", { value: [new File(["olá"], "Briefing.txt", { type: "text/plain" })], configurable: true });
@@ -151,7 +150,7 @@ describe("DocumentsPage", () => {
     expect(container.querySelector('[role="dialog"]')).toBeNull();
     const drawer = () => container.querySelector("[data-document-panel]");
     await until(() => drawer()?.textContent?.includes("Versões") ?? false, "detalhe");
-    expect(drawer()!.textContent).toContain("Registro antigo, só com os dados");
+    expect(drawer()!.textContent).toContain("Sem arquivo salvo");
     const download = [...drawer()!.querySelectorAll("button")].find((element) => element.textContent?.includes("Baixar"));
     expect(download?.disabled).toBe(true);
     // comercial não tem delete em documents
@@ -220,8 +219,8 @@ describe("DocumentsPage — pastas de nuvem", () => {
     await click(buttonWith("Conectar nuvem"));
     await until(() => text().includes("OneDrive (Pessoal)"), "detecção");
     expect(text()).toContain("iCloud Drive");
-    expect(text()).toContain("Instale o Google Drive");
-    expect(text()).toContain("Instale o Dropbox");
+    expect(container.querySelector('[title^="Instale o Google Drive"]')).not.toBeNull();
+    expect(container.querySelector('[title^="Instale o Dropbox"]')).not.toBeNull();
 
     picked = home.at(...ICLOUD, "Empresa");
     await click(byLabel("Escolher pasta: iCloud Drive"));
@@ -309,7 +308,7 @@ describe("DocumentsPage — pastas de nuvem", () => {
     await until(() => container.querySelector('[data-cloud-folder="Empresa"]') !== null, "pasta conectada (Auditoria vê todas)");
     await click(buttonWith("Conectar nuvem"));
     await until(() => connectedTable()?.textContent?.includes("Empresa") ?? false, "tabela das pastas conectadas");
-    expect(text()).toContain("Seu perfil consulta as pastas conectadas, mas não conecta pastas novas.");
+    expect(text()).toContain("Sem permissão para conectar.");
     for (const label of ["Editar", "Adicionar"]) {
       expect(tableButton(label)?.disabled, label).toBe(true);
       expect(tableButton(label)?.title, label).toMatch(/não tem permissão/);

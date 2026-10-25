@@ -79,7 +79,6 @@ export default function OpportunitiesPage() {
     <div className="space-y-6">
       <PageHeader
         title={title}
-        description="Todas as oportunidades, abertas e fechadas"
         actions={
           <>
             <Link to="/crm/funil" className={BTN_SECONDARY}><Kanban size={14} /> Funil</Link>
@@ -122,7 +121,7 @@ export default function OpportunitiesPage() {
         loading={isLoading}
         selectedId={selected}
         onSelect={open}
-        emptyMessage={opportunities.length ? "Nenhuma oportunidade com esses filtros: ajuste os filtros." : undefined}
+        emptyMessage={opportunities.length ? "Nenhuma oportunidade com esses filtros" : undefined}
       />
     </div>
   );

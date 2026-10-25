@@ -121,7 +121,7 @@ export default function CustodyPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description="Peças e ativos em posse de técnicos" />
+      <PageHeader title={title} />
       <ErrorBanner message={error} onClose={() => setError(null)} />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -155,7 +155,7 @@ export default function CustodyPage() {
             onSave={save}
             onRefresh={() => custodiesQuery.refetch()}
             newRow={() => ({ id: uuidv4(), holder_id: actor.userId, quantity: 1, status: "em_custodia" as const })}
-            emptyMessage={custodies.length === 0 ? "Nenhuma custódia de peça." : "Nenhuma custódia de peça encontrada."}
+            emptyMessage={custodies.length === 0 ? "Nenhuma custódia de peça" : "Nenhuma custódia de peça encontrada"}
             rowActions={
               canDelete
                 ? (row) => (

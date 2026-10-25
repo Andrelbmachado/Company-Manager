@@ -15,9 +15,7 @@ import {
   backupAvailable,
   backupToFile,
   describeBackupError,
-  DESKTOP_ONLY_MESSAGE,
   formatBytes,
-  KEEP_AUTOMATIC_BACKUPS,
   listBackups,
   suggestedBackupFileName,
   type BackupEntry,
@@ -144,8 +142,8 @@ export default function BackupPage() {
   if (!desktop) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Backup e restauração" description="Cópias do banco de dados e dos anexos." />
-        <EmptyState icon={DatabaseBackup} title="Disponível no app desktop" description={DESKTOP_ONLY_MESSAGE} />
+        <PageHeader title="Backup e restauração" />
+        <EmptyState icon={DatabaseBackup} title="Disponível no app desktop" />
       </div>
     );
   }
@@ -158,7 +156,6 @@ export default function BackupPage() {
     <div className="space-y-6">
       <PageHeader
         title="Backup e restauração"
-        description="Cópias de todo o banco de dados (todos os módulos, inclusive a folha) e dos arquivos anexados."
         actions={
           <>
             {canCreate && (
@@ -215,7 +212,7 @@ export default function BackupPage() {
             Não foi possível listar os backups: {describeBackupError(backups.error)}
           </p>
         ) : list.length === 0 ? (
-          <EmptyState icon={DatabaseBackup} title="Nenhum backup guardado" description="O automático do dia é feito sozinho ao abrir o app; você também pode fazer um agora." />
+          <EmptyState icon={DatabaseBackup} title="Nenhum backup guardado" />
         ) : (
           <div className="rounded-xl border">
             <TableFilterToolbar view={view} />
@@ -264,16 +261,11 @@ export default function BackupPage() {
             </div>
           </div>
         )}
-        <p className="text-xs text-muted-foreground">
-          Backup automático: um por dia, feito pelo app ao abrir (e a cada hora, se ficar aberto). Guarda os {KEEP_AUTOMATIC_BACKUPS} mais recentes; os manuais ficam até você excluir.
-          {latest && ` O último foi ${BACKUP_KIND_LABELS[latest.kind].toLowerCase()}, ${formatBytes(latest.size_bytes)}.`}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Onde ficam: <span className="break-all font-mono">{folder.data ?? "pasta de dados do app"}</span>. Faça também cópias fora deste computador com Salvar cópia em...
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Restaurar substitui todos os dados do app pelos do backup e reinicia o app; antes disso fica guardada uma cópia do estado atual. Um backup corrompido ou feito por uma versão mais nova do app é recusado sem mexer nos dados atuais.
-        </p>
+        {folder.data && (
+          <p className="text-xs text-muted-foreground">
+            Pasta: <span className="break-all font-mono">{folder.data}</span>
+          </p>
+        )}
       </section>
     </div>
   );

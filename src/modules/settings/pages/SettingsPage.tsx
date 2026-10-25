@@ -31,7 +31,7 @@ export default function SettingsPage() {
     // Largura toda da área de conteúdo: seções em duas colunas na janela larga; título, contas e acessos e o rodapé
     // na linha inteira.
     <div className="grid w-full grid-cols-1 items-start gap-6 xl:grid-cols-2 [&>*:first-child]:xl:col-span-2 [&>*:last-child]:xl:col-span-2">
-      <PageHeader title="Configurações" description="Perfil, empresa e sistema" />
+      <PageHeader title="Configurações" />
 
       {/* Company card */}
       <div className="rounded-xl border bg-card p-5 space-y-4">
@@ -67,10 +67,7 @@ export default function SettingsPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
               <LockKeyhole size={18} className="text-primary-text" />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold">Senha</h3>
-              <p className="text-xs text-muted-foreground">Troque a senha que você usa para entrar.</p>
-            </div>
+            <h3 className="text-sm font-semibold">Senha</h3>
           </div>
           {!passwordOpen && (
             <button type="button" onClick={() => { setPasswordChanged(false); setPasswordOpen(true); }} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">
@@ -78,7 +75,7 @@ export default function SettingsPage() {
             </button>
           )}
         </div>
-        {passwordChanged && <p role="status" className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Senha alterada. Use a nova senha no próximo acesso.</p>}
+        {passwordChanged && <p role="status" className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Senha alterada.</p>}
         {passwordOpen && (
           <div className="max-w-sm space-y-3">
             <ChangePasswordForm session={session} requireCurrent onDone={() => { setPasswordOpen(false); setPasswordChanged(true); }} />
@@ -98,10 +95,7 @@ export default function SettingsPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
             <KeyRound size={18} className="text-primary-text" />
           </div>
-          <div>
-            <h3 className="text-sm font-semibold">Assistente IA</h3>
-            <p className="text-xs text-muted-foreground">Conexão pessoal usada somente pela sua conta.</p>
-          </div>
+          <h3 className="text-sm font-semibold">Assistente IA</h3>
         </div>
         <AssistantModeSettings />
         <div className="grid gap-3 sm:grid-cols-2">
@@ -169,9 +163,6 @@ export default function SettingsPage() {
           </button>
           {saved && <span className="text-xs text-emerald-700 dark:text-emerald-400">Configuração salva para esta conta.</span>}
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          No protótipo web a configuração fica armazenada localmente. Em produção, a chave deve ser protegida por um serviço seguro.
-        </p>
       </div>
 
       {/* Actions */}
@@ -187,7 +178,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="text-xs text-muted-foreground">
-        Company Manager v0.1.0 · Local-first · Código aberto
+        Company Manager v0.1.0
       </div>
     </div>
   );

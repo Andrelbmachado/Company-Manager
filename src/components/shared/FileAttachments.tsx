@@ -88,7 +88,7 @@ export function FileAttachments({ entityType, entityId, canEdit = false, classNa
           <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip size={15} aria-hidden="true" /> {title}</h3>
           <p className="text-xs text-muted-foreground">
             {docs.length === 1 ? "1 arquivo" : `${docs.length} arquivos`}
-            {canEdit && maxBytes ? ` · até ${formatBytes(maxBytes)} cada; arraste para cá` : ""}
+            {canEdit && maxBytes ? ` · até ${formatBytes(maxBytes)} cada` : ""}
           </p>
         </div>
         {canEdit && (
@@ -124,7 +124,7 @@ export function FileAttachments({ entityType, entityId, canEdit = false, classNa
 
       <div className="space-y-3 p-4">
         {volatile && canEdit && (
-          <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Este navegador não guarda arquivos (sem IndexedDB): os anexos somem ao recarregar a página.</p>
+          <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Este navegador não guarda arquivos.</p>
         )}
         <FileUploadFeedback summary={uploads.summary} onDismiss={uploads.clear} />
         {actionError && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionError}</p>}
@@ -139,7 +139,6 @@ export function FileAttachments({ entityType, entityId, canEdit = false, classNa
           <EmptyState
             icon={Paperclip}
             title="Nenhum anexo"
-            description={canEdit ? "Arraste arquivos para cá ou use Enviar arquivos." : "Os arquivos deste registro vão aparecer aqui."}
             className="py-6"
           />
         ) : (

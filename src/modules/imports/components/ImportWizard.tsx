@@ -261,7 +261,7 @@ export function ImportWizard({ entities, initialEntity, lockEntity, onImported, 
             {reading ? <Loader2 size={28} className="animate-spin text-muted-foreground" aria-hidden="true" /> : <FileUp size={28} className="text-muted-foreground" aria-hidden="true" />}
             <div>
               <p className="font-medium">{reading ? "Lendo o arquivo..." : "Arraste a planilha para cá"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">CSV (separado por ; ou ,) ou Excel .xlsx, até 100.000 linhas.</p>
+              <p className="mt-1 text-xs text-muted-foreground">CSV ou .xlsx</p>
             </div>
             <label className={cn(PRIMARY, "cursor-pointer", reading && "pointer-events-none opacity-50")}>
               <Upload size={14} aria-hidden="true" /> Escolher arquivo
@@ -269,7 +269,6 @@ export function ImportWizard({ entities, initialEntity, lockEntity, onImported, 
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Não tem a planilha pronta? Baixe o modelo com as colunas certas:</span>
             <button type="button" onClick={() => void downloadTemplate("xlsx")} className={BUTTON}>
               <FileSpreadsheet size={14} aria-hidden="true" /> Modelo Excel
             </button>
@@ -449,13 +448,12 @@ function PreviewTable({ entity, mapping, rows, rowNumbers, errors, total }: Prev
             <span className={rowsWithErrors ? "font-medium text-status-danger dark:text-red-400" : undefined}>
               {rowsWithErrors === 0 ? "nenhum erro nelas" : `${rowsWithErrors} com erro`}
             </span>
-            . Referências (cliente, fornecedor...) são conferidas ao simular ou importar.
           </p>
           {fields.length > 0 && <TableFilterButton view={view} />}
         </div>
       </div>
       {fields.length === 0 ? (
-        <p className="rounded-lg border px-3 py-4 text-sm text-muted-foreground">Escolha ao menos uma coluna para ver a prévia.</p>
+        <p className="rounded-lg border px-3 py-4 text-sm text-muted-foreground">Nenhuma coluna escolhida</p>
       ) : (
         <>
           <TableFilterBar view={view} className="rounded-lg border" />

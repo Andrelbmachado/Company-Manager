@@ -100,7 +100,6 @@ export default function PipelineBoardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Funil de vendas"
-        description={canEdit ? "Arraste os cartões entre as etapas. Solte em Ganho ou Perdido para fechar." : "Oportunidades por etapa"}
         actions={
           <>
             <Link to="/opportunities" className={BTN_SECONDARY}><List size={14} /> Lista</Link>

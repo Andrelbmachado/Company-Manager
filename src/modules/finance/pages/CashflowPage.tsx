@@ -143,7 +143,7 @@ export default function CashflowPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Fluxo de caixa" description="Saldo das contas bancárias com o realizado (baixas e extrato conciliado) e o previsto (contas em aberto)." />
+      <PageHeader title="Fluxo de caixa" />
 
       <div className="flex flex-wrap items-end gap-3 border-b pb-4">
         <Field label="Período">
@@ -243,7 +243,6 @@ export default function CashflowPage() {
                   </div>
                 </div>
               )}
-              {effectiveGrouping === "day" && <p className="text-xs text-muted-foreground">Dias sem movimento ficam fora da tabela. Clique num período para ver os movimentos.</p>}
 
               {selected && (
                 <section aria-label="Movimentos do período" className="space-y-2">

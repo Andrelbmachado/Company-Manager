@@ -90,7 +90,7 @@ export default function ProductDevelopmentPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description="Roadmap de produtos físicos e digitais" />
+      <PageHeader title={title} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard title="Iniciativas ativas" value={initiatives.filter(isActiveInitiative).length} />
@@ -144,7 +144,7 @@ export default function ProductDevelopmentPage() {
               <Trash2 size={14} />
             </button>
           ) : undefined}
-          emptyMessage={initiatives.length === 0 ? "Nenhuma iniciativa cadastrada. Use Adicionar." : "Nenhum produto encontrado."}
+          emptyMessage={initiatives.length === 0 ? "Nenhuma iniciativa cadastrada" : "Nenhum produto encontrado"}
         />
       </div>
       {view === "calendario" && <CalendarView items={milestoneItems(filtered)} label="Marcos das iniciativas" />}

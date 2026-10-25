@@ -31,7 +31,7 @@ export default function DreReportPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="DRE" description="Resultado por mês pelo regime de competência: receitas, deduções, custos e despesas pelo plano de contas." actions={<ExportButtons table={table} />} />
+      <PageHeader title="DRE" actions={<ExportButtons table={table} />} />
 
       <div className="flex flex-wrap items-end gap-3">
         <label className={LABEL} htmlFor="dre-ate">
@@ -86,9 +86,6 @@ export default function DreReportPage() {
             </div>
 
             <ReportDataTable table={table} />
-            <p className="text-xs text-muted-foreground">
-              Mês de cada lançamento: competência; sem ela, data de emissão; sem ela, vencimento. Contas canceladas ficam fora. Categoria sem grupo da DRE herda o do pai; sem nenhum, vale o tipo (receita ou despesa).
-            </p>
           </>
         )}
       </ReportState>

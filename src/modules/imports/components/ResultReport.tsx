@@ -132,7 +132,7 @@ export function ResultReport({ entity, result, onDownloadErrors, storedErrorsNot
           </div>
           {(view.rows.length > SHOWN_ERRORS || storedErrorsNote) && (
             <p className="text-xs text-muted-foreground">
-              {view.rows.length > SHOWN_ERRORS ? `Mostrando ${SHOWN_ERRORS} de ${view.rows.length.toLocaleString("pt-BR")} problemas; o relatório traz todos. ` : ""}
+              {view.rows.length > SHOWN_ERRORS ? `${SHOWN_ERRORS} de ${view.rows.length.toLocaleString("pt-BR")} problemas. ` : ""}
               {storedErrorsNote}
             </p>
           )}

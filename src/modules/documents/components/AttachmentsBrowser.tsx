@@ -81,7 +81,6 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
         <EmptyState
           icon={Paperclip}
           title={visible.length === 0 ? "Nenhum anexo de registro" : "Nada encontrado"}
-          description={visible.length === 0 ? "Arquivos anexados nas fichas (clientes, faturas, colaboradores...) aparecem aqui." : "Mude a busca ou o filtro."}
         />
       ) : (
         <div className="rounded-lg border">

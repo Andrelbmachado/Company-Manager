@@ -99,7 +99,7 @@ export default function AreaProfilePage() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeader title="Área da empresa" description="A área define os nomes de cards, gráficos e módulos. Ajuste qualquer rótulo na tabela." />
+      <PageHeader title="Área da empresa" />
 
       <div className="rounded-xl border bg-card p-5">
         <label className="flex max-w-sm flex-col gap-1 text-xs font-medium">

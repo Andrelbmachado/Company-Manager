@@ -86,6 +86,11 @@ pub async fn update_check(app: AppHandle, pending: State<'_, PendingUpdate>) -> 
     let result = updater(&app)?.check().await;
     let update = match result {
         Ok(update) => update,
+        // Endpoint sem release (404): o canal ainda não tem nenhuma versão publicada, então não há o que atualizar.
+        Err(tauri_plugin_updater::Error::ReleaseNotFound) => {
+            autotest_log("check_no_release");
+            None
+        }
         Err(error) => {
             autotest_log(&format!("check_error {error}"));
             return Err(error.to_string());

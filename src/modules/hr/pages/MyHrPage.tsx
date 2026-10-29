@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Circle, Megaphone } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
-import { CalendarView } from "@/components/shared/CalendarView";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiCard } from "@/components/shared/KpiCard";
@@ -14,8 +14,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn, formatDay, todayIso } from "@/lib/utils";
 import { ensureMyEmployee, fetchAnnouncements, fetchMyHrTasks, fetchMyRequests } from "@/lib/hr/queries";
 import { REQUEST_TYPES, tenureLabel, vacationBalance } from "@/lib/hr/rules";
-import { requestCalendarItems, saveRequestRows } from "@/lib/hr/tableEdits";
-import { ViewSwitch, type ListOrCalendar } from "../components/ViewSwitch";
+import { saveRequestRows } from "@/lib/hr/tableEdits";
 import type { HrRequest, Role } from "@/types";
 
 const STATUSES = [
@@ -24,6 +23,17 @@ const STATUSES = [
   { value: "recusada", label: "Recusada" },
 ];
 
+/** Data da solicitação que abre o Calendário naquele dia (quem está e quem não está na empresa). */
+function CalendarDayLink({ day }: { day: string | null | undefined }) {
+  if (!day) return null;
+  const key = day.slice(0, 10);
+  return (
+    <Link to={`/calendar?dia=${key}`} title="Ver no calendário quem estará na empresa neste dia" className="text-primary-text underline-offset-2 hover:underline">
+      {formatDay(key)}
+    </Link>
+  );
+}
+
 /** "Meu RH": a área de RH de qualquer colaborador (férias, solicitações, comunicados e pendências do próprio cadastro). */
 export default function MyHrPage() {
   const session = useRequiredSession();
@@ -31,7 +41,6 @@ export default function MyHrPage() {
   const qc = useQueryClient();
   const companyId = session.company.id;
   const today = todayIso();
-  const [view, setView] = useState<ListOrCalendar>("lista");
 
   const { data: me } = useQuery({ queryKey: ["hr", "me", companyId, session.user.id], queryFn: () => ensureMyEmployee(session) });
   const employeeId = me?.id ?? "";
@@ -39,7 +48,6 @@ export default function MyHrPage() {
   const { data: todos = [] } = useQuery({ queryKey: ["hr", "my-tasks", companyId, employeeId], queryFn: () => fetchMyHrTasks(companyId, employeeId), enabled: !!me });
   const { data: announcements = [] } = useQuery({ queryKey: ["hr", "announcements", companyId], queryFn: () => fetchAnnouncements(companyId) });
   const requests = useMemo(() => requestsQuery.data ?? [], [requestsQuery.data]);
-  const names = useMemo(() => new Map(me ? [[me.id, "Eu"]] : []), [me]);
 
   const balance = me ? vacationBalance(me, requests, Number(today.slice(0, 4))) : null;
   const openTodos = todos.filter((todo) => todo.status === "pendente");
@@ -65,8 +73,8 @@ export default function MyHrPage() {
 
   const columns: EditableColumn<HrRequest>[] = [
     { key: "type", header: "Tipo", kind: "select", options: REQUEST_TYPES, required: true },
-    { key: "start_date", header: "Início", kind: "date", required: true },
-    { key: "end_date", header: "Fim", kind: "date", required: true },
+    { key: "start_date", header: "Início", kind: "date", required: true, render: (request) => <CalendarDayLink day={request.start_date} /> },
+    { key: "end_date", header: "Fim", kind: "date", required: true, render: (request) => <CalendarDayLink day={request.end_date} /> },
     { key: "days", header: "Dias", kind: "number", readOnly: true },
     { key: "reason", header: "Motivo", kind: "text", placeholder: "opcional" },
     { key: "status", header: "Status", kind: "select", options: STATUSES, readOnly: true, render: (request) => <StatusBadge status={request.status} tone={request.status === "aprovada" ? "success" : undefined} /> },
@@ -83,26 +91,19 @@ export default function MyHrPage() {
         <KpiCard title="Tempo de empresa" value={tenureLabel(me.hire_date, today)} />
       </div>
 
-      <section aria-label="Minhas solicitações" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <ViewSwitch value={view} onChange={setView} label="Ver solicitações em" />
-        </div>
-        {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
-        <div hidden={view !== "lista"}>
-          <EditableTable<HrRequest>
-            resource="hr_self"
-            label="Minhas solicitações"
-            title="Minhas solicitações"
-            rows={requests}
-            columns={columns}
-            loading={requestsQuery.isLoading}
-            newRow={() => ({ type: "ferias" })}
-            onSave={save}
-            onRefresh={refresh}
-            emptyMessage="Nenhuma solicitação"
-          />
-        </div>
-        {view === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Minhas férias e folgas" />}
+      <section aria-label="Minhas solicitações">
+        <EditableTable<HrRequest>
+          resource="hr_self"
+          label="Minhas solicitações"
+          title="Minhas solicitações"
+          rows={requests}
+          columns={columns}
+          loading={requestsQuery.isLoading}
+          newRow={() => ({ type: "ferias" })}
+          onSave={save}
+          onRefresh={refresh}
+          emptyMessage="Nenhuma solicitação"
+        />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

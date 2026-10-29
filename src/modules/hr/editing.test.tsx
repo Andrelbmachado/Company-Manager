@@ -145,7 +145,7 @@ describe("Banco de horas: lançar e corrigir na tabela", () => {
 });
 
 describe("Meu RH: solicitações na tabela", () => {
-  it("pede férias com Adicionar (sem diálogo) e vê no calendário", async () => {
+  it("pede férias com Adicionar (sem diálogo); só lista, e a data leva ao Calendário naquele dia", async () => {
     await insertTestCompany(testDb());
     await employee("Teste tecnico", { email: "tecnico@teste.local" });
     page = await renderPage(<MyHrPage />, { companyId: C, role: "tecnico" });
@@ -159,7 +159,9 @@ describe("Meu RH: solicitações na tabela", () => {
     await until(() => page!.text().includes("1 linha salva"), "solicitação salva");
     const [request] = await testDb().select<HrRequest[]>("SELECT * FROM hr_requests WHERE company_id=?", [C]);
     expect(request).toMatchObject({ type: "ferias", start_date: "2026-11-02", end_date: "2026-11-06", status: "pendente", days: 5 });
-    await showsCalendar();
+    expect(findButton(page.container, "Calendário")).toBeUndefined();
+    await until(() => !!table()?.querySelector("a[href='/calendar?dia=2026-11-02']"), "link da data de início");
+    expect(table()?.querySelector("a[href='/calendar?dia=2026-11-06']")?.textContent).toBe("06/11/2026");
   });
 });
 
@@ -296,7 +298,6 @@ describe("Trocar de aba ou ver o calendário não perde o rascunho", () => {
   it.each([
     ["banco de horas do RH", <TimeBankPage key="rh" />, "rh" as Role],
     ["meu banco de horas", <MyTimeBankPage key="meu" />, "tecnico" as Role],
-    ["Meu RH", <MyHrPage key="meu-rh" />, "tecnico" as Role],
   ])("%s: o motivo digitado continua depois de ver o calendário", async (_name, element, role) => {
     await insertTestCompany(testDb());
     await employee("Teste tecnico", { email: "tecnico@teste.local" });

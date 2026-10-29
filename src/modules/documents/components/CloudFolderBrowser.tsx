@@ -155,7 +155,7 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
 
   return (
     <div {...drop.bind} className={cn("relative space-y-4 rounded-lg", drop.isDragging && "ring-2 ring-primary/40")}>
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar em ${folder.label}...`}>
+      <PageToolbar variant="page" search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar em ${folder.label}...`}>
         <IconButton label="Atualizar" icon={TABLE_ICONS.refresh} spinning={listing.isFetching} disabled={listing.isFetching} onClick={() => void listing.refetch()} />
         {canUpload && (
           <>

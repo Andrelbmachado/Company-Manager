@@ -31,17 +31,19 @@ export default function ContactsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Contatos" actions={<ImportExportButtons entity="contacts" onImported={() => invalidate("contacts")} />} />
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, e-mail, telefone, cliente...">
-        <select value={link} onChange={(event) => setLink(event.target.value as "" | "com" | "sem")} aria-label="Filtrar por cliente" className={SELECT}>
-          <option value="">Todos</option>
-          <option value="com">Com cliente</option>
-          <option value="sem">Sem cliente</option>
-        </select>
-      </PageToolbar>
       <ContactsTable
         contacts={filtered}
         loading={isLoading}
         emptyMessage={contacts.length ? "Nenhum contato encontrado" : undefined}
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, e-mail, telefone, cliente...">
+            <select value={link} onChange={(event) => setLink(event.target.value as "" | "com" | "sem")} aria-label="Filtrar por cliente" className={SELECT}>
+              <option value="">Todos</option>
+              <option value="com">Com cliente</option>
+              <option value="sem">Sem cliente</option>
+            </select>
+          </PageToolbar>
+        }
       />
     </div>
   );

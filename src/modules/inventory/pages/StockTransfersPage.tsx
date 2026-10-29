@@ -124,11 +124,12 @@ export default function StockTransfersPage() {
         </p>
       )}
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por local, item ou observação...">
-        <span className="text-sm text-muted-foreground">{transferCount} {transferCount === 1 ? "transferência" : "transferências"}</span>
-      </PageToolbar>
-
       <EditableTable
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por local, item ou observação...">
+            <span className="text-sm text-muted-foreground">{transferCount} {transferCount === 1 ? "transferência" : "transferências"}</span>
+          </PageToolbar>
+        }
         resource="inventory"
         label="Transferências entre locais"
         title="Itens transferidos"

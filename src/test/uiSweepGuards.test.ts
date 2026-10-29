@@ -3,6 +3,7 @@
 // - item 9: sem texto de ajuda (estado vazio curto, sem descrição; frases de instrução do pedido não voltam);
 // - item 10: toda <table> visível ordena pelo cabeçalho (SortableHeader, nada de <th> com texto) e tem filtro;
 // - item 1: parágrafo sem tamanho de título nem tamanho fixo (text-[13px]): só os tokens do tema.
+// Pedido de 2026-10-29: em tela com tabela, busca e filtros ficam na barra do topo da tabela, nada solto na página.
 // Os botões só com ícone (itens 12 e 13) estão em iconButtonsGuard.test.ts e o gráfico de linha fora do componente
 // compartilhado (itens 2 e 3) em components/shared/charts/LineAreaChart.test.tsx. project-manager fica de fora.
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -185,6 +186,37 @@ describe("item 10: toda tabela ordena pelo cabeçalho e tem filtro", () => {
           .map(({ file }) => file.path),
       ),
     ];
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("2026-10-29: filtros na barra da tabela, nenhum solto na tela", () => {
+  // Telas sem tabela (quadro do funil, grade de pastas) usam a barra de página.
+  const PAGE_BARS = new Set(["modules/crm/pages/PipelineBoardPage.tsx", "modules/documents/components/FolderBrowser.tsx", "modules/documents/components/CloudFolderBrowser.tsx"]);
+
+  it("o PageToolbar de tela com tabela fica dentro da barra da tabela (actions/toolbar), sem painel de filtros", () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      if (!file.path.startsWith("modules")) continue;
+      for (const node of elements(file, "PageToolbar")) {
+        const element = opening(node)!;
+        if (attribute(element, "onFilterClick")) offenders.push(`${where(file, node)} painel de filtros fora da tabela (onFilterClick)`);
+        const page = attribute(element, "variant")?.initializer?.getText() === '"page"';
+        if (page !== PAGE_BARS.has(file.path)) offenders.push(`${where(file, node)} ${page ? "barra de página numa tela com tabela" : "barra de tabela"}`);
+        if (page) continue;
+        // Barra de tabela: dentro de um atributo JSX (actions/toolbar) ou de uma constante passada para ele,
+        // ou no cabeçalho da tabela comum (div com border-b logo acima).
+        let parent: ts.Node | undefined = node.parent;
+        let inside = false;
+        while (parent && !inside) {
+          if (ts.isJsxAttribute(parent) || ts.isVariableDeclaration(parent)) inside = true;
+          const parentElement = opening(parent);
+          if (parentElement && className(parentElement).includes("border-b")) inside = true;
+          parent = parent.parent;
+        }
+        if (!inside) offenders.push(`${where(file, node)} filtros soltos na tela`);
+      }
+    }
     expect(offenders).toEqual([]);
   });
 });

@@ -142,13 +142,14 @@ export default function InvoicesPage() {
         <StatCard title="Faturado no mês" value={formatCurrency(sumMoney(issuedThisMonth.map((row) => Number(row.total))))} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por fatura, pedido ou cliente...">
-        <select aria-label="Filtrar por status" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className={`${INPUT} w-44`}>
-          {FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </PageToolbar>
-
       <EditableTable<InvoiceRow>
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por fatura, pedido ou cliente...">
+            <select aria-label="Filtrar por status" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className={`${INPUT} w-44`}>
+              {FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </PageToolbar>
+        }
         resource="invoices"
         title="Faturas"
         label="Faturas"

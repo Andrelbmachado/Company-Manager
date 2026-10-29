@@ -73,9 +73,10 @@ export default function PayrollPage() {
         <StatCard title="Sem salário cadastrado" value={active.length - withSalary.length} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, setor ou cargo..." />
-
       <EditableTable<CompensationRow>
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, setor ou cargo..." />
+        }
         resource="payroll"
         label="Remuneração dos colaboradores"
         rows={rows}

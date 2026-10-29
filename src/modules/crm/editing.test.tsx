@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { expectInlineEditing, expectNoDialog } from "@/test/inlineEditing";
-import { click, fieldIn, findButton, findShownButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
+import { choose, click, fieldIn, findButton, findShownButton, renderPage, type as typeInto, until, type RenderedPage } from "@/test/pageHarness";
 import { addRow, cellField, editCell, tableOf } from "@/modules/finance/testing/tableActions";
 import { createActivity } from "@/lib/crm/activities";
 import { saveProposal } from "@/lib/crm/proposals";
@@ -104,6 +104,20 @@ describe("CRM: edição direto na tabela", () => {
     await click(findButton(page.container.querySelector("[aria-label='Detalhes: Site novo']")!, "Editar oportunidade"));
     await until(() => Boolean(page!.container.querySelector("form[aria-label='Editar oportunidade Site novo']")), "edição da oportunidade no painel");
     expectNoDialog("Editar oportunidade");
+  });
+
+  it("oportunidades: filtros na barra da tabela, sem busca, e Salvar filtro só com filtro ativo", async () => {
+    page = await open("/opportunities", "/opportunities", <OpportunitiesPage />);
+    await until(() => page!.text().includes("Site novo"), "lista de oportunidades");
+    const table = page.container.querySelector("[data-editable-table=opportunities]")!;
+    for (const label of ["Filtrar por situação", "Filtrar por etapa", "Filtrar por responsável", "Segmento salvo"]) {
+      expect(table.querySelector(`select[aria-label='${label}']`), label).not.toBeNull();
+    }
+    expect(page.container.querySelector("input[aria-label^='Buscar']")).toBeNull();
+    expect(page.text()).not.toContain("Salvar filtro");
+    await choose(table.querySelector("select[aria-label='Filtrar por etapa']"), "proposta");
+    await until(() => Boolean(findShownButton(table, "Salvar filtro")), "Salvar filtro com filtro ativo");
+    expect(page.text()).toContain("Nenhuma oportunidade com esses filtros");
   });
 
   it("oportunidades: título da página vem do perfil da área (advocacia: Novos casos)", async () => {

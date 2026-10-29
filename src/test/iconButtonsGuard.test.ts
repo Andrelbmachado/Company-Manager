@@ -20,7 +20,8 @@ const files = sourceFiles(SRC).map((path) => ({ path: relative(SRC, path), text:
 
 const BUTTON_TEXT = /^(Editar|Atualizar|Adicionar)\b/;
 // "Atualizar" do atualizador do app é instalar a versão nova (pedido de 2026-10-28), não o recarregar das tabelas.
-const TEXT_BUTTON_ALLOWED = ["components/shared/updater/UpdatePanel.tsx"];
+// "Editar prospecção" é item do menu "Nova prospecção" da Prospecção, com texto pedido pelo André (2026-10-29).
+const TEXT_BUTTON_ALLOWED = ["components/shared/updater/UpdatePanel.tsx", "modules/leads/pages/LeadsPage.tsx"];
 
 function className(element: ts.JsxOpeningLikeElement): string {
   const attribute = element.attributes.properties.find((item) => ts.isJsxAttribute(item) && item.name.getText() === "className");

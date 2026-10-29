@@ -60,7 +60,6 @@ export default function InventoryPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [reorderOnly, setReorderOnly] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,7 +119,6 @@ export default function InventoryPage() {
 
   const stockValue = sumMoney(items.map((item) => lineTotal(item.total, item.cost)));
   const atReorderPoint = items.filter((item) => isAtReorderPoint(item.total, item.min_stock)).length;
-  const filtersActive = categoryFilter !== "all" || locationFilter !== "all" || reorderOnly;
 
   const columns: EditableColumn<ItemTableRow>[] = [
     {
@@ -219,7 +217,19 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} actions={<ImportExportButtons entity="inventory" onImported={() => invalidate()} />} />
+      <PageHeader
+        title={title}
+        actions={
+          <>
+            {canCreate && locations.length > 0 && (
+              <Link to="/inventory/movimentacoes" className={BUTTON_OUTLINE}>
+                <ArrowLeftRight size={14} /> Movimentar
+              </Link>
+            )}
+            <ImportExportButtons entity="inventory" onImported={() => invalidate()} />
+          </>
+        }
+      />
 
       <ErrorBanner message={error} onClose={() => setError(null)} />
 
@@ -237,41 +247,26 @@ export default function InventoryPage() {
         </p>
       )}
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar no estoque..." onFilterClick={() => setShowFilters((visible) => !visible)} filterActive={filtersActive}>
-        {canCreate && locations.length > 0 && (
-          <Link to="/inventory/movimentacoes" className={BUTTON_OUTLINE}>
-            <ArrowLeftRight size={14} /> Movimentar
-          </Link>
-        )}
-      </PageToolbar>
-
-      {showFilters && (
-        <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/20 px-4 py-3">
-          <label className="flex items-center gap-2 text-sm font-medium" htmlFor="inventory-category-filter">
-            Categoria
-            <select id="inventory-category-filter" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={SELECT}>
-              <option value="all">Todas</option>
-              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium" htmlFor="inventory-location-filter">
-            Local
-            <select id="inventory-location-filter" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={SELECT}>
-              <option value="all">Todos (saldo somado)</option>
-              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={reorderOnly} onChange={(event) => setReorderOnly(event.target.checked)} className="h-4 w-4 accent-primary" />
-            Só no ponto de reposição
-          </label>
-        </div>
-      )}
-
       <EditableTable
         resource="inventory"
         label="Itens do estoque"
         title="Itens"
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar no estoque...">
+            <select aria-label="Filtrar por categoria" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={SELECT}>
+              <option value="all">Todas as categorias</option>
+              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+            <select aria-label="Filtrar por local" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={SELECT}>
+              <option value="all">Todos os locais (saldo somado)</option>
+              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={reorderOnly} onChange={(event) => setReorderOnly(event.target.checked)} className="h-4 w-4 accent-primary" />
+              Só no ponto de reposição
+            </label>
+          </PageToolbar>
+        }
         rows={rows}
         columns={columns}
         loading={snapshotQuery.isLoading}

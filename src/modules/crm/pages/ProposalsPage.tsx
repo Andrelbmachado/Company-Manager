@@ -67,14 +67,19 @@ export default function ProposalsPage() {
         <StatCard title="Rascunhos" value={rows.filter((row) => row.status === "rascunho").length} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, título, cliente...">
-        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar por situação" className={SELECT}>
-          <option value="">Todas as situações</option>
-          {STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </PageToolbar>
-
-      <ProposalsTable proposals={filtered.map((row) => row.proposal)} loading={isLoading} emptyMessage={proposals.length ? "Nenhuma proposta com esses filtros" : undefined} />
+      <ProposalsTable
+        proposals={filtered.map((row) => row.proposal)}
+        loading={isLoading}
+        emptyMessage={proposals.length ? "Nenhuma proposta com esses filtros" : undefined}
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, título, cliente...">
+            <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar por situação" className={SELECT}>
+              <option value="">Todas as situações</option>
+              {STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </PageToolbar>
+        }
+      />
     </div>
   );
 }

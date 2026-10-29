@@ -88,63 +88,64 @@ export default function ImportHistoryPage() {
           ) : null
         }
       />
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar pelo arquivo ou cadastro...">
-        {batches.length > 0 && <TableFilterButton view={view} />}
-        {entityKeys.length > 1 && (
-          <label className="flex min-w-0 max-w-full items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Cadastro</span>
-            <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm">
-              <option value="">Todos</option>
-              {entityKeys.map((key) => (
-                <option key={key} value={key}>{entityLabel(key)}</option>
-              ))}
-            </select>
-          </label>
-        )}
-      </PageToolbar>
-
-      {isLoading ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">Carregando...</p>
-      ) : visible.length === 0 ? (
-        <EmptyState icon={History} title={batches.length === 0 ? "Nenhuma importação ainda" : "Nada encontrado"} />
-      ) : (
-        <div className="rounded-lg border">
-          <TableFilterBar view={view} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  {columns.map((column) => (
-                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "integer" ? "right" : "left"} className={TH} />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {view.rows.map((batch) => (
-                  <tr key={batch.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSelected(batch)}>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(batch); }} className="text-left font-medium hover:underline">
-                        {when(batch.created_at)}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2">{entityLabel(batch.entity)}</td>
-                    <td className="max-w-[16rem] truncate px-3 py-2 text-muted-foreground" title={batch.filename ?? undefined}>
-                      {batch.filename ?? "—"}
-                      {batch.sheet_name ? ` · ${batch.sheet_name}` : ""}
-                    </td>
-                    <td className="px-3 py-2"><StatusBadge status={batch.status} /></td>
-                    <td className="px-3 py-2 text-right tabular-nums">{batch.rows_total.toLocaleString("pt-BR")}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{batch.inserted.toLocaleString("pt-BR")}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{batch.updated.toLocaleString("pt-BR")}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{batch.rows_err.toLocaleString("pt-BR")}</td>
-                  </tr>
+      {/* Busca e filtros na barra do topo da tabela. */}
+      <div className="rounded-lg border">
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar pelo arquivo ou cadastro...">
+            {entityKeys.length > 1 && (
+              <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} aria-label="Filtrar por cadastro" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm">
+                <option value="">Todos os cadastros</option>
+                {entityKeys.map((key) => (
+                  <option key={key} value={key}>{entityLabel(key)}</option>
                 ))}
-                {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
-              </tbody>
-            </table>
-          </div>
+              </select>
+            )}
+          </PageToolbar>
+          {batches.length > 0 && <div className="ml-auto"><TableFilterButton view={view} /></div>}
         </div>
-      )}
+        {isLoading ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">Carregando...</p>
+        ) : visible.length === 0 ? (
+          <EmptyState icon={History} title={batches.length === 0 ? "Nenhuma importação ainda" : "Nada encontrado"} />
+        ) : (
+          <>
+            <TableFilterBar view={view} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                  <tr>
+                    {columns.map((column) => (
+                      <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} align={column.kind === "integer" ? "right" : "left"} className={TH} />
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.rows.map((batch) => (
+                    <tr key={batch.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSelected(batch)}>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(batch); }} className="text-left font-medium hover:underline">
+                          {when(batch.created_at)}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2">{entityLabel(batch.entity)}</td>
+                      <td className="max-w-[16rem] truncate px-3 py-2 text-muted-foreground" title={batch.filename ?? undefined}>
+                        {batch.filename ?? "—"}
+                        {batch.sheet_name ? ` · ${batch.sheet_name}` : ""}
+                      </td>
+                      <td className="px-3 py-2"><StatusBadge status={batch.status} /></td>
+                      <td className="px-3 py-2 text-right tabular-nums">{batch.rows_total.toLocaleString("pt-BR")}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{batch.inserted.toLocaleString("pt-BR")}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{batch.updated.toLocaleString("pt-BR")}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{batch.rows_err.toLocaleString("pt-BR")}</td>
+                    </tr>
+                  ))}
+                  {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
 
       {selected && <BatchDetail key={selected.id} batch={selected} onClose={() => setSelected(null)} isMine={selected.created_by === session.user.id} />}
     </div>

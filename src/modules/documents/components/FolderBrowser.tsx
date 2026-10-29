@@ -144,7 +144,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
 
   return (
     <div {...drop.bind} className={cn("relative space-y-4 rounded-lg", drop.isDragging && "ring-2 ring-primary/40")}>
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar nesta pasta e nas subpastas...">
+      <PageToolbar variant="page" search={search} onSearchChange={setSearch} searchPlaceholder="Buscar nesta pasta e nas subpastas...">
         {path.length === 0 && rootActions}
         {canCreateFolder && (
           <button type="button" onClick={() => setCreatingFolder(true)} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted">

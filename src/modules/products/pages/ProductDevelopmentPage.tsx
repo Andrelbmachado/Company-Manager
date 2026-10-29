@@ -40,7 +40,6 @@ export default function ProductDevelopmentPage() {
   const canDelete = usePermission("delete", "product_development");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | InitiativeType>("all");
-  const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<ListOrCalendar>("lista");
   const [error, setError] = useState("");
 
@@ -88,42 +87,34 @@ export default function ProductDevelopmentPage() {
     { key: "milestone_date", header: "Data do marco", kind: "date" },
   ];
 
+  // Busca e tipo na barra do topo da tabela (ou do calendário).
+  const filterBar = (
+    <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar produtos...">
+      <div role="group" aria-label="Filtrar por tipo" className="flex flex-wrap items-center gap-1">
+        {([["all", "Todos"], ["fisico", "Físicos"], ["digital", "Digitais"]] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={typeFilter === value}
+            onClick={() => setTypeFilter(value)}
+            className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-muted", typeFilter === value && "border-primary bg-primary text-primary-foreground hover:bg-primary/90")}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </PageToolbar>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader title={title} />
+      <PageHeader title={title} actions={<ViewSwitch value={view} onChange={setView} label="Ver iniciativas em" />} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard title="Iniciativas ativas" value={initiatives.filter(isActiveInitiative).length} />
         <KpiCard title="Produtos físicos" value={initiatives.filter((item) => item.type === "fisico").length} />
         <KpiCard title="Produtos digitais" value={initiatives.filter((item) => item.type === "digital").length} />
       </div>
-
-      <PageToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Buscar produtos..."
-        onFilterClick={() => setShowFilters((visible) => !visible)}
-        filterActive={typeFilter !== "all"}
-      >
-        <ViewSwitch value={view} onChange={setView} label="Ver iniciativas em" />
-      </PageToolbar>
-
-      {showFilters && (
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-4 py-3">
-          <span className="mr-1 text-sm font-medium">Tipo</span>
-          {([["all", "Todos"], ["fisico", "Físicos"], ["digital", "Digitais"]] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={typeFilter === value}
-              onClick={() => setTypeFilter(value)}
-              className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-muted", typeFilter === value && "border-primary bg-primary text-primary-foreground hover:bg-primary/90")}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
 
       {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
 
@@ -133,6 +124,7 @@ export default function ProductDevelopmentPage() {
           resource="product_development"
           label="Iniciativas de produto"
           title="Iniciativas"
+          actions={filterBar}
           rows={filtered}
           columns={columns}
           loading={query.isLoading}
@@ -147,7 +139,7 @@ export default function ProductDevelopmentPage() {
           emptyMessage={initiatives.length === 0 ? "Nenhuma iniciativa cadastrada" : "Nenhum produto encontrado"}
         />
       </div>
-      {view === "calendario" && <CalendarView items={milestoneItems(filtered)} label="Marcos das iniciativas" />}
+      {view === "calendario" && <CalendarView items={milestoneItems(filtered)} label="Marcos das iniciativas" toolbar={filterBar} />}
     </div>
   );
 }

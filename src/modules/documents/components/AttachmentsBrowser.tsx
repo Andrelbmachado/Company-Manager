@@ -62,59 +62,60 @@ export function AttachmentsBrowser({ role, companyId, canDelete }: { role: Role;
 
   return (
     <div className="space-y-4">
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por arquivo ou registro...">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Registro</span>
-          <select value={type} onChange={(event) => setType(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-            <option value="">Todos</option>
-            {types.map((entityType) => <option key={entityType} value={entityType}>{attachmentEntityLabel(entityType)}</option>)}
-          </select>
-        </label>
-        {visible.length > 0 && <TableFilterButton view={view} />}
-      </PageToolbar>
-
-      {isLoading ? (
-        <div className="space-y-2">{[0, 1, 2].map((index) => <div key={index} className="h-11 animate-pulse rounded-md bg-muted/40" />)}</div>
-      ) : error ? (
-        <p role="alert" className="text-sm text-destructive">Não foi possível carregar os anexos.</p>
-      ) : list.length === 0 ? (
-        <EmptyState
-          icon={Paperclip}
-          title={visible.length === 0 ? "Nenhum anexo de registro" : "Nada encontrado"}
-        />
-      ) : (
-        <div className="rounded-lg border">
-          <TableFilterBar view={view} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-                <tr>
-                  {columns.map((column) => (
-                    <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} className="px-3 py-2" />
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {view.rows.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-muted/30">
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={() => setSelected(doc)} aria-expanded={selected?.id === doc.id} className="flex items-center gap-2 text-left font-medium hover:underline">
-                        <FileTypeIcon name={doc.title} fileType={doc.type} size={16} className="shrink-0 text-muted-foreground" />
-                        {doc.title}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2">{ownerCell(doc)}</td>
-                    <td className="px-3 py-2">v{doc.version}</td>
-                    <td className="px-3 py-2">{doc.size_bytes ? formatBytes(doc.size_bytes) : "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{formatTimestamp(doc.created_at)}</td>
-                  </tr>
-                ))}
-                {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
-              </tbody>
-            </table>
-          </div>
+      {/* Busca e filtros na barra do topo da tabela. */}
+      <div className="rounded-lg border">
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por arquivo ou registro...">
+            <select value={type} onChange={(event) => setType(event.target.value)} aria-label="Filtrar por registro" className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+              <option value="">Todos os registros</option>
+              {types.map((entityType) => <option key={entityType} value={entityType}>{attachmentEntityLabel(entityType)}</option>)}
+            </select>
+          </PageToolbar>
+          {visible.length > 0 && <div className="ml-auto"><TableFilterButton view={view} /></div>}
         </div>
-      )}
+        {isLoading ? (
+          <div className="space-y-2 p-3">{[0, 1, 2].map((index) => <div key={index} className="h-11 animate-pulse rounded-md bg-muted/40" />)}</div>
+        ) : error ? (
+          <p role="alert" className="p-4 text-sm text-destructive">Não foi possível carregar os anexos.</p>
+        ) : list.length === 0 ? (
+          <EmptyState
+            icon={Paperclip}
+            title={visible.length === 0 ? "Nenhum anexo de registro" : "Nada encontrado"}
+          />
+        ) : (
+          <>
+            <TableFilterBar view={view} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                  <tr>
+                    {columns.map((column) => (
+                      <SortableHeader key={column.key} label={column.header} sortKey={column.key} sort={view.sort} onSort={view.toggleSort} className="px-3 py-2" />
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {view.rows.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-muted/30">
+                      <td className="px-3 py-2">
+                        <button type="button" onClick={() => setSelected(doc)} aria-expanded={selected?.id === doc.id} className="flex items-center gap-2 text-left font-medium hover:underline">
+                          <FileTypeIcon name={doc.title} fileType={doc.type} size={16} className="shrink-0 text-muted-foreground" />
+                          {doc.title}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2">{ownerCell(doc)}</td>
+                      <td className="px-3 py-2">v{doc.version}</td>
+                      <td className="px-3 py-2">{doc.size_bytes ? formatBytes(doc.size_bytes) : "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{formatTimestamp(doc.created_at)}</td>
+                    </tr>
+                  ))}
+                  {!view.rows.length && <NoFilterMatchRow colSpan={columns.length} />}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
 
       {selected && (
         <DocumentPanel

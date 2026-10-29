@@ -1,7 +1,7 @@
 // Contas a pagar e a receber: lista editável na própria tabela (Editar / Adicionar / Atualizar), visão de calendário
 // dos vencimentos, baixa total ou parcial, estorno, aprovação, cancelamento e exclusão na ficha aberta abaixo da
 // lista. As regras ficam em lib/erp (settlements, financeSetup, recurring); a tela só chama e mostra.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, CheckCircle2, FileText, HandCoins, Trash2, Undo2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
@@ -234,9 +234,38 @@ export default function FinancePage() {
     if (saved.created.length > 1) setNotice(`${saved.created.length} contas criadas.`);
   }
 
+  // Busca e filtros na barra do topo da tabela (ou do calendário).
+  const filterBar = (
+    <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar descrição, ${partyLabel.toLowerCase()} ou documento`}>
+      <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
+        Situação
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className={`${inputClass} min-w-0`}>
+          {STATUS_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      {view === "lista" && (
+        <>
+          <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
+            Vencimento em
+            <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className={`${inputClass} min-w-0 flex-1`} />
+          </label>
+          {month && <button type="button" onClick={() => setMonth("")} className={secondaryButton}>Todos os meses</button>}
+        </>
+      )}
+    </PageToolbar>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader title={title} actions={<ImportExportButtons entity={tab} onImported={() => invalidateFinance(qc, companyId)} />} />
+      <PageHeader
+        title={title}
+        actions={
+          <>
+            <ViewToggle value={view} onChange={setView} />
+            <ImportExportButtons entity={tab} onImported={() => invalidateFinance(qc, companyId)} />
+          </>
+        }
+      />
 
       {notice && <SuccessNote onClose={() => setNotice(null)}>{notice}</SuccessNote>}
 
@@ -252,25 +281,6 @@ export default function FinancePage() {
       </div>
 
       <TabPanel idPrefix="financeiro" id={tab}>
-        <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder={`Buscar descrição, ${partyLabel.toLowerCase()} ou documento`}>
-          <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
-            Situação
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className={`${inputClass} min-w-0`}>
-              {STATUS_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          {view === "lista" && (
-            <>
-              <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
-                Vencimento em
-                <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className={`${inputClass} min-w-0 flex-1`} />
-              </label>
-              {month && <button type="button" onClick={() => setMonth("")} className={secondaryButton}>Todos os meses</button>}
-            </>
-          )}
-          <ViewToggle value={view} onChange={setView} />
-        </PageToolbar>
-
         {TABS.map(({ id }) => (
           <EntryList
             key={id}
@@ -287,11 +297,12 @@ export default function FinancePage() {
             onSave={(changes) => save(KIND[id], changes)}
             onRefresh={() => qc.invalidateQueries({ queryKey: [ENTRY_RESOURCE[KIND[id]], companyId] })}
             onSelect={(entryId, settle) => setSelected({ id: entryId, settle })}
+            actions={filterBar}
           />
         ))}
         {view === "calendario" && (
           <div className="space-y-2">
-            <CalendarView items={calendarItems} date={month ? `${month}-01` : undefined} label={tab === "payables" ? "Vencimentos a pagar" : "Vencimentos a receber"} onSelect={(item) => setSelected({ id: item.id, settle: false })} />
+            <CalendarView items={calendarItems} date={month ? `${month}-01` : undefined} label={tab === "payables" ? "Vencimentos a pagar" : "Vencimentos a receber"} toolbar={filterBar} onSelect={(item) => setSelected({ id: item.id, settle: false })} />
             {withoutDueDate > 0 && (
               <p className="px-1 text-sm text-muted-foreground">
                 {withoutDueDate === 1 ? "1 conta sem vencimento" : `${withoutDueDate} contas sem vencimento`}
@@ -331,13 +342,14 @@ interface EntryListProps {
   onSave(changes: EditableTableChanges<EntryRow>): Promise<void>;
   onRefresh(): Promise<unknown>;
   onSelect(id: string, settle: boolean): void;
+  actions: ReactNode;
 }
 
 /**
  * Lista editável de um tipo de conta. As duas abas (e a lista enquanto o calendário aparece) ficam montadas e só se
  * escondem: o rascunho de uma aba não vai parar na outra nem se perde em silêncio ao trocar de aba ou de visão.
  */
-function EntryList({ kind, hidden, entries, loading, lookups, today, statusFilter, term, month, can, onSave, onRefresh, onSelect }: EntryListProps) {
+function EntryList({ kind, hidden, entries, loading, lookups, today, statusFilter, term, month, can, onSave, onRefresh, onSelect, actions }: EntryListProps) {
   const payable = kind === "payable";
   const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
   const listed = filterEntries(entries, statusFilter, term, lookups, today).filter((entry) => !month || (entry.dueDate ?? "").startsWith(month));
@@ -349,6 +361,7 @@ function EntryList({ kind, hidden, entries, loading, lookups, today, statusFilte
       <EditableTable<EntryRow>
         resource={ENTRY_RESOURCE[kind]}
         label={payable ? "Contas a pagar" : "Contas a receber"}
+        actions={actions}
         rows={rows}
         columns={columns}
         loading={loading}

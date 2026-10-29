@@ -142,9 +142,9 @@ export function CalendarView({ items, view = "month", onViewChange, date, onRang
     <section aria-label={label} className={cn("space-y-3", className)} data-calendar-view={mode}>
       {/* Hoje, Dia / Semana / Mês / Ano, setas e o período lado a lado; filtros da tela à direita. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           <button type="button" className={BUTTON} onClick={() => setFocus(today)}>Hoje</button>
-          <div role="group" aria-label="Visualização do calendário" className="inline-flex rounded-md border p-0.5">
+          <div role="group" aria-label="Visualização do calendário" className="inline-flex max-w-full flex-wrap rounded-md border p-0.5">
             {VIEWS.map((option) => (
               <button
                 key={option.id}
@@ -167,7 +167,7 @@ export function CalendarView({ items, view = "month", onViewChange, date, onRang
           </div>
           <h2 className="text-lg font-semibold" aria-live="polite">{periodTitle(mode, focus)}</h2>
         </div>
-        {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
+        {toolbar && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&_input]:max-w-full [&_select]:max-w-full">{toolbar}</div>}
       </div>
 
       {mode === "year" ? (

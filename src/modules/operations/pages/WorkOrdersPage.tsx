@@ -37,7 +37,6 @@ export default function WorkOrdersPage() {
   const [tab, setTab] = useState<Tab>("lista");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("abertas");
-  const [showFilters, setShowFilters] = useState(false);
 
   const ordersQuery = useQuery({
     queryKey: ["work-orders", companyId],
@@ -106,21 +105,19 @@ export default function WorkOrdersPage() {
       {/* A lista fica montada (escondida) com o Calendário aberto: trocar de aba não perde o que foi digitado na tabela. */}
       <div hidden={tab !== "lista"}>
         <TabPanel idPrefix="os" id="lista">
-          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, cliente ou técnico..." onFilterClick={() => setShowFilters((visible) => !visible)} filterActive={statusFilter !== "abertas"} />
-          {showFilters && (
-            <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-4 py-3">
-              <label className="text-sm font-medium" htmlFor="wo-status-filter">Status</label>
-              <select id="wo-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={SELECT}>
-                <option value="abertas">Em andamento</option>
-                <option value="all">Todas</option>
-                {WORK_ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-              </select>
-            </div>
-          )}
           <EditableTable
             resource="work_orders"
             label="Ordens de serviço"
             title="Ordens de serviço"
+            actions={
+              <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, cliente ou técnico...">
+                <select aria-label="Filtrar por status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={SELECT}>
+                  <option value="abertas">Em andamento</option>
+                  <option value="all">Todas</option>
+                  {WORK_ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                </select>
+              </PageToolbar>
+            }
             rows={filtered}
             columns={columns}
             loading={ordersQuery.isLoading}

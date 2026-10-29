@@ -142,42 +142,6 @@ export default function CrmPage() {
       )}
 
       <div className="space-y-4">
-        <PageToolbar search={filters.search ?? ""} onSearchChange={(search) => set({ search })} searchPlaceholder="Buscar por nome, e-mail, CNPJ/CPF, telefone...">
-          <select value={filters.segment ?? ""} onChange={(event) => set({ segment: event.target.value || undefined })} aria-label="Filtrar por segmento" className={SELECT}>
-            <option value="">Todos os segmentos</option>
-            {segments.map((segment) => <option key={segment} value={segment}>{segment}</option>)}
-          </select>
-          <select value={filters.tagId ?? ""} onChange={(event) => set({ tagId: event.target.value || undefined })} aria-label="Filtrar por tag" className={SELECT}>
-            <option value="">Todas as tags</option>
-            {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
-          </select>
-          <select value={filters.ownerId ?? ""} onChange={(event) => set({ ownerId: event.target.value || undefined })} aria-label="Filtrar por responsável" className={SELECT}>
-            <option value="">Todos os responsáveis</option>
-            <option value="me">Meus clientes</option>
-            <option value="none">Sem responsável</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-          </select>
-          <select value={filters.status ?? ""} onChange={(event) => set({ status: event.target.value || undefined })} aria-label="Filtrar por situação" className={SELECT}>
-            <option value="">Ativos e inativos</option>
-            <option value="active">Ativos</option>
-            <option value="inactive">Inativos</option>
-          </select>
-        </PageToolbar>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SavedViewsBar
-            entityType="customer"
-            current={filters}
-            hasFilters={hasFilters}
-            canShare={MANAGERS.has(role)}
-            onApply={(view) => setFilters(view ? parseCustomerFilters(view.filters_json) : {})}
-          />
-          {hasFilters && (
-            <button type="button" onClick={() => setFilters({})} className="text-sm text-muted-foreground hover:text-foreground">
-              Limpar filtros
-            </button>
-          )}
-        </div>
-
         {created && (
           <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
             Cliente cadastrado.
@@ -186,6 +150,41 @@ export default function CrmPage() {
         )}
         {!isLoading && customers.length > 0 && <p className="text-xs text-muted-foreground">{filtered.length} de {customers.length} clientes</p>}
         <EditableTable<Customer>
+          actions={
+            <PageToolbar search={filters.search ?? ""} onSearchChange={(search) => set({ search })} searchPlaceholder="Buscar por nome, e-mail, CNPJ/CPF, telefone...">
+              <select value={filters.segment ?? ""} onChange={(event) => set({ segment: event.target.value || undefined })} aria-label="Filtrar por segmento" className={SELECT}>
+                <option value="">Todos os segmentos</option>
+                {segments.map((segment) => <option key={segment} value={segment}>{segment}</option>)}
+              </select>
+              <select value={filters.tagId ?? ""} onChange={(event) => set({ tagId: event.target.value || undefined })} aria-label="Filtrar por tag" className={SELECT}>
+                <option value="">Todas as tags</option>
+                {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
+              </select>
+              <select value={filters.ownerId ?? ""} onChange={(event) => set({ ownerId: event.target.value || undefined })} aria-label="Filtrar por responsável" className={SELECT}>
+                <option value="">Todos os responsáveis</option>
+                <option value="me">Meus clientes</option>
+                <option value="none">Sem responsável</option>
+                {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+              <select value={filters.status ?? ""} onChange={(event) => set({ status: event.target.value || undefined })} aria-label="Filtrar por situação" className={SELECT}>
+                <option value="">Ativos e inativos</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+              <SavedViewsBar
+                entityType="customer"
+                current={filters}
+                hasFilters={hasFilters}
+                canShare={MANAGERS.has(role)}
+                onApply={(view) => setFilters(view ? parseCustomerFilters(view.filters_json) : {})}
+              />
+              {hasFilters && (
+                <button type="button" onClick={() => setFilters({})} className="text-sm text-muted-foreground hover:text-foreground">
+                  Limpar filtros
+                </button>
+              )}
+            </PageToolbar>
+          }
           resource="customers"
           title="Clientes"
           label="Clientes"

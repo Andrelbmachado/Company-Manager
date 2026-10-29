@@ -112,8 +112,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      # Windows: sem os scripts de instalação, o better-sqlite3 (só dos testes) não tenta compilar com node-gyp,
+      # que falha no runner. O build do app não usa ele.
       - name: Install frontend deps
-        run: npm ci
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then npm ci --ignore-scripts; else npm ci; fi
 
       # Canal de teste: app de teste (outro identificador e endpoint) com a versão da tag.
       - name: Configuração do canal
@@ -144,6 +148,8 @@ jobs:
 
   publish:
     needs: [prepare, build]
+    # Uma plataforma que falhar não impede publicar as outras (o latest.json só lista o que foi enviado).
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

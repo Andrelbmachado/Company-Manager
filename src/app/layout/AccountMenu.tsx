@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronUp, HeadphonesIcon, LogOut, Moon, Settings, UserRoundCog } from "lucide-react";
+import { Bell, ChevronUp, CloudDownload, HeadphonesIcon, LogOut, Moon, Settings, UserRoundCog } from "lucide-react";
 import { useRequiredSession, useSession } from "@/hooks/useSession";
 import { logout } from "@/lib/auth/login";
 import { ROLE_LABELS, visibleModules } from "@/lib/permissions/rbac";
@@ -8,12 +8,57 @@ import { getTheme, saveTheme, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 import { useDismiss } from "./useDismiss";
+import { isTauriRuntime } from "@/lib/db/client";
+import { appUpdater, type UpdateState } from "@/lib/updater/updater";
+import { useUpdateState } from "@/components/shared/updater/UpdatePanel";
 
 const ITEM = "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted";
 
+/** Resultado curto ao lado de "Verificar atualizações" (a versão nova abre o aviso com o botão Atualizar). */
+function updateHint(state: UpdateState): string | null {
+  switch (state.status) {
+    case "checking":
+      return "Verificando…";
+    case "upToDate":
+      return "Atualizado";
+    case "available":
+      return `${state.availableVersion} disponível`;
+    case "downloading":
+    case "installing":
+    case "done":
+      return "Atualizando…";
+    case "error":
+      return "Erro";
+    default:
+      return null;
+  }
+}
+
+/** Item "Verificar atualizações" do menu da conta (só no app desktop). */
+function CheckUpdatesItem() {
+  const updater = appUpdater();
+  const state = useUpdateState(updater);
+  const hint = updateHint(state);
+  const busy = ["checking", "downloading", "installing", "done"].includes(state.status);
+  return (
+    <button type="button" onClick={() => void updater.check()} disabled={busy} className={cn(ITEM, "disabled:opacity-70")}>
+      <CloudDownload size={15} className="shrink-0 text-muted-foreground" />
+      <span className="flex-1">Verificar atualizações</span>
+      {hint && (
+        <span
+          role="status"
+          className={cn("shrink-0 text-xs", state.status === "available" ? "font-medium text-primary-text" : state.status === "error" ? "text-destructive" : "text-muted-foreground")}
+        >
+          {hint}
+        </span>
+      )}
+    </button>
+  );
+}
+
 /**
  * Botão da conta no rodapé da sidebar (onde ficava o assistente). O menu abre para cima: nome e papel, Configurações
- * da conta, Notificações (com contador), switch Tema escuro, Suporte, Trocar usuário e Sair.
+ * da conta, Notificações (com contador), switch Tema escuro, Verificar atualizações (desktop), Suporte, Trocar usuário e Sair.
  */
 export function AccountMenu({ collapsed }: { collapsed: boolean }) {
   const session = useRequiredSession();
@@ -178,6 +223,8 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
                 />
               </button>
             </div>
+
+            {isTauriRuntime() && <CheckUpdatesItem />}
 
             {modules.includes("support") && (
               <button type="button" onClick={() => go("/support")} className={ITEM}>

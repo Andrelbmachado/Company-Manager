@@ -10,6 +10,14 @@ import { AppShell } from "./AppShell";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
 vi.mock("@/hooks/useProspectingBootstrap", () => ({ useProspectingBootstrap: () => undefined }));
+// "Verificar atualizações" no menu da conta chama o comando update_check do Rust.
+const tauri = vi.hoisted(() => ({
+  invoke: vi.fn(async (command: string) => {
+    if (command === "update_check") return { currentVersion: "0.1.0", availableVersion: "0.2.0", notes: null, date: null };
+    throw new Error(`comando ${command} indisponível no teste`);
+  }),
+}));
+vi.mock("@tauri-apps/api/core", async (original) => ({ ...(await original<object>()), invoke: tauri.invoke }));
 
 // O cmdk (busca) rola o item selecionado com scrollIntoView, que o jsdom não tem.
 Element.prototype.scrollIntoView ??= function scrollIntoView() {};
@@ -96,6 +104,16 @@ describe("AppShell", () => {
 
     await click(notifications);
     expect(page!.text()).toMatch(/Novo ticket aguardando atendimento/);
+  });
+
+  it("Verificar atualizações no menu da conta consulta o canal e mostra a versão disponível", async () => {
+    await openShell();
+    await click(byName(sidebar(), "Abrir menu da conta"));
+    const check = [...sidebar().querySelectorAll("button")].find((button) => button.textContent?.includes("Verificar atualizações"));
+    expect(check).toBeDefined();
+    await click(check!);
+    await until(() => /0\.2\.0 disponível/.test(page!.text()), "versão disponível no menu");
+    expect(tauri.invoke).toHaveBeenCalledWith("update_check");
   });
 
   it("com o menu da conta aberto, os itens vêm depois do botão (Tab a partir dele entra no menu, na ordem)", async () => {

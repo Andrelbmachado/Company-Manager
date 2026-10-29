@@ -89,7 +89,7 @@ export function WeekGrid({ days, today, positioned, nowMinute, hourHeight = 48, 
                 height: ALL_DAY_ROW - 3,
               }}
               className={cn(
-                "absolute truncate rounded border-l-[3px] border-l-foreground/40 bg-muted px-1.5 text-left text-xs font-medium hover:bg-accent",
+                "absolute truncate rounded bg-muted px-1.5 text-left text-xs font-medium hover:bg-accent",
                 entry.continuesBefore && "rounded-l-none",
                 entry.continuesAfter && "rounded-r-none",
               )}
@@ -137,7 +137,7 @@ export function WeekGrid({ days, today, positioned, nowMinute, hourHeight = 48, 
                           left: `calc(${(entry.column / entry.columns) * 100}% + 2px)`,
                           width: `calc(${100 / entry.columns}% - 4px)`,
                         }}
-                        className="absolute flex flex-col overflow-hidden rounded border-l-[3px] border-l-foreground/40 bg-muted px-1.5 py-0.5 text-left text-xs shadow-sm ring-1 ring-card hover:bg-accent"
+                        className="absolute flex flex-col overflow-hidden rounded bg-muted px-1.5 py-0.5 text-left text-xs shadow-sm ring-1 ring-card hover:bg-accent"
                       >
                         <span className="truncate font-medium">{entry.item.title}</span>
                         {height >= 32 && <span className="truncate tabular-nums text-muted-foreground">{time}</span>}

@@ -2,10 +2,12 @@
 // eventos criados no app e agendas conectadas por link iCal (Google Agenda, iCloud, Outlook). Sincroniza as agendas
 // ao abrir a tela e a cada 15 minutos; "Exportar agenda da empresa" salva um .ics para importar em outra agenda.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, RefreshCw } from "lucide-react";
+import { CalendarSync, ChevronDown, Download, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { TabList, TabPanel } from "@/components/shared/Tabs";
+import { isDayKey } from "@/components/shared/calendar/layout";
+import { useDismiss } from "@/app/layout/useDismiss";
 import { usePermission } from "@/hooks/usePermission";
 import { useRequiredSession } from "@/hooks/useSession";
 import { defaultCalendarFetcher } from "@/lib/calendar/fetcher";
@@ -16,19 +18,9 @@ import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { saveBlobAs } from "@/lib/files/saveAs";
 import { useLabel } from "@/lib/labels/useLabel";
-import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 import { CalendarTab } from "../components/CalendarTab";
-import { EventsTab } from "../components/EventsTab";
 import { SourcesTab, type PersonOption } from "../components/SourcesTab";
-
-type TabId = "calendario" | "agendas" | "eventos";
-
-const TABS: readonly { id: TabId; label: string }[] = [
-  { id: "calendario", label: "Calendário" },
-  { id: "agendas", label: "Agendas conectadas" },
-  { id: "eventos", label: "Eventos do app" },
-];
 
 /** Ao abrir a tela, pula as agendas lidas com sucesso há menos que isso (ir e voltar de tela não baixa tudo de novo). */
 const OPEN_SYNC_MINUTES = 5;
@@ -58,7 +50,11 @@ export default function CalendarPage() {
   const data = useQuery({ queryKey: dataKey, queryFn: async () => loadCalendarData(await getDb(), companyId) });
   const users = useQuery({ queryKey: ["calendar", companyId, "users"], queryFn: async () => fetchCompanyUsers(await getDb(), companyId) });
 
-  const [tab, setTab] = useState<TabId>("calendario");
+  const [params] = useSearchParams();
+  const focusDay = params.get("dia");
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const sourcesMenu = useRef<HTMLDivElement>(null);
+  useDismiss(sourcesMenu, sourcesOpen, () => setSourcesOpen(false));
   const [person, setPerson] = useState("");
   const [syncing, setSyncing] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -138,9 +134,33 @@ export default function CalendarPage() {
         className="pb-0"
         actions={
           <>
-            <button type="button" className={BUTTON} disabled={syncing > 0 || !sources.length} onClick={() => void sync()}>
-              <RefreshCw size={14} className={cn(syncing > 0 && "animate-spin")} /> {syncing > 0 ? "Sincronizando..." : "Sincronizar agora"}
-            </button>
+            {/* Agendas conectadas: gerir as agendas e sincronizar, num menu só. */}
+            <div ref={sourcesMenu} className="relative">
+              <button type="button" className={BUTTON} aria-expanded={sourcesOpen} aria-controls="agendas-conectadas" onClick={() => setSourcesOpen((open) => !open)}>
+                {syncing > 0 ? <RefreshCw size={14} className="animate-spin" /> : <CalendarSync size={14} />} Agendas conectadas
+                {failing > 0 && <span className="rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">{failing}</span>}
+                <ChevronDown size={14} />
+              </button>
+              {sourcesOpen && (
+                <div
+                  id="agendas-conectadas"
+                  className="absolute right-0 top-full z-30 mt-2 max-h-[calc(100vh-8rem)] w-[min(60rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border bg-popover p-3 text-popover-foreground shadow-2xl"
+                >
+                  <SourcesTab
+                    actor={actor}
+                    sources={sources}
+                    people={people}
+                    canEdit={canEdit}
+                    syncing={syncing > 0}
+                    loading={data.isLoading}
+                    onRefresh={refresh}
+                    onSaved={() => void sync({ olderThanMinutes: OPEN_SYNC_MINUTES })}
+                    onSync={(sourceId) => sync({ sourceId })}
+                    onSyncAll={() => void sync()}
+                  />
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className={BUTTON}
@@ -158,7 +178,7 @@ export default function CalendarPage() {
         <div className="space-y-1 text-sm">
           {failing > 0 && (
             <p>
-              <button type="button" className="font-medium text-destructive underline-offset-2 hover:underline" onClick={() => setTab("agendas")}>
+              <button type="button" className="font-medium text-destructive underline-offset-2 hover:underline" onClick={() => setSourcesOpen(true)}>
                 {failing === 1 ? "1 agenda com erro" : `${failing} agendas com erro`}
               </button>
             </p>
@@ -173,45 +193,19 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <TabList tabs={TABS} value={tab} onChange={setTab} label="Seções do calendário" idPrefix="calendario" />
-
-      {/* As abas ficam montadas (só escondidas): trocar de aba não descarta em silêncio o rascunho das tabelas. */}
-      <div hidden={tab !== "calendario"}>
-        <TabPanel idPrefix="calendario" id="calendario">
-          <CalendarTab
-            actor={actor}
-            entries={entries}
-            people={people}
-            filterOptions={filterOptions}
-            person={person}
-            onPersonChange={setPerson}
-            canCreate={canCreate}
-            canEdit={canEdit}
-            onChanged={refresh}
-            onEditEvents={() => setTab("eventos")}
-          />
-        </TabPanel>
-      </div>
-      <div hidden={tab !== "agendas"}>
-        <TabPanel idPrefix="calendario" id="agendas">
-          <SourcesTab
-            actor={actor}
-            sources={sources}
-            people={people}
-            canEdit={canEdit}
-            syncing={syncing > 0}
-            loading={data.isLoading}
-            onRefresh={refresh}
-            onSaved={() => void sync({ olderThanMinutes: OPEN_SYNC_MINUTES })}
-            onSync={(sourceId) => sync({ sourceId })}
-          />
-        </TabPanel>
-      </div>
-      <div hidden={tab !== "eventos"}>
-        <TabPanel idPrefix="calendario" id="eventos">
-          <EventsTab actor={actor} events={data.data?.events ?? []} people={people} canEdit={canEdit} loading={data.isLoading} onRefresh={refresh} />
-        </TabPanel>
-      </div>
+      <CalendarTab
+        actor={actor}
+        data={data.data ?? null}
+        entries={entries}
+        people={people}
+        filterOptions={filterOptions}
+        person={person}
+        onPersonChange={setPerson}
+        focusDay={isDayKey(focusDay) ? focusDay : undefined}
+        canCreate={canCreate}
+        canEdit={canEdit}
+        onChanged={refresh}
+      />
     </div>
   );
 }

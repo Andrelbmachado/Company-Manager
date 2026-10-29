@@ -1,4 +1,5 @@
-// Aba "Agendas conectadas": agendas por link iCal editadas na própria tabela (sem modal). Quem não gerencia o
+// Menu "Agendas conectadas" do calendário: agendas por link iCal editadas na própria tabela (sem modal) e o botão
+// Sincronizar agora. Quem não gerencia o
 // calendário conecta só no próprio nome; o link (endereço secreto, dá acesso à agenda) só aparece inteiro para
 // quem pode alterar aquela agenda.
 import { useMemo, useState } from "react";
@@ -37,8 +38,11 @@ interface SourcesTabProps {
   /** Depois de gravar: sincroniza as agendas novas ou com link trocado. */
   onSaved(): void;
   onSync(sourceId: string): Promise<void>;
+  /** Sincroniza todas as agendas. */
+  onSyncAll(): void;
 }
 
+const SYNC_BUTTON = "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
 const ROW_BUTTON = "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Só protocolo e servidor: o resto do link de uma agenda pública costuma ser o segredo. */
@@ -65,7 +69,7 @@ function toInput(row: Partial<SourceRow>): SourceInput {
   return input;
 }
 
-export function SourcesTab({ actor, sources, people, canEdit, syncing, loading, onRefresh, onSaved, onSync }: SourcesTabProps) {
+export function SourcesTab({ actor, sources, people, canEdit, syncing, loading, onRefresh, onSaved, onSync, onSyncAll }: SourcesTabProps) {
   const [error, setError] = useState<string | null>(null);
   const rows = useMemo<SourceRow[]>(
     () =>
@@ -136,6 +140,11 @@ export function SourcesTab({ actor, sources, people, canEdit, syncing, loading, 
         onRefresh={onRefresh}
         newRow={() => ({ person: actor.userId })}
         emptyMessage="Nenhuma agenda conectada"
+        actions={
+          <button type="button" className={SYNC_BUTTON} disabled={syncing || !sources.length} onClick={onSyncAll}>
+            <RefreshCw size={14} className={syncing ? "animate-spin" : undefined} /> {syncing ? "Sincronizando..." : "Sincronizar agora"}
+          </button>
+        }
         rowActions={(row) => {
           const source = sources.find((item) => item.id === row.id);
           return (

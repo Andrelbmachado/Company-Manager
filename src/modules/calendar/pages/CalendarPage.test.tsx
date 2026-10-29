@@ -1,5 +1,6 @@
-// Calendário (rota /calendar): CalendarView com agendas conectadas, eventos do app e ausências do RH; agendas e
-// eventos editados no próprio lugar (EditableTable, sem modal); sincroniza ao abrir; exportação da agenda da empresa.
+// Calendário (rota /calendar): CalendarView com presença e ausências dos funcionários, eventos do app e agendas
+// conectadas; agendas geridas no menu "Agendas conectadas" (EditableTable, sem modal) com o Sincronizar agora;
+// sincroniza ao abrir; ?dia= abre o dia; exportação da agenda da empresa.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
@@ -69,11 +70,17 @@ async function open(role: Role): Promise<RenderedPage> {
 }
 
 const calendarText = () => document.querySelector("[data-calendar-view]")?.textContent ?? "";
-const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((item) => item.textContent?.trim() === label);
-/** Botão dentro do painel de uma aba (as abas ficam montadas; as escondidas também têm Editar/Adicionar). */
-const panelButton = (panel: "calendario" | "agendas" | "eventos", label: string) => {
-  const element = document.getElementById(`painel-calendario-${panel}`);
+const sourcesMenu = () => document.querySelector<HTMLButtonElement>("button[aria-controls='agendas-conectadas']");
+/** Botão dentro do menu "Agendas conectadas" (aberto). */
+const menuButton = (label: string) => {
+  const element = document.getElementById("agendas-conectadas");
   return element ? findButton(element, label) : undefined;
+};
+/** Próxima segunda-feira depois de hoje (dia útil com todos presentes, longe das ausências de teste). */
+const nextMonday = () => {
+  let day = addDays(TODAY, 7);
+  while (new Date(`${day}T00:00:00Z`).getUTCDay() !== 1) day = addDays(day, 1);
+  return day;
 };
 const sources = () => testDb().select<CalendarSource[]>("SELECT * FROM calendar_sources WHERE deleted_at IS NULL ORDER BY name");
 const events = () => testDb().select<CalendarEvent[]>("SELECT * FROM calendar_events WHERE deleted_at IS NULL ORDER BY title");
@@ -95,7 +102,9 @@ describe("CalendarPage", () => {
     expect(calendarText()).toContain("Férias: Ana Souza");
     await until(() => page!.text().includes("1 agenda com erro"), "aviso da agenda com erro");
 
-    await click(tab("Agendas conectadas"));
+    expect(document.querySelector("[role=tab]")).toBeNull();
+    await click(sourcesMenu());
+    expect(menuButton("Sincronizar agora")).toBeDefined();
     await until(() => document.querySelector("tr[data-row-key='src-404']")?.textContent?.includes("Agenda não encontrada (404)") ?? false, "erro na linha da agenda");
     expect(document.querySelector("[role=dialog]")).toBeNull();
   });
@@ -141,13 +150,10 @@ describe("CalendarPage", () => {
     expect(name).toBe("agenda-da-empresa.ics");
     expect(await blobText(blob as Blob)).toContain("SUMMARY:Planejamento");
 
-    await click(tab("Agendas conectadas"));
-    await until(() => panelButton("agendas", "Adicionar") !== undefined, "tabela de agendas");
-    expect(panelButton("agendas", "Adicionar")?.disabled).toBe(true);
-    expect(panelButton("agendas", "Editar")?.disabled).toBe(true);
-    await click(tab("Eventos do app"));
-    expect(panelButton("eventos", "Adicionar")?.disabled).toBe(true);
-    expect(panelButton("eventos", "Editar")?.disabled).toBe(true);
+    await click(sourcesMenu());
+    await until(() => menuButton("Adicionar") !== undefined, "tabela de agendas");
+    expect(menuButton("Adicionar")?.disabled).toBe(true);
+    expect(menuButton("Editar")?.disabled).toBe(true);
     page!.unmount();
 
     page = await renderPage(<CalendarPage />, { companyId: COMPANY, role: "comercial", path: "/calendar" });
@@ -158,13 +164,13 @@ describe("CalendarPage", () => {
 
   it("técnico conecta a própria agenda na tabela (sem modal): grava no nome dele e sincroniza", async () => {
     await open("tecnico");
-    await click(tab("Agendas conectadas"));
-    await until(() => panelButton("agendas", "Adicionar") !== undefined, "tabela de agendas");
-    await click(panelButton("agendas", "Adicionar"));
+    await click(sourcesMenu());
+    await until(() => menuButton("Adicionar") !== undefined, "tabela de agendas");
+    await click(menuButton("Adicionar"));
     expect(document.querySelector("[role=dialog]")).toBeNull();
     await typeInto(document.querySelector("input[aria-label='Nome (nova linha)']"), "Meu iCloud");
     await typeInto(document.querySelector("input[aria-label='Link iCal (nova linha)']"), "webcal://p01-caldav.icloud.com/published/2/meu");
-    await click(panelButton("agendas", "Salvar"));
+    await click(menuButton("Salvar"));
 
     await until(async () => (await sources()).some((source) => source.name === "Meu iCloud"), "agenda gravada");
     const saved = (await sources()).find((source) => source.name === "Meu iCloud")!;
@@ -188,45 +194,32 @@ describe("CalendarPage", () => {
     await until(() => calendarText().includes("Visita técnica"), "evento no calendário");
   });
 
-  it("Eventos do app: editar a hora na tabela grava o horário de São Paulo", async () => {
-    await open("gerente");
-    await click(tab("Eventos do app"));
-    await until(() => document.querySelector("tr[data-row-key='ev-plan']") !== null, "tabela de eventos");
-    await click(panelButton("eventos", "Editar"));
-    expect(document.querySelector("[role=dialog]")).toBeNull();
-    await typeInto(document.querySelector("tr[data-row-key='ev-plan'] input[aria-label^='Hora de início']"), "15h30");
-    await typeInto(document.querySelector("tr[data-row-key='ev-plan'] input[aria-label^='Hora de fim']"), "16:45");
-    await click(panelButton("eventos", "Salvar"));
-    await until(async () => (await events()).find((event) => event.id === "ev-plan")?.starts_at === zonedInstant(TODAY, 15 * 60 + 30), "hora gravada");
-    expect((await events()).find((event) => event.id === "ev-plan")?.ends_at).toBe(zonedInstant(TODAY, 16 * 60 + 45));
+  it("presença: cada funcionário aparece como presente nos dias úteis, com a cor dele no fundo e sem faixa lateral", async () => {
+    const monday = nextMonday();
+    page = await renderPage(<CalendarPage />, { companyId: COMPANY, role: "gerente", path: `/calendar?dia=${monday}` });
+    await until(() => document.querySelector("[data-calendar-view='day']") !== null, "visão Dia pelo ?dia=");
+    await until(() => calendarText().includes("Presente: Ana Souza") && calendarText().includes("Presente: Bia Lima"), "presença dos dois");
+    const item = document.querySelector<HTMLElement>(`[data-item-id='presenca-emp-ana-${monday}']`)!;
+    expect(item.style.backgroundColor || item.getAttribute("style")).toMatch(/color-mix|rgb|hsl/);
+    expect(item.className).not.toMatch(/border-l/);
+    // A presença de Ana sai no dia da ausência aprovada.
+    await testDb().execute("INSERT INTO hr_requests (id, company_id, employee_id, type, start_date, end_date, days, status) VALUES ('req-seg', ?, 'emp-ana', 'folga', ?, ?, 1, 'aprovada')", [COMPANY, monday, monday]);
+    page.unmount();
+    page = await renderPage(<CalendarPage />, { companyId: COMPANY, role: "gerente", path: `/calendar?dia=${monday}` });
+    await until(() => calendarText().includes("Ausência: Ana Souza"), "ausência no dia");
+    expect(calendarText()).not.toContain("Presente: Ana Souza");
+    expect(calendarText()).toContain("Presente: Bia Lima");
   });
 
-  it("Eventos do app: hora inválida ou fim antes do início não grava e mantém o rascunho", async () => {
+  it("barra do calendário: Hoje, Dia, Semana, Mês e Ano, com o filtro de funcionário ao lado; visão Ano mostra os 12 meses", async () => {
     await open("gerente");
-    await click(tab("Eventos do app"));
-    await until(() => document.querySelector("tr[data-row-key='ev-plan']") !== null, "tabela de eventos");
-    await click(panelButton("eventos", "Editar"));
-    await typeInto(document.querySelector("tr[data-row-key='ev-plan'] input[aria-label^='Hora de início']"), "25:99");
-    await click(panelButton("eventos", "Salvar"));
-    await until(() => document.querySelector("[role=alert]")?.textContent?.includes("Hora inválida") ?? false, "erro da hora");
-    await typeInto(document.querySelector("tr[data-row-key='ev-plan'] input[aria-label^='Hora de início']"), "16:00");
-    await click(panelButton("eventos", "Salvar"));
-    await until(() => document.querySelector("[role=alert]")?.textContent?.includes("depois do início") ?? false, "erro do fim");
-    expect((await events()).find((event) => event.id === "ev-plan")?.starts_at).toBe(zonedInstant(TODAY, 14 * 60));
-  });
-
-  it("trocar de aba com alterações não salvas não perde o rascunho em silêncio", async () => {
-    await open("gerente");
-    await click(tab("Eventos do app"));
-    await until(() => document.querySelector("tr[data-row-key='ev-plan']") !== null, "tabela de eventos");
-    await click(panelButton("eventos", "Editar"));
-    const titleField = () => document.querySelector<HTMLInputElement>("tr[data-row-key='ev-plan'] input[aria-label^='Título']");
-    await typeInto(titleField(), "Planejamento trimestral");
-    await click(tab("Calendário"));
-    await click(tab("Agendas conectadas"));
-    await click(tab("Eventos do app"));
-    expect(titleField()?.value).toBe("Planejamento trimestral");
-    await click(panelButton("eventos", "Salvar"));
-    await until(async () => (await events()).find((event) => event.id === "ev-plan")?.title === "Planejamento trimestral", "título gravado");
+    const views = [...document.querySelectorAll("[aria-label='Visualização do calendário'] button")].map((button) => button.textContent);
+    expect(views).toEqual(["Dia", "Semana", "Mês", "Ano"]);
+    const toolbar = document.querySelector("[aria-label='Visualização do calendário']")!.closest("[data-calendar-view] > div")!;
+    expect(toolbar.querySelector("select[aria-label='Funcionário']")).not.toBeNull();
+    expect(toolbar.textContent).toContain("Hoje");
+    await click(findButton(document.body, "Ano"));
+    await until(() => document.querySelector("[data-calendar-grid='year']") !== null, "visão Ano");
+    expect(document.querySelectorAll("[data-calendar-grid='year'] section")).toHaveLength(12);
   });
 });

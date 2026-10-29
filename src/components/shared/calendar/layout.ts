@@ -319,7 +319,7 @@ export function itemsByDay(items: CalendarItem[], firstDay: string, count: numbe
       map.set(day, list);
     }
   }
-  for (const list of map.values()) list.sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMinute - b.startMinute || byTitle(a.item, b.item));
+  for (const list of map.values()) list.sort((a, b) => (a.item.priority ?? 0) - (b.item.priority ?? 0) || Number(b.allDay) - Number(a.allDay) || a.startMinute - b.startMinute || byTitle(a.item, b.item));
   return map;
 }
 

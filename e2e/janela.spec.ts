@@ -22,7 +22,8 @@ function watchErrors(page: Page): string[] {
 async function quickLogin(page: Page, area = "CEO") {
   await page.goto("/");
   await page.getByRole("button", { name: `Entrar rápido como ${area}` }).click();
-  await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeVisible();
+  // Janela estreita: a sidebar abre fechada (só o botão de abrir; o menu da conta fica dentro dela).
+  await expect(page.getByRole("button", { name: /^(Abrir menu da conta|Expandir sidebar)$/ }).first()).toBeVisible();
   await page.waitForLoadState("networkidle");
 }
 
@@ -57,6 +58,7 @@ test.describe("janela mínima (1/5 × 1/3 da tela)", () => {
     await page.keyboard.press("Escape");
     await expect(account).toHaveCount(0);
 
+    if (await page.locator("[data-sidebar-closed]").count()) await page.getByRole("button", { name: "Expandir sidebar" }).click();
     await sidebar.getByRole("button", { name: "Assistente de IA" }).click();
     await expectInsideWindow(page, page.locator("#assistant-menu"), "menu do assistente");
     await page.keyboard.press("Escape");

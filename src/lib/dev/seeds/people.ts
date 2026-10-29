@@ -25,6 +25,12 @@ const ABSENCE_PLANS: [number, number, "ferias" | "folga" | "atestado" | "outro"]
   [[-5, 2, "atestado"], [27, 1, "folga"], [88, 15, "ferias"]],
   [[-33, 1, "outro"], [9, 10, "ferias"], [52, 1, "atestado"]],
 ];
+/** Deslocamento ajustado para cair num dia útil (sábado e domingo vão para a segunda seguinte). */
+function weekday(offset: number): number {
+  const weekDay = new Date(`${day(offset)}T12:00:00Z`).getUTCDay();
+  return weekDay === 6 ? offset + 2 : weekDay === 0 ? offset + 1 : offset;
+}
+
 const REASONS: Record<string, string | null> = { ferias: null, folga: "Compromisso pessoal", atestado: "Consulta médica", outro: "Curso externo" };
 
 const PERSONAL_TASKS: [string, number, "pendente" | "concluida"][] = [
@@ -74,7 +80,7 @@ export async function seed(companyId: string): Promise<void> {
   const requests: SeedRow[] = [];
   examples.forEach((employee, index) => {
     for (const [offset, length, type] of ABSENCE_PLANS[index % ABSENCE_PLANS.length]) {
-      const start = offset + (index % 3);
+      const start = weekday(offset + (index % 3));
       requests.push({
         id: `dev-people-absence-${employee.id}-${start}`,
         employee_id: employee.id,
@@ -95,10 +101,10 @@ export async function seed(companyId: string): Promise<void> {
   const tasks: SeedRow[] = [];
   withAccount.forEach((employee, index) => {
     requests.push(
-      { id: `dev-people-request-${employee.id}-1`, employee_id: employee.id, type: "ferias", start_date: day(35 + index * 3), end_date: day(44 + index * 3), days: 10, reason: "Férias programadas", status: "pendente" },
-      { id: `dev-people-request-${employee.id}-2`, employee_id: employee.id, type: "folga", start_date: day(11 + (index % 5)), end_date: day(11 + (index % 5)), days: 1, reason: "Banco de horas", status: index % 2 ? "pendente" : "aprovada", decided_by: index % 2 ? null : rh, decided_at: index % 2 ? null : ts(-1) },
-      { id: `dev-people-request-${employee.id}-3`, employee_id: employee.id, type: "atestado", start_date: day(-18 - (index % 4)), end_date: day(-18 - (index % 4)), days: 1, reason: "Consulta médica", status: "aprovada", decided_by: rh, decided_at: ts(-17) },
-      { id: `dev-people-request-${employee.id}-4`, employee_id: employee.id, type: "folga", start_date: day(-30 + (index % 6)), end_date: day(-30 + (index % 6)), days: 1, reason: "Mudança de casa", status: "recusada", decided_by: rh, decided_at: ts(-33), decision_note: "Equipe reduzida nesse dia." },
+      { id: `dev-people-request-${employee.id}-1`, employee_id: employee.id, type: "ferias", start_date: day(weekday(35 + index * 3)), end_date: day(weekday(35 + index * 3) + 9), days: 10, reason: "Férias programadas", status: "pendente" },
+      { id: `dev-people-request-${employee.id}-2`, employee_id: employee.id, type: "folga", start_date: day(weekday(11 + (index % 5))), end_date: day(weekday(11 + (index % 5))), days: 1, reason: "Banco de horas", status: index % 2 ? "pendente" : "aprovada", decided_by: index % 2 ? null : rh, decided_at: index % 2 ? null : ts(-1) },
+      { id: `dev-people-request-${employee.id}-3`, employee_id: employee.id, type: "atestado", start_date: day(weekday(-18 - (index % 4))), end_date: day(weekday(-18 - (index % 4))), days: 1, reason: "Consulta médica", status: "aprovada", decided_by: rh, decided_at: ts(-17) },
+      { id: `dev-people-request-${employee.id}-4`, employee_id: employee.id, type: "folga", start_date: day(weekday(-30 + (index % 6))), end_date: day(weekday(-30 + (index % 6))), days: 1, reason: "Mudança de casa", status: "recusada", decided_by: rh, decided_at: ts(-33), decision_note: "Equipe reduzida nesse dia." },
     );
     PERSONAL_TASKS.forEach(([title, due, status], taskIndex) => {
       tasks.push({ id: `dev-people-task-${employee.id}-${taskIndex + 1}`, employee_id: employee.id, title, description: null, due_date: day(due + (index % 3)), status, created_by: rh });

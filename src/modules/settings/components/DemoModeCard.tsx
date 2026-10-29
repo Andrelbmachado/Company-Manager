@@ -96,12 +96,14 @@ export const DEMO_TABLE_LABELS: Record<string, string> = {
 
 /** Nome de cada seed de área (src/lib/dev/seeds/<area>.ts), para o aviso de exemplos que não foram criados. */
 export const DEMO_AREA_LABELS: Record<string, string> = {
+  balance: "Balanço anual",
   catalog: "Catálogo",
   crm: "CRM",
   finance: "Financeiro",
   hr: "RH",
   imports: "Importação",
   inventory: "Estoque",
+  people: "RH e calendário",
   purchasing: "Compras",
   sales: "Vendas",
   settlements: "Baixas e extrato",

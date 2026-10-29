@@ -152,6 +152,14 @@ jobs:
       - name: Conferir o latest.json (versão, plataformas e assinaturas)
         run: |
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p latest.json -D out
+          # O tauri-action aponta os pacotes para releases/latest/download/, que é a release estável. No canal de teste
+          # os links precisam ir para a própria pre-release.
+          if [ "${{ needs.prepare.outputs.channel }}" = "test" ]; then
+            sed -i "s#/releases/latest/download/#/releases/download/$TAG/#g" out/latest.json
+            gh release upload "$TAG" out/latest.json -R "$GITHUB_REPOSITORY" --clobber
+          fi
+          jq -e --arg tag "$TAG" --arg channel "${{ needs.prepare.outputs.channel }}" \
+            '[.platforms[] | .url | if $channel == "test" then contains("/releases/download/" + $tag + "/") else true end] | all' out/latest.json
           jq -e --arg v "${{ needs.prepare.outputs.version }}" '.version == $v and (.platforms | length > 0) and ([.platforms[] | .signature | length > 0] | all)' out/latest.json
           cat out/latest.json
 

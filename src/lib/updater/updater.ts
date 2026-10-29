@@ -49,7 +49,8 @@ export interface UpdaterOptions {
 function errorMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error ?? "");
   if (/signature|minisign|verify/i.test(text)) return "O pacote baixado não passou na verificação de integridade e não foi instalado.";
-  if (/network|connect|dns|timed out|timeout|request|status code|404|offline/i.test(text)) {
+  if (/404|not found/i.test(text)) return "O pacote da atualização não foi encontrado no servidor. Tente de novo mais tarde.";
+  if (/network|connect|dns|timed out|timeout|request|status code|offline/i.test(text)) {
     return "Não foi possível falar com o servidor de atualizações. Verifique a conexão.";
   }
   return text || "Erro desconhecido.";

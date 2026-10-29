@@ -158,7 +158,7 @@ sleep 3
 NEW_VERSION="$(plist_version)"
 RUNNING="$(ps -axo command | grep -F "$BIN" | grep -v grep | head -1 || true)"
 [ "$NEW_VERSION" = "$EXPECTED" ] && pass "Info.plist do app instalado: $NEW_VERSION" || fail "Info.plist: $NEW_VERSION"
-[ -n "$RUNNING" ] && pass "processo da versão nova rodando ($BIN)" || fail "app não está rodando"
+[ -n "$RUNNING" ] && pass "processo do app rodando ($BIN)" || fail "app não está rodando"
 xattr -p com.apple.quarantine "$APP" >/dev/null 2>&1 && fail "bundle novo ficou em quarentena" || pass "bundle novo sem quarentena (abre sem aviso do Gatekeeper)"
 codesign --verify --deep "$APP" 2>/dev/null && pass "codesign --verify do bundle novo ok" || fail "codesign do bundle novo"
 [ "$(find "$INSTALL_DIR" -maxdepth 1 -name '*.app' | wc -l | tr -d ' ')" = 1 ] && pass "uma única cópia do app na pasta (a antiga foi substituída)" || fail "sobrou cópia do app"
@@ -170,7 +170,7 @@ TABLES_AFTER="$(sqlite3 "$DB" "select count(*) from sqlite_master where type = '
 INTEGRITY="$(sqlite3 "$DB" "pragma integrity_check")"
 if [ "$MARKER_AFTER" = "$MARKER_BEFORE" ] && [ "$(cat "$DATA/updater-e2e-preference.txt")" = "$TOKEN" ] && [ "$INTEGRITY" = ok ] \
   && [ "$MIGRATIONS_AFTER" -ge "$MIGRATIONS_BEFORE" ] && [ "$TABLES_AFTER" -ge "$TABLES_BEFORE" ]; then
-  pass "dados preservados: token=$MARKER_AFTER, migrations $MIGRATIONS_BEFORE→$MIGRATIONS_AFTER, tabelas $TABLES_BEFORE→$TABLES_AFTER, integrity_check=$INTEGRITY"
+  pass "dados preservados: token=$MARKER_AFTER, migrations ${MIGRATIONS_BEFORE}→${MIGRATIONS_AFTER}, tabelas ${TABLES_BEFORE}→${TABLES_AFTER}, integrity_check=$INTEGRITY"
 else fail "dados: token=$MARKER_AFTER migrations=$MIGRATIONS_AFTER tabelas=$TABLES_AFTER integrity=$INTEGRITY"; fi
 
 {

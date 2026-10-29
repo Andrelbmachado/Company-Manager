@@ -40,7 +40,6 @@ export default function CustodyPage() {
   const [tab, setTab] = useState<Tab>("lista");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const custodiesQuery = useQuery({
@@ -135,20 +134,18 @@ export default function CustodyPage() {
       {/* A lista fica montada (escondida) com o Calendário aberto: trocar de aba não perde o que foi digitado na tabela. */}
       <div hidden={tab !== "lista"}>
         <TabPanel idPrefix="custodia" id="lista">
-          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por item, responsável ou OS..." onFilterClick={() => setShowFilters((visible) => !visible)} filterActive={statusFilter !== "all"} />
-          {showFilters && (
-            <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-4 py-3">
-              <label className="text-sm font-medium" htmlFor="custody-status-filter">Status</label>
-              <select id="custody-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={SELECT}>
-                <option value="all">Todos</option>
-                {CUSTODY_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-              </select>
-            </div>
-          )}
           <EditableTable
             resource="custody"
             label="Custódias de peça"
             title="Custódias"
+            actions={
+              <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por item, responsável ou OS...">
+                <select aria-label="Filtrar por status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={SELECT}>
+                  <option value="all">Todos os status</option>
+                  {CUSTODY_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                </select>
+              </PageToolbar>
+            }
             rows={filtered}
             columns={columns}
             loading={custodiesQuery.isLoading}

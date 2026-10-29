@@ -138,12 +138,6 @@ export default function SalesPage() {
 
       {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
       <div hidden={view !== "lista"} className="space-y-5">
-        <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou cliente...">
-          <select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`${INPUT} w-44`}>
-            {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </PageToolbar>
-
         {created && (
           <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
             Pedido {createdOrder ? formatSequence("sales_orders", createdOrder.number) : ""} criado.
@@ -162,6 +156,13 @@ export default function SalesPage() {
           onRefresh={() => refreshTrade(qc)}
           newRow={() => ({ order_date: todayIso(), installments: 1 })}
           emptyMessage={orders.length ? "Nenhum pedido neste filtro" : "Nenhum pedido de venda"}
+          actions={
+            <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou cliente...">
+              <select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`${INPUT} w-44`}>
+                {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </PageToolbar>
+          }
           rowActions={(order) => (
             <button type="button" className={ROW_ACTION} aria-label={`Abrir pedido ${formatSequence("sales_orders", order.number)}`} onClick={() => navigate(`/sales/pedidos/${order.id}`)}>
               <ExternalLink size={13} /> Abrir

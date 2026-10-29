@@ -115,7 +115,7 @@ export default function PipelineBoardPage() {
         <StatCard title="Ganhos no mês" value={formatCurrency(wonThisMonth.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0))} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por título, cliente, origem...">
+      <PageToolbar variant="page" search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por título, cliente, origem...">
         <select value={owner} onChange={(event) => setOwner(event.target.value)} aria-label="Filtrar por responsável" className={SELECT}>
           <option value="">Todos os responsáveis</option>
           <option value="me">Minhas oportunidades</option>

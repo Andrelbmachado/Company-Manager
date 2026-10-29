@@ -1,6 +1,7 @@
 // Propostas numa tabela editável (lista e aba da ficha do cliente). No rascunho, Editar muda título, cliente,
 // oportunidade, validade e condições; o total vem dos itens (editor da proposta). Adicionar cria um rascunho com um item
 // avulso (título × 1 × valor) para detalhar depois no editor.
+import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
@@ -23,9 +24,11 @@ interface ProposalsTableProps {
   customerId?: string;
   title?: string;
   emptyMessage?: string;
+  /** Filtros da lista, na barra do topo da tabela. */
+  actions?: ReactNode;
 }
 
-export function ProposalsTable({ proposals, loading, customerId, title = "Propostas", emptyMessage }: ProposalsTableProps) {
+export function ProposalsTable({ proposals, loading, customerId, title = "Propostas", emptyMessage, actions }: ProposalsTableProps) {
   const { companyId, can } = useCrmSession();
   const actor = useEditActor();
   const navigate = useNavigate();
@@ -99,6 +102,7 @@ export function ProposalsTable({ proposals, loading, customerId, title = "Propos
     <EditableTable<Proposal>
       resource="proposals"
       title={title}
+      actions={actions}
       label={title}
       rows={proposals}
       columns={columns}

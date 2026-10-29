@@ -20,6 +20,11 @@ export interface ImportExportButtonsProps {
   /** Chamado depois de uma importação gravar linhas (para invalidar as consultas da lista). */
   onImported?: () => void;
   className?: string;
+  /** Sem o botão Importar (a tela abre o assistente por outro lugar, com `importOpen`). */
+  hideImportButton?: boolean;
+  /** Assistente aberto, controlado pela tela (junto com `onImportOpenChange`). */
+  importOpen?: boolean;
+  onImportOpenChange?: (open: boolean) => void;
 }
 
 const BUTTON = "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent";
@@ -39,7 +44,12 @@ export function ImportExportButtons(props: ImportExportButtonsProps) {
   const { session } = useSession();
   const entity = getEntity(props.entity);
   const role = session?.membership.role as Role | undefined;
-  const [importing, setImporting] = useState(false);
+  const [importingState, setImportingState] = useState(false);
+  const importing = props.importOpen ?? importingState;
+  const setImporting = (open: boolean) => {
+    setImportingState(open);
+    props.onImportOpenChange?.(open);
+  };
 
   // Fora da sessão (ou cadastro sem importação): botões visíveis e desativados, com o motivo no título.
   if (!session || !role || !entity) {
@@ -62,13 +72,13 @@ export function ImportExportButtons(props: ImportExportButtonsProps) {
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", props.className)} data-entity={props.entity}>
-      {canImport && (
+      {canImport && !props.hideImportButton && (
         <button type="button" className={BUTTON} onClick={() => setImporting(true)} aria-label={`Importar planilha de ${entity.label.toLowerCase()}`}>
           <Upload size={14} aria-hidden="true" /> Importar
         </button>
       )}
       {canExport && <ExportMenu entityKey={entity.key} label={entity.label} companyId={session.company.id} actorId={session.user.id} />}
-      {importing && (
+      {importing && canImport && (
         <ImportDialog title={`Importar ${entity.label.toLowerCase()}`} onClose={() => setImporting(false)}>
           <Suspense fallback={<p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Carregando...</p>}>
             <ImportWizard entities={[entity]} initialEntity={entity.key} lockEntity onImported={() => props.onImported?.()} onClose={() => setImporting(false)} />

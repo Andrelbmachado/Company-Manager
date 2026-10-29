@@ -1,19 +1,37 @@
-// Aba "Calendário": CalendarView com agendas conectadas, eventos do app e ausências do RH, filtro por funcionário,
-// formulário no próprio lugar ao clicar num dia ou horário vazio e detalhes do evento escolhido (sem modal).
+// Calendário da empresa: CalendarView com presença e ausências dos funcionários, eventos do app e agendas conectadas;
+// filtro por funcionário na barra do calendário, formulário no próprio lugar ao clicar num dia ou horário vazio e
+// detalhes do item escolhido (sem modal). A presença é montada só para o período na tela (dia, semana ou mês).
 import { useMemo, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
-import { IconButton, TABLE_ICONS } from "@/components/shared/table";
-import { CalendarView, type CalendarItem } from "@/components/shared/CalendarView";
+import { CalendarView, type CalendarItem, type CalendarRange } from "@/components/shared/CalendarView";
+import { diffDays } from "@/components/shared/calendar/layout";
 import { getDb } from "@/lib/db/client";
 import { confirmAction } from "@/lib/confirm";
-import { canDeleteEvent, canManageEvent, createLocalEvent, deleteLocalEvent, type CalendarActor, type CalendarEntry, type LocalEventInput } from "@/lib/calendar/store";
+import { EVENT_KIND_LABEL } from "@/lib/calendar/feed";
+import {
+  canDeleteEvent,
+  createLocalEvent,
+  deleteLocalEvent,
+  LOCAL_EVENT_KINDS,
+  parsePersonFilter,
+  presenceItems,
+  type CalendarActor,
+  type CalendarData,
+  type CalendarEntry,
+  type LocalEventInput,
+} from "@/lib/calendar/store";
 import type { CalendarEventKind } from "@/types";
 import { COMPANY_OWNER, describeWhen, ownerUserId } from "../eventRows";
-import { KIND_OPTIONS } from "./EventsTab";
 import type { PersonOption } from "./SourcesTab";
+
+const KIND_OPTIONS = LOCAL_EVENT_KINDS.map((kind) => ({ value: kind, label: EVENT_KIND_LABEL[kind] }));
+/** Acima disso (visão Ano) a presença não é montada: seriam milhares de itens e o ano mostra só a contagem. */
+const PRESENCE_MAX_DAYS = 42;
 
 interface CalendarTabProps {
   actor: CalendarActor;
+  data: CalendarData | null;
+  /** Agendas, eventos do app e ausências do RH (já filtrados pela pessoa). */
   entries: CalendarEntry[];
   /** Contas da empresa (dono do evento). */
   people: PersonOption[];
@@ -21,11 +39,11 @@ interface CalendarTabProps {
   filterOptions: PersonOption[];
   person: string;
   onPersonChange(value: string): void;
+  /** Dia para abrir na visão Dia (link das datas do Meu RH). */
+  focusDay?: string;
   canCreate: boolean;
   canEdit: boolean;
   onChanged(): Promise<unknown>;
-  /** Abre a aba "Eventos do app" (editar o evento na tabela). */
-  onEditEvents(): void;
 }
 
 interface Draft {
@@ -42,11 +60,17 @@ const ORIGIN_TEXT: Record<CalendarEntry["origin"], string> = {
   agenda: "Agenda conectada: altere na agenda de origem.",
   app: "Criado no app.",
   rh: "Ausência aprovada no RH: altere no RH.",
+  presenca: "Na empresa neste dia (sem ausência aprovada no RH).",
 };
 
 const message = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
 
-export function CalendarTab({ actor, entries, people, filterOptions, person, onPersonChange, canCreate, canEdit, onChanged, onEditEvents }: CalendarTabProps) {
+export function CalendarTab({ actor, data, entries, people, filterOptions, person, onPersonChange, focusDay, canCreate, canEdit, onChanged }: CalendarTabProps) {
+  const [range, setRange] = useState<CalendarRange | null>(null);
+  const items = useMemo(() => {
+    if (!data || !range || diffDays(range.start, range.end) > PRESENCE_MAX_DAYS) return entries;
+    return [...entries, ...presenceItems(data, range.start, range.end, parsePersonFilter(person))];
+  }, [data, entries, range, person]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<CalendarEventKind>("evento");
@@ -55,7 +79,7 @@ export function CalendarTab({ actor, entries, people, filterOptions, person, onP
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const names = useMemo(() => new Map(people.map((option) => [option.value, option.label])), [people]);
-  const selected = selectedId ? entries.find((entry) => entry.id === selectedId) ?? null : null;
+  const selected = selectedId ? items.find((entry) => entry.id === selectedId) ?? null : null;
 
   function openDraft(start: string, options: { allDay: boolean }) {
     setSelectedId(null);
@@ -105,18 +129,6 @@ export function CalendarTab({ actor, entries, people, filterOptions, person, onP
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-          Funcionário
-          <select aria-label="Funcionário" value={person} onChange={(event) => onPersonChange(event.target.value)} className={`${FIELD} w-full min-w-0 text-foreground sm:w-56`}>
-            <option value="">Todos (com os eventos da empresa)</option>
-            {filterOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
       {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
 
       {draft && (
@@ -169,21 +181,28 @@ export function CalendarTab({ actor, entries, people, filterOptions, person, onP
               <X size={16} />
             </button>
           </div>
-          {selected.event && (canManageEvent(actor, selected.event) || canDeleteEvent(actor, selected.event)) && (
+          {selected.event && canDeleteEvent(actor, selected.event) && (
             <div className="mt-3 flex gap-2">
-              {canEdit && canManageEvent(actor, selected.event) && (
-                <IconButton label="Editar em Eventos do app" icon={TABLE_ICONS.edit} onClick={onEditEvents} />
-              )}
-              {canDeleteEvent(actor, selected.event) && (
-                <button type="button" className={BUTTON} onClick={() => void remove(selected)}>Excluir evento</button>
-              )}
+              <button type="button" className={BUTTON} onClick={() => void remove(selected)}>Excluir evento</button>
             </div>
           )}
         </section>
       )}
 
       <CalendarView
-        items={entries}
+        items={items}
+        view={focusDay ? "day" : "month"}
+        date={focusDay}
+        maxPerDay={6}
+        onRangeChange={setRange}
+        toolbar={
+          <select aria-label="Funcionário" value={person} onChange={(event) => onPersonChange(event.target.value)} className={`${FIELD} h-8 w-full min-w-0 text-foreground sm:w-56`}>
+            <option value="">Todos os funcionários</option>
+            {filterOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        }
         label="Calendário da empresa"
         onSelect={(item: CalendarItem) => {
           setDraft(null);

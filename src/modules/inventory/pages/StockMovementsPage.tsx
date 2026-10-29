@@ -51,7 +51,6 @@ export default function StockMovementsPage() {
   const invalidate = useInvalidateInventory(companyId);
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [showFilters, setShowFilters] = useState(Boolean(params.get("item")));
   const [typeFilter, setTypeFilter] = useState<"all" | StockMovementType>("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [from, setFrom] = useState("");
@@ -207,59 +206,6 @@ export default function StockMovementsPage() {
         actions={<ImportExportButtons entity="inventory" onImported={() => invalidate()} />}
       />
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por item, observação ou pessoa..." onFilterClick={() => setShowFilters((value) => !value)} filterActive={filtersActive}>
-        <span className="text-sm text-muted-foreground">{filtered.length} {filtered.length === 1 ? "movimentação" : "movimentações"}</span>
-      </PageToolbar>
-
-      {showFilters && (
-        <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/20 px-4 py-3">
-          <label className="flex items-center gap-2 text-sm font-medium">
-            Tipo
-            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)} className={SELECT}>
-              <option value="all">Todos</option>
-              {(Object.keys(MOVEMENT_TYPE_LABELS) as StockMovementType[]).map((type) => <option key={type} value={type}>{MOVEMENT_TYPE_LABELS[type]}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            Item
-            <select value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} className={`${SELECT} max-w-56`}>
-              <option value="all">Todos</option>
-              {items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            Local
-            <select value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={SELECT}>
-              <option value="all">Todos</option>
-              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            De
-            <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={SELECT} />
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            Até
-            <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className={SELECT} />
-          </label>
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={() => {
-                setTypeFilter("all");
-                setItemFilter("all");
-                setLocationFilter("all");
-                setFrom("");
-                setTo("");
-              }}
-              className={BUTTON_OUTLINE}
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
-      )}
-
       {presetItem && isManualKind(presetKind) && (
         <p className="text-sm text-muted-foreground">
           {presetKind === "saida" ? "Saída" : "Entrada"}: <strong className="text-foreground">{presetItem.name}</strong>
@@ -271,6 +217,46 @@ export default function StockMovementsPage() {
         resource="inventory"
         label="Movimentações de estoque"
         title="Lançamentos"
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por item, observação ou pessoa...">
+            <select aria-label="Filtrar por tipo" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)} className={SELECT}>
+              <option value="all">Todos os tipos</option>
+              {(Object.keys(MOVEMENT_TYPE_LABELS) as StockMovementType[]).map((type) => <option key={type} value={type}>{MOVEMENT_TYPE_LABELS[type]}</option>)}
+            </select>
+            <select aria-label="Filtrar por item" value={itemFilter} onChange={(event) => setItemFilter(event.target.value)} className={`${SELECT} max-w-56`}>
+              <option value="all">Todos os itens</option>
+              {items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <select aria-label="Filtrar por local" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={SELECT}>
+              <option value="all">Todos os locais</option>
+              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
+            <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
+              De
+              <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={SELECT} />
+            </label>
+            <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
+              Até
+              <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className={SELECT} />
+            </label>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTypeFilter("all");
+                  setItemFilter("all");
+                  setLocationFilter("all");
+                  setFrom("");
+                  setTo("");
+                }}
+                className={BUTTON_OUTLINE}
+              >
+                Limpar filtros
+              </button>
+            )}
+            <span className="text-sm text-muted-foreground">{filtered.length} {filtered.length === 1 ? "movimentação" : "movimentações"}</span>
+          </PageToolbar>
+        }
         rows={filtered.slice(0, visible)}
         columns={columns}
         loading={movementsQuery.isLoading}

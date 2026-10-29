@@ -154,7 +154,7 @@ export default function PurchasingPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={title} />
+      <PageHeader title={title} actions={<ViewToggle value={view} onChange={setView} />} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Aguardando aprovação" value={awaitingApproval.length} />
@@ -163,16 +163,16 @@ export default function PurchasingPage() {
         <StatCard title="Recebido no mês" value={formatCurrency(sumMoney(receivedThisMonth.map((receipt) => Number(receipt.total))))} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou fornecedor...">
-        <select aria-label="Filtrar por status" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className={`${INPUT} w-48`}>
-          {FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <ViewToggle value={view} onChange={setView} />
-      </PageToolbar>
-
       {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
       <div hidden={view !== "lista"} className="space-y-3">
         <EditableTable<PurchaseOrderRow>
+          actions={
+            <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número ou fornecedor...">
+              <select aria-label="Filtrar por status" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className={`${INPUT} w-48`}>
+                {FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </PageToolbar>
+          }
           resource="purchase_orders"
           label="Pedidos de compra"
           rows={rows}

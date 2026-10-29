@@ -137,9 +137,10 @@ export default function SuppliersPage() {
         actions={<ImportExportButtons entity="suppliers" onImported={() => invalidateTrade(qc)} />}
       />
       <ErrorBanner message={error} onClose={() => setError(null)} />
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, CNPJ, categoria..." />
-
       <EditableTable
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, CNPJ, categoria..." />
+        }
         resource="suppliers"
         label="Fornecedores"
         title="Fornecedores"

@@ -1,6 +1,7 @@
 // Gravação da tabela editável de leads (Prospecção). Mudar o status registra o último contato (Novo zera) e recalcula o
 // benefício da indicação (só "concedido" quando o indicado fecha); lead novo entra na campanha da linha ou na padrão.
-// Leads são dados reais: aqui só se cria e edita, nunca se apaga. SQL nos padrões do banco demo.
+// Leads são dados reais: excluir é só pela linha da tabela, com confirmação, e é soft delete (deleted_at; o registro
+// continua no banco). SQL nos padrões do banco demo.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
 import { clean, nowIso, parseMoneyInput } from "@/lib/crm/queries";
@@ -8,7 +9,7 @@ import { ensureDefaultCampaign } from "@/lib/prospecting/campaigns";
 import { LEAD_STATUSES, PRESENCE_LABELS } from "@/lib/prospecting/contact";
 import { referralStatusFor } from "@/lib/prospecting/referral";
 import type { Lead } from "@/types";
-import { assertChanges, type EditActor, type RowChanges, type SaveResult } from "./guard";
+import { assertCan, assertChanges, type EditActor, type RowChanges, type SaveResult } from "./guard";
 
 const TEXT_FIELDS = ["name", "email", "phone", "whatsapp", "source", "category", "business_type", "pricing_segment", "online_presence", "address", "notes", "source_url", "outreach_date", "referred_by", "owner_id", "customer_id", "package_id", "campaign_id", "presence_kind", "status"] as const;
 const MONEY_FIELDS = ["estimated_setup", "estimated_monthly", "estimated_revenue"] as const;
@@ -88,4 +89,13 @@ export async function saveLeadRows(db: DatabaseLike, companyId: string, actor: E
     created.push(id);
   }
   return { created, updated: updates.map((item) => item.id) };
+}
+
+/** Tira o lead da prospecção (soft delete), para quem tem `delete` em leads. */
+export async function deleteLead(db: DatabaseLike, companyId: string, actor: EditActor, leadId: string): Promise<void> {
+  assertCan(actor, "delete", "leads");
+  const [current] = (await db.select<Lead[]>("SELECT * FROM leads WHERE company_id=? AND id=?", [companyId, leadId])).filter((row) => row.id === leadId && !row.deleted_at);
+  if (!current) throw new Error("Lead não encontrado.");
+  const stamp = nowIso();
+  await db.execute("UPDATE leads SET deleted_at=?, updated_at=? WHERE company_id=? AND id=?", [stamp, stamp, companyId, leadId]);
 }

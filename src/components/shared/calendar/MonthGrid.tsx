@@ -18,8 +18,9 @@ interface MonthGridProps {
   onOpenDay: (day: string) => void;
 }
 
-/** Cor da fonte da agenda (dado, não token): só a borda/bolinha usam. */
-export const itemAccent = (item: CalendarItem): CSSProperties | undefined => (item.color ? { borderLeftColor: item.color } : undefined);
+/** Cor do item (agenda, funcionário; dado, não token): pinta o fundo inteiro, sem faixa lateral. */
+export const itemAccent = (item: CalendarItem): CSSProperties | undefined =>
+  item.color ? { backgroundColor: `color-mix(in srgb, ${item.color} 30%, hsl(var(--card)))` } : undefined;
 
 export function itemTooltip(item: CalendarItem, time?: string): string {
   return [time, item.title, item.sourceLabel].filter(Boolean).join(" · ");
@@ -70,7 +71,7 @@ export function MonthGrid({ days, month, today, entries, maxPerDay = 3, onSelect
                     style={itemAccent(entry.item)}
                     className={cn(
                       "flex w-full min-w-0 items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-xs",
-                      entry.allDay ? "border-l-[3px] border-l-foreground/40 bg-muted font-medium" : "hover:bg-muted",
+                      entry.allDay || entry.item.color ? "bg-muted font-medium hover:brightness-110" : "hover:bg-muted",
                     )}
                   >
                     {!entry.allDay && (

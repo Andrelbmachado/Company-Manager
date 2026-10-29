@@ -1,5 +1,6 @@
 // Contatos numa tabela editável (lista geral e aba Contatos da ficha). Editar muda nome, cargo, e-mail, telefones e o
 // contato principal; Adicionar cadastra na própria tabela (na ficha, já ligado ao cliente). Permissão: customers.
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Star, Trash2 } from "lucide-react";
@@ -21,9 +22,11 @@ interface ContactsTableProps {
   customerId?: string;
   title?: string;
   emptyMessage?: string;
+  /** Filtros da lista, na barra do topo da tabela. */
+  actions?: ReactNode;
 }
 
-export function ContactsTable({ contacts, loading, customerId, title = "Contatos", emptyMessage }: ContactsTableProps) {
+export function ContactsTable({ contacts, loading, customerId, title = "Contatos", emptyMessage, actions }: ContactsTableProps) {
   const { companyId, can } = useCrmSession();
   const actor = useEditActor();
   const qc = useQueryClient();
@@ -86,6 +89,7 @@ export function ContactsTable({ contacts, loading, customerId, title = "Contatos
       <EditableTable<Contact>
         resource="customers"
         title={title}
+        actions={actions}
         label={title}
         rows={contacts}
         columns={columns}

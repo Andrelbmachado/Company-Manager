@@ -121,23 +121,24 @@ export default function InventoryCountsPage() {
     <div className="space-y-6">
       <PageHeader title="Inventário" />
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, local ou observação...">
-        <div role="group" aria-label="Filtrar por situação" className="flex flex-wrap gap-1">
-          {STATUS_FILTERS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={status === option.value}
-              onClick={() => setStatus(option.value)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${status === option.value ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PageToolbar>
-
       <EditableTable
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por número, local ou observação...">
+            <div role="group" aria-label="Filtrar por situação" className="flex flex-wrap gap-1">
+              {STATUS_FILTERS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={status === option.value}
+                  onClick={() => setStatus(option.value)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${status === option.value ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </PageToolbar>
+        }
         resource="inventory"
         label="Contagens de inventário"
         title="Contagens"

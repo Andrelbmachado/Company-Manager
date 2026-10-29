@@ -166,20 +166,21 @@ export default function CatalogPage() {
         <StatCard title="Produtos sem estoque" value={outOfStock} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, SKU, categoria...">
-        <select aria-label="Filtrar por tipo" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)} className={`${INPUT} w-36`}>
-          <option value="todos">Todos os tipos</option>
-          <option value="produto">Produtos</option>
-          <option value="servico">Serviços</option>
-        </select>
-        <select aria-label="Filtrar por situação" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={`${INPUT} w-32`}>
-          <option value="ativos">Ativos</option>
-          <option value="inativos">Inativos</option>
-          <option value="todos">Todos</option>
-        </select>
-      </PageToolbar>
-
       <EditableTable<ProductRow>
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, SKU, categoria...">
+            <select aria-label="Filtrar por tipo" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)} className={`${INPUT} w-36`}>
+              <option value="todos">Todos os tipos</option>
+              <option value="produto">Produtos</option>
+              <option value="servico">Serviços</option>
+            </select>
+            <select aria-label="Filtrar por situação" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={`${INPUT} w-32`}>
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </PageToolbar>
+        }
         resource="products"
         title="Produtos e serviços"
         label="Catálogo de produtos e serviços"

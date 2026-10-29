@@ -1,4 +1,4 @@
-// Importar pela Prospecção põe os leads novos na campanha aberta (SQLite real). O botão de importação é trocado por um
+// Importar pela Prospecção soma os leads novos aos que já existem, na prospecção padrão (SQLite real). O botão de importação é trocado por um
 // que repete a ordem do ImportWizard: grava os leads sem campanha, refaz TODAS as consultas e só então avisa a tela.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import LeadsPage from "./LeadsPage";
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
 vi.mock("@/components/shared/ImportExportButtons", () => ({ ImportExportButtons: FakeImportButton }));
 
-function FakeImportButton({ onImported }: { entity: string; onImported?: () => void }) {
+function FakeImportButton({ onImported, importOpen }: { entity: string; onImported?: () => void; importOpen?: boolean }) {
   const qc = useQueryClient();
   const session = useRequiredSession();
   async function run() {
@@ -23,7 +23,8 @@ function FakeImportButton({ onImported }: { entity: string; onImported?: () => v
     await qc.invalidateQueries();
     onImported?.();
   }
-  return <button type="button" onClick={() => void run()}>Importar planilha de teste</button>;
+  // "Importar prospecção" (menu Nova prospecção) abre o assistente: aqui aparece o botão que simula a importação.
+  return importOpen ? <button type="button" onClick={() => void run()}>Importar planilha de teste</button> : null;
 }
 
 const testDb = useTestDb();
@@ -50,27 +51,29 @@ const kpi = (container: HTMLElement, title: string) =>
 const campaignOf = async (id: string) => (await testDb().select<Lead[]>("SELECT * FROM leads WHERE id=?", [id]))[0]?.campaign_id ?? null;
 
 describe("Prospecção: importar pela tela", () => {
-  it("com outra campanha aberta, os leads importados entram nela e não na campanha padrão", async () => {
+  it("Importar prospecção (no menu Nova prospecção) soma os leads importados aos que já existem, na prospecção padrão", async () => {
     const companyId = await seed();
-    page = await renderPage(<LeadsPage />, { companyId, role: "comercial", path: `/leads?campanha=${OTHER}` });
-    await until(() => kpi(page!.container, "Leads") === "1" && page!.text().includes("Escritório Silva"), "campanha Advogados aberta");
+    page = await renderPage(<LeadsPage />, { companyId, role: "comercial", path: "/leads" });
+    await until(() => kpi(page!.container, "Leads") === "2" && page!.text().includes("Escritório Silva"), "todos os leads");
 
+    await click(page.button("Nova prospecção"));
+    await click([...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => plain(item.textContent).trim() === "Importar prospecção"));
     await click(page.button("Importar planilha de teste"));
 
     await until(async () => (await campaignOf("imp-1")) !== null, "lead importado numa campanha");
-    expect(await campaignOf("imp-1")).toBe(OTHER);
-    await until(() => kpi(page!.container, "Leads") === "2" && page!.text().includes("Imobiliária Importada"), "lead importado na lista da campanha aberta");
-    expect(await campaignOf("a1")).toBe(defaultCampaignId(companyId));
+    expect(await campaignOf("imp-1")).toBe(defaultCampaignId(companyId));
+    await until(() => kpi(page!.container, "Leads") === "3" && page!.text().includes("Imobiliária Importada"), "lead importado somado à lista");
+    expect(page.text()).toContain("Pet Shop Alfa");
+    expect(await campaignOf("b1")).toBe(OTHER);
   });
 
-  it("lead sem campanha que já existia vai para a campanha padrão ao abrir, mesmo com outra campanha no endereço", async () => {
+  it("lead sem campanha que já existia vai para a campanha padrão ao abrir e aparece na lista", async () => {
     const companyId = await seed();
     await testDb().execute("INSERT INTO leads (id, company_id, name, status) VALUES (?, ?, ?, ?)", ["solto", companyId, "Lead Antigo", "novo"]);
-    page = await renderPage(<LeadsPage />, { companyId, role: "comercial", path: `/leads?campanha=${OTHER}` });
+    page = await renderPage(<LeadsPage />, { companyId, role: "comercial", path: "/leads" });
 
     await until(async () => (await campaignOf("solto")) !== null, "lead antigo numa campanha");
     expect(await campaignOf("solto")).toBe(defaultCampaignId(companyId));
-    await until(() => kpi(page!.container, "Leads") === "1" && page!.text().includes("Escritório Silva"), "campanha Advogados aberta");
-    expect(page.text()).not.toContain("Lead Antigo");
+    await until(() => kpi(page!.container, "Leads") === "3" && page!.text().includes("Lead Antigo"), "lead antigo na lista");
   });
 });

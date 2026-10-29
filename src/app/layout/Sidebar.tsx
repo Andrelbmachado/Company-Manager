@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRequiredSession } from "@/hooks/useSession";
 import { can, visibleModules } from "@/lib/permissions/rbac";
@@ -8,7 +8,6 @@ import type { LabelKey } from "@/lib/labels/profiles";
 import { activeNavPath, type Requirement } from "../subpages";
 import { AccountMenu } from "./AccountMenu";
 import { AssistantLauncher } from "./AssistantLauncher";
-import { RailTooltips } from "./RailTooltips";
 import { SidebarSearch } from "./SidebarSearch";
 import type { Role } from "@/types";
 import {
@@ -80,20 +79,19 @@ const SIDEBAR_WIDTH_KEY = "cm_sidebar_width";
 const SIDEBAR_COLLAPSED_KEY = "cm_sidebar_collapsed";
 const DEFAULT_WIDTH = 269;
 const MIN_WIDTH = 230;
-/** Largura do trilho de ícones (sidebar recolhida). */
-export const RAIL_WIDTH = 56;
+/** Largura da faixa que sobra com a sidebar fechada: só o botão de abrir. */
+export const RAIL_WIDTH = 48;
 /** Abaixo desta largura de janela a sidebar vira trilho sozinha; expandida, abre por cima do conteúdo. */
 export const AUTO_RAIL_BELOW = 900;
 
 /**
  * Sidebar: logo, busca, Assistente de IA, navegação por grupo e, no rodapé, o botão da conta (não há top bar).
- * Recolhida, vira um trilho só com os ícones (com nome acessível e dica ao lado); a escolha fica salva. Em janela
- * estreita ela recolhe sozinha sem mudar a escolha salva, e expandir abre a sidebar por cima do conteúdo.
+ * Fechada, some por completo e fica só o botão de abrir (pedido do André, 2026-10-29); a escolha fica salva. Em janela
+ * estreita ela fecha sozinha sem mudar a escolha salva, e abrir mostra a sidebar por cima do conteúdo.
  */
 export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const session = useRequiredSession();
   const location = useLocation();
-  const asideRef = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(() => readStored(SIDEBAR_COLLAPSED_KEY) === "true");
   // Largura escolhida pela pessoa (só o arraste grava); a janela só limita na hora de desenhar, então estreitar e
   // alargar de novo devolve a largura escolhida.
@@ -179,20 +177,32 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   }
 
   const toggleLabel = rail ? "Expandir sidebar" : "Minimizar sidebar";
-  const asideWidth = rail
-    ? RAIL_WIDTH
-    : overlay
-      ? Math.min(Math.max(width, MIN_WIDTH), windowWidth - 40)
-      : clampSidebarWidth(width, windowWidth);
+
+  if (rail) {
+    return (
+      <div data-sidebar-closed="" style={{ width: RAIL_WIDTH }} className="flex h-full shrink-0 justify-center pt-3">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={toggleLabel}
+          aria-expanded={false}
+          title={toggleLabel}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <PanelLeftOpen size={17} />
+        </button>
+      </div>
+    );
+  }
+
+  const asideWidth = overlay ? Math.min(Math.max(width, MIN_WIDTH), windowWidth - 40) : clampSidebarWidth(width, windowWidth);
 
   return (
     <>
-      {/* Por cima do conteúdo: o espaço do trilho segura o lugar (o conteúdo não pula) e o fundo fecha ao clicar. */}
+      {/* Por cima do conteúdo: o espaço do botão segura o lugar (o conteúdo não pula) e o fundo fecha ao clicar. */}
       {overlay && <div data-sidebar-spacer="" aria-hidden="true" style={{ width: RAIL_WIDTH }} className="h-full shrink-0" />}
       {overlay && <div aria-hidden="true" onClick={() => setOverlayOpen(false)} className="fixed inset-0 z-30 bg-black/40" />}
       <aside
-        ref={asideRef}
-        data-rail={rail ? "" : undefined}
         data-overlay={overlay ? "" : undefined}
         style={{ width: asideWidth }}
         className={cn(
@@ -202,7 +212,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
         )}
       >
         {/* Alça de redimensionar: primeira no DOM (posição absoluta), para o botão da conta ser o último da sidebar. */}
-        {!rail && !overlay && (
+        {!overlay && (
           <button
             type="button"
             aria-label="Redimensionar sidebar"
@@ -213,42 +223,40 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
         )}
 
         {/* Logo */}
-        <div className={cn("flex h-14 shrink-0 items-center gap-2.5", rail ? "justify-center px-2" : "px-3.5")}>
-          <div className={cn("h-7 w-7 items-center justify-center rounded-lg bg-primary", rail ? "hidden" : "flex")}>
+        <div className={"flex h-14 shrink-0 items-center gap-2.5 px-3.5"}>
+          <div className={"flex h-7 w-7 items-center justify-center rounded-lg bg-primary"}>
             <Building2 size={15} className="text-primary-foreground" />
           </div>
-          <div className={cn("min-w-0 flex-1 flex-col leading-tight", rail ? "hidden" : "flex")}>
+          <div className={"flex min-w-0 flex-1 flex-col leading-tight"}>
             <span className="truncate font-display text-base font-bold tracking-tight text-sidebar-accent-foreground">Company Manager</span>
           </div>
           <button
             type="button"
             onClick={toggleCollapsed}
             aria-label={toggleLabel}
-            aria-expanded={!rail}
-            data-rail-tip={rail ? toggleLabel : undefined}
-            title={rail ? undefined : toggleLabel}
+            aria-expanded={true}
+            title={toggleLabel}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
-            {rail ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+            <PanelLeftClose size={17} />
           </button>
         </div>
 
         {/* Busca e Assistente de IA, acima da navegação */}
-        <div className={cn("space-y-1 pb-2", rail ? "px-2" : "px-2.5")}>
-          <SidebarSearch collapsed={rail} onOpen={onSearch} />
-          {assistantVisible && <AssistantLauncher collapsed={rail} />}
+        <div className={"space-y-1 px-2.5 pb-2"}>
+          <SidebarSearch collapsed={false} onOpen={onSearch} />
+          {assistantVisible && <AssistantLauncher collapsed={false} />}
         </div>
 
         {/* Nav */}
-        {/* No trilho a barra de rolagem fica escondida: ocuparia 8 px dos 40 e tiraria os ícones do centro. */}
         <nav
           aria-label="Módulos"
-          className={cn("flex-1 overflow-y-auto overscroll-contain py-3", rail ? "px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "px-2.5")}
+          className={"flex-1 overflow-y-auto overscroll-contain px-2.5 py-3"}
         >
           {Object.entries(groups).map(([group, items]) => (
             // relative: o título sr-only do grupo (absoluto) fica dentro da lista que rola, não estica a sidebar.
-            <div key={group} className={cn("relative space-y-1", rail ? "mb-3 border-b border-sidebar-border pb-3 last:mb-0 last:border-b-0 last:pb-0" : "mb-5")}>
-              <p className={cn("px-2.5 pb-1.5 text-xs font-semibold text-muted-foreground", rail && "sr-only")}>
+            <div key={group} className={"relative mb-5 space-y-1"}>
+              <p className={"px-2.5 pb-1.5 text-xs font-semibold text-muted-foreground"}>
                 {group}
               </p>
               {items.map((item) => {
@@ -259,17 +267,15 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
                   <NavLink
                     key={item.path}
                     to={item.path}
-                    data-rail-tip={rail ? text : undefined}
                     className={cn(
                       "relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-                      rail && "h-9 justify-center px-0 py-0",
                       active
                         ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-sidebar-primary"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
-                    <Icon size={rail ? 18 : 16} className="shrink-0" aria-hidden="true" />
-                    <span className={rail ? "sr-only" : "min-w-0 truncate"}>{text}</span>
+                    <Icon size={16} className="shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 truncate">{text}</span>
                   </NavLink>
                 );
               })}
@@ -278,11 +284,10 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
         </nav>
 
         {/* Conta (no lugar onde ficava o assistente) */}
-        <div className={cn("border-t border-sidebar-border", rail ? "p-2" : "p-2.5")}>
-          <AccountMenu collapsed={rail} />
+        <div className={"border-t border-sidebar-border p-2.5"}>
+          <AccountMenu collapsed={false} />
         </div>
       </aside>
-      <RailTooltips container={asideRef} enabled={rail} />
     </>
   );
 }

@@ -22,7 +22,8 @@ function watchErrors(page: Page): string[] {
 async function quickLogin(page: Page, area = "CEO") {
   await page.goto("/");
   await page.getByRole("button", { name: `Entrar rápido como ${area}` }).click();
-  await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeVisible();
+  // Janela estreita: a sidebar abre fechada (só o botão de abrir; o menu da conta fica dentro dela).
+  await expect(page.getByRole("button", { name: /^(Abrir menu da conta|Expandir sidebar)$/ }).first()).toBeVisible();
   await page.waitForLoadState("networkidle");
 }
 
@@ -39,44 +40,42 @@ async function expectInsideWindow(page: Page, locator: Locator, what: string) {
 test.describe("janela mínima (1/5 × 1/3 da tela)", () => {
   test.use({ viewport: MIN_WINDOW });
 
-  test("sidebar em trilho; menus da conta e do assistente e a busca cabem na janela; a janela não rola", async ({ page }) => {
+  test("sidebar fechada (só o botão de abrir); menus da conta e do assistente e a busca cabem na janela; a janela não rola", async ({ page }) => {
     const errors = watchErrors(page);
     // O login também cabe: a tela rola no próprio contêiner até o botão.
     await quickLogin(page);
-    const sidebar = page.locator("aside").first();
-    await expect(sidebar).toHaveAttribute("data-rail", "");
+    await expect(page.locator("[data-sidebar-closed]")).toBeVisible();
+    await expect(page.locator("aside")).toHaveCount(0);
 
+    // Aberta numa janela estreita, a sidebar fica por cima do conteúdo; o menu da conta abre para cima e cabe.
+    await page.getByRole("button", { name: "Expandir sidebar" }).click();
+    const sidebar = page.locator("aside").first();
+    await expect(sidebar).toHaveAttribute("data-overlay", "");
     await sidebar.getByRole("button", { name: "Abrir menu da conta" }).click();
     const account = page.locator("#account-menu");
-    await expectInsideWindow(page, account, "menu da conta (trilho)");
-    await expectInsideWindow(page, account.getByRole("switch", { name: "Tema escuro" }), "switch Tema escuro (trilho)");
+    await expectInsideWindow(page, account, "menu da conta (sidebar por cima)");
+    await expectInsideWindow(page, account.getByRole("switch", { name: "Tema escuro" }), "switch Tema escuro");
     await page.keyboard.press("Escape");
     await expect(account).toHaveCount(0);
 
+    if (await page.locator("[data-sidebar-closed]").count()) await page.getByRole("button", { name: "Expandir sidebar" }).click();
     await sidebar.getByRole("button", { name: "Assistente de IA" }).click();
-    await expectInsideWindow(page, page.locator("#assistant-menu"), "menu do assistente (trilho)");
+    await expectInsideWindow(page, page.locator("#assistant-menu"), "menu do assistente");
     await page.keyboard.press("Escape");
+    await expect(page.locator("[data-sidebar-closed]")).toBeVisible();
 
-    await sidebar.getByRole("button", { name: "Buscar" }).click();
+    await page.keyboard.press("Control+k");
     await expectInsideWindow(page, page.getByRole("dialog", { name: "Buscar" }), "busca");
     await page.keyboard.press("Escape");
 
-    // Expandida numa janela estreita, a sidebar abre por cima do conteúdo; o menu da conta abre para cima e cabe.
-    await sidebar.getByRole("button", { name: "Expandir sidebar" }).click();
-    await expect(sidebar).toHaveAttribute("data-overlay", "");
-    await sidebar.getByRole("button", { name: "Abrir menu da conta" }).click();
-    await expectInsideWindow(page, page.locator("#account-menu"), "menu da conta (sidebar por cima)");
-    await page.keyboard.press("Escape");
-    await expect(sidebar).toHaveAttribute("data-rail", "");
-
-    // Rodinha do mouse sobre a borda entre o trilho e o conteúdo: só o conteúdo rola, a casca fica no lugar.
-    const rail = (await sidebar.boundingBox())!;
+    // Rodinha do mouse sobre a borda entre o botão da sidebar e o conteúdo: só o conteúdo rola, a casca fica no lugar.
+    const rail = (await page.locator("[data-sidebar-closed]").boundingBox())!;
     await page.mouse.move(rail.x + rail.width + 1, MIN_WINDOW.height / 2);
     for (let step = 0; step < 6; step++) await page.mouse.wheel(0, 400);
     await expect.poll(() => page.evaluate(() => document.querySelector("main")!.scrollTop)).toBeGreaterThan(0);
     const shell = await page.evaluate(() => ({
       window: document.scrollingElement!.scrollTop,
-      sidebarTop: document.querySelector("aside")!.getBoundingClientRect().top,
+      sidebarTop: document.querySelector("[data-sidebar-closed]")!.getBoundingClientRect().top,
       pageWidth: document.documentElement.scrollWidth,
     }));
     expect(shell).toEqual({ window: 0, sidebarTop: 0, pageWidth: MIN_WINDOW.width });
@@ -92,7 +91,12 @@ test.describe("largura mínima do app (240 px, o piso do tauri.conf.json)", () =
     test.setTimeout(300_000);
     const errors = watchErrors(page);
     await quickLogin(page);
+    // Janela estreita: a sidebar fica fechada e abre por cima a cada navegação.
     const modules = page.locator('aside nav[aria-label="Módulos"]');
+    const openSidebar = async () => {
+      if (await page.locator("[data-sidebar-closed]").count()) await page.getByRole("button", { name: "Expandir sidebar" }).click();
+    };
+    await openSidebar();
     const routes = await modules.locator("a").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
     const visited = new Set<string>();
     const overflowing: string[] = [];
@@ -117,7 +121,9 @@ test.describe("largura mínima do app (240 px, o piso do tauri.conf.json)", () =
     }
 
     for (const route of routes) {
-      if (route && !visited.has(route)) await visit(route, modules.locator(`a[href="${route}"]`).first());
+      if (!route || visited.has(route)) continue;
+      await openSidebar();
+      await visit(route, modules.locator(`a[href="${route}"]`).first());
     }
     expect(visited.size).toBeGreaterThan(30);
     expect(overflowing).toEqual([]);

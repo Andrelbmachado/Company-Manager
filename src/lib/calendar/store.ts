@@ -308,7 +308,7 @@ export async function loadCalendarData(db: DatabaseLike, companyId: string): Pro
   return { sources, events, requests, employees };
 }
 
-export type CalendarOrigin = "agenda" | "app" | "rh";
+export type CalendarOrigin = "agenda" | "app" | "rh" | "presenca";
 
 export interface CalendarEntry extends CalendarItem {
   origin: CalendarOrigin;
@@ -392,6 +392,7 @@ export function calendarItems(data: CalendarData, filter: CalendarFilter = {}): 
       sourceLabel: "RH",
       origin: "rh",
       kind: request.type === "ferias" ? "ferias" : "ausencia",
+      color: employeeColor(employee.id),
       userId: employee.user_id ?? null,
       employeeId: employee.id,
       personName: employee.name,
@@ -400,6 +401,71 @@ export function calendarItems(data: CalendarData, filter: CalendarFilter = {}): 
   if (!filter.userId && !filter.employeeId) return items;
   const userId = filter.userId ?? (filter.employeeId ? (employees.get(filter.employeeId)?.user_id ?? null) : null);
   return items.filter((item) => (userId !== null && item.userId === userId) || (!!filter.employeeId && item.employeeId === filter.employeeId));
+}
+
+// ── presença ──────────────────────────────────────────────────────
+
+/** Cor fixa de cada funcionário (mesmo matiz na presença e na ausência), espalhada pelo círculo de cores. */
+export function employeeColor(employeeId: string): string {
+  let hash = 0;
+  for (const char of employeeId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return `hsl(${(hash * 137.508) % 360} 70% 50%)`;
+}
+
+const weekdayOf = (day: string) => new Date(`${day}T00:00:00Z`).getUTCDay();
+
+/** O colaborador faz parte da empresa no dia (admitido e não desligado até ele). */
+function employedOn(employee: Employee, day: string): boolean {
+  const hired = employee.hire_date?.slice(0, 10);
+  if (isDayKey(hired) && hired > day) return false;
+  const terminated = employee.termination_date?.slice(0, 10);
+  if (isDayKey(terminated)) return terminated > day;
+  return employee.status !== "desligado";
+}
+
+/**
+ * Quem está na empresa em cada dia útil (segunda a sexta) de `start` até `end` (exclusivo): um item "Presente: Nome"
+ * por colaborador sem ausência aprovada no dia, e "Afastado: Nome" para quem está afastado. Ausências aprovadas já
+ * vêm de calendarItems; aqui elas só tiram a presença do dia. Mesmo filtro por funcionário de calendarItems.
+ */
+export function presenceItems(data: CalendarData, start: string, end: string, filter: CalendarFilter = {}): CalendarEntry[] {
+  const absent = new Set<string>();
+  for (const request of data.requests) {
+    const first = request.start_date?.slice(0, 10);
+    if (request.status !== "aprovada" || request.deleted_at || !isDayKey(first)) continue;
+    const last = isDayKey(request.end_date?.slice(0, 10)) && request.end_date.slice(0, 10) >= first ? request.end_date.slice(0, 10) : first;
+    for (let day = first < start ? start : first; day <= last && day < end; day = addDays(day, 1)) absent.add(`${request.employee_id}|${day}`);
+  }
+  const userId = filter.userId ?? null;
+  const people = data.employees
+    .filter((employee) => !employee.deleted_at)
+    .filter((employee) => (!filter.userId && !filter.employeeId) || (userId !== null && employee.user_id === userId) || employee.id === filter.employeeId)
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const items: CalendarEntry[] = [];
+  for (let day = start; day < end; day = addDays(day, 1)) {
+    const weekday = weekdayOf(day);
+    if (weekday === 0 || weekday === 6) continue;
+    for (const employee of people) {
+      if (!employedOn(employee, day) || absent.has(`${employee.id}|${day}`)) continue;
+      const away = employee.status === "afastado";
+      items.push({
+        id: `presenca-${employee.id}-${day}`,
+        title: `${away ? "Afastado" : "Presente"}: ${employee.name}`,
+        start: day,
+        end: addDays(day, 1),
+        allDay: true,
+        sourceLabel: away ? "Afastamento" : "Presença",
+        color: employeeColor(employee.id),
+        priority: 1,
+        origin: "presenca",
+        kind: "ausencia",
+        userId: employee.user_id ?? null,
+        employeeId: employee.id,
+        personName: employee.name,
+      });
+    }
+  }
+  return items;
 }
 
 // ── exportação ────────────────────────────────────────────────────

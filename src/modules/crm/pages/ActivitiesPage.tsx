@@ -85,6 +85,24 @@ export default function ActivitiesPage() {
       sourceLabel: `${ACTIVITY_KIND_LABELS[activity.kind]} · ${ENTITY_LABELS[activity.entity_type]}${activity.done_at ? " (feita)" : ""}`,
     }));
 
+  // Os mesmos filtros na barra da tabela (lista) e na barra do calendário.
+  const filterBar = (
+    <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por assunto, cliente, oportunidade...">
+      <select value={state} onChange={(event) => setState(event.target.value as StateFilter)} aria-label="Filtrar por situação" className={SELECT}>
+        {STATE_OPTIONS.map((option) => <option key={option.value || "todas"} value={option.value}>{option.label}</option>)}
+      </select>
+      <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Filtrar por tipo" className={SELECT}>
+        <option value="">Todos os tipos</option>
+        {ACTIVITY_KINDS.map((option) => <option key={option} value={option}>{ACTIVITY_KIND_LABELS[option]}</option>)}
+      </select>
+      <select value={owner} onChange={(event) => setOwner(event.target.value)} aria-label="Filtrar por responsável" className={SELECT}>
+        <option value="">Todos os responsáveis</option>
+        <option value="me">Minhas</option>
+        {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+      </select>
+    </PageToolbar>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -99,21 +117,6 @@ export default function ActivitiesPage() {
         <StatCard title="Feitas em 7 dias" value={counts.semana} />
       </div>
 
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por assunto, cliente, oportunidade...">
-        <select value={state} onChange={(event) => setState(event.target.value as StateFilter)} aria-label="Filtrar por situação" className={SELECT}>
-          {STATE_OPTIONS.map((option) => <option key={option.value || "todas"} value={option.value}>{option.label}</option>)}
-        </select>
-        <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Filtrar por tipo" className={SELECT}>
-          <option value="">Todos os tipos</option>
-          {ACTIVITY_KINDS.map((option) => <option key={option} value={option}>{ACTIVITY_KIND_LABELS[option]}</option>)}
-        </select>
-        <select value={owner} onChange={(event) => setOwner(event.target.value)} aria-label="Filtrar por responsável" className={SELECT}>
-          <option value="">Todos os responsáveis</option>
-          <option value="me">Minhas</option>
-          {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-        </select>
-      </PageToolbar>
-
       {/* A lista fica montada (só escondida) enquanto o calendário aparece: o rascunho não se perde em silêncio. */}
       <div hidden={view !== "lista"}>
         <ActivitiesTable
@@ -121,6 +124,7 @@ export default function ActivitiesPage() {
           loading={isLoading}
           showEntity
           title="Atividades"
+          actions={filterBar}
           emptyMessage={activities.length ? (state === "atrasada" ? "Nenhum follow-up atrasado" : "Nenhuma atividade com esses filtros") : undefined}
         />
       </div>
@@ -128,6 +132,7 @@ export default function ActivitiesPage() {
         <CalendarView
           items={calendarItems}
           label="Agenda do CRM"
+          toolbar={filterBar}
           onSelect={(item) => {
             const activity = filtered.find((row) => row.id === item.id);
             const href = activity ? entityHref(activity.entity_type, activity.entity_id, activity.customer_id) : null;

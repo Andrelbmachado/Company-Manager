@@ -2,6 +2,7 @@
 // probabilidade, fechamento previsto e responsável; fechar continua sendo por Ganhar/Perder no painel de detalhes, que
 // abre logo abaixo da tabela.
 import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
@@ -26,9 +27,11 @@ interface OpportunitiesTableProps {
   /** Oportunidade com o painel de detalhes aberto (controlado por quem chama, ex.: ?oportunidade= na URL). */
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** Filtros da lista, na barra do topo da tabela. */
+  actions?: ReactNode;
 }
 
-export function OpportunitiesTable({ opportunities, loading, customerId, title = "Oportunidades", emptyMessage, selectedId, onSelect }: OpportunitiesTableProps) {
+export function OpportunitiesTable({ opportunities, loading, customerId, title = "Oportunidades", emptyMessage, selectedId, onSelect, actions }: OpportunitiesTableProps) {
   const { companyId, userId } = useCrmSession();
   const actor = useEditActor();
   const qc = useQueryClient();
@@ -101,6 +104,7 @@ export function OpportunitiesTable({ opportunities, loading, customerId, title =
         label={title}
         rows={opportunities}
         columns={columns}
+        actions={actions}
         loading={loading}
         onSave={save}
         onRefresh={() => refreshQueries(qc, ["opportunities", "crm-activities"])}

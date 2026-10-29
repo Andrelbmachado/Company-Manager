@@ -1,19 +1,20 @@
 // Leads da prospecção numa tabela editável (Editar muda status, pacote, potencial, data de abordagem...; Adicionar
-// cadastra o lead na prospecção escolhida no topo da página, ou na padrão se não houver nenhuma). Os detalhes (contato,
-// converter em oportunidade, indicação) abrem num painel na própria página, abaixo da tabela.
-import { useMemo, useState } from "react";
+// cadastra o lead na prospecção padrão). Busca e filtros ficam na barra do topo da tabela. Os detalhes (contato,
+// converter em oportunidade, indicação) abrem num painel na própria página, abaixo da tabela; Excluir tira o lead.
+import { useMemo, useState, type MutableRefObject } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Info, MessageCircle, Target } from "lucide-react";
+import { Info, MessageCircle, Target, Trash2 } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
-import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
+import { EditableTable, type EditableColumn, type EditableTableChanges, type EditableTableController } from "@/components/shared/EditableTable";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/utils";
-import { saveLeadRows } from "@/lib/commercial/leadEdits";
+import { deleteLead, saveLeadRows } from "@/lib/commercial/leadEdits";
+import { confirmAction } from "@/lib/confirm";
 import { convertLeadToOpportunity } from "@/lib/crm/convert";
 import { fetchOpportunities } from "@/lib/crm/queries";
 import { InfoGrid, InfoItem, InlinePanel, ROW_ACTION, useEditActor } from "@/modules/catalog/components/inline";
@@ -42,14 +43,18 @@ interface LeadsPanelProps {
   leads: Lead[];
   packages: ServicePackage[];
   loading: boolean;
+  /** Comandos Adicionar/Editar para o menu "Nova prospecção" da página. */
+  controller?: MutableRefObject<EditableTableController | null>;
 }
 
-export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
+export function LeadsPanel({ leads, packages, loading, controller }: LeadsPanelProps) {
   const session = useRequiredSession();
   const companyId = session.company.id;
   const actor = useEditActor();
   const qc = useQueryClient();
   const canEdit = usePermission("edit", "leads");
+  const canDelete = usePermission("delete", "leads");
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const canCreateOpportunity = usePermission("create", "opportunities");
   const navigate = useNavigate();
   const campaign = useCurrentCampaign();
@@ -123,17 +128,17 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
       ),
     },
     { key: "category", header: "Categoria", kind: "text" },
-    { key: "phone", header: "Telefone", kind: "phone" },
     {
       key: "whatsapp",
       header: "WhatsApp",
       kind: "phone",
+      width: 190,
       render: (lead) => {
         const wa = whatsappUrl(lead.whatsapp);
         if (!wa) return <span className="text-muted-foreground">—</span>;
         return (
-          <button type="button" title="Abrir WhatsApp" aria-label={`Abrir WhatsApp de ${lead.name}`} onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 text-primary-text hover:underline">
-            <MessageCircle size={15} /> {lead.whatsapp}
+          <button type="button" title="Abrir WhatsApp" aria-label={`Abrir WhatsApp de ${lead.name}`} onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 whitespace-nowrap text-primary-text hover:underline">
+            <MessageCircle size={15} className="shrink-0" /> {lead.whatsapp}
           </button>
         );
       },
@@ -156,6 +161,19 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
     { key: "status", header: "Status", kind: "select", required: true, options: LEAD_STATUSES.map((option) => ({ value: option.value, label: option.label })), render: (lead) => <LeadStatusBadge status={lead.status} /> },
   ];
 
+  async function remove(lead: Lead) {
+    setRemoveError(null);
+    if (!(await confirmAction(`Excluir o lead "${lead.name}" da prospecção?`, { title: "Excluir lead", okLabel: "Excluir" }))) return;
+    try {
+      await deleteLead(await getDb(), companyId, actor, lead.id);
+      await emit({ type: "lead.deleted", companyId, actorId: session.user.id, entityType: "lead", entityId: lead.id, title: `Lead ${lead.name} excluído`, module: "leads" });
+      if (selectedId === lead.id) setSelectedId(null);
+      await qc.invalidateQueries({ queryKey: ["leads", companyId] });
+    } catch (cause) {
+      setRemoveError(cause instanceof Error ? cause.message : "Não foi possível excluir o lead.");
+    }
+  }
+
   async function save(changes: EditableTableChanges<Lead>) {
     const before = new Map(leads.map((lead) => [lead.id, lead]));
     const result = await saveLeadRows(await getDb(), companyId, actor, changes);
@@ -175,31 +193,34 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
 
   return (
     <div className="space-y-4">
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, categoria, endereço...">
-        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar por status" className={`${selectClass} min-w-0 max-w-full`}>
-          <option value="">Todos os status</option>
-          {LEAD_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filtrar por categoria" className={`${selectClass} min-w-0 max-w-full`}>
-          <option value="">Todas as categorias</option>
-          {categories.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
-        <select value={presence} onChange={(event) => setPresence(event.target.value)} aria-label="Filtrar por presença online" className={`${selectClass} min-w-0 max-w-full`}>
-          <option value="">Toda presença online</option>
-          {Object.entries(PRESENCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-2.5 text-sm">
-          <input type="checkbox" checked={onlyWhatsapp} onChange={(event) => setOnlyWhatsapp(event.target.checked)} />
-          Só WhatsApp
-        </label>
-      </PageToolbar>
-
-      {!loading && leads.length > 0 && <p className="text-xs text-muted-foreground">{filtered.length} de {leads.length} leads</p>}
+      {removeError && <p role="alert" className="text-sm font-medium text-destructive">{removeError}</p>}
 
       <EditableTable<Lead>
         resource="leads"
         title="Leads"
         label="Leads da prospecção"
+        controller={controller}
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por nome, categoria, endereço...">
+            <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar por status" className={`${selectClass} min-w-0 max-w-full`}>
+              <option value="">Todos os status</option>
+              {LEAD_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filtrar por categoria" className={`${selectClass} min-w-0 max-w-full`}>
+              <option value="">Todas as categorias</option>
+              {categories.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+            <select value={presence} onChange={(event) => setPresence(event.target.value)} aria-label="Filtrar por presença online" className={`${selectClass} min-w-0 max-w-full`}>
+              <option value="">Toda presença online</option>
+              {Object.entries(PRESENCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-2.5 text-sm">
+              <input type="checkbox" checked={onlyWhatsapp} onChange={(event) => setOnlyWhatsapp(event.target.checked)} />
+              Só WhatsApp
+            </label>
+            {!loading && leads.length > 0 && <span className="text-xs text-muted-foreground">{filtered.length} de {leads.length} leads</span>}
+          </PageToolbar>
+        }
         rows={filtered}
         columns={columns}
         loading={loading}
@@ -208,9 +229,16 @@ export function LeadsPanel({ leads, packages, loading }: LeadsPanelProps) {
         newRow={() => ({ status: "novo", ...(campaign ? { campaign_id: campaign.id } : {}) })}
         emptyMessage={leads.length ? "Nenhum lead encontrado" : "Nenhum lead"}
         rowActions={(lead) => (
-          <button type="button" className={ROW_ACTION} aria-label={`Detalhes de ${lead.name}`} aria-pressed={selectedId === lead.id} onClick={() => setSelectedId((current) => (current === lead.id ? null : lead.id))}>
-            <Info size={13} /> Detalhes
-          </button>
+          <span className="inline-flex gap-1">
+            <button type="button" className={ROW_ACTION} aria-label={`Detalhes de ${lead.name}`} aria-pressed={selectedId === lead.id} onClick={() => setSelectedId((current) => (current === lead.id ? null : lead.id))}>
+              <Info size={13} /> Detalhes
+            </button>
+            {canDelete && (
+              <button type="button" className={ROW_ACTION} aria-label={`Excluir ${lead.name}`} onClick={() => void remove(lead)}>
+                <Trash2 size={13} /> Excluir
+              </button>
+            )}
+          </span>
         )}
       />
 

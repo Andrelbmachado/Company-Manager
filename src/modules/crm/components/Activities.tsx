@@ -102,10 +102,12 @@ interface ActivitiesTableProps {
   showEntity?: boolean;
   title: string;
   emptyMessage?: string;
+  /** Filtros da lista, na barra do topo da tabela. */
+  actions?: ReactNode;
 }
 
 /** Tabela editável de atividades (lista do CRM e linhas do tempo). */
-export function ActivitiesTable({ activities, loading, entity, showEntity, title, emptyMessage }: ActivitiesTableProps) {
+export function ActivitiesTable({ activities, loading, entity, showEntity, title, emptyMessage, actions }: ActivitiesTableProps) {
   const { companyId, userId, can } = useCrmSession();
   const actor = useEditActor();
   const qc = useQueryClient();
@@ -197,6 +199,7 @@ export function ActivitiesTable({ activities, loading, entity, showEntity, title
     <EditableTable<ActivityRow>
       resource="crm_activities"
       title={title}
+      actions={actions}
       label={title}
       rows={rows}
       columns={columns}

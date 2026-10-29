@@ -51,14 +51,14 @@ const EXPECTED: Record<string, number> = {
   stock_movements: 19,
   custodies: 4,
   cost_centers: 5,
-  payables: 15,
-  receivables: 14,
+  payables: 71,
+  receivables: 56,
   documents: 15,
   employees: 17,
   employee_compensation: 15,
-  hr_requests: 7,
+  hr_requests: 99,
   hr_announcements: 4,
-  hr_tasks: 12,
+  hr_tasks: 56,
   activities: 5,
   audit_logs: 6,
   leads: 0,
@@ -331,13 +331,40 @@ describe("dados de exemplo de CRM, vendas, compras, estoque, RH, importação e 
     }
   });
 
+  it("balanço anual varia todo mês, com meses no vermelho e no verde; RH e calendário cheios para o Meu RH", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 29, 10));
+    try {
+      const db = await seeded();
+      const { annualBalance } = await import("@/lib/dashboard/finance");
+      const months = await annualBalance(db, COMPANY_ID, 2026, { today: "2026-10-29" });
+      const realized = months.map((month) => month.realizado).filter((value): value is number => value !== null);
+      expect(realized.length).toBe(10);
+      expect(realized.filter((value) => value < 0).length).toBeGreaterThanOrEqual(3);
+      expect(realized.filter((value) => value > 0).length).toBeGreaterThanOrEqual(3);
+      // Não há dois meses seguidos iguais (o gráfico não fica reto de janeiro a agosto).
+      for (let index = 1; index < realized.length; index++) expect(realized[index], `mês ${index + 1}`).not.toBe(realized[index - 1]);
+
+      const approved = await rows(db, "SELECT * FROM hr_requests WHERE status = 'aprovada'");
+      expect(new Set(approved.map((row) => row.employee_id)).size).toBeGreaterThanOrEqual(10);
+      const pending = await rows(db, "SELECT * FROM hr_requests WHERE status = 'pendente'");
+      expect(pending.length).toBeGreaterThanOrEqual(10);
+      const events = await rows(db, "SELECT * FROM calendar_events WHERE deleted_at IS NULL");
+      expect(events.length).toBeGreaterThanOrEqual(15);
+      // Leads nunca entram nos dados de exemplo.
+      expect(await count(db, "leads")).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("RH: todos com dados de admissão, uma admissão e um desligamento com checklist, banco de horas com decididos e pendentes", async () => {
     const db = await seeded();
     expect(await rows(db, "SELECT id FROM employees WHERE rg IS NULL OR pis IS NULL OR address_json IS NULL OR address_json = '{}' OR emergency_contact_name IS NULL")).toEqual([]);
     const [leaver] = await rows(db, "SELECT * FROM employees WHERE status = 'desligado'");
     expect(leaver.termination_date).toBeTruthy();
     const categories = await rows(db, "SELECT category, count(*) AS n FROM hr_tasks GROUP BY category ORDER BY category");
-    expect(categories).toEqual([{ category: "admissao", n: 4 }, { category: "desligamento", n: 3 }, { category: "geral", n: 5 }]);
+    expect(categories).toEqual([{ category: "admissao", n: 4 }, { category: "desligamento", n: 3 }, { category: "geral", n: 49 }]);
     const entries = await rows(db, "SELECT * FROM hr_time_entries");
     expect(new Set(entries.map((row) => row.status))).toEqual(new Set(["pendente", "aprovada", "recusada"]));
     expect(entries.some((row) => Number(row.minutes) < 0)).toBe(true);

@@ -109,15 +109,16 @@ export default function GoodsReceiptsPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Recebimentos" />
-      <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por recebimento, pedido, fornecedor ou NF...">
-        <select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`${INPUT} w-40`}>
-          <option value="todos">Todos</option>
-          <option value="conferido">Conferidos</option>
-          <option value="estornado">Estornados</option>
-        </select>
-      </PageToolbar>
-
       <EditableTable<ReceiptRow>
+        actions={
+          <PageToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por recebimento, pedido, fornecedor ou NF...">
+            <select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className={`${INPUT} w-40`}>
+              <option value="todos">Todos</option>
+              <option value="conferido">Conferidos</option>
+              <option value="estornado">Estornados</option>
+            </select>
+          </PageToolbar>
+        }
         resource="purchase_orders"
         label="Recebimentos"
         rows={rows}

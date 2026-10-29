@@ -235,7 +235,9 @@ test.describe("redesign modular", () => {
 
     await quickLogin(page);
     await page.goto("/calendar");
-    await page.getByRole("tab", { name: "Agendas conectadas" }).click();
+    // Sem abas: as agendas conectadas ficam no menu do botão "Agendas conectadas" do cabeçalho.
+    const sourcesButton = page.getByRole("button", { name: /^Agendas conectadas/ });
+    await sourcesButton.click();
 
     const sources = page.locator('[data-editable-table="calendar"]').first();
     await sources.getByRole("button", { name: "Adicionar" }).click();
@@ -253,7 +255,7 @@ test.describe("redesign modular", () => {
     await expect(badRow.locator(".text-destructive")).toContainText(/404|não|erro/i);
     await expect(page.getByRole("button", { name: "1 agenda com erro" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Calendário" }).click();
+    await sourcesButton.click();
     const grid = page.locator("[data-calendar-grid]").first();
     // 4 terças em outubro (a grade de 6 semanas também mostra 03/11, fora do mês).
     await expect(grid.locator('[data-day^="2026-10-"] [data-item-id]', { hasText: "Reunião semanal" })).toHaveCount(4);

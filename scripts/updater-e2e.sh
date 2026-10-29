@@ -4,7 +4,8 @@
 #
 # Uso: scripts/updater-e2e.sh <pasta-de-trabalho> <old.app> <old.app.tar.gz> <old.app.tar.gz.sig> <versão-esperada>
 #   <old.app>: build da versão inicial (npm run tauri build -- --bundles app --config src-tauri/tauri.updatetest.conf.json ...)
-#   <versão-esperada>: versão publicada no canal de teste do GitHub (release "updater-test"), ex. 0.1.1-test.1
+#   <versão-esperada>: versão publicada no canal de teste do GitHub (release "updater-test"), ex. 0.1.1-test.1;
+#   "-" roda só as etapas 1 e 2 (sem GitHub)
 #
 # Etapas:
 #  1. instala a versão inicial numa pasta isolada e grava dados de controle no banco do app de teste;
@@ -30,7 +31,7 @@ SUMMARY="$WORK/summary.txt"
 FAILED=0
 SERVER_PID=""
 
-: > "$SUMMARY"
+mkdir -p "$WORK" && : > "$SUMMARY"
 pass() { echo "PASS  $*" | tee -a "$SUMMARY"; }
 fail() { echo "FAIL  $*" | tee -a "$SUMMARY"; FAILED=1; }
 plist_version() { /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"; }
@@ -137,6 +138,8 @@ if wait_for '^install_error' 90; then
 else chmod u+w "$INSTALL_DIR"; fail "falha de instalação: sem erro"; fi
 stop_app
 kill "$SERVER_PID" >/dev/null 2>&1 || true; SERVER_PID=""
+
+if [ "$EXPECTED" = "-" ]; then exit "$FAILED"; fi
 
 # ---------- 3. Atualização real pelo GitHub Releases (canal de teste) ----------
 launch ""

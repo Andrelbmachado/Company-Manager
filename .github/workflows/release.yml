@@ -64,14 +64,19 @@ jobs:
             echo "::error::A release $GITHUB_REF_NAME já existe; não sobrescrevo releases publicadas."
             exit 1
           fi
-          FLAGS=(--draft --title "Company Manager $GITHUB_REF_NAME" --verify-tag)
           if [ "${{ steps.meta.outputs.channel }}" = "test" ]; then
-            FLAGS+=(--prerelease --notes "Versão de TESTE do atualizador (app \"Company Manager Teste\", canal de teste). Não instale no lugar do app de produção.")
+            PRERELEASE=true
+            NOTES="Versão de TESTE do atualizador (app \"Company Manager Teste\", canal de teste). Não instale no lugar do app de produção."
           else
-            FLAGS+=(--notes "Baixe o instalador do seu sistema abaixo. Sem certificado Apple Developer ID, o macOS avisa \"desenvolvedor não identificado\" na primeira abertura.")
+            PRERELEASE=false
+            NOTES="Baixe o instalador do seu sistema abaixo. Sem certificado Apple Developer ID, o macOS avisa \"desenvolvedor não identificado\" na primeira abertura."
           fi
-          gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}"
-          echo "id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id")" >> "$GITHUB_OUTPUT"
+          # A API devolve o id na hora (listar releases logo depois de criar um rascunho pode ainda não trazê-lo).
+          ID="$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="$GITHUB_REF_NAME" -f name="Company Manager $GITHUB_REF_NAME" -f body="$NOTES" \
+            -F draft=true -F prerelease="$PRERELEASE" --jq .id)"
+          [ -n "$ID" ] || { echo "::error::Release criada sem id"; exit 1; }
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -121,6 +126,10 @@ jobs:
           else
             echo "args=" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Release de destino
+        shell: bash
+        run: test -n "${{ needs.prepare.outputs.release_id }}" || { echo "::error::Sem id da release"; exit 1; }
 
       - name: Build, assinar o pacote de atualização e enviar para a release
         uses: tauri-apps/tauri-action@v0

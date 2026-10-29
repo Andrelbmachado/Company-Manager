@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
 import { CalendarView, type CalendarItem } from "@/components/shared/CalendarView";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { getDb } from "@/lib/db/client";
@@ -14,9 +14,11 @@ import type { Lead, Role } from "@/types";
 
 const FIELD = "h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 
-/** Cronograma de abordagens da campanha no calendário; o lead escolhido mostra o contato e remarca no próprio lugar. */
+/**
+ * Cronograma de abordagens no calendário, na largura toda da tela. Clicar num lead abre o contato dele acima do
+ * calendário, com o campo para remarcar no próprio lugar.
+ */
 export function SchedulePanel({ leads }: { leads: Lead[] }) {
-  const [onlyPending, setOnlyPending] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Abre no próximo dia com lead novo e não pula de mês quando um lead é remarcado (só define o foco uma vez).
   const [focus, setFocus] = useState(() => nextOutreachDay(leads, todayIso()));
@@ -24,27 +26,20 @@ export function SchedulePanel({ leads }: { leads: Lead[] }) {
     if (!focus) setFocus(nextOutreachDay(leads, todayIso()));
   }, [focus, leads]);
 
-  const items = useMemo(() => outreachItems(leads, { onlyPending }), [leads, onlyPending]);
+  const items = useMemo(() => outreachItems(leads), [leads]);
   const selected = leads.find((lead) => lead.id === selectedId) ?? null;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <label className="flex h-9 items-center gap-2 rounded-md border bg-background px-2.5 text-sm">
-          <input type="checkbox" checked={onlyPending} onChange={(event) => setOnlyPending(event.target.checked)} />
-          Só leads novos
-        </label>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <CalendarView items={items} date={focus} label="Cronograma de abordagem" onSelect={(item: CalendarItem) => setSelectedId(item.id)} />
-        <section aria-label="Lead escolhido" className="h-fit rounded-xl border bg-card p-4">
-          {selected ? (
-            <LeadOutreach key={`${selected.id}:${selected.outreach_date ?? ""}`} lead={selected} />
-          ) : (
-            <p className="text-sm text-muted-foreground">{items.length ? "Nenhum lead escolhido" : "Nenhum lead agendado"}</p>
-          )}
+      {selected && (
+        <section aria-label="Lead escolhido" className="relative rounded-xl border bg-card p-4 pr-12">
+          <button type="button" aria-label="Fechar o lead" title="Fechar" onClick={() => setSelectedId(null)} className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X size={16} />
+          </button>
+          <LeadOutreach key={`${selected.id}:${selected.outreach_date ?? ""}`} lead={selected} />
         </section>
-      </div>
+      )}
+      <CalendarView items={items} date={focus} label="Cronograma de abordagem" onSelect={(item: CalendarItem) => setSelectedId(item.id)} />
     </div>
   );
 }
@@ -90,14 +85,12 @@ function LeadOutreach({ lead }: { lead: Lead }) {
         {(lead.category || lead.business_type) && <p className="text-muted-foreground">{[lead.category, lead.business_type].filter(Boolean).join(" · ")}</p>}
         <StatusBadge status={lead.status} tone={lead.status === "fechado" ? "success" : undefined} />
       </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
-        <dt className="text-muted-foreground">Telefone</dt>
-        <dd>{lead.phone ?? "—"}</dd>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 sm:max-w-md">
         <dt className="text-muted-foreground">WhatsApp</dt>
         <dd>
           {wa ? (
             <button type="button" onClick={() => void openExternal(wa)} className="inline-flex items-center gap-1 text-primary-text hover:underline">
-              <MessageCircle size={14} /> {lead.whatsapp}
+              <MessageCircle size={14} /> <span className="whitespace-nowrap">{lead.whatsapp}</span>
             </button>
           ) : (
             "—"

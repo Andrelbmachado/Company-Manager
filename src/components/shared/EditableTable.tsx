@@ -6,7 +6,7 @@
 // linha alterada que o filtro esconde continua no Salvar. Editar e Adicionar seguem
 // can(papel, "edit" | "create", resource); a tela que recebe o onSave continua tendo de conferir a permissão na
 // camada de dados. Valores digitados passam pelo normalizador da importação (1.234,56 e 31/12/2025 funcionam).
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type MutableRefObject, type ReactNode } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { usePermission } from "@/hooks/usePermission";
 import { confirmAction } from "@/lib/confirm";
@@ -23,6 +23,14 @@ export interface EditableTableChanges<T> {
   updated: (Partial<T> & { id: string })[];
   /** Linhas novas: `newRow()` + o que foi digitado. */
   created: Partial<T>[];
+}
+
+/** Comandos da barra disparados de fora da tabela (ex.: menu "Nova prospecção" dos leads). */
+export interface EditableTableController {
+  /** Mesmo que o botão Adicionar (linha nova no topo, já em edição); sem permissão não faz nada. */
+  add(): void;
+  /** Mesmo que o botão Editar; sem permissão não faz nada. */
+  edit(): void;
 }
 
 export interface EditableTableProps<T extends { id: string }> {
@@ -45,6 +53,8 @@ export interface EditableTableProps<T extends { id: string }> {
   rowActions?: (row: T) => ReactNode;
   emptyMessage?: string;
   className?: string;
+  /** Recebe os comandos Adicionar/Editar para quem está fora da tabela. */
+  controller?: MutableRefObject<EditableTableController | null>;
 }
 
 const TD = "px-3 py-2 align-top";
@@ -68,6 +78,7 @@ export function EditableTable<T extends { id: string }>({
   rowActions,
   emptyMessage = "Nenhum registro.",
   className,
+  controller,
 }: EditableTableProps<T>) {
   const canEdit = usePermission("edit", resource);
   const canCreate = usePermission("create", resource);
@@ -98,6 +109,21 @@ export function EditableTable<T extends { id: string }>({
     drafts.addRow(newRow?.() ?? {});
     setEditing(true);
   }
+
+  useEffect(() => {
+    if (!controller) return;
+    controller.current = {
+      add: () => {
+        if (canCreate) add();
+      },
+      edit: () => {
+        if (canEdit && !loading) startEditing();
+      },
+    };
+    return () => {
+      controller.current = null;
+    };
+  });
 
   function cancel() {
     drafts.reset();

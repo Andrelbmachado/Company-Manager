@@ -24,7 +24,7 @@ describe("PageToolbar em janela estreita", () => {
     root = createRoot(container);
     await act(async () => {
       root!.render(
-        <PageToolbar search="" onSearchChange={() => {}} onFilterClick={() => {}}>
+        <PageToolbar variant="page" search="" onSearchChange={() => {}} onFilterClick={() => {}}>
           <select aria-label="Segmento"><option>Todos</option></select>
           <button type="button">Exportar</button>
         </PageToolbar>,

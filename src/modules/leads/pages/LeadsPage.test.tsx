@@ -1,14 +1,16 @@
-// Prospecção com várias campanhas: seletor no topo, "Nova prospecção" e renomear no próprio lugar, cards só com título
-// e número da campanha escolhida, cronograma no CalendarView (SQLite real).
+// Prospecção numa lista só (sem seletor de campanha): todos os leads somados, menu "Nova prospecção" (cadastrar,
+// editar, importar), filtros na barra da tabela, só a coluna WhatsApp, excluir lead, cards só com título e número e
+// cronograma no CalendarView na largura toda (SQLite real).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
-import { choose, click, findButton, plain, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
+import { click, findButton, plain, renderPage, type, until, type RenderedPage } from "@/test/pageHarness";
 import { defaultCampaignId } from "@/lib/prospecting/campaigns";
-import type { Lead, ProspectingCampaign, Role } from "@/types";
+import type { Lead, Role } from "@/types";
 import LeadsPage from "./LeadsPage";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
+vi.mock("@/lib/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
 
 const testDb = useTestDb();
 let page: RenderedPage | null = null;
@@ -53,7 +55,8 @@ function cards(container: HTMLElement): { title: string; value: string; childCou
 }
 
 const kpi = (container: HTMLElement, title: string) => cards(container).find((card) => card.title === title)?.value;
-const campaignSelect = (container: HTMLElement) => container.querySelector<HTMLSelectElement>('select[aria-label="Prospecção"]');
+const table = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-editable-table="leads"]')!;
+const menuItem = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]')].find((item) => plain(item.textContent).trim() === label);
 
 const FIXED_TEXTS = [
   "Sorocaba",
@@ -69,10 +72,10 @@ const FIXED_TEXTS = [
   "por dia útil",
 ];
 
-describe("Prospecção: várias campanhas e cards enxutos", () => {
-  it("cards só com título e número da campanha escolhida, sem os textos fixos antigos", async () => {
+describe("Prospecção: uma lista só, menu Nova prospecção e cards enxutos", () => {
+  it("sem seletor de prospecção: cards e lista somam os leads de todas as campanhas, sem os textos fixos antigos", async () => {
     const { page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3" && page.text().includes("Pet Shop Alfa"), "cards da Prospecção 1");
+    await until(() => kpi(page.container, "Leads") === "4" && page.text().includes("Escritório Silva"), "cards com todos os leads");
 
     const list = cards(page.container);
     expect(list.map((card) => card.title)).toEqual(["Leads", "Abordados", "Fechados", "Potencial no 1º ano"]);
@@ -80,138 +83,109 @@ describe("Prospecção: várias campanhas e cards enxutos", () => {
       expect(card.childCount).toBe(2);
       expect(card.text).toBe(card.title + card.value);
     }
-    expect(kpi(page.container, "Abordados")).toBe("2");
+    expect(kpi(page.container, "Abordados")).toBe("3");
     expect(kpi(page.container, "Fechados")).toBe("1");
-    expect(kpi(page.container, "Potencial no 1º ano")).toBe("R$ 6.000");
-    expect(campaignSelect(page.container)?.value).toBeTruthy();
-    expect(page.text()).not.toContain("Escritório Silva");
+    expect(kpi(page.container, "Potencial no 1º ano")).toBe("R$ 11.000");
+    expect(page.container.querySelector('select[aria-label="Prospecção"]')).toBeNull();
+    expect(page.button("Renomear prospecção")).toBeUndefined();
+    expect(page.text()).toContain("Pet Shop Alfa");
     for (const fixed of FIXED_TEXTS) expect(page.text()).not.toContain(fixed);
   });
 
-  it("trocar a campanha no seletor filtra os cards e a lista de leads", async () => {
+  it("busca e filtros ficam na barra da tabela; só a coluna WhatsApp, com o número inteiro numa linha", async () => {
     const { page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
-
-    await choose(campaignSelect(page.container), OTHER);
-    await until(() => kpi(page.container, "Leads") === "1" && page.text().includes("Escritório Silva"), "cards de Advogados");
-    expect(kpi(page.container, "Abordados")).toBe("1");
-    expect(kpi(page.container, "Fechados")).toBe("0");
-    expect(kpi(page.container, "Potencial no 1º ano")).toBe("R$ 5.000");
-    expect(page.text()).not.toContain("Pet Shop Alfa");
+    await until(() => page.text().includes("Pet Shop Alfa"), "leads");
+    const bar = table(page.container).firstElementChild as HTMLElement;
+    for (const label of ["Filtrar por status", "Filtrar por categoria", "Filtrar por presença online"]) {
+      expect(bar.querySelector(`select[aria-label="${label}"]`), label).not.toBeNull();
+    }
+    expect(bar.querySelector("input[placeholder^='Buscar']")).not.toBeNull();
+    const headers = [...table(page.container).querySelectorAll("thead th")].map((th) => plain(th.textContent));
+    expect(headers).toContain("WhatsApp");
+    expect(headers).not.toContain("Telefone");
+    const whatsapp = table(page.container).querySelector<HTMLElement>('tr[data-row-key="a1"] td[data-column="whatsapp"] button');
+    expect(whatsapp?.className).toMatch(/whitespace-nowrap/);
+    expect(plain(whatsapp?.textContent).trim()).toBe("(15) 99876-5432");
   });
 
-  it("Nova prospecção pede o nome no próprio lugar (sem diálogo) e abre a campanha vazia", async () => {
+  it("menu Nova prospecção: Nova prospecção cadastra na tabela (lead entra na prospecção padrão), Editar abre a edição", async () => {
     const { companyId, page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
+    await until(() => kpi(page.container, "Leads") === "4", "cards");
 
     await click(page.button("Nova prospecção"));
-    const input = page.container.querySelector<HTMLInputElement>('input[aria-label="Nome da nova prospecção"]');
-    expect(input?.value).toBe("Prospecção 3");
+    expect(menuItem("Nova prospecção")).toBeDefined();
+    expect(menuItem("Editar prospecção")).toBeDefined();
+    expect(menuItem("Importar prospecção")).toBeDefined();
+    expect(page.container.querySelector("button[aria-label^='Importar planilha']")).toBeNull();
+    await click(menuItem("Nova prospecção"));
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    await type(input, "Imobiliárias");
-    await click(page.button("Criar"));
-
-    await until(async () => (await testDb().select<ProspectingCampaign[]>("SELECT * FROM prospecting_campaigns WHERE company_id=? AND name=?", [companyId, "Imobiliárias"])).length === 1, "campanha gravada");
-    const [created] = await testDb().select<ProspectingCampaign[]>("SELECT * FROM prospecting_campaigns WHERE company_id=? AND name=?", [companyId, "Imobiliárias"]);
-    await until(() => campaignSelect(page.container)?.value === created!.id && kpi(page.container, "Leads") === "0", "campanha nova escolhida");
-    expect(kpi(page.container, "Potencial no 1º ano")).toBe("R$ 0");
-    expect(page.text()).not.toContain("Pet Shop Alfa");
-    // Campanha nova: lista vazia curta, sem o texto antigo do seed ("primeiro acesso do CEO...").
-    await until(() => page.text().includes("Nenhum lead"), "lista vazia da campanha nova");
-    expect(page.text()).not.toContain("primeiro acesso");
-  });
-
-  it("Adicionar na tabela de leads grava o lead na campanha escolhida no topo", async () => {
-    const { companyId, page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
-    await choose(campaignSelect(page.container), OTHER);
-    await until(() => page.text().includes("Escritório Silva"), "leads de Advogados");
-
-    const table = () => page.container.querySelector<HTMLElement>('[data-editable-table="leads"]')!;
-    await click(findButton(table(), "Adicionar"));
-    expect(document.querySelector("[role=dialog]")).toBeNull();
-    await type(table().querySelector('[aria-label="Lead (nova linha)"]'), "Advocacia Souza");
-    await click(findButton(table(), "Salvar"));
+    await type(table(page.container).querySelector('[aria-label="Lead (nova linha)"]'), "Advocacia Souza");
+    await click(findButton(table(page.container), "Salvar"));
 
     const created = async () => (await testDb().select<Lead[]>("SELECT * FROM leads WHERE company_id=? AND name=?", [companyId, "Advocacia Souza"]))[0];
     await until(async () => !!(await created()), "lead gravado");
-    expect((await created())!.campaign_id).toBe(OTHER);
-    await until(() => kpi(page.container, "Leads") === "2", "card da campanha com o lead novo");
-  });
-
-  it("nome repetido aparece como erro no próprio campo e nada é gravado", async () => {
-    const { companyId, page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
+    expect((await created())!.campaign_id).toBe(defaultCampaignId(companyId));
+    await until(() => kpi(page.container, "Leads") === "5", "card com o lead novo");
 
     await click(page.button("Nova prospecção"));
-    await type(page.container.querySelector('input[aria-label="Nome da nova prospecção"]'), " advogados ");
-    await click(page.button("Criar"));
-    await until(() => !!page.container.querySelector("[role=alert]"), "erro do nome");
-    expect(plain(page.container.querySelector("[role=alert]")?.textContent)).toMatch(/já existe/i);
-    expect(await testDb().select("SELECT * FROM prospecting_campaigns WHERE company_id=?", [companyId])).toHaveLength(2);
+    await click(menuItem("Editar prospecção"));
+    await until(() => table(page.container).getAttribute("data-editing") === "true", "tabela em edição");
   });
 
-  it("renomear a campanha no próprio lugar muda só o nome: os leads continuam nela", async () => {
-    const { companyId, page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
+  it("papel sem permissão vê os itens do menu desativados, com dica", async () => {
+    const { page } = await open("auditor");
+    await until(() => page.text().includes("Pet Shop Alfa"), "leads");
+    const menu = page.button("Nova prospecção");
+    if (menu && !menu.disabled) {
+      await click(menu);
+      for (const label of ["Nova prospecção", "Editar prospecção", "Importar prospecção"]) {
+        expect(menuItem(label)?.disabled, label).toBe(true);
+        expect(menuItem(label)?.title, label).toMatch(/permissão/i);
+      }
+    } else {
+      expect(menu?.disabled).toBe(true);
+    }
+  });
 
-    await click(page.button("Renomear prospecção"));
-    const input = page.container.querySelector<HTMLInputElement>('input[aria-label="Nome da prospecção"]');
-    expect(input?.value).toBe("Prospecção 1");
-    await type(input, "Clínicas e pet shops");
-    await click(page.button("Salvar"));
-
-    const first = defaultCampaignId(companyId);
-    await until(async () => (await testDb().select<ProspectingCampaign[]>("SELECT * FROM prospecting_campaigns WHERE id=?", [first]))[0]?.name === "Clínicas e pet shops", "nome gravado");
-    await until(() => [...(campaignSelect(page.container)?.options ?? [])].some((option) => option.text === "Clínicas e pet shops"), "seletor com o nome novo");
-    const leads = await testDb().select<Lead[]>("SELECT * FROM leads WHERE company_id=? ORDER BY id ASC", [companyId]);
-    expect(leads.map((lead) => lead.campaign_id)).toEqual([first, first, first, OTHER]);
+  it("Excluir tira o lead da prospecção (soft delete), depois de confirmar", async () => {
+    const { companyId, page } = await open("ceo");
+    await until(() => page.text().includes("Buffet Gama"), "leads");
+    await click(page.container.querySelector<HTMLButtonElement>('button[aria-label="Excluir Buffet Gama"]'));
+    await until(async () => !!(await testDb().select<Lead[]>("SELECT * FROM leads WHERE company_id=? AND id=?", [companyId, "a3"]))[0]?.deleted_at, "lead excluído");
+    await until(() => !page.text().includes("Buffet Gama"), "lead some da lista");
     expect(kpi(page.container, "Leads")).toBe("3");
   });
 
-  it("papel sem permissão vê Nova prospecção e Renomear desativados, com dica", async () => {
-    const { page } = await open("auditor");
-    await until(() => !!campaignSelect(page.container)?.value, "seletor de campanha");
-    const create = page.button("Nova prospecção");
-    const rename = page.button("Renomear prospecção");
-    expect(create?.disabled).toBe(true);
-    expect(rename?.disabled).toBe(true);
-    expect(create?.title).toMatch(/permissão/i);
-    expect(rename?.title).toMatch(/permissão/i);
-  });
-
-  it("previsão de receita calcula na hora só com os leads da campanha escolhida, em cards só com título e número", async () => {
+  it("previsão de receita calcula na hora com todos os leads, em cards só com título e número", async () => {
     const companyId = await seed();
     await testDb().execute("INSERT INTO revenue_scenarios (id, company_id, code, label, conversion_rate) VALUES (?, ?, ?, ?, ?)", ["s5", companyId, "c5", "Conservador (5%)", 0.05]);
     await testDb().execute("INSERT INTO revenue_scenarios (id, company_id, code, label, conversion_rate) VALUES (?, ?, ?, ?, ?)", ["s20", companyId, "c20", "Otimista (20%)", 0.2]);
     const rendered = await renderPage(<LeadsPage />, { companyId, role: "comercial", path: "/leads" });
     page = rendered;
-    await until(() => kpi(rendered.container, "Leads") === "3", "cards da Prospecção 1");
+    await until(() => kpi(rendered.container, "Leads") === "4", "cards");
 
     await click(rendered.button("Previsão de receita"));
-    await until(() => kpi(rendered.container, "Conservador (5%)") === "R$ 300", "previsão da Prospecção 1 (R$ 6.000 × 5%)");
-    expect(kpi(rendered.container, "Otimista (20%)")).toBe("R$ 1.200");
+    await until(() => kpi(rendered.container, "Conservador (5%)") === "R$ 550", "previsão (R$ 11.000 × 5%)");
+    expect(kpi(rendered.container, "Otimista (20%)")).toBe("R$ 2.200");
     for (const card of cards(rendered.container)) {
       expect(card.childCount).toBe(2);
       expect(card.text).toBe(card.title + card.value);
     }
     for (const fixed of FIXED_TEXTS) expect(rendered.text()).not.toContain(fixed);
     expect(rendered.button("Recalcular a partir dos leads")).toBeUndefined();
-
-    await choose(campaignSelect(rendered.container), OTHER);
-    await until(() => kpi(rendered.container, "Conservador (5%)") === "R$ 250", "previsão de Advogados (R$ 5.000 × 5%)");
-    expect(kpi(rendered.container, "Otimista (20%)")).toBe("R$ 1.000");
   });
 
-  it("cronograma em calendário mostra só os leads da campanha e remarca a abordagem no próprio lugar", async () => {
+  it("cronograma em calendário na largura toda: sem 'Só leads novos' nem painel vazio; remarca no próprio lugar", async () => {
     const { companyId, page } = await open();
-    await until(() => kpi(page.container, "Leads") === "3", "cards da Prospecção 1");
+    await until(() => kpi(page.container, "Leads") === "4", "cards");
 
     await click(page.button("Cronograma de abordagem"));
     await until(() => !!page.container.querySelector("[data-calendar-view]") && !!page.container.querySelector('[data-item-id="a1"]'), "calendário com os leads");
     expect(page.container.querySelector('[data-item-id="a2"]')).not.toBeNull();
-    expect(page.container.querySelector('[data-item-id="b1"]')).toBeNull();
     expect(page.container.querySelector('[data-item-id="a3"]')).toBeNull();
+    expect(page.text()).not.toContain("Só leads novos");
+    expect(page.text()).not.toContain("Nenhum lead escolhido");
+    expect(page.container.querySelector('section[aria-label="Lead escolhido"]')).toBeNull();
     for (const fixed of FIXED_TEXTS) expect(page.text()).not.toContain(fixed);
 
     await click(page.container.querySelector('[data-item-id="a1"]'));

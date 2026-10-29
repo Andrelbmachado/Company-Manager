@@ -3,6 +3,12 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface PageToolbarProps {
+  /**
+   * "table" (padrão): busca e filtros compactos para a barra do topo da tabela (`actions` da EditableTable ou a barra
+   * da tabela comum), pedido do André (2026-10-29: nenhum filtro solto na tela). "page": barra própria acima de algo
+   * que não é tabela (quadro, grade de pastas), com a linha embaixo.
+   */
+  variant?: "table" | "page";
   search?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
@@ -12,6 +18,7 @@ interface PageToolbarProps {
 }
 
 export function PageToolbar({
+  variant = "table",
   search,
   onSearchChange,
   searchPlaceholder = "Buscar...",
@@ -20,19 +27,20 @@ export function PageToolbar({
   children,
 }: PageToolbarProps) {
   return (
-    <div className="flex min-h-10 flex-wrap items-center justify-between gap-3 border-b pb-4">
+    <div data-toolbar={variant} className={cn("flex flex-wrap items-center gap-2", variant === "page" ? "min-h-10 justify-between gap-3 border-b pb-4" : "min-w-0")}>
       <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
         {onSearchChange ? (
-          <label className="flex w-72 min-w-0 max-w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+          <label className={cn("flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-background px-3 text-sm", variant === "page" ? "w-72 py-2" : "h-9 w-64")}>
             <Search size={14} className="shrink-0 text-muted-foreground" />
             <input
               value={search ?? ""}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder.replace(/\.{3}|…$/, "")}
               className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
             />
           </label>
-        ) : <span />}
+        ) : variant === "page" ? <span /> : null}
         {onFilterClick && (
           <button
             type="button"

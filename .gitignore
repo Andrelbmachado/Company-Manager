@@ -34,3 +34,7 @@ dist-installers/
 # Playwright
 test-results/
 playwright-report/
+
+# Chave privada do atualizador (fica em ~/.tauri e no segredo do GitHub)
+*.key
+src-tauri/tauri.version.conf.json

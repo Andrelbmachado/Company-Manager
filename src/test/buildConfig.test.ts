@@ -137,3 +137,37 @@ describe("plugins do Tauri", () => {
     expect([...prefixes].filter((prefix) => !registered.has(prefix))).toEqual([]);
   });
 });
+
+describe("atualização automática (tauri-plugin-updater)", () => {
+  const conf = JSON.parse(read("src-tauri/tauri.conf.json")) as {
+    bundle: { createUpdaterArtifacts?: boolean };
+    plugins?: { updater?: { pubkey?: string; endpoints?: string[]; dangerousInsecureTransportProtocol?: boolean } };
+  };
+  const testConf = JSON.parse(read("src-tauri/tauri.updatetest.conf.json")) as {
+    identifier: string;
+    plugins: { updater: { endpoints: string[] } };
+  };
+
+  it("canal estável: pacote assinado, chave pública e só a release latest do GitHub por https", () => {
+    expect(conf.bundle.createUpdaterArtifacts).toBe(true);
+    expect(conf.plugins?.updater?.pubkey).toMatch(/^[A-Za-z0-9+/=]{100,}$/);
+    expect(conf.plugins?.updater?.endpoints).toEqual([
+      "https://github.com/Andrelbmachado/Company-Manager/releases/latest/download/latest.json",
+    ]);
+    expect(conf.plugins?.updater?.dangerousInsecureTransportProtocol).toBeUndefined();
+  });
+
+  it("canal de teste: outro identificador (banco e preferências separados) e outro endpoint", () => {
+    expect(testConf.identifier).not.toBe(JSON.parse(read("src-tauri/tauri.conf.json")).identifier);
+    expect(testConf.identifier).toMatch(/\.updatetest$/);
+    expect(testConf.plugins.updater.endpoints).toEqual([
+      "https://github.com/Andrelbmachado/Company-Manager/releases/download/updater-test/latest.json",
+    ]);
+  });
+
+  it("a chave privada do atualizador nunca entra no repositório", () => {
+    const tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" });
+    expect(tracked).not.toMatch(/\.key$/m);
+    expect(tracked).not.toMatch(/company-manager-updater/);
+  });
+});

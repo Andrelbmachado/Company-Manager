@@ -1,29 +1,86 @@
 name: Release
 
+# Publica uma versão no GitHub Releases quando uma tag v* é enviada.
+#
+# Dois canais, separados:
+# - Estável (vX.Y.Z): build de todas as plataformas numa release RASCUNHO. Só vira atualização para os usuários
+#   quando alguém publica o rascunho à mão (o app estável lê releases/latest/download/latest.json, e "latest" nunca é
+#   rascunho nem pre-release). A versão da tag precisa ser igual à do tauri.conf.json.
+# - Teste (vX.Y.Z-test.N): build do app de teste (src-tauri/tauri.updatetest.conf.json: outro identificador, outro
+#   banco, outro endpoint) publicada como pre-release. O latest.json dela é copiado para a release fixa
+#   "updater-test", que é o endpoint do canal de teste. Nada disso chega ao canal estável.
+#
+# Os pacotes de atualização são assinados com a chave do atualizador (segredo TAURI_SIGNING_PRIVATE_KEY); o app só
+# instala o que confere com a chave pública do tauri.conf.json. Assinatura Apple: ad-hoc ("-"), sem Developer ID.
+
 on:
   push:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  release:
-    permissions:
-      contents: write
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.meta.outputs.channel }}
+      version: ${{ steps.meta.outputs.version }}
+      matrix: ${{ steps.meta.outputs.matrix }}
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Canal, versão e plataformas
+        id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          CONF_VERSION="$(jq -r .version src-tauri/tauri.conf.json)"
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-test\.[0-9]+$ ]]; then
+            echo "channel=test" >> "$GITHUB_OUTPUT"
+            # O app de teste roda só no Mac (o teste de ponta a ponta é no Apple Silicon).
+            echo 'matrix={"include":[{"platform":"macos-latest","args":"--target aarch64-apple-darwin"}]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            if [ "$VERSION" != "$CONF_VERSION" ]; then
+              echo "::error::Tag $TAG não bate com a versão $CONF_VERSION do tauri.conf.json"
+              exit 1
+            fi
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[{"platform":"macos-latest","args":"--target aarch64-apple-darwin"},{"platform":"macos-latest","args":"--target x86_64-apple-darwin"},{"platform":"ubuntu-22.04","args":""},{"platform":"windows-latest","args":""}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Tag $TAG fora do padrão vX.Y.Z (estável) ou vX.Y.Z-test.N (teste)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Criar a release (rascunho até o fim do build)
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::error::A release $GITHUB_REF_NAME já existe; não sobrescrevo releases publicadas."
+            exit 1
+          fi
+          FLAGS=(--draft --title "Company Manager $GITHUB_REF_NAME" --verify-tag)
+          if [ "${{ steps.meta.outputs.channel }}" = "test" ]; then
+            FLAGS+=(--prerelease --notes "Versão de TESTE do atualizador (app \"Company Manager Teste\", canal de teste). Não instale no lugar do app de produção.")
+          else
+            FLAGS+=(--notes "Baixe o instalador do seu sistema abaixo. Sem certificado Apple Developer ID, o macOS avisa \"desenvolvedor não identificado\" na primeira abertura.")
+          fi
+          gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}"
+          echo "id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id")" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
-          - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
-          - platform: ubuntu-22.04
-            args: ''
-          - platform: windows-latest
-            args: ''
-
+      # Uma plataforma por vez: cada job atualiza o mesmo latest.json da release.
+      max-parallel: 1
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     runs-on: ${{ matrix.platform }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +94,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -53,24 +110,54 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Build and release
+      # Canal de teste: app de teste (outro identificador e endpoint) com a versão da tag.
+      - name: Configuração do canal
+        id: channel
+        shell: bash
+        run: |
+          if [ "${{ needs.prepare.outputs.channel }}" = "test" ]; then
+            printf '{"version":"%s"}\n' "${{ needs.prepare.outputs.version }}" > src-tauri/tauri.version.conf.json
+            echo "args=--config src-tauri/tauri.updatetest.conf.json --config src-tauri/tauri.version.conf.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build, assinar o pacote de atualização e enviar para a release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Company Manager ${{ github.ref_name }}'
-          releaseBody: |
-            ## Company Manager ${{ github.ref_name }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          includeUpdaterJson: true
+          args: ${{ matrix.args }} ${{ steps.channel.outputs.args }}
 
-            Baixe o instalador para o seu sistema operacional abaixo.
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Conferir o latest.json (versão, plataformas e assinaturas)
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p latest.json -D out
+          jq -e --arg v "${{ needs.prepare.outputs.version }}" '.version == $v and (.platforms | length > 0) and ([.platforms[] | .signature | length > 0] | all)' out/latest.json
+          cat out/latest.json
 
-            - **macOS (Apple Silicon):** `.dmg` — aarch64
-            - **macOS (Intel):** `.dmg` — x86_64
-            - **Windows:** `.msi` ou `.exe`
-            - **Linux:** `.AppImage` ou `.deb`
+      # Canal de teste: publica a pre-release e só então aponta o endpoint "updater-test" para ela.
+      - name: Publicar no canal de teste
+        if: needs.prepare.outputs.channel == 'test'
+        run: |
+          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false --prerelease
+          if ! gh release view updater-test -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create updater-test -R "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+              --title "Canal de teste do atualizador" \
+              --notes "Endpoint do canal de TESTE (latest.json da versão de teste mais recente). Não é uma versão do app."
+          fi
+          gh release upload updater-test out/latest.json -R "$GITHUB_REPOSITORY" --clobber
 
-            > Sem certificado de assinatura, o sistema pode exibir aviso de "desenvolvedor não identificado". Aprove manualmente na primeira execução.
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+      - name: Estável fica em rascunho
+        if: needs.prepare.outputs.channel == 'stable'
+        run: echo "Release $TAG pronta como rascunho. Publique no GitHub para liberar a atualização aos usuários."

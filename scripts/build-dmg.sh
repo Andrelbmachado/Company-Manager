@@ -60,7 +60,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-npm run tauri build -- --bundles dmg ${TAURI_ARGS[@]+"${TAURI_ARGS[@]}"}
+source scripts/updater-signing.sh
+npm run tauri build -- --bundles dmg ${UPDATER_ARGS[@]+"${UPDATER_ARGS[@]}"} ${TAURI_ARGS[@]+"${TAURI_ARGS[@]}"}
 
 DMG="$(find "$CARGO_TARGET_DIR" -maxdepth 5 -path '*/release/bundle/dmg/*.dmg' -newer "$STAMP" -print -quit)"
 [ -n "$DMG" ] || { echo "O build não gerou nenhum DMG em $CARGO_TARGET_DIR/**/release/bundle/dmg" >&2; exit 1; }

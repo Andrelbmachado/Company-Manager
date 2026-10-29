@@ -32,6 +32,11 @@ sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runti
 rusqlite = { version = "0.32", features = ["backup", "bundled"] }
 zip = { version = "2.6", default-features = false, features = ["deflate"] }
 
+# Instalação própria no macOS (updater.rs): troca o .app com backup ao lado e rollback (mesmas versões do plugin).
+[target.'cfg(target_os = "macos")'.dependencies]
+tar = "0.4"
+flate2 = "1"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
@@ -48,6 +53,9 @@ opt-level = 3
 
 [profile.dev.package.blake2]
 opt-level = 3
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
 
 # O strip do perfil release corrompe o LINKEDIT dos dylibs de proc-macro com o ld atual do macOS; só o app final fica stripped.
 [profile.release.build-override]

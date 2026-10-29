@@ -19,6 +19,8 @@ function sourceFiles(dir: string): string[] {
 const files = sourceFiles(SRC).map((path) => ({ path: relative(SRC, path), text: readFileSync(path, "utf8") }));
 
 const BUTTON_TEXT = /^(Editar|Atualizar|Adicionar)\b/;
+// "Atualizar" do atualizador do app é instalar a versão nova (pedido de 2026-10-28), não o recarregar das tabelas.
+const TEXT_BUTTON_ALLOWED = ["components/shared/updater/UpdatePanel.tsx"];
 
 function className(element: ts.JsxOpeningLikeElement): string {
   const attribute = element.attributes.properties.find((item) => ts.isJsxAttribute(item) && item.name.getText() === "className");
@@ -36,7 +38,7 @@ function insideVisibleButton(node: ts.Node): boolean {
 }
 
 function textButtons(file: { path: string; text: string }): string[] {
-  if (!file.path.endsWith(".tsx")) return [];
+  if (!file.path.endsWith(".tsx") || TEXT_BUTTON_ALLOWED.includes(file.path)) return [];
   const source = ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const found: string[] = [];
   const visit = (node: ts.Node) => {

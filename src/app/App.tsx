@@ -9,12 +9,15 @@ import { mustChangePassword, revalidateSession } from "@/lib/auth/login";
 import { upgradeLegacyPasswords } from "@/lib/auth/password";
 import { startDailyBackup } from "@/lib/backup/backup";
 import { getDb, isTauriRuntime } from "@/lib/db/client";
+import { startAppUpdater } from "@/lib/updater/autostart";
+import { UpdateBanner } from "@/components/shared/updater/UpdatePanel";
 import ChangePasswordPage from "@/modules/settings/pages/ChangePasswordPage";
 import type { Session } from "@/types";
 
 let legacyUpgradeStarted = false;
 let dailyBackupStarted = false;
 let demoModeInitStarted = false;
+let updaterStarted = false;
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => getSession());
@@ -32,6 +35,14 @@ export default function App() {
     if (dailyBackupStarted || !isTauriRuntime()) return;
     dailyBackupStarted = true;
     startDailyBackup();
+  }, []);
+
+  // Atualização automática (só desktop): verificação silenciosa na abertura e a cada 24 h; baixar e instalar só com o
+  // clique em "Atualizar" (src/lib/updater).
+  useEffect(() => {
+    if (updaterStarted || !isTauriRuntime()) return;
+    updaterStarted = true;
+    startAppUpdater();
   }, []);
 
   // Primeira abertura depois da atualização do modo demonstração (só desktop): empresa sem a chave demo_mode fica com o
@@ -74,6 +85,7 @@ export default function App() {
       <BrowserRouter>
         {/* Troca de senha obrigatória: nenhuma tela do app abre antes dela. */}
         {passwordChangeRequired ? <ScrollScreen><ChangePasswordPage /></ScrollScreen> : <AppRoutes />}
+        {isTauriRuntime() && <UpdateBanner />}
       </BrowserRouter>
     </SessionContext.Provider>
   );

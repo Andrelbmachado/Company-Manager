@@ -7,7 +7,8 @@ DEST="/Applications/${APP_NAME}.app"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/cm-target}"
 
 cd "$(dirname "$0")/.."
-npm run tauri build -- --bundles app
+source scripts/updater-signing.sh
+npm run tauri build -- --bundles app ${UPDATER_ARGS[@]+"${UPDATER_ARGS[@]}"}
 
 BUILT="$CARGO_TARGET_DIR/release/bundle/macos/${APP_NAME}.app"
 [ -d "$BUILT" ] || { echo "Build não gerou $BUILT" >&2; exit 1; }

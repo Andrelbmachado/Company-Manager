@@ -1,0 +1,12 @@
+{
+  "identifier": "com.company.manager.updatetest",
+  "productName": "Company Manager Teste",
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Andrelbmachado/Company-Manager/releases/download/updater-test/latest.json"
+      ],
+      "dangerousInsecureTransportProtocol": true
+    }
+  }
+}

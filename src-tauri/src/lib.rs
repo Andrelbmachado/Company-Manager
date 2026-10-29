@@ -5,6 +5,7 @@ mod auth;
 mod backup;
 mod claude_code;
 mod legacy_db;
+mod updater;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -111,9 +112,14 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         // Agendas por link iCal (src/lib/calendar/fetcher.ts): o pedido sai do Rust, sem o CORS do webview.
         .plugin(tauri_plugin_http::init())
+        // Atualização automática pelo GitHub Releases (updater.rs; a chave pública e o canal ficam no tauri.conf.json).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::PendingUpdate::default())
         .setup(|app| {
             // Mínimo da janela = 1/5 da largura e 1/3 da altura do monitor atual (window_size.rs).
             window_size::apply_to_main_window(app);
+            updater::autotest_log(&format!("launch version={}", app.package_info().version));
+            updater::finish_pending_update(app);
             // Antes do front-end abrir o banco: bancos do protótipo têm outro checksum na migration 1 (ver legacy_db.rs).
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
@@ -136,7 +142,11 @@ pub fn run() {
             backup::restore_db,
             backup::list_backups,
             claude_code::claude_code_status,
-            claude_code::claude_code_ask
+            claude_code::claude_code_ask,
+            updater::update_check,
+            updater::update_install,
+            updater::update_autotest_enabled,
+            updater::update_autotest_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

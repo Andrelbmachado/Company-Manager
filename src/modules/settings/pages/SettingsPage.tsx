@@ -9,7 +9,9 @@ import { DemoModeCard } from "../components/DemoModeCard";
 import { AssistantModeSettings } from "../components/AssistantModeSettings";
 import { ASSISTANT_PROVIDERS, getAssistantApiConfig, saveAssistantApiConfig } from "@/lib/assistant/config";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
-import { LogOut, Building2, KeyRound, LockKeyhole, Save } from "lucide-react";
+import { LogOut, Building2, KeyRound, LockKeyhole, Save, CloudDownload } from "lucide-react";
+import { UpdatePanel, useUpdateState } from "@/components/shared/updater/UpdatePanel";
+import { isTauriRuntime } from "@/lib/db/client";
 import type { Role } from "@/types";
 
 export default function SettingsPage() {
@@ -20,6 +22,7 @@ export default function SettingsPage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(false);
   const canManageUsers = usePermission("create", "users");
+  const installedVersion = useUpdateState().currentVersion;
   const selectedProvider = ASSISTANT_PROVIDERS.find((provider) => provider.id === apiConfig.provider) ?? ASSISTANT_PROVIDERS[0];
 
   function handleLogout() {
@@ -83,6 +86,19 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* Atualizações (só no app desktop): src/lib/updater */}
+      {isTauriRuntime() && (
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <CloudDownload size={18} className="text-primary-text" />
+            </div>
+            <h3 className="text-sm font-semibold">Atualizações</h3>
+          </div>
+          <UpdatePanel />
+        </div>
+      )}
 
       {/* Modo demonstração: só CEO e Administração (o card some para os outros papéis) */}
       <DemoModeCard />
@@ -178,7 +194,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="text-xs text-muted-foreground">
-        Company Manager v0.1.0
+        Company Manager{installedVersion ? ` v${installedVersion}` : ""}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@
 // no Meu RH: são registros de exemplo (ids dev-...) que a limpeza apaga, sem mexer no cadastro da pessoa.
 // Precisa de colaboradores de exemplo; sem eles não grava nada (nem a flag).
 import { zonedInstant } from "@/components/shared/calendar/layout";
-import { myHrDemoRows, weekday } from "./myHr";
+import { myHrDemoRows, notificationRows, weekday } from "./myHr";
 import { day, exampleRows, hasSeedFlag, insertRows, memberFor, membersByRole, selectRows, setSeedFlag, ts, type SeedRow } from "../seedUtils";
 
 const AREA = "people";
@@ -94,6 +94,7 @@ export async function seed(companyId: string): Promise<void> {
   });
   await insertRows("hr_requests", companyId, requests);
   await insertRows("hr_tasks", companyId, tasks);
+  for (const employee of withAccount) if (employee.user_id) await insertRows("notifications", companyId, notificationRows(employee.user_id));
 
   // ---- Calendário: reuniões e eventos da empresa ---------------------------------------------------------------------
   const owners = [manager, ...withAccount.map((employee) => employee.user_id ?? null)].filter(Boolean) as string[];

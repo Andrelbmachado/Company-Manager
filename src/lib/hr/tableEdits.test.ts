@@ -87,6 +87,13 @@ describe("pendências e comunicados na tabela", () => {
     expect(await one<HrAnnouncement>("SELECT * FROM hr_announcements WHERE id=?", [created[0]])).toMatchObject({ title: "Recesso", pinned: 1, body: "Dias 24 e 31 de dezembro", published_by: "test-user-rh" });
     await expect(saveAnnouncementRows(db, C, rh, { created: [{ title: "Sem texto", body: "" }], updated: [] })).rejects.toThrow(/texto/);
   });
+
+  it("comunicado guarda Importante (vai também por e-mail)", async () => {
+    const { created } = await saveAnnouncementRows(db, C, rh, { created: [{ title: "Plano de saúde", body: "Mudou", category: "beneficio", important: 1 }], updated: [] });
+    expect(await one<HrAnnouncement>("SELECT * FROM hr_announcements WHERE id=?", [created[0]])).toMatchObject({ important: 1 });
+    await saveAnnouncementRows(db, C, rh, { created: [], updated: [{ id: created[0], important: 0 }] });
+    expect(await one<HrAnnouncement>("SELECT * FROM hr_announcements WHERE id=?", [created[0]])).toMatchObject({ important: 0 });
+  });
 });
 
 describe("banco de horas na tabela", () => {

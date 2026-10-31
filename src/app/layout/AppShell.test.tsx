@@ -6,6 +6,7 @@ import { useTestDb } from "@/test/mockDb";
 import { insertTestCompany } from "@/test/sqlite";
 import { click, renderPage, until, type RenderedPage } from "@/test/pageHarness";
 import { createConversation } from "@/lib/assistant/conversations";
+import { notifyUsers, unreadCount } from "@/lib/notifications/notifications";
 import { AppShell } from "./AppShell";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -84,7 +85,8 @@ describe("AppShell", () => {
     expect(focusable.at(-1)).toBe(account);
   });
 
-  it("a conta mostra o switch Tema escuro e as Notificações com contador", async () => {
+  it("a conta mostra o switch Tema escuro e as Notificações do banco com contador", async () => {
+    await notifyUsers(testDb(), COMPANY, { userIds: [ME], type: "hr_announcement", title: "Feriado municipal", message: "Sem expediente na sexta.", link: "/hr", important: true });
     await openShell();
     await click(byName(sidebar(), "Abrir menu da conta"));
     const themeSwitch = document.querySelector<HTMLElement>("[role=switch]");
@@ -92,7 +94,7 @@ describe("AppShell", () => {
     expect(themeSwitch?.getAttribute("aria-checked")).toBe("true");
     const notifications = byName(sidebar(), "Notificações");
     expect(notifications).toBeDefined();
-    expect(notifications?.textContent).toMatch(/1/);
+    await until(() => /1/.test(notifications?.textContent ?? ""), "contador de não lidas");
     expect(page!.text()).toMatch(/Configurações da conta/);
     expect(page!.text()).toMatch(/Trocar usuário/);
     expect(page!.text()).toMatch(/Sair/);
@@ -103,7 +105,14 @@ describe("AppShell", () => {
     expect(document.querySelector("[role=switch]")?.getAttribute("aria-checked")).toBe("false");
 
     await click(notifications);
-    expect(page!.text()).toMatch(/Novo ticket aguardando atendimento/);
+    await until(() => /Feriado municipal/.test(page!.text()), "notificação do banco");
+    expect(page!.text()).toMatch(/Sem expediente na sexta\./);
+    expect(page!.text()).toMatch(/Importante/);
+    expect(page!.text()).not.toMatch(/Novo ticket aguardando atendimento/);
+
+    await click(byName(sidebar(), "Marcar todas como lidas"));
+    await until(() => !!sidebar().querySelector("[aria-label='nenhuma não lida']"), "contador zerado");
+    expect(await unreadCount(testDb(), COMPANY, ME)).toBe(0);
   });
 
   it("Verificar atualizações no menu da conta consulta o canal e mostra a versão disponível", async () => {

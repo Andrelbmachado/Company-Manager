@@ -1109,7 +1109,13 @@ export interface Notification {
   company_id: string;
   user_id: string;
   type?: string | null;
+  /** 0014: título em negrito; sem ele, a mensagem é o título. */
+  title?: string | null;
   message: string;
+  /** 0014: tela que a notificação abre. */
+  link?: string | null;
+  /** 0014: 1 = importante (também vai por e-mail). */
+  important?: number;
   ref_type?: string | null;
   ref_id?: string | null;
   is_read: number;
@@ -1185,6 +1191,8 @@ export interface HrAnnouncement {
   body: string;
   category: HrAnnouncementCategory;
   pinned: number;
+  /** 0014: 1 = importante (a notificação também vai por e-mail). */
+  important?: number;
   published_by?: string | null;
   published_at: string;
   created_at: string;

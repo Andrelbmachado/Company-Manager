@@ -345,8 +345,12 @@ describe("Meu RH no modo demonstração", () => {
     expect((await fetchMyHrTasks(COMPANY, me.id)).filter((task) => task.status === "pendente").length).toBeGreaterThanOrEqual(3);
     // O cadastro da pessoa não é de exemplo e fica fora da limpeza; os registros de exemplo dela saem ao desligar.
     expect(me.id.startsWith("dev-")).toBe(false);
+    const notifications = await db.select<{ important: number }[]>("SELECT important FROM notifications WHERE user_id = ?", ["5f0e9d8c-0000-4000-8000-0000000000aa"]);
+    expect(notifications.length).toBeGreaterThanOrEqual(3);
+    expect(notifications.some((row) => row.important === 1)).toBe(true);
     await setDemoMode(db, COMPANY, false);
     expect(await fetchMyRequests(COMPANY, me.id)).toEqual([]);
+    expect(await count(db, "notifications")).toBe(0);
   });
 
   it("com o modo desligado o Meu RH de uma conta nova fica vazio", async () => {

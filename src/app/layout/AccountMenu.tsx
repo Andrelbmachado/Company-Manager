@@ -8,6 +8,7 @@ import { getTheme, saveTheme, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 import { useDismiss } from "./useDismiss";
+import { NotificationsPanel, useUnreadNotifications } from "./NotificationsPanel";
 import { isTauriRuntime } from "@/lib/db/client";
 import { appUpdater, type UpdateState } from "@/lib/updater/updater";
 import { useUpdateState } from "@/components/shared/updater/UpdatePanel";
@@ -66,8 +67,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  // Mesma notificação de exemplo que ficava na top bar (a tabela notifications ainda não é alimentada por nada).
-  const [unread, setUnread] = useState(1);
+  const unread = useUnreadNotifications(session.company.id, session.user.id);
   const [theme, setTheme] = useState<Theme>(() => getTheme());
   const rootRef = useRef<HTMLDivElement>(null);
   useDismiss(rootRef, open, () => setOpen(false));
@@ -167,7 +167,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
               <Bell size={15} className="shrink-0 text-muted-foreground" />
               <span className="flex-1">Notificações</span>
               <span
-                aria-label={unread ? `${unread} não lida` : "nenhuma não lida"}
+                aria-label={unread ? `${unread} ${unread === 1 ? "não lida" : "não lidas"}` : "nenhuma não lida"}
                 className={cn(
                   "min-w-5 rounded-full px-1.5 text-center text-caption font-semibold",
                   unread ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground",
@@ -176,30 +176,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
                 {unread}
               </span>
             </button>
-            {showNotifications && (
-              <div className="mx-1 mb-1 overflow-hidden rounded-lg border bg-background">
-                <button type="button" onClick={() => setUnread(0)} className="flex w-full gap-3 px-3 py-2.5 text-left hover:bg-muted/60">
-                  <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", unread ? "bg-destructive" : "bg-muted-foreground/40")} />
-                  <span>
-                    <span className="block text-sm font-medium">Novo ticket aguardando atendimento</span>
-                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                      {role === "tecnico"
-                        ? "A equipe de Estoque abriu o ticket “Leitor de código sem conexão”."
-                        : "Seu ticket “Acesso ao sistema interno” recebeu uma nova atualização."}
-                    </span>
-                    <span className="mt-1.5 block text-caption text-muted-foreground">Há 8 minutos</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUnread(0)}
-                  disabled={unread === 0}
-                  className="w-full border-t px-3 py-2 text-center text-xs font-medium hover:bg-muted/60 disabled:text-muted-foreground disabled:hover:bg-transparent"
-                >
-                  Marcar todas como lidas
-                </button>
-              </div>
-            )}
+            {showNotifications && <NotificationsPanel companyId={session.company.id} userId={session.user.id} onOpen={go} />}
 
             <div className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm">
               <Moon size={15} className="shrink-0 text-muted-foreground" />

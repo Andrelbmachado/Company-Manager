@@ -2,7 +2,7 @@
 // atestado e pendências do RH). Usado pelo seed `people` (contas que já têm cadastro) e por ensureMyEmployee (cadastro
 // criado depois de ligar o modo). Registros dev-people-* sobre o cadastro da pessoa: a limpeza apaga esses registros e
 // não mexe no cadastro. INSERT OR IGNORE: rodar de novo não duplica.
-import { day, insertRows, memberFor, membersByRole, ts, type SeedRow } from "../seedUtils";
+import { day, insertRows, memberFor, membersByRole, selectRows, ts, type SeedRow } from "../seedUtils";
 
 const PERSONAL_TASKS: [string, number, "pendente" | "concluida"][] = [
   ["Enviar comprovante de endereço atualizado", 4, "pendente"],
@@ -37,11 +37,37 @@ export function myHrDemoRows(employeeId: string, index: number, rh: string | nul
   return { requests, tasks };
 }
 
-/** Meu RH de exemplo de um colaborador (ensureMyEmployee chama com o modo demonstração ligado). */
+/** [título, mensagem, tela, importante, há quantos dias, lida]: o que o menu da conta mostra no modo demonstração. */
+const NOTIFICATIONS: [string, string, string, number, number, number][] = [
+  ["Mudança no plano de saúde", "A partir do mês que vem o plano passa a cobrir dependentes sem custo. Confirme seus dependentes no RH até sexta.", "/hr", 1, 0, 0],
+  ["Feriado municipal", "Não haverá expediente na próxima sexta-feira; o atendimento volta na segunda.", "/hr", 0, 1, 0],
+  ["Folga aprovada", "Sua folga pelo banco de horas foi aprovada pelo RH.", "/hr", 0, 2, 0],
+  ["Nova pendência do RH", "Enviar comprovante de endereço atualizado.", "/hr", 0, 3, 1],
+  ["Treinamento obrigatório de segurança", "Conclua o treinamento de segurança da informação até o fim do mês.", "/hr", 1, 6, 1],
+];
+
+/** Notificações de exemplo de uma conta (ids fixos dev-notif-*; a limpeza do modo demonstração apaga). */
+export function notificationRows(userId: string): SeedRow[] {
+  return NOTIFICATIONS.map(([title, message, link, important, ago, read], index) => ({
+    id: `dev-notif-${userId}-${index + 1}`,
+    user_id: userId,
+    type: "hr_announcement",
+    title,
+    message,
+    link,
+    important,
+    is_read: read,
+    created_at: ts(-ago, 9 + index),
+  }));
+}
+
+/** Meu RH de exemplo de um colaborador (ensureMyEmployee chama com o modo demonstração ligado), com as notificações da conta. */
 export async function seedMyHrDemo(companyId: string, employeeId: string): Promise<void> {
   const rh = memberFor(await membersByRole(companyId), "rh", "admin", "ceo");
   const index = [...employeeId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6;
   const { requests, tasks } = myHrDemoRows(employeeId, index, rh);
   await insertRows("hr_requests", companyId, requests);
   await insertRows("hr_tasks", companyId, tasks);
+  const [employee] = (await selectRows<{ id: string; user_id?: string | null }>("employees", companyId)).filter((row) => row.id === employeeId);
+  if (employee?.user_id) await insertRows("notifications", companyId, notificationRows(employee.user_id));
 }

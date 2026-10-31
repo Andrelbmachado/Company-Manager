@@ -40,7 +40,7 @@ const EXPECTED: Record<string, number> = {
   opportunities: 12,
   proposals: 7,
   tickets: 12,
-  work_orders: 8,
+  work_orders: 14,
   projects: 3,
   project_stages: 9,
   tasks: 9,
@@ -143,8 +143,9 @@ describe("seeds de área (src/lib/dev/seeds/*.ts)", () => {
     const names = areaSeeds.map((seed) => seed.name);
     expect(names).toEqual([...names].sort());
     expect(names).toEqual(expect.arrayContaining(["catalog", "crm", "finance", "hr", "imports", "inventory", "purchasing", "sales", "settlements"]));
-    // Baixas e extrato dependem das contas de compras e vendas: rodam por último.
-    expect(names.at(-1)).toBe("settlements");
+    // Baixas e extrato dependem das contas de compras e vendas: rodam depois delas; o wrapup (colunas vazias) por último.
+    expect(names.indexOf("settlements")).toBeGreaterThan(names.indexOf("sales"));
+    expect(names.at(-1)).toBe("wrapup");
     expect(names).not.toContain("index");
 
     const db = testDb();
@@ -418,7 +419,9 @@ describe("no app desktop, os dados de exemplo só usam registros de exemplo", ()
 
     // Os dados de exemplo continuam saindo inteiros, só em cima dos registros de exemplo.
     const flags = await db.select<{ key: string }[]>("SELECT key FROM settings WHERE company_id = ? AND key LIKE 'seed.dev.%' ORDER BY key", [COMPANY_ID]);
-    expect(flags.map((row) => row.key)).toEqual(areaSeeds.map((seed) => `seed.dev.${seed.name}.v1`).sort());
+    // operations, products e wrapup não usam flag: só acrescentam o que falta (rodam de novo a cada abertura).
+    const flagless = new Set(["operations", "products", "wrapup"]);
+    expect(flags.map((row) => row.key)).toEqual(areaSeeds.filter((seed) => !flagless.has(seed.name)).map((seed) => `seed.dev.${seed.name}.v1`).sort());
     for (const [table, n] of Object.entries({ sales_orders: 5, invoices: 2, purchase_orders: 4, goods_receipts: 2, inventory_counts: 2, crm_activities: 10, hr_time_entries: 8 })) {
       expect(await count(db, table), table).toBe(n);
     }

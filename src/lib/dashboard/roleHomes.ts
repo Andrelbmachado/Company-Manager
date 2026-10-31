@@ -143,75 +143,52 @@ const LIST: HomeWidget[] = [
 /** Catálogo de widgets por id. */
 export const HOME_WIDGETS: Readonly<Record<string, HomeWidget>> = Object.fromEntries(LIST.map((item) => [item.id, item]));
 
-/** Meu RH: vem em toda home (é o único recurso comum a todos os papéis). */
-const PERSONAL = ["hr.vacation", "hr.myTodos", "hr.myTimeBank"] as const;
-
-/** Widgets por papel, na ordem em que aparecem (indicadores, listas, gráfico e atalhos são agrupados na tela). */
+/**
+ * Widgets por papel, na ordem em que aparecem (indicadores, listas e gráfico são agrupados na tela). Sem atalhos, sem
+ * Meu RH (tem tela própria), sem fluxo dos próximos 7 dias (está no balanço semanal do topo), sem itens abaixo do mínimo
+ * e sem últimas ações: o catálogo continua com eles para quem quiser voltar a usar.
+ */
 export const ROLE_HOMES: Readonly<Record<Role, readonly string[]>> = {
   ceo: [
     "fin.overdueReceivables", "fin.overduePayables", "sales.monthOrders", "crm.pipeline", "payroll.monthly", "hr.activeEmployees", "ops.openWorkOrders", "projects.active",
-    "inv.belowMin", "hr.pendingRequests", "fin.cashflow7", "audit.recent",
-    "go.reports", "go.dre", "go.users", "go.backup",
-    ...PERSONAL,
+    "hr.pendingRequests",
   ],
   admin: [
     "fin.overdueReceivables", "fin.overduePayables", "fin.payablesToApprove", "payroll.monthly", "hr.activeEmployees", "ops.openWorkOrders",
-    "hr.pendingRequests", "audit.recent", "fin.dueNext7",
-    "go.users", "go.backup", "go.imports", "go.reports",
-    ...PERSONAL,
+    "hr.pendingRequests", "fin.dueNext7",
   ],
   gerente: [
     "crm.pipeline", "sales.monthOrders", "sales.toApprove", "pur.toApprove", "fin.payablesToApprove", "ops.openWorkOrders", "projects.active",
     "crm.followups", "fin.dueNext7", "ops.week",
-    "go.pipeline", "go.reports", "go.imports", "go.documents",
-    ...PERSONAL,
   ],
   tecnico: [
     "support.openTickets", "ops.openWorkOrders", "custody.active", "tasks.open",
-    "audit.recent", "ops.week",
-    "go.workOrders", "go.support", "go.audit", "go.documents",
-    ...PERSONAL,
+    "ops.week",
   ],
   estoquista: [
     "pur.toReceive", "inv.openCounts", "custody.active", "catalog.active",
-    "inv.belowMin",
-    "go.receive", "go.transfer", "go.reorder", "go.imports",
-    ...PERSONAL,
   ],
   financeiro: [
     "fin.overdueReceivables", "fin.overduePayables", "fin.payablesToApprove", "invoices.open", "bank.pendingReconciliation",
-    "fin.dueNext7", "fin.cashflow7",
-    "go.cashflow", "go.dre", "go.reconcile", "go.reports", "go.imports",
-    ...PERSONAL,
+    "fin.dueNext7",
   ],
   rh: [
     "hr.timeBankPending", "hr.cycle", "hr.activeEmployees", "hr.lateTasks",
     "hr.pendingRequests",
-    "go.admission", "go.timeBank", "go.imports", "go.documents",
-    ...PERSONAL,
   ],
   comercial: [
     "crm.pipeline", "crm.openProposals", "sales.monthOrders", "leads.new", "crm.customers",
     "crm.followups",
-    "go.newSalesOrder", "go.pipeline", "go.crmActivities", "go.imports",
-    ...PERSONAL,
   ],
   atendimento: [
     "support.openTickets", "ops.openWorkOrders", "crm.customers",
     "crm.followups",
-    "go.support", "go.workOrders", "go.customers", "go.documents",
-    ...PERSONAL,
   ],
   produtos: [
     "projects.active", "tasks.open", "catalog.active",
-    "go.productDev", "go.projects", "go.imports", "go.documents",
-    ...PERSONAL,
   ],
   auditor: [
     "fin.overdueReceivables", "fin.overduePayables", "invoices.open", "bank.pendingReconciliation", "ops.openWorkOrders",
-    "audit.recent", "inv.belowMin",
-    "go.audit", "go.reports", "go.documents",
-    ...PERSONAL,
   ],
 };
 

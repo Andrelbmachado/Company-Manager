@@ -41,12 +41,10 @@ describe("roleHome", () => {
     for (const widget of roleHome(role)) expect(opens(role, widget), `${role} → ${widget.id} (${widget.path})`).toBe(true);
   });
 
-  it.each(TEST_ROLES)("%s: pelo menos 3 widgets do setor, além do Meu RH", (role) => {
+  it.each(TEST_ROLES)("%s: pelo menos 3 widgets do setor (o Meu RH tem tela própria)", (role) => {
     const widgets = roleHome(role);
-    const sector = widgets.filter((widget) => !isPersonalWidget(widget));
-    expect(sector.length, role).toBeGreaterThanOrEqual(3);
-    expect(sector.filter((widget) => widget.kind !== "shortcut").length, `${role}: indicadores ou listas`).toBeGreaterThanOrEqual(3);
-    expect(widgets.some(isPersonalWidget), `${role}: Meu RH`).toBe(true);
+    expect(widgets.length, role).toBeGreaterThanOrEqual(3);
+    expect(widgets.some(isPersonalWidget), `${role}: Meu RH`).toBe(false);
   });
 
   it.each(TEST_ROLES)("%s: a configuração não esconde nada (todo widget listado para o papel é visível)", (role) => {
@@ -74,12 +72,24 @@ describe("roleHome", () => {
   it("cada setor tem o essencial dele", () => {
     const ids = (role: Role) => roleHome(role).map((widget) => widget.id);
     expect(ids("comercial")).toEqual(expect.arrayContaining(["crm.pipeline", "crm.followups"]));
-    expect(ids("financeiro")).toEqual(expect.arrayContaining(["fin.overdueReceivables", "fin.overduePayables", "fin.cashflow7"]));
-    expect(ids("estoquista")).toEqual(expect.arrayContaining(["inv.belowMin"]));
+    expect(ids("financeiro")).toEqual(expect.arrayContaining(["fin.overdueReceivables", "fin.overduePayables"]));
+    expect(ids("estoquista")).toEqual(expect.arrayContaining(["pur.toReceive", "inv.openCounts"]));
     expect(ids("rh")).toEqual(expect.arrayContaining(["hr.pendingRequests", "hr.timeBankPending", "hr.cycle"]));
-    expect(ids("auditor")).toEqual(expect.arrayContaining(["audit.recent"]));
     expect(ids("tecnico")).toEqual(expect.arrayContaining(["support.openTickets", "ops.openWorkOrders"]));
     expect(ids("ceo")).toEqual(expect.arrayContaining(["payroll.monthly"]));
+  });
+
+  it("nenhuma home tem fluxo de 7 dias, abaixo do mínimo, últimas ações, atalhos ou Meu RH", () => {
+    for (const role of TEST_ROLES) {
+      const ids = roleHome(role).map((widget) => widget.id);
+      for (const gone of ["fin.cashflow7", "inv.belowMin", "audit.recent"]) expect(ids, `${role}: ${gone}`).not.toContain(gone);
+      expect(roleHome(role).filter((widget) => widget.kind === "shortcut"), role).toEqual([]);
+      expect(roleHome(role).filter((widget) => widget.module === "hr"), role).toEqual([]);
+    }
+  });
+
+  it("RH e CEO continuam com Solicitações de RH a decidir", () => {
+    for (const role of ["rh", "ceo", "admin"] as const) expect(roleHome(role).map((widget) => widget.id), role).toContain("hr.pendingRequests");
   });
 
   it("RH não vê salário; só CEO e admin veem a folha na home", () => {

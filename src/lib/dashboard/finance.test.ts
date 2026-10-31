@@ -6,7 +6,7 @@ import { addBankAccount, addBankTransaction, addCategory, addPayable, addReceiva
 import { setCompanySetting } from "@/lib/settings/companySettings";
 import { AREA_PROFILE_SETTING } from "@/lib/labels/store";
 import { runRecurring } from "@/lib/erp/recurring";
-import { activeWorkCount, annualBalance, loadDashboardOverview, monthResult, weekPayables, weekRange, weekReceivables } from "./finance";
+import { activeWorkCount, annualBalance, loadDashboardOverview, periodBalance, monthResult, weekPayables, weekRange, weekReceivables } from "./finance";
 
 let db: TestDb;
 let companyId: string;
@@ -164,6 +164,24 @@ describe("annualBalance", () => {
     await addRecurring(db, companyId, { id: "mensalidade", kind: "receber", amount: 300, day_of_month: 15, start_date: "2026-09-01" });
     await addRecurring(db, companyId, { id: "pausada", amount: 5000, start_date: "2026-01-01", active: 0 });
     await addRecurring(db, companyId, { id: "excluida", amount: 7000, start_date: "2026-01-01", deleted_at: "2026-01-02T00:00:00Z" });
+  });
+
+  it("periodBalance mês: um ponto por dia do mês, realizado até hoje e previsão no vencimento", async () => {
+    const points = await periodBalance(db, companyId, "mes", TODAY);
+    expect(points).toHaveLength(31);
+    const at = (day: string) => points.find((point) => point.day === day)!;
+    expect(at("2026-10-05")).toMatchObject({ realizado: 2000, acumulado: 2000 });
+    expect(at("2026-10-21")).toMatchObject({ acumulado: 2000 });
+    expect(at("2026-10-22")).toMatchObject({ realizado: null, acumulado: null });
+    expect(at("2026-10-28").previsto).toBe(400);
+    expect(at("2026-10-30").previsto).toBe(-150);
+  });
+
+  it("periodBalance semana: hoje e os 6 dias seguintes, com entradas e saídas em aberto (vencida conta hoje)", async () => {
+    const points = await periodBalance(db, companyId, "semana", TODAY);
+    expect(points.map((point) => point.day)).toEqual(["2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"]);
+    expect(points[0]).toMatchObject({ entradas: 50, saidas: 0 });
+    expect(points.slice(1).every((point) => point.entradas === 0 && point.saidas === 0)).toBe(true);
   });
 
   it("12 meses; acumulado de março = soma de jan–mar; meses futuros sem realizado e com previsto", async () => {

@@ -51,6 +51,8 @@ describe("labelFor", () => {
         "dashboard.receivables_week",
         "dashboard.active_work",
         "dashboard.balance_chart",
+        "dashboard.balance_chart_month",
+        "dashboard.balance_chart_week",
         "dashboard.balance_realized",
         "dashboard.balance_accumulated",
         "dashboard.balance_forecast",

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDb } from "@/lib/db/client";
@@ -10,12 +10,12 @@ import { KpiCard } from "@/components/shared/KpiCard";
 import { ensureMyEmployee } from "@/lib/hr/queries";
 import { applyDueTerminations } from "@/lib/hr/employment";
 import { cn, formatCurrency, todayIso } from "@/lib/utils";
-import { isHrWidget, isPersonalWidget, roleHome, type HomeWidget } from "@/lib/dashboard/roleHomes";
+import { isHrWidget, roleHome, type HomeWidget } from "@/lib/dashboard/roleHomes";
 import { loadHomeMetrics, seesTeamFollowUps, type HomeContext } from "@/lib/dashboard/metrics";
-import { loadDashboardOverview, type Loaded } from "@/lib/dashboard/finance";
+import { loadDashboardOverview, periodBalance, type BalancePeriod, type Loaded } from "@/lib/dashboard/finance";
 import { useAreaLabels } from "@/lib/labels/useLabel";
 import { OverdueFollowUps } from "@/modules/crm/components/Activities";
-import { HomeChartCard, HomeKpiCard, HomeListCard, HomeShortcuts } from "../components/HomeWidgets";
+import { HomeChartCard, HomeKpiCard, HomeListCard } from "../components/HomeWidgets";
 import { BalanceChart } from "../components/BalanceChart";
 import type { Role } from "@/types";
 
@@ -24,6 +24,17 @@ const MODULE_PANELS: ReadonlySet<string> = new Set(["crm.followups"]);
 
 /** Indicadores do setor que repetem um card do resumo do topo (some quando o card aparece). */
 const COVERED_BY_OVERVIEW: Readonly<Record<string, "active_work">> = { "projects.active": "active_work" };
+
+/** Período do balanço do topo escolhido pela pessoa (fica neste navegador/app). */
+const PERIOD_KEY = "cm.dashboard.balancePeriod";
+function savedPeriod(): BalancePeriod {
+  try {
+    const value = localStorage.getItem(PERIOD_KEY);
+    return value === "mes" || value === "semana" ? value : "ano";
+  } catch {
+    return "ano";
+  }
+}
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
@@ -40,8 +51,9 @@ function OverviewCard({ id, title, path, loaded, loading, render }: { id: string
 
 /**
  * Dashboard: no topo, o resumo (resultado do mês, a pagar e a receber na semana, trabalhos ativos; títulos da área da
- * empresa) e o balanço anual, cada um só para quem vê o recurso (src/lib/dashboard/finance.ts). Abaixo, a home por
- * setor: indicadores, pendências, gráfico e atalhos do papel (src/lib/dashboard/roleHomes.ts), mais o Meu RH.
+ * empresa) e o balanço, cada um só para quem vê o recurso (src/lib/dashboard/finance.ts). O título do balanço troca
+ * entre anual, mensal e semanal (o semanal é o fluxo dos próximos 7 dias). Abaixo, a home por setor: indicadores,
+ * pendências e gráfico do papel (src/lib/dashboard/roleHomes.ts); sem atalhos e sem Meu RH (tem tela própria).
  * Os números de RH e folha ficam numa consulta ["hr", "dashboard", ...] (as telas de RH e da Folha a invalidam);
  * os demais em ["dashboard-kpis", ...] (Financeiro, Estoque e Custódia invalidam). Cada widget que falha mostra o erro só nele.
  */
@@ -55,8 +67,17 @@ export default function DashboardPage() {
   const today = useToday();
   const { label, profile, loading: labelsLoading } = useAreaLabels();
   const widgets = useMemo(() => roleHome(role), [role]);
-  const sectorData = useMemo(() => widgets.filter((widget) => widget.kind !== "shortcut" && !isHrWidget(widget) && !MODULE_PANELS.has(widget.id)), [widgets]);
-  const hrData = useMemo(() => widgets.filter((widget) => widget.kind !== "shortcut" && isHrWidget(widget)), [widgets]);
+  const sectorData = useMemo(() => widgets.filter((widget) => !isHrWidget(widget) && !MODULE_PANELS.has(widget.id)), [widgets]);
+  const hrData = useMemo(() => widgets.filter((widget) => isHrWidget(widget)), [widgets]);
+  const [period, setPeriod] = useState<BalancePeriod>(savedPeriod);
+  function changePeriod(next: BalancePeriod) {
+    setPeriod(next);
+    try {
+      localStorage.setItem(PERIOD_KEY, next);
+    } catch {
+      // sem armazenamento: vale só nesta visita
+    }
+  }
   const context = (): HomeContext => ({ companyId, userId, role, today: todayIso(), now: new Date() });
 
   // Resumo do topo: resultado do mês, semana a pagar/receber e o balanço (financeiro), e os trabalhos ativos (projetos).
@@ -72,6 +93,14 @@ export default function DashboardPage() {
     staleTime: 15_000,
   });
   const overviewLoading = labelsLoading || overview.isLoading;
+  const daily = useQuery({
+    // Mesmo prefixo "dashboard-kpis": as gravações do financeiro também invalidam o balanço por dia.
+    queryKey: ["dashboard-kpis", "balance", companyId, period, today],
+    queryFn: async () => periodBalance(await getDb(), companyId, period as "mes" | "semana", today),
+    enabled: showFinance && period !== "ano",
+    refetchInterval: 60_000,
+    staleTime: 15_000,
+  });
   const data = overview.data;
   const monthValue = data?.month?.ok ? data.month.value.result : 0;
   const overviewCards = [
@@ -119,11 +148,9 @@ export default function DashboardPage() {
 
   const results = { ...sector.data, ...hr.data };
   const loading = sector.isLoading || hr.isLoading;
-  const personal = widgets.filter(isPersonalWidget);
-  const own = widgets.filter((widget) => !isPersonalWidget(widget) && !(COVERED_BY_OVERVIEW[widget.id] && covered.has(COVERED_BY_OVERVIEW[widget.id])));
+  const own = widgets.filter((widget) => !(COVERED_BY_OVERVIEW[widget.id] && covered.has(COVERED_BY_OVERVIEW[widget.id])));
   const kpis = own.filter((widget) => widget.kind === "kpi");
   const panels = own.filter((widget) => widget.kind === "list" || widget.kind === "chart");
-  const shortcuts = own.filter((widget) => widget.kind === "shortcut");
 
   const panel = (widget: HomeWidget) =>
     widget.id === "crm.followups" ? (
@@ -155,12 +182,21 @@ export default function DashboardPage() {
 
       {showFinance && (
         <BalanceChart
+          period={period}
+          onPeriodChange={changePeriod}
           points={data?.balance?.ok ? data.balance.value : undefined}
-          error={data?.balance && !data.balance.ok ? data.balance.error : overviewFailure}
-          loading={overviewLoading}
+          dayPoints={period === "ano" ? undefined : daily.data}
+          error={
+            period === "ano"
+              ? data?.balance && !data.balance.ok ? data.balance.error : overviewFailure
+              : daily.error ? (daily.error instanceof Error ? daily.error.message : String(daily.error)) : null
+          }
+          loading={period === "ano" ? overviewLoading : daily.isLoading}
           today={today}
           labels={{
             title: label("dashboard.balance_chart"),
+            titleMonth: label("dashboard.balance_chart_month"),
+            titleWeek: label("dashboard.balance_chart_week"),
             realized: label("dashboard.balance_realized"),
             accumulated: label("dashboard.balance_accumulated"),
             forecast: label("dashboard.balance_forecast"),
@@ -183,21 +219,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {shortcuts.length > 0 && (
-        <section aria-labelledby="home-atalhos" className="space-y-3">
-          <h2 id="home-atalhos" className="text-sm font-semibold text-muted-foreground">Atalhos</h2>
-          <HomeShortcuts widgets={shortcuts} />
-        </section>
-      )}
-
-      {personal.length > 0 && (
-        <section aria-labelledby="home-meu-rh" className="space-y-3">
-          <h2 id="home-meu-rh" className="text-sm font-semibold text-muted-foreground">Meu RH</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {personal.map((widget) => <HomeKpiCard key={widget.id} widget={widget} result={results[widget.id]} loading={loading} />)}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

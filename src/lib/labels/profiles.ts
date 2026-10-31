@@ -51,6 +51,8 @@ const DEFS = [
     profiles: { advocacia: "Clientes ativos", servicos: "Serviços em andamento" },
   },
   { key: "dashboard.balance_chart", group: "Dashboard", description: "Título do gráfico do ano", text: "Balanço anual" },
+  { key: "dashboard.balance_chart_month", group: "Dashboard", description: "Título do gráfico do mês (dia a dia)", text: "Balanço mensal" },
+  { key: "dashboard.balance_chart_week", group: "Dashboard", description: "Título do gráfico dos próximos 7 dias", text: "Balanço semanal" },
   { key: "dashboard.balance_realized", group: "Dashboard", description: "Linha do resultado de cada mês", text: "Resultado do mês" },
   { key: "dashboard.balance_accumulated", group: "Dashboard", description: "Linha do total acumulado no ano", text: "Acumulado no ano" },
   { key: "dashboard.balance_forecast", group: "Dashboard", description: "Linha tracejada da previsão", text: "Previsão de receita" },

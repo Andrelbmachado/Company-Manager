@@ -187,7 +187,7 @@ export async function listAttachments(companyId: string, entityType: string, ent
   return currentVersions(rows);
 }
 
-/** Todos os anexos de registros da empresa (versão atual), para a aba "Anexos de registros". */
+/** Todos os anexos de registros da empresa (versão atual). */
 export async function listAllAttachments(companyId: string): Promise<DocumentRow[]> {
   const db = await getDb();
   const rows = await db.select<DocumentRow[]>(

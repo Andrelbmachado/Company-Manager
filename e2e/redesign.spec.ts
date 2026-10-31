@@ -87,7 +87,7 @@ test.describe("redesign modular", () => {
     const notifications = menu.getByRole("button", { name: "Notificações" });
     await notifications.click();
     await expect(notifications).toHaveAttribute("aria-expanded", "true");
-    await expect(menu.getByText("Novo ticket aguardando atendimento")).toBeVisible();
+    await expect(menu.getByText("Mudança no plano de saúde").first()).toBeVisible();
     await menu.getByRole("button", { name: "Marcar todas como lidas" }).click();
     await expect(menu.getByLabel("nenhuma não lida")).toBeVisible();
 

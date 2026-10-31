@@ -16,7 +16,7 @@ estão no `AGENTS.md` (§3); este arquivo diz **o que** conferir e **o que já f
 `e2e/redesign.spec.ts` (Tarefa 11 do plano `docs/superpowers/plans/2026-10-25-redesign-modular.md`):
 
 1. **Shell sem top bar:** nenhum `banner`; na sidebar, Buscar acima de Assistente de IA, acima do Dashboard, acima do botão da conta; `main` começa no topo e tem a altura da janela; Buscar abre a busca.
-2. **Menu da conta:** switch "Tema escuro" liga/desliga a classe `dark`; Notificações abre a lista e "Marcar todas como lidas" zera o contador.
+2. **Menu da conta:** switch "Tema escuro" liga/desliga a classe `dark`; Notificações abre a lista (do banco: comunicado "Mudança no plano de saúde" do Meu RH de exemplo) e "Marcar todas como lidas" zera o contador.
 3. **Clientes (CRM):** Editar → muda o Segmento da 1ª linha → Atualizar pergunta (alterações não salvas) e "Cancelar" mantém o rascunho → Salvar ("1 linha salva.") → Atualizar mostra o valor → recarregar a página mantém o valor.
 4. **Sem permissão (Auditoria em Financeiro):** Editar e Adicionar desativados com dica de permissão em toda tabela visível; Atualizar ativo.
 5. **Dashboard:** 4 cards no resumo, cada um só com título + número; gráfico do balanço com 3 linhas (a 3ª tracejada) e legenda Resultado do mês / Acumulado no ano / Previsão de receita.
@@ -50,6 +50,8 @@ Num banco que já tem empresa, o app aplica as migrations logo ao abrir (o `App.
 - Documentos › Conectar nuvem: escolher uma pasta do iCloud Drive no seletor nativo, listar, abrir e enviar um arquivo.
 - Calendário › Agendas conectadas: colar um link iCal real (Google Agenda, "Endereço secreto no formato iCal") e ver os eventos (no app o link vai pelo plugin HTTP, sem CORS); Exportar agenda da empresa (diálogo nativo de salvar).
 - Exclusões: o diálogo nativo `ask` pergunta antes de apagar.
+- Modo demonstração já ligado num banco antigo: fechar e abrir o app; Ordens de Serviço, Project Manager, Desenv. de Produtos, Meu RH e o balanço do Dashboard aparecem cheios (`refreshDemoData`).
+- Gestão de RH › Comunicados: marcar "Importante (e-mail)" e salvar; o comunicado aparece em Notificações no menu da conta e na fila de Configurações › E-mails a enviar; "Enviar pelo app de e-mail" abre o Mail com os destinatários em cópia oculta.
 
 ## 3. Última rodada — 2026-10-25 (Tarefa 11 do redesign, branch `feat/crm-erp-completo`)
 

@@ -40,7 +40,7 @@ const EXPECTED: Record<string, number> = {
   opportunities: 12,
   proposals: 7,
   tickets: 12,
-  work_orders: 8,
+  work_orders: 14,
   projects: 3,
   project_stages: 9,
   tasks: 9,
@@ -143,8 +143,9 @@ describe("seeds de área (src/lib/dev/seeds/*.ts)", () => {
     const names = areaSeeds.map((seed) => seed.name);
     expect(names).toEqual([...names].sort());
     expect(names).toEqual(expect.arrayContaining(["catalog", "crm", "finance", "hr", "imports", "inventory", "purchasing", "sales", "settlements"]));
-    // Baixas e extrato dependem das contas de compras e vendas: rodam por último.
-    expect(names.at(-1)).toBe("settlements");
+    // Baixas e extrato dependem das contas de compras e vendas: rodam depois delas; o wrapup (colunas vazias) por último.
+    expect(names.indexOf("settlements")).toBeGreaterThan(names.indexOf("sales"));
+    expect(names.at(-1)).toBe("wrapup");
     expect(names).not.toContain("index");
 
     const db = testDb();
@@ -155,21 +156,14 @@ describe("seeds de área (src/lib/dev/seeds/*.ts)", () => {
     expect(results.map((result) => result.name)).toEqual(names);
   });
 
-  it("rodam também quando a flag principal já existe (cada área tem a sua)", async () => {
+  it("a flag principal já gravada não impede o seed principal (banco com a flag e sem os dados)", async () => {
     const db = testDb();
     await createDevCompany(db);
     await db.execute("INSERT INTO settings (id, company_id, key, value_json) VALUES (?, ?, ?, ?)", ["flag-antiga", COMPANY_ID, "seed.dev_data.v1", "{}"]);
     await seedDevData(COMPANY_ID);
-    expect(await count(db, "customers")).toBe(0);
-    expect(await count(db, "finance_categories")).toBeGreaterThan(0);
-    expect(await count(db, "products")).toBeGreaterThan(0);
-    expect(await count(db, "import_batches")).toBeGreaterThan(0);
-    // Sem clientes, fornecedores e colaboradores, as áreas que dependem deles esperam (sem flag) o próximo login.
-    for (const table of ["sales_orders", "purchase_orders", "crm_activities", "inventory_counts", "hr_time_entries"]) expect(await count(db, table), table).toBe(0);
-    for (const area of ["crm", "sales", "purchasing", "inventory", "hr"]) {
-      const flags = await db.select<{ n: number }[]>("SELECT count(*) AS n FROM settings WHERE company_id = ? AND key = ?", [COMPANY_ID, `seed.dev.${area}.v1`]);
-      expect(flags[0].n, area).toBe(0);
-    }
+    expect(await count(db, "customers")).toBe(12);
+    expect(await count(db, "work_orders")).toBeGreaterThan(0);
+    for (const table of ["sales_orders", "purchase_orders", "crm_activities", "inventory_counts", "hr_time_entries"]) expect(await count(db, table), table).toBeGreaterThan(0);
     expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
   });
 
@@ -425,7 +419,9 @@ describe("no app desktop, os dados de exemplo só usam registros de exemplo", ()
 
     // Os dados de exemplo continuam saindo inteiros, só em cima dos registros de exemplo.
     const flags = await db.select<{ key: string }[]>("SELECT key FROM settings WHERE company_id = ? AND key LIKE 'seed.dev.%' ORDER BY key", [COMPANY_ID]);
-    expect(flags.map((row) => row.key)).toEqual(areaSeeds.map((seed) => `seed.dev.${seed.name}.v1`).sort());
+    // operations, products e wrapup não usam flag: só acrescentam o que falta (rodam de novo a cada abertura).
+    const flagless = new Set(["operations", "products", "wrapup"]);
+    expect(flags.map((row) => row.key)).toEqual(areaSeeds.filter((seed) => !flagless.has(seed.name)).map((seed) => `seed.dev.${seed.name}.v1`).sort());
     for (const [table, n] of Object.entries({ sales_orders: 5, invoices: 2, purchase_orders: 4, goods_receipts: 2, inventory_counts: 2, crm_activities: 10, hr_time_entries: 8 })) {
       expect(await count(db, table), table).toBe(n);
     }

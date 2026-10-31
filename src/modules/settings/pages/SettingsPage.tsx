@@ -6,6 +6,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { UsersAccess } from "../components/UsersAccess";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { DemoModeCard } from "../components/DemoModeCard";
+import { EmailOutboxCard } from "../components/EmailOutboxCard";
 import { AssistantModeSettings } from "../components/AssistantModeSettings";
 import { ASSISTANT_PROVIDERS, getAssistantApiConfig, saveAssistantApiConfig } from "@/lib/assistant/config";
 import { ROLE_LABELS } from "@/lib/permissions/rbac";
@@ -99,6 +100,9 @@ export default function SettingsPage() {
           <UpdatePanel />
         </div>
       )}
+
+      {/* E-mails das notificações importantes: só quem publica comunicados (o card some para os outros papéis) */}
+      <EmailOutboxCard />
 
       {/* Modo demonstração: só CEO e Administração (o card some para os outros papéis) */}
       <DemoModeCard />

@@ -38,6 +38,7 @@ export const DEMO_TABLE_LABELS: Record<string, string> = {
   calendar_sources: "agendas conectadas",
   cloud_folders: "pastas na nuvem",
   contacts: "contatos",
+  email_outbox: "e-mails a enviar",
   cost_centers: "centros de custo",
   crm_activities: "atividades do CRM",
   custodies: "custódias",
@@ -103,10 +104,13 @@ export const DEMO_AREA_LABELS: Record<string, string> = {
   hr: "RH",
   imports: "Importação",
   inventory: "Estoque",
+  operations: "Ordens de serviço",
   people: "RH e calendário",
+  products: "Desenvolvimento de produtos",
   purchasing: "Compras",
   sales: "Vendas",
   settlements: "Baixas e extrato",
+  wrapup: "Colunas completas (fornecedores, contas e folha)",
 };
 
 const number = (n: number) => n.toLocaleString("pt-BR");

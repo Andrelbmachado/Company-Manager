@@ -6,7 +6,6 @@ import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
-import { CalendarView } from "@/components/shared/CalendarView";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
@@ -20,8 +19,8 @@ import { fetchAnnouncements, fetchEmployees, fetchHrTasks, fetchRequests } from 
 import { REQUEST_TYPES, approvalError, isOnVacation, vacationBalance } from "@/lib/hr/rules";
 import { CONTRACT_TYPES } from "@/lib/hr/employees";
 import { CYCLE_LABEL, applyDueTerminations } from "@/lib/hr/employment";
-import { requestCalendarItems, saveAnnouncementRows, saveEmployeeRows, saveRequestRows, saveTaskRows, taskCalendarItems } from "@/lib/hr/tableEdits";
-import { ViewSwitch, type ListOrCalendar } from "../components/ViewSwitch";
+import { notifyAnnouncement, notifyEmployees } from "@/lib/notifications/notifications";
+import { saveAnnouncementRows, saveEmployeeRows, saveRequestRows, saveTaskRows } from "@/lib/hr/tableEdits";
 import { ErrorAlert, errorMessage } from "../components/hrUi";
 import type { Employee, HrAnnouncement, HrRequest, HrTask, Role } from "@/types";
 
@@ -64,8 +63,6 @@ export default function HrManagePage() {
   const canDelete = usePermission("delete", "hr_admin");
   const [tab, setTab] = useState<Tab>("solicitacoes");
   const [filter, setFilter] = useState<"pendente" | "todas">("pendente");
-  const [requestView, setRequestView] = useState<ListOrCalendar>("lista");
-  const [taskView, setTaskView] = useState<ListOrCalendar>("lista");
   const [error, setError] = useState("");
 
   const employeesQuery = useQuery({ queryKey: ["hr", "employees", companyId], queryFn: () => fetchEmployees(companyId) });
@@ -115,6 +112,14 @@ export default function HrManagePage() {
         [status, session.user.id, new Date().toISOString(), id, companyId],
       );
       await emit({ type: "hr_request.decided", companyId, actorId: session.user.id, entityType: "hr_request", entityId: id, title: `Solicitação ${status}`, module: "hr" });
+      const label = REQUEST_TYPES.find((type) => type.value === current.type)?.label ?? "Solicitação";
+      await notifyEmployees(db, companyId, [current.employee_id], {
+        type: "hr_request",
+        title: `${label} ${status}`,
+        message: `Sua solicitação de ${formatDay(current.start_date)} a ${formatDay(current.end_date)} foi ${status} pelo RH.`,
+        refType: "hr_request",
+        refId: id,
+      });
     },
     onSuccess: () => { void refresh(); setError(""); },
     onError: (cause) => { void refresh(); setError(errorMessage(cause)); },
@@ -146,11 +151,24 @@ export default function HrManagePage() {
 
   async function saveAnnouncements(changes: EditableTableChanges<HrAnnouncement>) {
     const { created } = await saveAnnouncementRows(await getDb(), companyId, actor, changes);
-    for (const id of created) await emit({ type: "hr_announcement.published", companyId, actorId: session.user.id, entityType: "hr_announcement", entityId: id, title: "Comunicado publicado", module: "hr_manage" });
+    const db = await getDb();
+    for (const id of created) {
+      await emit({ type: "hr_announcement.published", companyId, actorId: session.user.id, entityType: "hr_announcement", entityId: id, title: "Comunicado publicado", module: "hr_manage" });
+      // O comunicado chega como notificação no menu da conta de todo mundo (importante também por e-mail).
+      const [announcement] = await db.select<HrAnnouncement[]>("SELECT * FROM hr_announcements WHERE company_id=? AND id=?", [companyId, id]);
+      if (announcement) await notifyAnnouncement(db, companyId, announcement);
+    }
+    if (created.length) void qc.invalidateQueries({ queryKey: ["notifications"] });
   }
 
   async function saveTasks(changes: EditableTableChanges<HrTask>) {
-    await saveTaskRows(await getDb(), companyId, actor, changes, active.map((employee) => employee.id));
+    const db = await getDb();
+    const { created } = await saveTaskRows(db, companyId, actor, changes, active.map((employee) => employee.id));
+    // Pendência nova chega como notificação para quem precisa resolver.
+    for (const id of created) {
+      const [task] = await db.select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND id=?", [companyId, id]);
+      if (task) await notifyEmployees(db, companyId, [task.employee_id], { type: "hr_task", title: "Nova pendência do RH", message: task.title, refType: "hr_task", refId: id });
+    }
   }
 
   const shownRequests = requests.filter((request) => filter === "todas" || request.status === "pendente");
@@ -197,6 +215,7 @@ export default function HrManagePage() {
     { key: "title", header: "Título", kind: "text", required: true, render: (item) => <span className="font-medium">{item.title}</span> },
     { key: "category", header: "Categoria", kind: "select", options: CATEGORIES, required: true, render: (item) => <StatusBadge status={item.category} /> },
     { key: "pinned", header: "Fixado no topo", kind: "bool" },
+    { key: "important", header: "Importante (e-mail)", kind: "bool" },
     { key: "body", header: "Texto", kind: "text", required: true },
     { key: "published_at", header: "Publicado em", kind: "date", readOnly: true },
   ];
@@ -246,9 +265,8 @@ export default function HrManagePage() {
                   <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", filter === value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>{value === "pendente" ? "Pendentes" : "Todas"}</button>
                 ))}
               </div>
-              <ViewSwitch value={requestView} onChange={setRequestView} label="Ver solicitações em" />
             </div>
-            <div hidden={requestView !== "lista"}>
+            <div>
               <EditableTable<HrRequest>
                 resource="hr_admin"
                 label="Solicitações"
@@ -268,7 +286,6 @@ export default function HrManagePage() {
                 emptyMessage={filter === "pendente" ? "Nada aguardando decisão" : "Nenhuma solicitação"}
               />
             </div>
-            {requestView === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Férias, folgas e atestados" />}
           </section>
         </TabPanel>
       </div>
@@ -315,8 +332,7 @@ export default function HrManagePage() {
       <div hidden={tab !== "pendencias"}>
         <TabPanel idPrefix="rh" id="pendencias">
           <section className="space-y-3">
-            <div className="flex justify-end"><ViewSwitch value={taskView} onChange={setTaskView} label="Ver pendências em" /></div>
-            <div hidden={taskView !== "lista"}>
+            <div>
               <EditableTable<HrTask>
                 resource="hr_admin"
                 label="Pendências"
@@ -330,7 +346,6 @@ export default function HrManagePage() {
                 emptyMessage="Nenhuma pendência"
               />
             </div>
-            {taskView === "calendario" && <CalendarView items={taskCalendarItems(tasks, names)} label="Prazos das pendências" />}
           </section>
         </TabPanel>
       </div>

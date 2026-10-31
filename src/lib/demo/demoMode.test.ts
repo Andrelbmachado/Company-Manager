@@ -10,7 +10,8 @@ import { DEV_AREAS, DISABLED_PASSWORD_HASH, ensureDevAccounts } from "@/lib/dev/
 import { getCompanySetting, setCompanySetting } from "@/lib/settings/companySettings";
 import { todayIso } from "@/lib/utils";
 import type { Session } from "@/types";
-import { changeDemoMode, DEMO_MODE_KEY, initDemoMode, isDemoMode, setDemoMode } from "./demoMode";
+import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests } from "@/lib/hr/queries";
+import { changeDemoMode, DEMO_MODE_KEY, initDemoMode, isDemoMode, refreshDemoData, setDemoMode } from "./demoMode";
 import { countDemoRows, DEMO_EXCLUDED_TABLES, isDemoId } from "./purge";
 
 vi.mock("@/lib/db/client", () => import("@/test/mockDb"));
@@ -294,5 +295,85 @@ describe("initDemoMode (primeira abertura depois da atualização)", () => {
     expect(await isDemoMode(db, COMPANY)).toBe(true);
     await setCompanySetting(db, COMPANY, DEMO_MODE_KEY, "off");
     expect(await isDemoMode(db, COMPANY)).toBe(false);
+  });
+});
+
+describe("refreshDemoData", () => {
+  it("recompõe o que falta mesmo com a flag do seed principal gravada", async () => {
+    const db = await ready();
+    // Banco do desktop: modo ligado e flag gravada, mas os dados de exemplo do seed principal sumiram.
+    await setCompanySetting(db, COMPANY, DEMO_MODE_KEY, true);
+    await db.execute("INSERT INTO settings (id, company_id, key, value_json) VALUES (?, ?, ?, ?)", ["flag-antiga", COMPANY, "seed.dev_data.v1", "{}"]);
+
+    await refreshDemoData(db, COMPANY);
+
+    expect(await count(db, "work_orders")).toBeGreaterThanOrEqual(8);
+    expect(await count(db, "projects")).toBeGreaterThanOrEqual(3);
+    expect(await count(db, "employees")).toBeGreaterThan(0);
+    expect(await count(db, "hr_requests")).toBeGreaterThan(0);
+    expect(await count(db, "leads")).toBe(0);
+    expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
+  });
+
+  it("desligar enquanto a recomposição roda não deixa dados de exemplo para trás", async () => {
+    const db = await ready();
+    await setCompanySetting(db, COMPANY, DEMO_MODE_KEY, true);
+
+    const refresh = refreshDemoData(db, COMPANY);
+    const off = setDemoMode(db, COMPANY, false);
+    await Promise.all([refresh, off]);
+
+    expect(await isDemoMode(db, COMPANY)).toBe(false);
+    expect(await count(db, "work_orders")).toBe(0);
+    expect(await count(db, "employees")).toBe(0);
+  });
+
+  it("com o modo desligado não grava nada", async () => {
+    const db = await ready();
+    const before = await snapshot(db);
+
+    expect(await refreshDemoData(db, COMPANY)).toEqual([]);
+
+    expect(await snapshot(db)).toEqual(before);
+  });
+});
+
+describe("Meu RH no modo demonstração", () => {
+  it("conta cujo cadastro de colaborador nasce depois de ligar o modo ganha solicitações e pendências de exemplo", async () => {
+    const db = await ready();
+    await setDemoMode(db, COMPANY, true);
+    await db.execute("INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)", ["5f0e9d8c-0000-4000-8000-0000000000aa", "Pessoa Nova", "nova@teste.local", "x"]);
+    await db.execute("INSERT INTO memberships (id, company_id, user_id, role, scope) VALUES (?, ?, ?, ?, ?)", ["5f0e9d8c-0000-4000-8000-0000000000ab", COMPANY, "5f0e9d8c-0000-4000-8000-0000000000aa", "comercial", "setor"]);
+    const session = {
+      user: { id: "5f0e9d8c-0000-4000-8000-0000000000aa", name: "Pessoa Nova", email: "nova@teste.local" },
+      membership: { id: "5f0e9d8c-0000-4000-8000-0000000000ab", company_id: COMPANY, user_id: "5f0e9d8c-0000-4000-8000-0000000000aa", role: "comercial", scope: "setor" },
+      company: { id: COMPANY, name: "Empresa de Teste" },
+    } as unknown as Session;
+
+    const me = await ensureMyEmployee(session);
+
+    const requests = await fetchMyRequests(COMPANY, me.id);
+    expect(requests.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(requests.map((request) => request.status))).toEqual(new Set(["pendente", "aprovada", "recusada"]));
+    expect((await fetchMyHrTasks(COMPANY, me.id)).filter((task) => task.status === "pendente").length).toBeGreaterThanOrEqual(3);
+    // O cadastro da pessoa não é de exemplo e fica fora da limpeza; os registros de exemplo dela saem ao desligar.
+    expect(me.id.startsWith("dev-")).toBe(false);
+    const notifications = await db.select<{ important: number }[]>("SELECT important FROM notifications WHERE user_id = ?", ["5f0e9d8c-0000-4000-8000-0000000000aa"]);
+    expect(notifications.length).toBeGreaterThanOrEqual(3);
+    expect(notifications.some((row) => row.important === 1)).toBe(true);
+    await setDemoMode(db, COMPANY, false);
+    expect(await fetchMyRequests(COMPANY, me.id)).toEqual([]);
+    expect(await count(db, "notifications")).toBe(0);
+  });
+
+  it("com o modo desligado o Meu RH de uma conta nova fica vazio", async () => {
+    await ready();
+    const session = {
+      user: { id: "test-user-comercial", name: "Teste comercial", email: "comercial@teste.local" },
+      membership: { id: `test-member-${COMPANY}-comercial`, company_id: COMPANY, user_id: "test-user-comercial", role: "comercial", scope: "setor" },
+      company: { id: COMPANY, name: "Empresa de Teste" },
+    } as unknown as Session;
+    const me = await ensureMyEmployee(session);
+    expect(await fetchMyRequests(COMPANY, me.id)).toEqual([]);
   });
 });

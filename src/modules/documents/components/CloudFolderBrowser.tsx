@@ -183,7 +183,7 @@ export function CloudFolderBrowser({ folder, role, companyId, userId, canUpload,
       </PageToolbar>
 
       <nav aria-label="Caminho da pasta" className="flex flex-wrap items-center gap-1 text-sm">
-        <button type="button" onClick={onExit} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Documentos /</button>
+        <button type="button" onClick={onExit} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Raiz /</button>
         <button type="button" onClick={() => { setPath([]); setSearch(""); }} aria-current={path.length === 0 ? "location" : undefined} className="flex items-center gap-1 rounded px-1 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
           <Cloud size={13} aria-hidden="true" /> {folder.label} /
         </button>

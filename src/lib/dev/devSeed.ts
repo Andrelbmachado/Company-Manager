@@ -11,11 +11,14 @@ export { devUserId } from "./seedUtils";
 
 const FLAG = "seed.dev_data.v1";
 
-/** Seed principal (uma vez por empresa) + seeds de área (mesmo com a flag principal já gravada); devolve o resultado de cada área. */
+/**
+ * Seed principal + seeds de área; devolve o resultado de cada área. O principal roda sempre (só INSERT OR IGNORE de ids
+ * fixos): um banco do desktop com a flag gravada e os dados faltando (telas vazias com o modo ligado) se recompõe. A
+ * flag fica só como registro. Os seeds de área continuam com a flag deles; os que dependem do principal (pessoas,
+ * balanço) não gravam a flag sem a base e rodam na vez seguinte.
+ */
 export async function seedDevData(companyId: string): Promise<AreaSeedResult[]> {
-  const db = await getDb();
-  const done = await db.select<{ key: string }[]>("SELECT * FROM settings WHERE company_id=?", [companyId]);
-  if (!done.some((row) => row.key === FLAG)) await seedCoreData(companyId);
+  await seedCoreData(companyId);
   return runAreaSeeds(companyId);
 }
 

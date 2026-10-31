@@ -173,6 +173,65 @@ export async function annualBalance(db: DatabaseLike, companyId: string, year: n
   });
 }
 
+/** Período do balanço do topo do Dashboard (o título troca entre eles). */
+export type BalancePeriod = "ano" | "mes" | "semana";
+
+export interface PeriodBalancePoint {
+  /** 'YYYY-MM-DD'. */
+  day: string;
+  /** Resultado realizado no dia; null nos dias depois de hoje. */
+  realizado: number | null;
+  /** Soma do realizado desde o primeiro dia do período; null nos dias depois de hoje. */
+  acumulado: number | null;
+  /** Realizado + em aberto que vence no dia (o vencido conta hoje). */
+  previsto: number;
+  /** Em aberto a receber no dia (positivo). */
+  entradas: number;
+  /** Em aberto a pagar no dia (positivo). */
+  saidas: number;
+}
+
+/**
+ * Balanço por dia: o mês de hoje (dia 1 ao último) ou a semana (hoje e os 6 dias seguintes, o fluxo dos próximos 7
+ * dias). Mesmas regras de caixa do balanço anual; recorrências ainda não lançadas ficam só no balanço anual.
+ */
+export async function periodBalance(db: DatabaseLike, companyId: string, period: Exclude<BalancePeriod, "ano">, todayValue: string): Promise<PeriodBalancePoint[]> {
+  const today = assertIsoDay(todayValue, "Data de hoje");
+  let days: string[];
+  if (period === "semana") {
+    days = Array.from({ length: 7 }, (_, index) => addDays(today, index));
+  } else {
+    const first = `${today.slice(0, 7)}-01`;
+    days = [];
+    for (let day = first; day.startsWith(today.slice(0, 7)); day = addDays(day, 1)) days.push(day);
+  }
+  const realized = new Map<string, number>();
+  const income = new Map<string, number>();
+  const expense = new Map<string, number>();
+  for (const event of await cashEvents(db, companyId, { today })) {
+    const cents = toCents(event.amount);
+    if (event.kind === "realized") realized.set(event.date, (realized.get(event.date) ?? 0) + cents);
+    else if (cents >= 0) income.set(event.date, (income.get(event.date) ?? 0) + cents);
+    else expense.set(event.date, (expense.get(event.date) ?? 0) - cents);
+  }
+  let accumulated = 0;
+  return days.map((day) => {
+    const done = realized.get(day) ?? 0;
+    const started = day <= today;
+    if (started) accumulated += done;
+    const inflow = income.get(day) ?? 0;
+    const outflow = expense.get(day) ?? 0;
+    return {
+      day,
+      realizado: started ? fromCents(done) : null,
+      acumulado: started ? fromCents(accumulated) : null,
+      previsto: fromCents(done + inflow - outflow),
+      entradas: fromCents(inflow),
+      saidas: fromCents(outflow),
+    };
+  });
+}
+
 export type Loaded<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export interface DashboardOverview {

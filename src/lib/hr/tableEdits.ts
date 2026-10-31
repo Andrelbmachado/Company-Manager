@@ -233,7 +233,7 @@ export async function saveTaskRows(db: DatabaseLike, companyId: string, actor: H
 
 // ── Comunicados ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type AnnouncementRowFields = Partial<Pick<HrAnnouncement, "title" | "body" | "category">> & { pinned?: number | boolean };
+export type AnnouncementRowFields = Partial<Pick<HrAnnouncement, "title" | "body" | "category">> & { pinned?: number | boolean; important?: number | boolean };
 const CATEGORIES = new Set<HrAnnouncementCategory>(["comunicado", "politica", "beneficio"]);
 const flag = (value: unknown) => (value === true || value === 1 || value === "1" || value === "true" ? 1 : 0);
 
@@ -251,19 +251,19 @@ export async function saveAnnouncementRows(db: DatabaseLike, companyId: string, 
     const [current] = await db.select<HrAnnouncement[]>("SELECT * FROM hr_announcements WHERE company_id=? AND id=? AND deleted_at IS NULL", [companyId, fields.id]);
     if (!current) throw new Error("Comunicado não encontrado.");
     check(fields, false);
-    updates.push(["title" in fields ? text(fields.title) : current.title, "body" in fields ? text(fields.body) : current.body, fields.category ?? current.category, "pinned" in fields ? flag(fields.pinned) : current.pinned, companyId, current.id]);
+    updates.push(["title" in fields ? text(fields.title) : current.title, "body" in fields ? text(fields.body) : current.body, fields.category ?? current.category, "pinned" in fields ? flag(fields.pinned) : current.pinned, "important" in fields ? flag(fields.important) : (current.important ?? 0), companyId, current.id]);
   }
   for (const fields of changes.created) check(fields, true);
 
   for (const values of updates) {
-    await db.execute("UPDATE hr_announcements SET title=?, body=?, category=?, pinned=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL", values);
+    await db.execute("UPDATE hr_announcements SET title=?, body=?, category=?, pinned=?, important=?, updated_at=datetime('now') WHERE company_id=? AND id=? AND deleted_at IS NULL", values);
   }
   const created: string[] = [];
   for (const fields of changes.created) {
     const id = uuidv4();
     await db.execute(
-      "INSERT INTO hr_announcements (id, company_id, title, body, category, pinned, published_by, published_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, companyId, text(fields.title), text(fields.body), fields.category ?? "comunicado", flag(fields.pinned), actor.userId, new Date().toISOString()],
+      "INSERT INTO hr_announcements (id, company_id, title, body, category, pinned, important, published_by, published_at) VALUES (?,?,?,?,?,?,?,?,?)",
+      [id, companyId, text(fields.title), text(fields.body), fields.category ?? "comunicado", flag(fields.pinned), flag(fields.important), actor.userId, new Date().toISOString()],
     );
     created.push(id);
   }

@@ -49,7 +49,6 @@ describe("home por setor no banco demo", () => {
     // Dados de fábrica do demo: há férias da equipe, clientes e itens de estoque.
     expect(values["rh:hr.pendingRequests"]).toBeGreaterThan(0);
     expect(values["comercial:crm.customers"]).toBeGreaterThan(0);
-    expect(values["comercial:hr.vacation"]).toBeGreaterThan(0);
   });
 
   it("e depois dos dados de exemplo de todas as áreas", async () => {

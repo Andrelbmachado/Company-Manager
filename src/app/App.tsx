@@ -18,6 +18,8 @@ let legacyUpgradeStarted = false;
 let dailyBackupStarted = false;
 let demoModeInitStarted = false;
 let updaterStarted = false;
+/** Empresas cujos dados de exemplo já foram completados nesta execução do app. */
+const demoRefreshed = new Set<string>();
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => getSession());
@@ -58,6 +60,20 @@ export default function App() {
       })
       .catch((error) => console.warn("[demo] não foi possível limpar os dados de exemplo antigos", error));
   }, [queryClient]);
+
+  // Modo demonstração ligado: ao abrir, os seeds rodam de novo (idempotentes) e completam o que faltar, inclusive dados
+  // de exemplo novos de uma atualização (src/lib/demo/demoMode.ts, refreshDemoData).
+  const sessionCompanyId = session?.company.id;
+  useEffect(() => {
+    if (!sessionCompanyId || demoRefreshed.has(sessionCompanyId)) return;
+    demoRefreshed.add(sessionCompanyId);
+    Promise.all([getDb(), import("@/lib/demo/demoMode")])
+      .then(([db, { refreshDemoData }]) => refreshDemoData(db, sessionCompanyId))
+      .then((results) => {
+        if (results.length > 0) void queryClient.invalidateQueries();
+      })
+      .catch((error) => console.warn("[demo] não foi possível completar os dados de exemplo", error));
+  }, [sessionCompanyId, queryClient]);
 
   // Papel alterado, conta removida ou troca de senha exigida por outra pessoa vale já na próxima vez que a janela ganha foco.
   const membershipId = session?.membership.id;

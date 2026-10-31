@@ -86,3 +86,20 @@ describe("purgeDemoData", () => {
     expect(await countDemoRows(db, "outra")).toEqual({ total: 0, byTable: {} });
   });
 });
+
+describe("purgeDemoData: iniciativas de produto no JSON de settings", () => {
+  it("tira só as iniciativas de exemplo e mantém as da pessoa", async () => {
+    const item = (id: string, name: string) => ({ id, name, type: "digital", status: "planejado", owner: null, next_milestone: null, milestone_date: null, created_at: "2026-01-01", updated_at: "2026-01-01" });
+    await db.execute("INSERT INTO settings (id, company_id, key, value_json) VALUES (?, ?, ?, ?)", [
+      "0d1c2b3a-0000-4000-8000-000000000001",
+      COMPANY,
+      "product_development.initiatives",
+      JSON.stringify([item("dev-initiative-1", "Exemplo"), item("6a5b4c3d-0000-4000-8000-000000000002", "Minha iniciativa")]),
+    ]);
+
+    await purgeDemoData(db, COMPANY);
+
+    const [row] = await db.select<{ value_json: string }[]>("SELECT value_json FROM settings WHERE key = 'product_development.initiatives'");
+    expect(JSON.parse(row.value_json).map((entry: { name: string }) => entry.name)).toEqual(["Minha iniciativa"]);
+  });
+});

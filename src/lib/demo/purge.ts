@@ -134,7 +134,29 @@ async function deleteRows(db: DatabaseLike, keys: string[]): Promise<string[]> {
 }
 
 /** Apaga os dados de exemplo da empresa (ver as regras no topo do arquivo). Não mexe no `demo_mode` (demoMode.ts faz isso). */
+/** Configurações guardadas como lista JSON com itens de exemplo misturados aos da pessoa (ex.: iniciativas de produto). */
+const DEMO_JSON_LISTS = ["product_development.initiatives"] as const;
+
+/** Tira os itens com id dev- ou demo- das listas JSON de `settings`; o resto da lista fica como está. */
+async function purgeJsonLists(db: DatabaseLike, companyId: string): Promise<void> {
+  for (const key of DEMO_JSON_LISTS) {
+    const rows = await db.select<{ id: string; value_json: string | null }[]>("SELECT id, value_json FROM settings WHERE company_id = ? AND key = ?", [companyId, key]);
+    for (const row of rows) {
+      let list: unknown;
+      try {
+        list = JSON.parse(row.value_json ?? "null");
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(list)) continue;
+      const kept = list.filter((item) => !isDemoId((item as { id?: unknown } | null)?.id));
+      if (kept.length !== list.length) await db.execute("UPDATE settings SET value_json = ? WHERE id = ?", [JSON.stringify(kept), row.id]);
+    }
+  }
+}
+
 export async function purgeDemoData(db: DatabaseLike, companyId: string): Promise<PurgeResult> {
+  await purgeJsonLists(db, companyId);
   const tables = await loadTables(db);
   const candidates = new Set<string>();
   for (const table of tables) {

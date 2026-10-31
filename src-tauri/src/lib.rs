@@ -99,6 +99,12 @@ pub fn run() {
             sql: include_str!("../migrations/0013_assistant_claude_session.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 14,
+            description: "notifications_email",
+            sql: include_str!("../migrations/0014_notifications_email.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

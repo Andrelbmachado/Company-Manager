@@ -185,7 +185,7 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
       {path.length === 0 && rootPanel}
 
       <nav aria-label="Caminho da pasta" className="flex flex-wrap items-center gap-1 text-sm">
-        <button type="button" onClick={() => openFolder([])} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Documentos /</button>
+        <button type="button" onClick={() => openFolder([])} aria-current={path.length === 0 ? "location" : undefined} className="rounded px-1 py-1 font-medium text-foreground hover:bg-muted">Raiz /</button>
         {path.map((segment, index) => (
           <button key={`${segment}-${index}`} type="button" onClick={() => openFolder(path.slice(0, index + 1))} aria-current={index === path.length - 1 ? "location" : undefined} className="rounded px-1 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             {segment} /
@@ -216,17 +216,19 @@ export function FolderBrowser({ role, companyId, userId, canUpload, canEdit, can
             </div>
           )}
 
-          <EditableTable<DocumentRow>
+          {/* Na raiz só as pastas: a tabela de arquivos aparece dentro de uma pasta (o que sobrou solto na raiz de versões
+              antigas continua aparecendo na busca). */}
+          {path.length > 0 && <EditableTable<DocumentRow>
             resource="documents"
             label={`Arquivos em /${path.join("/")}`}
-            title={path.length ? `Arquivos em /${path.join("/")}` : "Arquivos na raiz"}
+            title={`Arquivos em /${path.join("/")}`}
             rows={files}
             columns={columns}
             loading={isLoading}
             onSave={save}
             onRefresh={() => qc.invalidateQueries({ queryKey: ["documents", companyId] }).then(() => refetch())}
-            emptyMessage={search ? "Nada encontrado" : canUpload ? "Nenhum arquivo nesta pasta" : "Nenhum arquivo nesta pasta"}
-          />
+            emptyMessage={search ? "Nada encontrado" : "Nenhum arquivo nesta pasta"}
+          />}
         </>
       )}
 

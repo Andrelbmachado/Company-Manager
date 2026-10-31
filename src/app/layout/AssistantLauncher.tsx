@@ -12,8 +12,10 @@ import { useDismiss } from "./useDismiss";
 const RECENT_LIMIT = 8;
 
 /**
- * "Assistente de IA" na sidebar, acima do Dashboard: menu com "Nova conversa" (vai para /assistant; a conversa é
- * criada na primeira pergunta) e as últimas conversas da pessoa (cada uma abre /assistant/:id).
+ * "Assistente de IA" na sidebar, acima do Dashboard: "Nova conversa" (vai para /assistant; a conversa é criada na
+ * primeira pergunta) e as últimas conversas da pessoa (cada uma abre /assistant/:id). Com a sidebar aberta a lista abre
+ * dentro dela, como subitens, e empurra a navegação para baixo (fecha no próprio botão ou ao abrir uma conversa); no
+ * trilho (sidebar recolhida) abre ao lado, flutuante.
  */
 export function AssistantLauncher({ collapsed }: { collapsed: boolean }) {
   const session = useRequiredSession();
@@ -21,7 +23,8 @@ export function AssistantLauncher({ collapsed }: { collapsed: boolean }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  useDismiss(rootRef, open, () => setOpen(false));
+  // Só o menu flutuante (trilho) fecha ao clicar fora; dentro da sidebar fica aberto como um grupo da navegação.
+  useDismiss(rootRef, open && collapsed, () => setOpen(false));
   const companyId = session.company.id;
   const userId = session.user.id;
   const conversations = useQuery({
@@ -63,16 +66,46 @@ export function AssistantLauncher({ collapsed }: { collapsed: boolean }) {
         )}
       </button>
 
-      {open && (
+      {open && !collapsed && (
+        <div id="assistant-menu" aria-label="Conversas do assistente" className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
+          <button
+            type="button"
+            onClick={() => go("/assistant")}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Plus size={14} className="shrink-0 text-muted-foreground" />
+            Nova conversa
+          </button>
+          {conversations.isLoading && <p className="px-2 py-1.5 text-xs text-muted-foreground">Carregando…</p>}
+          {conversations.isError && <p className="px-2 py-1.5 text-xs text-destructive">Não foi possível carregar as conversas.</p>}
+          {conversations.isSuccess && recent.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma conversa ainda.</p>}
+          {recent.length > 0 && <p className="px-2 pb-0.5 pt-1.5 text-xs font-semibold text-muted-foreground">Recentes</p>}
+          {recent.map((conversation) => (
+            <button
+              key={conversation.id}
+              type="button"
+              onClick={() => go(`/assistant/${conversation.id}`)}
+              aria-current={pathname === `/assistant/${conversation.id}` ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                pathname === `/assistant/${conversation.id}` && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+              )}
+            >
+              <MessageSquare size={13} className="shrink-0 text-muted-foreground" />
+              <span className="truncate">{conversation.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {open && collapsed && (
         <div
           id="assistant-menu"
           aria-label="Conversas do assistente"
           className={cn(
             "absolute z-50 overflow-y-auto overscroll-contain rounded-xl border bg-popover text-popover-foreground shadow-xl",
             // Janela pequena (até 1/5 × 1/3 da tela): o menu não passa da janela; as conversas rolam por dentro.
-            collapsed
-              ? "left-full top-0 ml-2 w-64 max-h-[calc(100vh-7rem)] max-w-[calc(100vw-4.5rem)]"
-              : "left-0 right-0 top-full mt-1 max-h-[calc(100vh-9rem)] max-w-[calc(100vw-1.5rem)]",
+            "left-full top-0 ml-2 w-64 max-h-[calc(100vh-7rem)] max-w-[calc(100vw-4.5rem)]",
           )}
         >
           <div className="p-1.5">

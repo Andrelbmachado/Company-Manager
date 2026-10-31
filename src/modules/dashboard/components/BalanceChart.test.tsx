@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { AnnualBalancePoint } from "@/lib/dashboard/finance";
+import type { AnnualBalancePoint, BalancePeriod, PeriodBalancePoint } from "@/lib/dashboard/finance";
 import { CHART_MARGIN, X_PADDING, seriesColor } from "@/components/shared/charts/LineAreaChart";
 import { pathXs, stubChartSize } from "@/test/charts";
 import { BalanceChart } from "./BalanceChart";
@@ -11,7 +11,7 @@ import { BalanceChart } from "./BalanceChart";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const WIDTH = 720;
-const LABELS = { title: "Balanço anual", realized: "Resultado do mês", accumulated: "Acumulado no ano", forecast: "Previsão de receita" };
+const LABELS = { title: "Balanço anual", titleMonth: "Balanço mensal", titleWeek: "Balanço semanal", realized: "Resultado do mês", accumulated: "Acumulado no ano", forecast: "Previsão de receita" };
 
 /** Ano de 2026 com hoje em junho: realizado e acumulado até junho, previsão de maio (emenda) até dezembro. */
 const POINTS: AnnualBalancePoint[] = Array.from({ length: 12 }, (_, index) => {
@@ -72,5 +72,36 @@ describe("BalanceChart", () => {
     const xs = pathXs(forecast.getAttribute("d"));
     expect(xs.length).toBeGreaterThan(1);
     expect(xs[xs.length - 1]).toBeCloseTo(WIDTH - CHART_MARGIN.right - X_PADDING, 0);
+  });
+
+  it("clicar no título troca para Balanço mensal e semanal; o semanal mostra entradas e saídas dos próximos 7 dias", () => {
+    const WEEK: PeriodBalancePoint[] = Array.from({ length: 7 }, (_, index) => ({
+      day: `2026-06-${String(15 + index).padStart(2, "0")}`,
+      realizado: index === 0 ? 0 : null,
+      acumulado: index === 0 ? 0 : null,
+      previsto: 100 * index - 50,
+      entradas: 100 * index,
+      saidas: 50,
+    }));
+    const chosen: BalancePeriod[] = [];
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const draw = (period: BalancePeriod) =>
+      act(() => root!.render(<BalanceChart points={POINTS} dayPoints={period === "ano" ? undefined : WEEK} period={period} onPeriodChange={(next) => chosen.push(next)} today="2026-06-15" labels={LABELS} />));
+    draw("ano");
+    const title = host.querySelector<HTMLButtonElement>("[data-chart='balance'] h2 button")!;
+    expect(title.textContent).toContain("Balanço anual");
+    act(() => title.click());
+    const options = [...host.querySelectorAll<HTMLButtonElement>("[role='menuitemradio']")];
+    expect(options.map((option) => option.textContent)).toEqual(["Balanço anual", "Balanço mensal", "Balanço semanal"]);
+    act(() => options[2].click());
+    expect(chosen).toEqual(["semana"]);
+
+    draw("semana");
+    expect(host.querySelector("[data-chart='balance'] h2")?.textContent).toContain("Balanço semanal");
+    expect(host.querySelectorAll("[data-chart='balance'] .recharts-bar-rectangle").length).toBeGreaterThan(0);
+    expect(host.textContent).toContain("Entradas");
+    expect(host.textContent).toContain("Saídas");
   });
 });

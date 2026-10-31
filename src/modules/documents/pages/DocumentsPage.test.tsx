@@ -157,45 +157,22 @@ describe("DocumentsPage", () => {
     expect([...drawer()!.querySelectorAll("button")].some((element) => element.textContent?.includes("Excluir"))).toBe(false);
   });
 
-  it("na aba de anexos, mostra só os registros que o papel pode ver, com o nome do registro", async () => {
-    const db = testDb();
-    await db.execute("INSERT INTO customers (id, company_id, type, name) VALUES (?,?,?,?)", ["cli-1", C, "PJ", "NorteLog"]);
-    await saveFile(C, new File(["a"], "Contrato assinado.pdf"), { userId: "test-user-ceo", entityType: "customer", entityId: "cli-1" });
-    await saveFile(C, new File(["b"], "Exame admissional.pdf"), { userId: "test-user-ceo", entityType: "employee", entityId: "emp-1" });
-
-    await render("comercial");
+  it("raiz só com pastas: sem tabela de arquivos na raiz e sem aba de anexos; o caminho começa em Raiz", async () => {
+    await saveFile(C, new File(["a"], "Solto na raiz.pdf"), { userId: "test-user-ceo", folder: "" });
+    await render("ceo");
     await until(() => text().includes("Compartilhados"), "pastas");
-    await click(container.querySelector("#tab-documentos-anexos"));
-    await until(() => text().includes("Contrato assinado.pdf"), "anexos");
-    await until(() => text().includes("NorteLog"), "nome do cliente dono do anexo");
-    expect(text()).not.toContain("Exame admissional.pdf");
-    expect(container.querySelector('a[href="/crm/clientes/cli-1"]')).not.toBeNull();
-  });
-});
+    expect(text()).not.toContain("Arquivos na raiz");
+    expect(text()).not.toContain("Anexos de registros");
+    expect(container.querySelector("#tab-documentos-anexos")).toBeNull();
+    expect(container.querySelector("[data-editable-table]")).toBeNull();
+    const trail = () => [...container.querySelectorAll('nav[aria-label="Caminho da pasta"] button')].map((button) => button.textContent!.trim()).join(" ");
+    expect(trail()).toBe("Raiz /");
 
-describe("DocumentsPage — anexos ordenam e filtram", () => {
-  it("Registro ordena e filtra pelo nome mostrado (não pelo código do registro)", async () => {
-    const db = testDb();
-    await db.execute("INSERT INTO customers (id, company_id, type, name) VALUES (?,?,?,?)", ["cli-1", C, "PJ", "NorteLog"]);
-    await db.execute("INSERT INTO customers (id, company_id, type, name) VALUES (?,?,?,?)", ["cli-2", C, "PJ", "Aurora Ltda"]);
-    await saveFile(C, new File(["a"], "Contrato assinado.pdf"), { userId: "test-user-ceo", entityType: "customer", entityId: "cli-1" });
-    await saveFile(C, new File(["b"], "Proposta.pdf"), { userId: "test-user-ceo", entityType: "customer", entityId: "cli-2" });
-
-    await render("comercial");
-    await until(() => text().includes("Compartilhados"), "pastas");
-    await click(container.querySelector("#tab-documentos-anexos"));
-    await until(() => text().includes("Aurora Ltda") && text().includes("NorteLog"), "anexos com o nome do registro");
-    const panel = container.querySelector<HTMLElement>("#painel-documentos-anexos")!;
-    const files = () => [...panel.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.textContent?.trim());
-    await click(panel.querySelector("th [data-sort-key='owner']"));
-    expect(files()).toEqual(["Proposta.pdf", "Contrato assinado.pdf"]);
-    await click(panel.querySelector("button[aria-label='Filtrar']"));
-    const owner = panel.querySelector<HTMLInputElement>("[aria-label='Registro: contém']")!;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(owner, "norte");
-    await act(async () => {
-      owner.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    expect(files()).toEqual(["Contrato assinado.pdf"]);
+    await click(buttonWith("Financeiro"));
+    await until(() => !!container.querySelector("[data-editable-table]"), "tabela da pasta");
+    expect(trail()).toBe("Raiz / Financeiro /");
+    await click(buttonWith("Raiz /"));
+    await until(() => !container.querySelector("[data-editable-table]"), "de volta à raiz");
   });
 });
 
@@ -236,7 +213,7 @@ describe("DocumentsPage — pastas de nuvem", () => {
     expect(text()).not.toContain("atalho-fora");
     await click(buttonWith("Contratos"));
     await until(() => text().includes("Assinado.pdf"), "subpasta da nuvem");
-    await click(buttonWith("Documentos /"));
+    await click(buttonWith("Raiz /"));
     await until(() => text().includes("Compartilhados"), "volta às pastas");
   });
 

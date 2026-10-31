@@ -150,24 +150,3 @@ export function HomeChartCard({ widget, result, loading }: { widget: HomeWidget;
     </section>
   );
 }
-
-/** Atalhos do setor. */
-export function HomeShortcuts({ widgets }: { widgets: HomeWidget[] }) {
-  return (
-    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {widgets.map((widget) => {
-        const Icon = HOME_ICONS[widget.icon];
-        return (
-          <li key={widget.id}>
-            <Link to={widget.path} data-widget={widget.id} className={cn("flex h-full items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:border-primary/60 hover:bg-muted/40", FOCUS)}>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Icon size={17} aria-hidden="true" />
-              </span>
-              <span className="min-w-0 truncate text-sm font-semibold">{widget.title}</span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}

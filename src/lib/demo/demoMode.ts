@@ -7,13 +7,16 @@ import { emit } from "@/lib/events/bus";
 import { can } from "@/lib/permissions/rbac";
 import { getCompanySetting, setCompanySetting } from "@/lib/settings/companySettings";
 import { seedDevData } from "@/lib/dev/devSeed";
+import type { AreaSeedResult } from "@/lib/dev/seeds";
 import { DISABLED_PASSWORD_HASH, ensureDevAccounts } from "@/lib/dev/devAccounts";
 import { countDemoRows, purgeDemoData } from "./purge";
 import type { Role } from "@/types";
 
 export { DEMO_EXCLUDED_TABLES } from "./purge";
 
-export const DEMO_MODE_KEY = "demo_mode";
+import { DEMO_MODE_KEY, isDemoMode } from "./state";
+
+export { DEMO_MODE_KEY, isDemoMode } from "./state";
 
 export interface DemoModeResult {
   /** Ligar: linhas de exemplo novas (0 se já estava tudo lá). */
@@ -27,13 +30,15 @@ export interface DemoModeResult {
   keptByTable?: Record<string, number>;
 }
 
-function parseDemoMode(value: unknown): boolean {
-  return value === true || value === "on";
-}
-
-/** O modo está ligado? Sem a chave gravada (empresa nova), desligado. */
-export async function isDemoMode(db: DatabaseLike, companyId: string): Promise<boolean> {
-  return parseDemoMode(await getCompanySetting(db, companyId, DEMO_MODE_KEY));
+/**
+ * Ligar, desligar e a recomposição ao abrir rodam uma de cada vez: desligar no meio da recomposição esperaria os seeds
+ * terminarem e só então apagaria tudo (senão os seeds que ainda faltavam gravariam exemplos com o modo já desligado).
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function oneAtATime<T>(run: () => Promise<T>): Promise<T> {
+  const next = queue.then(run, run);
+  queue = next.catch(() => undefined);
+  return next;
 }
 
 /**
@@ -41,7 +46,11 @@ export async function isDemoMode(db: DatabaseLike, companyId: string): Promise<b
  * (no app, sempre é). Ligar duas vezes não duplica nada (ids fixos + INSERT OR IGNORE); desligar com o modo já
  * desligado só tenta de novo apagar o que sobrou.
  */
-export async function setDemoMode(db: DatabaseLike, companyId: string, on: boolean): Promise<DemoModeResult> {
+export function setDemoMode(db: DatabaseLike, companyId: string, on: boolean): Promise<DemoModeResult> {
+  return oneAtATime(() => applyDemoMode(db, companyId, on));
+}
+
+async function applyDemoMode(db: DatabaseLike, companyId: string, on: boolean): Promise<DemoModeResult> {
   if (on) {
     const before = await countDemoRows(db, companyId);
     await ensureDevAccounts(db, companyId, DISABLED_PASSWORD_HASH);
@@ -71,6 +80,18 @@ export async function changeDemoMode(db: DatabaseLike, companyId: string, actor:
     metadata: on ? { inserted: result.inserted ?? 0 } : { removed: result.removed ?? 0, kept: result.kept ?? 0 },
   });
   return result;
+}
+
+/**
+ * Ao abrir o app com o modo ligado (App.tsx): roda os seeds de novo (idempotentes) para completar o que faltar, inclusive
+ * dados de exemplo novos de uma atualização. Com o modo desligado não faz nada.
+ */
+export function refreshDemoData(db: DatabaseLike, companyId: string): Promise<AreaSeedResult[]> {
+  return oneAtATime(async () => {
+    if (!(await isDemoMode(db, companyId))) return [];
+    await ensureDevAccounts(db, companyId, DISABLED_PASSWORD_HASH);
+    return seedDevData(companyId);
+  });
 }
 
 export interface DemoModeInitResult {

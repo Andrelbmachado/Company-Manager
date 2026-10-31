@@ -81,7 +81,7 @@ const shown = () => Array.from(container.querySelectorAll("[data-widget]")).map(
 const widgetText = (id: string) => container.querySelector(`[data-widget='${id}']`)?.textContent?.replace(/\s/g, " ") ?? "";
 
 describe("DashboardPage (home por setor)", () => {
-  it("comercial: só os widgets do comercial, com o funil do banco, e o Meu RH criado no primeiro acesso", async () => {
+  it("comercial: só os widgets do comercial, com o funil do banco; o cadastro do Meu RH é criado no primeiro acesso, sem cards dele", async () => {
     const db = testDb();
     await insertTestCompany(db);
     await db.execute("INSERT INTO opportunities (id, company_id, title, value, probability, status) VALUES (?,?,?,?,?,?)", ["o1", "test-company", "Site", 1000, 50, "open"]);
@@ -96,7 +96,8 @@ describe("DashboardPage (home por setor)", () => {
 
     const employees = await db.select<{ user_id: string }[]>("SELECT user_id FROM employees WHERE company_id=?", ["test-company"]);
     expect(employees.map((row) => row.user_id)).toEqual(["test-user-comercial"]);
-    expect(widgetText("hr.vacation")).toContain("30 dias");
+    expect(container.querySelector("[data-widget='hr.vacation']")).toBeNull();
+    expect(container.textContent).not.toContain("Atalhos");
   });
 
   it("comercial: follow-ups vencidos são os do CRM (OverdueFollowUps), só os da pessoa e com Concluir na própria home", async () => {
@@ -119,15 +120,15 @@ describe("DashboardPage (home por setor)", () => {
     expect(Array.from(card?.querySelectorAll("button") ?? []).some((button) => button.textContent?.includes("Concluir"))).toBe(true);
   });
 
-  it("financeiro: vencidos e fluxo da semana; nada de CRM nem de RH da equipe", async () => {
+  it("financeiro: vencidos e vencimentos da semana; nada de CRM, RH da equipe nem fluxo de 7 dias (fica no balanço semanal)", async () => {
     const db = testDb();
     await insertTestCompany(db);
     await db.execute("INSERT INTO receivables (id, company_id, description, amount, due_date, status) VALUES (?,?,?,?,?,?)", ["r1", "test-company", "Fatura", 450.25, "2020-01-01", "aberta"]);
     await render("financeiro");
     await settled();
 
-    expect(shown()).toEqual(expect.arrayContaining(["fin.overdueReceivables", "fin.cashflow7", "fin.dueNext7"]));
-    for (const forbidden of ["crm.pipeline", "hr.pendingRequests", "payroll.monthly", "inv.belowMin"]) expect(shown()).not.toContain(forbidden);
+    expect(shown()).toEqual(expect.arrayContaining(["fin.overdueReceivables", "fin.dueNext7"]));
+    for (const forbidden of ["crm.pipeline", "hr.pendingRequests", "payroll.monthly", "inv.belowMin", "fin.cashflow7"]) expect(shown()).not.toContain(forbidden);
     expect(widgetText("fin.overdueReceivables")).toContain("R$ 450,25");
   });
 
@@ -169,7 +170,7 @@ describe("DashboardPage (home por setor)", () => {
     await insertTestCompany(db);
     await render("rh");
     await settled();
-    expect(shown()).toEqual(expect.arrayContaining(["hr.pendingRequests", "hr.cycle", "hr.timeBankPending", "go.admission"]));
+    expect(shown()).toEqual(expect.arrayContaining(["hr.pendingRequests", "hr.cycle", "hr.timeBankPending"]));
     expect(shown()).not.toContain("payroll.monthly");
   });
 });
@@ -233,6 +234,27 @@ describe("DashboardPage (resumo do topo e balanço anual)", () => {
 
     // O card "Projetos ativos" do topo substitui o indicador igual do setor.
     expect(shown()).not.toContain("projects.active");
+  });
+
+  it("o título do balanço troca para semanal: fluxo dos próximos 7 dias, e a escolha fica lembrada", async () => {
+    const db = testDb();
+    await seedMonth(db);
+    localStorage.removeItem("cm.dashboard.balancePeriod");
+    await render("ceo");
+    await settled();
+    await overviewLoaded();
+
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-chart='balance'] h2 button")!.click());
+    const week = [...container.querySelectorAll<HTMLButtonElement>("[role='menuitemradio']")].find((button) => button.textContent === "Balanço semanal")!;
+    await act(async () => week.click());
+    for (let attempt = 0; attempt < 200 && !container.querySelector("[data-chart='balance'][data-period='semana'] [role='img']"); attempt++) {
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
+    }
+    const chart = container.querySelector("[data-chart='balance']")!;
+    expect(chart.getAttribute("data-period")).toBe("semana");
+    expect(plainText(chart.querySelector("header")?.textContent)).toContain("Entradas R$ 300,00 · saídas R$ 120,00");
+    expect(localStorage.getItem("cm.dashboard.balancePeriod")).toBe("semana");
+    localStorage.removeItem("cm.dashboard.balancePeriod");
   });
 
   it("todo card do topo da home tem só título e número (nada embaixo do número)", async () => {

@@ -169,6 +169,23 @@ describe("AppShell", () => {
     expect(document.querySelector("main [data-page-loading]")).not.toBeNull();
   });
 
+  it("o Assistente de IA abre dentro da sidebar (em fluxo, empurrando a navegação), não num menu flutuante", async () => {
+    await openShell();
+    await click(byName(sidebar(), "Assistente de IA"));
+    const menu = document.getElementById("assistant-menu");
+    expect(menu).not.toBeNull();
+    expect(sidebar().contains(menu)).toBe(true);
+    expect(menu!.className).not.toMatch(/\babsolute\b/);
+    expect(menu!.className).not.toMatch(/shadow/);
+    const dashboard = [...sidebar().querySelectorAll("a")].find((link) => link.textContent?.trim() === "Dashboard")!;
+    expect(precedes(menu!, dashboard)).toBe(true);
+    // Clicar fora (no conteúdo) não fecha: só o próprio botão.
+    await click(document.querySelector("main [data-testid=conteudo]"));
+    expect(document.getElementById("assistant-menu")).not.toBeNull();
+    await click(byName(sidebar(), "Assistente de IA"));
+    expect(document.getElementById("assistant-menu")).toBeNull();
+  });
+
   it("o Assistente de IA lista as conversas do usuário e abre cada uma", async () => {
     const id = await createConversation(testDb(), COMPANY, ME, "Resumo do funil");
     await openShell();

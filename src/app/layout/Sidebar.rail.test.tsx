@@ -121,7 +121,7 @@ describe("Sidebar fechada (só o botão de abrir)", () => {
     expect(isClosed()).toBe(true);
   });
 
-  it("os menus da conta e do assistente não passam da janela: rolam por dentro", async () => {
+  it("o menu da conta não passa da janela (rola por dentro); o assistente abre dentro da sidebar", async () => {
     const fitsWindow = (id: string) => {
       const names = document.getElementById(id)?.className.split(/\s+/) ?? [];
       expect(names.some((name) => /^max-w-\[calc\(100vw-[\d.]+rem\)\]$/.test(name)), `${id}: largura limitada à janela`).toBe(true);
@@ -132,7 +132,7 @@ describe("Sidebar fechada (só o botão de abrir)", () => {
     await click(control("Abrir menu da conta"));
     fitsWindow("account-menu");
     await click(control("Assistente de IA"));
-    fitsWindow("assistant-menu");
+    expect(document.getElementById("assistant-menu")?.className).not.toMatch(/\babsolute\b/);
   });
 
   it("estreitar a janela não grava uma largura menor: ao alargar, a sidebar volta à largura escolhida", async () => {

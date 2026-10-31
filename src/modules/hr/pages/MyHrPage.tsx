@@ -1,18 +1,17 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, Megaphone } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { useLabel } from "@/lib/labels/useLabel";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn, formatDay, todayIso } from "@/lib/utils";
-import { ensureMyEmployee, fetchAnnouncements, fetchMyHrTasks, fetchMyRequests } from "@/lib/hr/queries";
+import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests } from "@/lib/hr/queries";
 import { REQUEST_TYPES, tenureLabel, vacationBalance } from "@/lib/hr/rules";
 import { saveRequestRows } from "@/lib/hr/tableEdits";
 import type { HrRequest, Role } from "@/types";
@@ -34,7 +33,7 @@ function CalendarDayLink({ day }: { day: string | null | undefined }) {
   );
 }
 
-/** "Meu RH": a área de RH de qualquer colaborador (férias, solicitações, comunicados e pendências do próprio cadastro). */
+/** "Meu RH": a área de RH de qualquer colaborador (férias, solicitações e pendências do próprio cadastro). Os comunicados do RH chegam como notificação no menu da conta. */
 export default function MyHrPage() {
   const session = useRequiredSession();
   const title = useLabel("module.hr");
@@ -46,13 +45,11 @@ export default function MyHrPage() {
   const employeeId = me?.id ?? "";
   const requestsQuery = useQuery({ queryKey: ["hr", "my-requests", companyId, employeeId], queryFn: () => fetchMyRequests(companyId, employeeId), enabled: !!me });
   const { data: todos = [] } = useQuery({ queryKey: ["hr", "my-tasks", companyId, employeeId], queryFn: () => fetchMyHrTasks(companyId, employeeId), enabled: !!me });
-  const { data: announcements = [] } = useQuery({ queryKey: ["hr", "announcements", companyId], queryFn: () => fetchAnnouncements(companyId) });
   const requests = useMemo(() => requestsQuery.data ?? [], [requestsQuery.data]);
 
   const balance = me ? vacationBalance(me, requests, Number(today.slice(0, 4))) : null;
   const openTodos = todos.filter((todo) => todo.status === "pendente");
   const pendingRequests = requests.filter((request) => request.status === "pendente");
-  const sortedAnnouncements = [...announcements].sort((a, b) => b.pinned - a.pinned || b.published_at.localeCompare(a.published_at));
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["hr"] });
 
@@ -88,7 +85,8 @@ export default function MyHrPage() {
         <KpiCard title="Férias disponíveis" value={`${balance.available} dias`} />
         <KpiCard title="Solicitações em análise" value={pendingRequests.length} />
         <KpiCard title="Pendências abertas" value={openTodos.length} />
-        <KpiCard title="Tempo de empresa" value={tenureLabel(me.hire_date, today)} />
+        {/* Sem data de admissão no cadastro, conta da criação da conta no app. */}
+        <KpiCard title="Tempo de empresa" value={tenureLabel(me.hire_date || session.user.created_at, today)} />
       </div>
 
       <section aria-label="Minhas solicitações">
@@ -106,51 +104,30 @@ export default function MyHrPage() {
         />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <section className="rounded-xl border bg-card">
-          <header className="border-b px-5 py-3"><h2 className="font-bold">Minhas pendências</h2></header>
-          {todos.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhuma pendência</p> : (
-            <ul className="divide-y">
-              {todos.map((todo) => {
-                const done = todo.status === "concluida";
-                const late = !done && !!todo.due_date && todo.due_date < today;
-                return (
-                  <li key={todo.id} className="flex items-center gap-3 px-5 py-3">
-                    <button type="button" disabled={done || completeTodo.isPending} onClick={() => completeTodo.mutate(todo.id)} aria-label={done ? `${todo.title}: concluída` : `Marcar como concluída: ${todo.title}`} className="shrink-0 disabled:cursor-default">
-                      {done ? <CheckCircle2 size={20} className="text-status-success" /> : <Circle size={20} className="text-muted-foreground" />}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("text-sm font-medium", done && "text-muted-foreground line-through")}>{todo.title}</p>
-                      <p className="text-xs text-muted-foreground">{todo.due_date ? `prazo ${formatDay(todo.due_date)}` : "sem prazo"}</p>
-                    </div>
-                    {late && <StatusBadge status="vencida" />}
-                    {done && <StatusBadge status="concluida" />}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="rounded-xl border bg-card">
-          <header className="flex items-center gap-2 border-b px-5 py-3"><Megaphone size={16} className="text-muted-foreground" /><h2 className="font-bold">Comunicados do RH</h2></header>
-          {sortedAnnouncements.length === 0 ? <EmptyState title="Sem comunicados" /> : (
-            <ul className="divide-y">
-              {sortedAnnouncements.map((item) => (
-                <li key={item.id} className="space-y-1.5 px-5 py-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status={item.category} className="shrink-0" />
-                    {item.pinned ? <span className="text-xs font-semibold text-primary-text">Fixado</span> : null}
-                    <span className="ml-auto text-xs text-muted-foreground">{formatDay(item.published_at)}</span>
+      <section aria-label="Minhas pendências" className="rounded-xl border bg-card">
+        <header className="border-b px-5 py-3"><h2 className="font-bold">Minhas pendências</h2></header>
+        {todos.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">Nenhuma pendência</p> : (
+          <ul className="divide-y">
+            {todos.map((todo) => {
+              const done = todo.status === "concluida";
+              const late = !done && !!todo.due_date && todo.due_date < today;
+              return (
+                <li key={todo.id} className="flex items-center gap-3 px-5 py-3">
+                  <button type="button" disabled={done || completeTodo.isPending} onClick={() => completeTodo.mutate(todo.id)} aria-label={done ? `${todo.title}: concluída` : `Marcar como concluída: ${todo.title}`} className="shrink-0 disabled:cursor-default">
+                    {done ? <CheckCircle2 size={20} className="text-status-success" /> : <Circle size={20} className="text-muted-foreground" />}
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-sm font-medium", done && "text-muted-foreground line-through")}>{todo.title}</p>
+                    <p className="text-xs text-muted-foreground">{todo.due_date ? `prazo ${formatDay(todo.due_date)}` : "sem prazo"}</p>
                   </div>
-                  <h3 className="text-sm font-bold leading-snug">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground">{item.body}</p>
+                  {late && <StatusBadge status="vencida" />}
+                  {done && <StatusBadge status="concluida" />}
                 </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

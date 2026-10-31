@@ -10,6 +10,7 @@ import { DEV_AREAS, DISABLED_PASSWORD_HASH, ensureDevAccounts } from "@/lib/dev/
 import { getCompanySetting, setCompanySetting } from "@/lib/settings/companySettings";
 import { todayIso } from "@/lib/utils";
 import type { Session } from "@/types";
+import { ensureMyEmployee, fetchMyHrTasks, fetchMyRequests } from "@/lib/hr/queries";
 import { changeDemoMode, DEMO_MODE_KEY, initDemoMode, isDemoMode, refreshDemoData, setDemoMode } from "./demoMode";
 import { countDemoRows, DEMO_EXCLUDED_TABLES, isDemoId } from "./purge";
 
@@ -321,5 +322,41 @@ describe("refreshDemoData", () => {
     expect(await refreshDemoData(db, COMPANY)).toEqual([]);
 
     expect(await snapshot(db)).toEqual(before);
+  });
+});
+
+describe("Meu RH no modo demonstração", () => {
+  it("conta cujo cadastro de colaborador nasce depois de ligar o modo ganha solicitações e pendências de exemplo", async () => {
+    const db = await ready();
+    await setDemoMode(db, COMPANY, true);
+    await db.execute("INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)", ["5f0e9d8c-0000-4000-8000-0000000000aa", "Pessoa Nova", "nova@teste.local", "x"]);
+    await db.execute("INSERT INTO memberships (id, company_id, user_id, role, scope) VALUES (?, ?, ?, ?, ?)", ["5f0e9d8c-0000-4000-8000-0000000000ab", COMPANY, "5f0e9d8c-0000-4000-8000-0000000000aa", "comercial", "setor"]);
+    const session = {
+      user: { id: "5f0e9d8c-0000-4000-8000-0000000000aa", name: "Pessoa Nova", email: "nova@teste.local" },
+      membership: { id: "5f0e9d8c-0000-4000-8000-0000000000ab", company_id: COMPANY, user_id: "5f0e9d8c-0000-4000-8000-0000000000aa", role: "comercial", scope: "setor" },
+      company: { id: COMPANY, name: "Empresa de Teste" },
+    } as unknown as Session;
+
+    const me = await ensureMyEmployee(session);
+
+    const requests = await fetchMyRequests(COMPANY, me.id);
+    expect(requests.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(requests.map((request) => request.status))).toEqual(new Set(["pendente", "aprovada", "recusada"]));
+    expect((await fetchMyHrTasks(COMPANY, me.id)).filter((task) => task.status === "pendente").length).toBeGreaterThanOrEqual(3);
+    // O cadastro da pessoa não é de exemplo e fica fora da limpeza; os registros de exemplo dela saem ao desligar.
+    expect(me.id.startsWith("dev-")).toBe(false);
+    await setDemoMode(db, COMPANY, false);
+    expect(await fetchMyRequests(COMPANY, me.id)).toEqual([]);
+  });
+
+  it("com o modo desligado o Meu RH de uma conta nova fica vazio", async () => {
+    await ready();
+    const session = {
+      user: { id: "test-user-comercial", name: "Teste comercial", email: "comercial@teste.local" },
+      membership: { id: `test-member-${COMPANY}-comercial`, company_id: COMPANY, user_id: "test-user-comercial", role: "comercial", scope: "setor" },
+      company: { id: COMPANY, name: "Empresa de Teste" },
+    } as unknown as Session;
+    const me = await ensureMyEmployee(session);
+    expect(await fetchMyRequests(COMPANY, me.id)).toEqual([]);
   });
 });

@@ -17,6 +17,24 @@ export async function fetchMyEmployee(companyId: string, userId: string): Promis
 
 /** Cria o cadastro do próprio usuário na primeira visita ao Meu RH, quando o RH ainda não o cadastrou. Idempotente. */
 export async function ensureMyEmployee(session: Session): Promise<Employee> {
+  const employee = await findOrCreateMyEmployee(session);
+  await seedMyHrIfDemo(session.company.id, employee.id);
+  return employee;
+}
+
+/**
+ * Modo demonstração ligado: o Meu RH da pessoa ganha solicitações e pendências de exemplo (ids dev-*, a limpeza apaga),
+ * mesmo quando o cadastro dela nasceu depois de ligar o modo. Import dinâmico: os seeds não entram no pacote principal.
+ */
+async function seedMyHrIfDemo(companyId: string, employeeId: string): Promise<void> {
+  const db = await getDb();
+  const { isDemoMode } = await import("@/lib/demo/demoMode");
+  if (!(await isDemoMode(db, companyId))) return;
+  const { seedMyHrDemo } = await import("@/lib/dev/seeds/myHr");
+  await seedMyHrDemo(companyId, employeeId);
+}
+
+async function findOrCreateMyEmployee(session: Session): Promise<Employee> {
   const existing = await fetchMyEmployee(session.company.id, session.user.id);
   if (existing) return existing;
   // O RH pode ter cadastrado esta pessoa antes de ela entrar: liga o cadastro pelo e-mail (gravado em minúsculas) em vez de duplicar.

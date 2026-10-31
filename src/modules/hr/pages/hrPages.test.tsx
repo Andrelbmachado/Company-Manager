@@ -391,6 +391,45 @@ describe("Admissões e desligamentos", () => {
   });
 });
 
+describe("Meu RH sem comunicados", () => {
+  it("não mostra comunicados nem calendário e as pendências ocupam a largura toda", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    await newEmployee("Teste tecnico", { email: "tecnico@teste.local", hire_date: "2020-01-01" });
+    await db.execute("INSERT INTO hr_announcements (id, company_id, title, body) VALUES (?,?,?,?)", ["a1", C, "Novo plano de saúde", "Detalhes"]);
+
+    await render("tecnico", "/hr", "/hr", <MyHrPage />);
+    await waitFor(() => has("Minhas pendências"), "pendências");
+    expect(has("Comunicados do RH")).toBe(false);
+    expect(has("Novo plano de saúde")).toBe(false);
+    expect(Array.from(container.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Calendário")).toBe(false);
+    const pendencias = container.querySelector("section[aria-label='Minhas pendências']");
+    expect(pendencias).not.toBeNull();
+    expect(pendencias!.parentElement!.className).not.toMatch(/grid-cols/);
+  });
+
+  it("sem data de admissão, o tempo de empresa conta da criação da conta", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    await newEmployee("Teste tecnico", { email: "tecnico@teste.local", hire_date: "" });
+
+    await render("tecnico", "/hr", "/hr", <MyHrPage />);
+    await waitFor(() => has("Tempo de empresa"), "indicadores");
+    const card = Array.from(container.querySelectorAll("p")).find((element) => element.textContent === "Tempo de empresa")?.parentElement;
+    expect(card?.querySelectorAll("p")[1]?.textContent).not.toBe("—");
+  });
+});
+
+describe("Gestão de RH sem calendário", () => {
+  it("solicitações e pendências não têm a troca Lista/Calendário", async () => {
+    const db = testDb();
+    await insertTestCompany(db);
+    await render("rh", "/hr/manage", "/hr/manage", <HrManagePage />);
+    await waitFor(() => has("Solicitações"), "solicitações");
+    expect(Array.from(container.querySelectorAll("button")).some((button) => button.textContent?.trim() === "Calendário")).toBe(false);
+  });
+});
+
 describe("Gestão de RH (lista)", () => {
   it("colaboradores abrem a ficha; novo colaborador entra pela tabela; importar fica no contrato", async () => {
     const db = testDb();

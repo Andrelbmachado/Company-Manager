@@ -6,7 +6,6 @@ import { getDb } from "@/lib/db/client";
 import { emit } from "@/lib/events/bus";
 import { useRequiredSession } from "@/hooks/useSession";
 import { usePermission } from "@/hooks/usePermission";
-import { CalendarView } from "@/components/shared/CalendarView";
 import { EditableTable, type EditableColumn, type EditableTableChanges } from "@/components/shared/EditableTable";
 import { ImportExportButtons } from "@/components/shared/ImportExportButtons";
 import { KpiCard } from "@/components/shared/KpiCard";
@@ -20,8 +19,7 @@ import { fetchAnnouncements, fetchEmployees, fetchHrTasks, fetchRequests } from 
 import { REQUEST_TYPES, approvalError, isOnVacation, vacationBalance } from "@/lib/hr/rules";
 import { CONTRACT_TYPES } from "@/lib/hr/employees";
 import { CYCLE_LABEL, applyDueTerminations } from "@/lib/hr/employment";
-import { requestCalendarItems, saveAnnouncementRows, saveEmployeeRows, saveRequestRows, saveTaskRows, taskCalendarItems } from "@/lib/hr/tableEdits";
-import { ViewSwitch, type ListOrCalendar } from "../components/ViewSwitch";
+import { saveAnnouncementRows, saveEmployeeRows, saveRequestRows, saveTaskRows } from "@/lib/hr/tableEdits";
 import { ErrorAlert, errorMessage } from "../components/hrUi";
 import type { Employee, HrAnnouncement, HrRequest, HrTask, Role } from "@/types";
 
@@ -64,8 +62,6 @@ export default function HrManagePage() {
   const canDelete = usePermission("delete", "hr_admin");
   const [tab, setTab] = useState<Tab>("solicitacoes");
   const [filter, setFilter] = useState<"pendente" | "todas">("pendente");
-  const [requestView, setRequestView] = useState<ListOrCalendar>("lista");
-  const [taskView, setTaskView] = useState<ListOrCalendar>("lista");
   const [error, setError] = useState("");
 
   const employeesQuery = useQuery({ queryKey: ["hr", "employees", companyId], queryFn: () => fetchEmployees(companyId) });
@@ -246,9 +242,8 @@ export default function HrManagePage() {
                   <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn("rounded-md border px-3 py-1.5 text-sm font-medium", filter === value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>{value === "pendente" ? "Pendentes" : "Todas"}</button>
                 ))}
               </div>
-              <ViewSwitch value={requestView} onChange={setRequestView} label="Ver solicitações em" />
             </div>
-            <div hidden={requestView !== "lista"}>
+            <div>
               <EditableTable<HrRequest>
                 resource="hr_admin"
                 label="Solicitações"
@@ -268,7 +263,6 @@ export default function HrManagePage() {
                 emptyMessage={filter === "pendente" ? "Nada aguardando decisão" : "Nenhuma solicitação"}
               />
             </div>
-            {requestView === "calendario" && <CalendarView items={requestCalendarItems(requests, names)} label="Férias, folgas e atestados" />}
           </section>
         </TabPanel>
       </div>
@@ -315,8 +309,7 @@ export default function HrManagePage() {
       <div hidden={tab !== "pendencias"}>
         <TabPanel idPrefix="rh" id="pendencias">
           <section className="space-y-3">
-            <div className="flex justify-end"><ViewSwitch value={taskView} onChange={setTaskView} label="Ver pendências em" /></div>
-            <div hidden={taskView !== "lista"}>
+            <div>
               <EditableTable<HrTask>
                 resource="hr_admin"
                 label="Pendências"
@@ -330,7 +323,6 @@ export default function HrManagePage() {
                 emptyMessage="Nenhuma pendência"
               />
             </div>
-            {taskView === "calendario" && <CalendarView items={taskCalendarItems(tasks, names)} label="Prazos das pendências" />}
           </section>
         </TabPanel>
       </div>

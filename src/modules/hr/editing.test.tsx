@@ -66,7 +66,7 @@ async function showsCalendar(label = "Calendário"): Promise<void> {
 }
 
 describe("Gestão de RH: tudo na tabela", () => {
-  it("solicitações, colaboradores, comunicados e pendências editam no lugar; férias e prazos no calendário", async () => {
+  it("solicitações, colaboradores, comunicados e pendências editam no lugar (o calendário fica só na tela Calendário)", async () => {
     await insertTestCompany(testDb());
     const ana = await employee("Ana Lima", { department: "Comercial" });
     await saveRequestRows(testDb(), C, rh, { created: [{ employee_id: ana, type: "ferias", start_date: "2026-11-02", end_date: "2026-11-06" }], updated: [] }, todayIso());
@@ -75,8 +75,6 @@ describe("Gestão de RH: tudo na tabela", () => {
     onlyTitleAndNumber();
     expect(table().getAttribute("data-editable-table")).toBe("hr_admin");
     await editAndAddInPlace(table());
-    await showsCalendar();
-    expect(tables()).toHaveLength(0);
 
     await click(findButton(page.container, "Colaboradores"));
     await until(() => !!table() && page!.text().includes("Férias disponíveis"), "colaboradores");
@@ -111,7 +109,7 @@ describe("Gestão de RH: tudo na tabela", () => {
     await until(() => page!.text().includes("1 linha salva"), "pendência salva");
     const [task] = await testDb().select<HrTask[]>("SELECT * FROM hr_tasks WHERE company_id=? AND title=?", [C, "Enviar exame periódico"]);
     expect(task).toMatchObject({ employee_id: ana, due_date: "2026-11-20", status: "pendente" });
-    await showsCalendar();
+    expect(findButton(page.container, "Calendário")).toBeUndefined();
   });
 });
 
@@ -250,7 +248,7 @@ describe("Ficha do colaborador", () => {
 });
 
 describe("Trocar de aba ou ver o calendário não perde o rascunho", () => {
-  it("Gestão de RH: linha nova continua depois de trocar de aba e de ver o calendário", async () => {
+  it("Gestão de RH: linha nova continua depois de trocar de aba", async () => {
     await insertTestCompany(testDb());
     await employee("Ana Lima");
     page = await renderPage(<HrManagePage />, { companyId: C, role: "rh", path: "/hr/manage" });
@@ -267,8 +265,8 @@ describe("Trocar de aba ou ver o calendário não perde o rascunho", () => {
     await click(findButton(page.container, "Pendências"));
     await click(findButton(table(), "Adicionar"));
     await typeInto(field("Pendência (nova linha)"), "Enviar exame periódico");
-    await showsCalendar();
-    await click(findShownButton(page.container, "Lista"));
+    await click(findButton(page.container, "Solicitações"));
+    await click(findButton(page.container, "Pendências"));
     expect(field("Pendência (nova linha)")?.value).toBe("Enviar exame periódico");
     expect(await testDb().select("SELECT * FROM employees WHERE company_id=? AND name=?", [C, "Bruno Reis"])).toHaveLength(0);
   });

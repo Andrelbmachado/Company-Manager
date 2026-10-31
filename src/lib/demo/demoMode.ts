@@ -7,6 +7,7 @@ import { emit } from "@/lib/events/bus";
 import { can } from "@/lib/permissions/rbac";
 import { getCompanySetting, setCompanySetting } from "@/lib/settings/companySettings";
 import { seedDevData } from "@/lib/dev/devSeed";
+import type { AreaSeedResult } from "@/lib/dev/seeds";
 import { DISABLED_PASSWORD_HASH, ensureDevAccounts } from "@/lib/dev/devAccounts";
 import { countDemoRows, purgeDemoData } from "./purge";
 import type { Role } from "@/types";
@@ -71,6 +72,16 @@ export async function changeDemoMode(db: DatabaseLike, companyId: string, actor:
     metadata: on ? { inserted: result.inserted ?? 0 } : { removed: result.removed ?? 0, kept: result.kept ?? 0 },
   });
   return result;
+}
+
+/**
+ * Ao abrir o app com o modo ligado (App.tsx): roda os seeds de novo (idempotentes) para completar o que faltar, inclusive
+ * dados de exemplo novos de uma atualização. Com o modo desligado não faz nada.
+ */
+export async function refreshDemoData(db: DatabaseLike, companyId: string): Promise<AreaSeedResult[]> {
+  if (!(await isDemoMode(db, companyId))) return [];
+  await ensureDevAccounts(db, companyId, DISABLED_PASSWORD_HASH);
+  return seedDevData(companyId);
 }
 
 export interface DemoModeInitResult {

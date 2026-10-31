@@ -155,21 +155,14 @@ describe("seeds de área (src/lib/dev/seeds/*.ts)", () => {
     expect(results.map((result) => result.name)).toEqual(names);
   });
 
-  it("rodam também quando a flag principal já existe (cada área tem a sua)", async () => {
+  it("a flag principal já gravada não impede o seed principal (banco com a flag e sem os dados)", async () => {
     const db = testDb();
     await createDevCompany(db);
     await db.execute("INSERT INTO settings (id, company_id, key, value_json) VALUES (?, ?, ?, ?)", ["flag-antiga", COMPANY_ID, "seed.dev_data.v1", "{}"]);
     await seedDevData(COMPANY_ID);
-    expect(await count(db, "customers")).toBe(0);
-    expect(await count(db, "finance_categories")).toBeGreaterThan(0);
-    expect(await count(db, "products")).toBeGreaterThan(0);
-    expect(await count(db, "import_batches")).toBeGreaterThan(0);
-    // Sem clientes, fornecedores e colaboradores, as áreas que dependem deles esperam (sem flag) o próximo login.
-    for (const table of ["sales_orders", "purchase_orders", "crm_activities", "inventory_counts", "hr_time_entries"]) expect(await count(db, table), table).toBe(0);
-    for (const area of ["crm", "sales", "purchasing", "inventory", "hr"]) {
-      const flags = await db.select<{ n: number }[]>("SELECT count(*) AS n FROM settings WHERE company_id = ? AND key = ?", [COMPANY_ID, `seed.dev.${area}.v1`]);
-      expect(flags[0].n, area).toBe(0);
-    }
+    expect(await count(db, "customers")).toBe(12);
+    expect(await count(db, "work_orders")).toBeGreaterThan(0);
+    for (const table of ["sales_orders", "purchase_orders", "crm_activities", "inventory_counts", "hr_time_entries"]) expect(await count(db, table), table).toBeGreaterThan(0);
     expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
   });
 

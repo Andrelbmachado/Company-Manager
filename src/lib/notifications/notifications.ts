@@ -3,6 +3,8 @@
 // de e-mail `email_outbox`, enviada pelo app de e-mail da pessoa (Configurações). SQL nos padrões do banco demo.
 import { v4 as uuidv4 } from "uuid";
 import type { DatabaseLike } from "@/lib/db/demo";
+import { isDemoId } from "@/lib/demo/purge";
+import { isDemoMode } from "@/lib/demo/state";
 import type { Notification } from "@/types";
 
 export const notificationsQueryKey = (companyId: string, userId: string) => ["notifications", companyId, userId] as const;
@@ -17,7 +19,10 @@ export interface NotifyInput {
   important?: boolean;
   refType?: string | null;
   refId?: string | null;
-  /** Prefixo do id (os dados de exemplo usam "dev-" para a limpeza do modo demonstração achar). */
+  /**
+   * Prefixo do id (os dados de exemplo usam "dev-" para a limpeza do modo demonstração achar). Aviso sobre um registro
+   * de exemplo (`refId` dev-/demo-) ou para uma conta de exemplo já ganha "dev-" sozinho.
+   */
   idPrefix?: string;
 }
 
@@ -32,18 +37,21 @@ export async function notifyUsers(db: DatabaseLike, companyId: string, input: No
   const ids: string[] = [];
   const now = new Date().toISOString();
   for (const userId of new Set(input.userIds)) {
-    const id = `${input.idPrefix ?? ""}${uuidv4()}`;
+    const example = isDemoId(input.refId) || isDemoId(userId);
+    const prefix = input.idPrefix ?? (example ? "dev-" : "");
+    const id = `${prefix}${uuidv4()}`;
     await db.execute(
       "INSERT INTO notifications (id, company_id, user_id, type, title, message, link, important, ref_type, ref_id, is_read, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
       [id, companyId, userId, input.type, input.title, input.message, input.link ?? null, input.important ? 1 : 0, input.refType ?? null, input.refId ?? null, 0, now],
     );
     ids.push(id);
-    if (!input.important) continue;
+    // Contas de exemplo (dev.<papel>@company.local) não recebem e-mail.
+    if (!input.important || isDemoId(userId)) continue;
     const [user] = await db.select<UserRow[]>("SELECT * FROM users WHERE id=?", [userId]);
     const email = user?.email?.trim();
     if (!email) continue;
     await db.execute("INSERT INTO email_outbox (id, company_id, notification_id, to_email, subject, body, status, created_at) VALUES (?,?,?,?,?,?,?,?)", [
-      `${input.idPrefix ?? ""}${uuidv4()}`,
+      `${prefix}${uuidv4()}`,
       companyId,
       id,
       email,
@@ -56,12 +64,14 @@ export async function notifyUsers(db: DatabaseLike, companyId: string, input: No
   return ids;
 }
 
-/** Contas ativas da empresa (vínculos não removidos, conta não suspensa). */
+/** Contas ativas da empresa (vínculos não removidos, conta não suspensa); as de exemplo só com o modo demonstração ligado. */
 export async function companyUserIds(db: DatabaseLike, companyId: string): Promise<string[]> {
+  const withExamples = await isDemoMode(db, companyId);
   const memberships = await db.select<{ user_id: string; deleted_at?: string | null }[]>("SELECT * FROM memberships WHERE company_id=?", [companyId]);
   const ids: string[] = [];
   for (const membership of memberships) {
     if (membership.deleted_at || !membership.user_id) continue;
+    if (!withExamples && isDemoId(membership.user_id)) continue;
     const [user] = await db.select<UserRow[]>("SELECT * FROM users WHERE id=?", [membership.user_id]);
     if (user && user.status !== "suspended") ids.push(user.id);
   }

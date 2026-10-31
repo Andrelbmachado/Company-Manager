@@ -18,7 +18,8 @@ export async function fetchMyEmployee(companyId: string, userId: string): Promis
 /** Cria o cadastro do próprio usuário na primeira visita ao Meu RH, quando o RH ainda não o cadastrou. Idempotente. */
 export async function ensureMyEmployee(session: Session): Promise<Employee> {
   const employee = await findOrCreateMyEmployee(session);
-  await seedMyHrIfDemo(session.company.id, employee.id);
+  // O exemplo é opcional: se falhar, o Meu RH abre com o cadastro de verdade assim mesmo.
+  await seedMyHrIfDemo(session.company.id, employee.id).catch((error) => console.warn("[demo] não foi possível criar o Meu RH de exemplo", error));
   return employee;
 }
 

@@ -1,6 +1,8 @@
 // Notificações do menu da conta: comunicados do RH, decisões de solicitação e pendências novas. SQLite real.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, insertTestCompany, type TestDb } from "@/test/sqlite";
+import { DISABLED_PASSWORD_HASH, ensureDevAccounts } from "@/lib/dev/devAccounts";
+import { setCompanySetting } from "@/lib/settings/companySettings";
 import { listNotifications, markRead, notifyAnnouncement, notifyEmployees, notifyUsers, unreadCount } from "./notifications";
 
 const C = "test-company";
@@ -57,5 +59,36 @@ describe("notificações", () => {
     await markRead(db, C, users.ceo);
     expect(await unreadCount(db, C, users.ceo)).toBe(0);
     expect(await unreadCount(db, C, users.rh)).toBe(1);
+  });
+
+  it("contas de exemplo ficam de fora com o modo demonstração desligado e nunca entram na fila de e-mail", async () => {
+    await ensureDevAccounts(db, C, DISABLED_PASSWORD_HASH);
+    await setCompanySetting(db, C, "demo_mode", false);
+
+    await notifyAnnouncement(db, C, { id: "a3", title: "Aviso", body: "Texto", important: 1 });
+
+    expect(await count("SELECT count(*) AS n FROM notifications WHERE user_id LIKE 'dev-%'")).toBe(0);
+    expect(await count("SELECT count(*) AS n FROM email_outbox WHERE to_email LIKE '%@company.local'")).toBe(0);
+    expect(await count("SELECT count(*) AS n FROM notifications")).toBe(3);
+
+    await setCompanySetting(db, C, "demo_mode", true);
+    await notifyAnnouncement(db, C, { id: "a4", title: "Aviso 2", body: "Texto", important: 1 });
+
+    // Modo ligado: as contas de exemplo veem o aviso (id dev-, a limpeza apaga), mas e-mail só para contas reais.
+    const demo = await db.select<{ id: string }[]>("SELECT id FROM notifications WHERE user_id LIKE 'dev-%'");
+    expect(demo.length).toBeGreaterThan(0);
+    expect(demo.every((row) => row.id.startsWith("dev-"))).toBe(true);
+    expect(await count("SELECT count(*) AS n FROM email_outbox WHERE to_email LIKE '%@company.local'")).toBe(0);
+    expect(await count("SELECT count(*) AS n FROM email_outbox")).toBe(6);
+  });
+
+  it("aviso sobre um registro de exemplo ganha id dev- para a limpeza do modo demonstração apagar", async () => {
+    const [id] = await notifyUsers(db, C, { userIds: [users.ceo], type: "hr_request", title: "Férias aprovada", message: "ok", important: true, refType: "hr_request", refId: "dev-people-request-1" });
+    expect(id.startsWith("dev-")).toBe(true);
+    const outbox = await db.select<{ id: string }[]>("SELECT id FROM email_outbox");
+    expect(outbox.every((row) => row.id.startsWith("dev-"))).toBe(true);
+
+    const [real] = await notifyUsers(db, C, { userIds: [users.ceo], type: "hr_request", title: "Férias aprovada", message: "ok", refType: "hr_request", refId: "f1" });
+    expect(real.startsWith("dev-")).toBe(false);
   });
 });

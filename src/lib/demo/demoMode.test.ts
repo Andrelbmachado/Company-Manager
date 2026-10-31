@@ -315,6 +315,19 @@ describe("refreshDemoData", () => {
     expect(await db.select("PRAGMA foreign_key_check")).toEqual([]);
   });
 
+  it("desligar enquanto a recomposição roda não deixa dados de exemplo para trás", async () => {
+    const db = await ready();
+    await setCompanySetting(db, COMPANY, DEMO_MODE_KEY, true);
+
+    const refresh = refreshDemoData(db, COMPANY);
+    const off = setDemoMode(db, COMPANY, false);
+    await Promise.all([refresh, off]);
+
+    expect(await isDemoMode(db, COMPANY)).toBe(false);
+    expect(await count(db, "work_orders")).toBe(0);
+    expect(await count(db, "employees")).toBe(0);
+  });
+
   it("com o modo desligado não grava nada", async () => {
     const db = await ready();
     const before = await snapshot(db);
